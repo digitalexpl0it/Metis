@@ -37,7 +37,12 @@ impl WidgetRefs {
             w.update(&snapshot.network_label, snapshot.network_connected);
         }
         if let Some(w) = self.volume.borrow().as_ref() {
-            w.update(snapshot.volume_percent, snapshot.volume_muted);
+            w.update(
+                snapshot.volume_percent,
+                snapshot.volume_muted,
+                snapshot.mic_percent,
+                snapshot.mic_muted,
+            );
         }
         if let Some(w) = self.notifications.borrow().as_ref() {
             w.update(&snapshot.notifications);

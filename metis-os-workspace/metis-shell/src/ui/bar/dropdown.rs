@@ -41,6 +41,21 @@ pub fn wire_toggle_prepare(
     popover.add_css_class("metis-bar-popover");
     popover.set_parent(button);
 
+    // Highlight the triggering icon only while its popover is open; clear it the
+    // moment the popover closes, regardless of pointer position.
+    {
+        let btn = button.clone();
+        popover.connect_map(move |_| {
+            btn.add_css_class("metis-bar-dropdown-active");
+        });
+    }
+    {
+        let btn = button.clone();
+        popover.connect_unmap(move |_| {
+            btn.remove_css_class("metis-bar-dropdown-active");
+        });
+    }
+
     POPOVERS.with(|list| list.borrow_mut().push(popover.clone()));
 
     let popover_weak = popover.downgrade();

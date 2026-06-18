@@ -11,6 +11,8 @@ enum AudioCommand {
     SetVolumeAbsolute(u8),
     SetVolumeRelative(i8),
     SetMute(bool),
+    SetMicVolumeAbsolute(u8),
+    SetMicMute(bool),
 }
 
 static AUDIO_CMD_TX: OnceLock<Sender<AudioCommand>> = OnceLock::new();
@@ -23,6 +25,8 @@ pub struct BarSnapshot {
     pub network_connected: bool,
     pub volume_percent: u8,
     pub volume_muted: bool,
+    pub mic_percent: u8,
+    pub mic_muted: bool,
     pub notifications: Vec<BarNotification>,
     pub workspaces: workspaces::WorkspaceSnapshot,
 }
@@ -56,8 +60,20 @@ fn poll_loop(tx: Sender<BarSnapshot>, audio_rx: Receiver<AudioCommand>) {
             cached.network_connected = read_network_connected();
         }
         if tick % 2 == 0 {
-            cached.volume_percent = read_volume_percent();
-            cached.volume_muted = read_volume_muted();
+            // Keep the last good reading when pactl times out / reports nothing,
+            // so a transient failure doesn't snap sliders to 0 or flip mute state.
+            if let Some(v) = read_volume_percent() {
+                cached.volume_percent = v;
+            }
+            if let Some(m) = read_volume_muted() {
+                cached.volume_muted = m;
+            }
+            if let Some(v) = read_mic_percent() {
+                cached.mic_percent = v;
+            }
+            if let Some(m) = read_mic_muted() {
+                cached.mic_muted = m;
+            }
         }
         if tick % 5 == 0 && std::env::var("METIS_DEMO_NOTIFICATIONS").is_ok() {
             cached.notifications = notifications::demo_notifications();
@@ -81,6 +97,8 @@ fn drain_audio_commands(rx: &Receiver<AudioCommand>) {
             AudioCommand::SetVolumeAbsolute(pct) => run_set_volume_absolute(pct),
             AudioCommand::SetVolumeRelative(delta) => run_set_volume_relative(delta),
             AudioCommand::SetMute(muted) => run_set_mute(muted),
+            AudioCommand::SetMicVolumeAbsolute(pct) => run_set_mic_volume_absolute(pct),
+            AudioCommand::SetMicMute(muted) => run_set_mic_mute(muted),
         }
     }
 }
@@ -162,29 +180,60 @@ fn read_network_label() -> String {
     }
 }
 
-fn read_volume_percent() -> u8 {
+fn read_volume_percent() -> Option<u8> {
     let mut cmd = std::process::Command::new("pactl");
     cmd.args(["get-sink-volume", "@DEFAULT_SINK@"]);
-    run_command(&mut cmd)
-        .and_then(|o| {
-            let text = String::from_utf8_lossy(&o.stdout);
-            text.split_whitespace()
-                .nth(4)
-                .and_then(|s| s.trim_end_matches('%').parse().ok())
-        })
-        .unwrap_or(0)
+    run_command(&mut cmd).and_then(|o| {
+        let text = String::from_utf8_lossy(&o.stdout);
+        text.split_whitespace()
+            .nth(4)
+            .and_then(|s| s.trim_end_matches('%').parse().ok())
+    })
 }
 
-fn read_volume_muted() -> bool {
+fn read_volume_muted() -> Option<bool> {
     let mut cmd = std::process::Command::new("pactl");
     cmd.args(["get-sink-mute", "@DEFAULT_SINK@"]);
-    run_command(&mut cmd)
-        .map(|o| String::from_utf8_lossy(&o.stdout).contains("yes"))
-        .unwrap_or(false)
+    run_command(&mut cmd).and_then(|o| parse_mute(&String::from_utf8_lossy(&o.stdout)))
+}
+
+fn parse_mute(text: &str) -> Option<bool> {
+    if text.contains("yes") {
+        Some(true)
+    } else if text.contains("no") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+fn read_mic_percent() -> Option<u8> {
+    let mut cmd = std::process::Command::new("pactl");
+    cmd.args(["get-source-volume", "@DEFAULT_SOURCE@"]);
+    run_command(&mut cmd).and_then(|o| {
+        let text = String::from_utf8_lossy(&o.stdout);
+        text.split_whitespace()
+            .nth(4)
+            .and_then(|s| s.trim_end_matches('%').parse().ok())
+    })
+}
+
+fn read_mic_muted() -> Option<bool> {
+    let mut cmd = std::process::Command::new("pactl");
+    cmd.args(["get-source-mute", "@DEFAULT_SOURCE@"]);
+    run_command(&mut cmd).and_then(|o| parse_mute(&String::from_utf8_lossy(&o.stdout)))
 }
 
 pub fn set_volume_relative(delta: i8) {
     queue_audio(AudioCommand::SetVolumeRelative(delta));
+}
+
+pub fn set_mic_volume_absolute(percent: u8) {
+    queue_audio(AudioCommand::SetMicVolumeAbsolute(percent));
+}
+
+pub fn set_mic_mute(muted: bool) {
+    queue_audio(AudioCommand::SetMicMute(muted));
 }
 
 pub fn set_volume_absolute(percent: u8) {
@@ -226,5 +275,22 @@ fn run_set_mute(muted: bool) {
     let flag = if muted { "yes" } else { "no" };
     let mut cmd = std::process::Command::new("pactl");
     cmd.args(["set-sink-mute", "@DEFAULT_SINK@", flag]);
+    let _ = run_command(&mut cmd);
+}
+
+fn run_set_mic_volume_absolute(percent: u8) {
+    let mut cmd = std::process::Command::new("pactl");
+    cmd.args([
+        "set-source-volume",
+        "@DEFAULT_SOURCE@",
+        &format!("{}%", percent.min(100)),
+    ]);
+    let _ = run_command(&mut cmd);
+}
+
+fn run_set_mic_mute(muted: bool) {
+    let flag = if muted { "yes" } else { "no" };
+    let mut cmd = std::process::Command::new("pactl");
+    cmd.args(["set-source-mute", "@DEFAULT_SOURCE@", flag]);
     let _ = run_command(&mut cmd);
 }

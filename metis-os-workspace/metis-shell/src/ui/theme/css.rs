@@ -82,12 +82,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: {rs}px {rs}px 0 0;
     }}
 
-    button.metis-bar-dropdown-active {{
+    /* Match the hover style exactly so the open icon looks identical whether or
+       not the pointer is over it. Specificity is raised to beat `:hover`. */
+    button.metis-bar-dropdown-active,
+    button.metis-bar-widget.metis-bar-dropdown-active,
+    button.metis-bar-widget.metis-bar-dropdown-active:hover {{
         background-image: linear-gradient(to top,
-            rgba(34, 211, 238, 0.44) 0%,
-            rgba(34, 211, 238, 0.16) 45%,
-            rgba(255, 255, 255, 0.08) 100%);
-        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 1);
+            rgba(34, 211, 238, 0.34) 0%,
+            rgba(34, 211, 238, 0.10) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 0.95);
         border-radius: {rs}px {rs}px 0 0;
     }}
 
@@ -403,6 +407,29 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {muted};
         font-size: 12px;
         margin-left: 8px;
+    }}
+
+    .metis-bar-audio-mute {{
+        padding: 6px;
+        margin: 0;
+        min-width: 0;
+        min-height: 0;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+
+    .metis-bar-audio-mute:hover {{
+        color: {accent};
+        background-color: rgba(34, 211, 238, 0.12);
+    }}
+
+    .metis-bar-audio-mute:active {{
+        background-color: rgba(34, 211, 238, 0.20);
     }}
 
     .metis-bar-dropdown-panel switch {{

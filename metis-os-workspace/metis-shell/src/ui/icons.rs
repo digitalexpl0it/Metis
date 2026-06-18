@@ -53,4 +53,16 @@ pub mod names {
             "audio-volume-high-symbolic"
         }
     }
+
+    pub fn mic(percent: u8, muted: bool) -> &'static str {
+        if muted || percent == 0 {
+            "microphone-sensitivity-muted-symbolic"
+        } else if percent < 35 {
+            "microphone-sensitivity-low-symbolic"
+        } else if percent < 70 {
+            "microphone-sensitivity-medium-symbolic"
+        } else {
+            "microphone-sensitivity-high-symbolic"
+        }
+    }
 }
