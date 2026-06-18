@@ -1,0 +1,29 @@
+[package]
+name = "metis-compositor"
+version = "0.1.0"
+edition.workspace = true
+
+[[bin]]
+name = "metis-compositor"
+path = "src/main.rs"
+
+[dependencies]
+bitflags = "2.6"
+metis-grid = { workspace = true }
+metis-protocol = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+directories = "5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[dependencies.smithay]
+git = "https://github.com/Smithay/smithay"
+default-features = false
+features = [
+    "backend_winit",
+    "wayland_frontend",
+    "desktop",
+    "renderer_gl",
+]

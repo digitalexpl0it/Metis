@@ -1,0 +1,22 @@
+{
+  "name": "dark",
+  "mode": "dark",
+  "bg": "#121214",
+  "surface": "#1E1E24",
+  "surface_raised": "#25262C",
+  "border": "#2A2B36",
+  "text": "#FFFFFF",
+  "text_muted": "#A0A5B5",
+  "accent": ["#00F2FE", "#4FACFE", "#43E97B"],
+  "radius_sm": 4,
+  "radius_md": 6,
+  "radius_lg": 8,
+  "gutter_px": 14,
+  "card_opacity": 0.94,
+  "scrim_opacity": 0.18,
+  "glow_intensity": 1.0,
+  "shadow_ambient": "0 8px 32px rgba(0, 0, 0, 0.45)",
+  "glow_cool": "0 0 48px rgba(0, 180, 255, 0.14)",
+  "glow_warm": "0 0 48px rgba(255, 100, 40, 0.16)",
+  "glow_violet": "0 0 48px rgba(140, 80, 255, 0.12)"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "light",
+  "mode": "light",
+  "bg": "#F4F4F6",
+  "surface": "#FFFFFF",
+  "surface_raised": "#F0F0F4",
+  "border": "#E2E2E8",
+  "text": "#1A1A1E",
+  "text_muted": "#6B6B76",
+  "accent": ["#0099CC", "#3B8ED0", "#2EAD6A"],
+  "radius_sm": 4,
+  "radius_md": 6,
+  "radius_lg": 8,
+  "gutter_px": 14,
+  "card_opacity": 0.96,
+  "scrim_opacity": 0.08,
+  "glow_intensity": 0.6,
+  "shadow_ambient": "0 8px 24px rgba(0, 0, 0, 0.10)",
+  "glow_cool": "0 0 40px rgba(0, 120, 200, 0.08)",
+  "glow_warm": "0 0 40px rgba(255, 120, 40, 0.08)",
+  "glow_violet": "0 0 40px rgba(120, 60, 200, 0.06)"
+}

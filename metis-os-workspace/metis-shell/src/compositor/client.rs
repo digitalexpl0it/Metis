@@ -1,0 +1,145 @@
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::UnixStream;
+use std::time::Duration;
+
+use metis_protocol::{CompositorCommand, CompositorEvent, GridLayout, GridMetrics, MonitorRect, TileMode, WindowInfo};
+
+pub fn primary_monitor_rect() -> MonitorRect {
+    match send_command(CompositorCommand::GetMonitor) {
+        Ok(CompositorEvent::Monitor { rect }) => rect,
+        _ => MonitorRect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        },
+    }
+}
+
+pub fn get_layout() -> std::io::Result<(GridLayout, u32, GridMetrics)> {
+    match send_command(CompositorCommand::GetLayout)? {
+        CompositorEvent::LayoutChanged {
+            layout,
+            gutter_px,
+            metrics,
+        } => Ok((layout, gutter_px, metrics)),
+        CompositorEvent::Error { message } => Err(std::io::Error::other(message)),
+        _ => Err(std::io::Error::other("unexpected compositor response for GetLayout")),
+    }
+}
+
+pub fn close_window(id: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::CloseWindow { id })?;
+    Ok(())
+}
+
+pub fn set_window_fullscreen(id: u32, enabled: bool) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SetFullscreen { id, enabled })?;
+    Ok(())
+}
+
+pub fn set_tile_mode(tile_id: &str, mode: TileMode) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SetTileMode {
+        tile_id: tile_id.to_string(),
+        mode,
+    })?;
+    Ok(())
+}
+
+pub fn list_windows() -> std::io::Result<Vec<WindowInfo>> {
+    match send_command(CompositorCommand::ListWindows)? {
+        CompositorEvent::WindowList { windows } => Ok(windows),
+        CompositorEvent::Error { message } => Err(std::io::Error::other(message)),
+        _ => Err(std::io::Error::other("unexpected compositor response")),
+    }
+}
+
+pub fn apply_grid_layout(layout: GridLayout, gutter_px: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::ApplyLayout { layout, gutter_px })?;
+    Ok(())
+}
+
+pub fn launch_program(program: &str) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::Launch {
+        program: program.to_string(),
+    })?;
+    Ok(())
+}
+
+fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
+    let path = metis_protocol::ipc_socket_path();
+    let mut stream = UnixStream::connect(&path).map_err(|e| {
+        std::io::Error::new(
+            e.kind(),
+            format!("Metis compositor not running at {}: {e}", path.display()),
+        )
+    })?;
+    stream.set_read_timeout(Some(Duration::from_millis(400)))?;
+    let payload = serde_json::to_string(&cmd).map_err(std::io::Error::other)?;
+    writeln!(stream, "{payload}")?;
+    stream.flush()?;
+    let mut reader = BufReader::new(stream);
+    let mut response = String::new();
+    reader.read_line(&mut response)?;
+    let line = response.trim();
+    if line.is_empty() {
+        return Err(std::io::Error::other("empty compositor response"));
+    }
+    serde_json::from_str(line).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+pub fn spawn_listener(handles: crate::state::StateHandles) {
+    std::thread::Builder::new()
+        .name("metis-compositor-events".into())
+        .spawn(move || listen(handles))
+        .expect("failed to spawn compositor event thread");
+}
+
+fn listen(handles: crate::state::StateHandles) {
+    let events = handles.events.clone();
+
+    if send_command(CompositorCommand::Ping).is_ok() {
+        events.publish(crate::state::SystemEvent::CompositorConnected);
+    }
+
+    loop {
+        match connect_events_socket() {
+            Ok(stream) => {
+                tracing::info!("subscribed to compositor event stream");
+                read_events(stream, &events);
+            }
+            Err(err) => {
+                tracing::debug!(%err, "event socket connect failed, retrying");
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+}
+
+fn connect_events_socket() -> std::io::Result<UnixStream> {
+    let path = metis_protocol::events_socket_path();
+    let stream = UnixStream::connect(&path)?;
+    stream.set_read_timeout(None)?;
+    Ok(stream)
+}
+
+fn read_events(stream: UnixStream, events: &crate::state::EventPublisher) {
+    let reader = BufReader::new(stream);
+    for line in reader.lines() {
+        let Ok(line) = line else {
+            tracing::warn!("compositor event stream disconnected");
+            break;
+        };
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<CompositorEvent>(&line) {
+            Ok(evt) => {
+                events.publish(crate::state::SystemEvent::Compositor(evt));
+            }
+            Err(err) => {
+                tracing::warn!(%err, line = line.as_str(), "failed to parse compositor event");
+            }
+        }
+    }
+}

@@ -1,0 +1,30 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# Backtraces
+rustc-ice-*.txt
+
+# Local environment / direnv
+.env
+.direnv/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Runtime / logs
+*.log
+/tmp/
+
+# Nix
+result
+result-*

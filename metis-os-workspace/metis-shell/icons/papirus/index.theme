@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=Metis-Papirus
+Comment=Bundled Papirus panel icons for the Metis edge bar
+Inherits=Papirus,hicolor
+Directories=22x22/panel
+
+[22x22/panel]
+Size=22
+Context=Any
+Type=Scalable
+MinSize=16
+MaxSize=256
