@@ -32,13 +32,11 @@ fn metis_bar_pointer_active(
         return false;
     };
     let local = rel - layer_geo.loc.to_f64();
-    // Use committed surface bbox — layer geometry can be larger than the bar strip.
-    let bbox = layer.bbox();
-    if local.x < 0.0
-        || local.y < 0.0
-        || local.x >= bbox.size.w as f64
-        || local.y >= bbox.size.h as f64
-    {
+    // Include popups: the bar's dropdown popovers render below the strip, so the
+    // plain `bbox()` (strip only) would treat popover clicks as "outside the bar"
+    // and wrongly dismiss them. `bbox_with_popups()` covers the popover region too.
+    let bbox = layer.bbox_with_popups();
+    if !bbox.to_f64().contains(local) {
         return false;
     }
     layer
@@ -217,14 +215,12 @@ impl MetisState {
     }
 
     /// True when a pointer press should dismiss open bar popovers.
+    ///
+    /// Any press that does not land on the bar chrome or its popover (i.e. bare
+    /// desktop OR an app window) dismisses. Bar-local clicks are handled by the
+    /// shell itself (GTK), which avoids a race with the poll-based dismiss signal.
     pub fn should_dismiss_bar_popovers(&self, pos: Point<f64, Logical>) -> bool {
-        if self.metis_bar_ui_hit(pos) {
-            return false;
-        }
-        matches!(
-            self.classify_hit(pos.x as i32, pos.y as i32),
-            DeskHit::Empty
-        )
+        !self.metis_bar_ui_hit(pos)
     }
 
     /// Bar chrome or an attached dropdown panel below the bar strip.

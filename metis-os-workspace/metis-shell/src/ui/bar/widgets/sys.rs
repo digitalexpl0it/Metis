@@ -108,10 +108,6 @@ impl VolumeWidget {
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(10);
-        panel.set_margin_top(10);
-        panel.set_margin_bottom(10);
-        panel.set_margin_start(14);
-        panel.set_margin_end(14);
         panel.set_width_request(240);
 
         let title = gtk::Label::builder()

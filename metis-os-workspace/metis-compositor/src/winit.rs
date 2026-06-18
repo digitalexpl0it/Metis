@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Mutex;
 use std::time::Duration;
 
 use smithay::{
@@ -8,9 +7,8 @@ use smithay::{
         renderer::{
             damage::OutputDamageTracker,
             element::{
-                Kind,
                 render_elements,
-                surface::{WaylandSurfaceRenderElement, render_elements_from_surface_tree},
+                surface::WaylandSurfaceRenderElement,
                 texture::TextureRenderElement,
             },
             gles::{GlesRenderer, GlesTexture},
@@ -21,14 +19,12 @@ use smithay::{
         space::space_render_elements,
         Window,
     },
-    input::pointer::{CursorImageAttributes, CursorImageStatus},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::{
         EventLoop,
         timer::{TimeoutAction, Timer},
     },
-    utils::{IsAlive, Rectangle, Scale, Size, Transform},
-    wayland::compositor,
+    utils::{Rectangle, Size, Transform},
 };
 
 use crate::ipc;
@@ -176,54 +172,17 @@ pub fn init_winit(
                     let size = backend.window_size();
                     let damage = Rectangle::from_size(size);
 
-                    if let CursorImageStatus::Surface(ref surface) = state.cursor_status {
-                        if !surface.alive() {
-                            state.cursor_status = CursorImageStatus::default_named();
-                        }
-                    }
-                    let client_cursor = matches!(state.cursor_status, CursorImageStatus::Surface(_));
-                    backend.window().set_cursor_visible(!client_cursor);
+                    // Single cursor source: always show the host (winit) cursor and
+                    // never render client cursor surfaces. In this nested compositor,
+                    // rendering the client's own cursor produced a second cursor with a
+                    // mismatched size over GTK surfaces; the host cursor stays uniform.
+                    backend.window().set_cursor_visible(true);
 
                     match backend.bind() {
                         Ok((renderer, mut framebuffer)) => {
-                            let pointer = state.seat.get_pointer().unwrap();
-                            let cursor_pos = pointer.current_location();
-                            let cursor_hotspot = match &state.cursor_status {
-                                CursorImageStatus::Surface(surface) => {
-                                    compositor::with_states(surface, |states| {
-                                        states
-                                            .data_map
-                                            .get::<Mutex<CursorImageAttributes>>()
-                                            .map(|attrs| attrs.lock().unwrap().hotspot)
-                                            .unwrap_or_default()
-                                    })
-                                }
-                                _ => Default::default(),
-                            };
-                            let cursor_location = (cursor_pos - cursor_hotspot.to_f64())
-                                .to_physical(Scale::from(1.0))
-                                .to_i32_round();
-
-                            let cursor_elements: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
-                                match &state.cursor_status {
-                                    CursorImageStatus::Surface(surface) => {
-                                        render_elements_from_surface_tree(
-                                            renderer,
-                                            surface,
-                                            cursor_location,
-                                            Scale::from(1.0),
-                                            1.0,
-                                            Kind::Cursor,
-                                        )
-                                    }
-                                    _ => Vec::new(),
-                                };
-
                             state.wallpaper.poll_decode();
                             state.wallpaper.ensure(renderer);
 
-                            let cursor_owned: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
-                                cursor_elements;
                             let wallpaper_owned = state.wallpaper.render_element();
 
                             let space_render_elements = match space_render_elements::<
@@ -240,21 +199,20 @@ pub fn init_winit(
                                 }
                             };
 
+                            // smithay's damage renderer draws elements front-to-back:
+                            // the FIRST element in the slice ends up on top, so the
+                            // wallpaper goes last (behind everything).
                             let mut render_elements = Vec::with_capacity(
-                                cursor_owned.len()
-                                    + space_render_elements.len()
+                                space_render_elements.len()
                                     + usize::from(wallpaper_owned.is_some()),
                             );
-                            if let Some(wallpaper) = wallpaper_owned {
-                                render_elements.push(OutputStack::Wallpaper(wallpaper));
-                            }
                             render_elements.extend(
                                 space_render_elements
                                     .into_iter()
                                     .map(OutputStack::Space),
                             );
-                            for cursor in cursor_owned {
-                                render_elements.push(OutputStack::Cursor(cursor));
+                            if let Some(wallpaper) = wallpaper_owned {
+                                render_elements.push(OutputStack::Wallpaper(wallpaper));
                             }
 
                             if let Err(err) = damage_tracker.render_output(

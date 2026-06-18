@@ -87,6 +87,27 @@ pub fn init_and_show(app: &gtk::Application) {
 
     column.append(&pill);
 
+    // Click on empty bar space (not an icon button, not the popover) dismisses any
+    // open popover. Bubble phase means child buttons that claim the press are
+    // skipped, so this never fires when toggling/opening an icon.
+    let dismiss = gtk::GestureClick::builder()
+        .button(0)
+        .propagation_phase(gtk::PropagationPhase::Bubble)
+        .build();
+    let pill_for_dismiss = pill.clone();
+    dismiss.connect_pressed(move |_, _, x, y| {
+        // Popover presses bubble up here because the popover is a widget-tree
+        // child of its icon button. Ignore anything outside the pill's own strip
+        // so interacting with the popover doesn't dismiss it.
+        let w = pill_for_dismiss.width() as f64;
+        let h = pill_for_dismiss.height() as f64;
+        if x < 0.0 || y < 0.0 || x > w || y > h {
+            return;
+        }
+        dropdown::request_close_all();
+    });
+    pill.add_controller(dismiss);
+
     outer.append(&column);
     outer.set_hexpand(true);
     outer.set_vexpand(false);

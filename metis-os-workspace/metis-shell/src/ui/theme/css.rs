@@ -6,6 +6,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let raised = theme.surface_raised.clone();
     let rs = theme.radius_sm;
     let rm = theme.radius_md;
+    let rl = theme.radius_lg;
 
     format!(
         r#"
@@ -143,8 +144,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-dropdown-panel {{
         background-color: {raised};
         border: 1px solid {border};
-        border-radius: {rm}px;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        border-radius: {rl}px;
+        padding: 14px 16px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55),
+                    0 2px 8px rgba(0, 0, 0, 0.35),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }}
 
     .metis-bar-clock {{
@@ -223,6 +227,13 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 0;
         border: none;
         background-color: transparent;
+    }}
+
+    popover.metis-bar-popover > arrow {{
+        background-color: {raised};
+        border: 1px solid {border};
+        min-width: 16px;
+        min-height: 8px;
     }}
 
     popover.metis-notif-popover {{
@@ -362,6 +373,61 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-volume-scale {{
         min-width: 180px;
+        padding: 2px 0;
+    }}
+
+    .metis-bar-volume-scale trough {{
+        background-color: rgba(255, 255, 255, 0.12);
+        border: none;
+        border-radius: 999px;
+        min-height: 5px;
+    }}
+
+    .metis-bar-volume-scale highlight {{
+        background-color: {accent};
+        border-radius: 999px;
+        min-height: 5px;
+    }}
+
+    .metis-bar-volume-scale slider {{
+        background-color: #ffffff;
+        border: none;
+        border-radius: 999px;
+        min-width: 15px;
+        min-height: 15px;
+        margin: -6px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    }}
+
+    .metis-bar-volume-scale value {{
+        color: {muted};
+        font-size: 12px;
+        margin-left: 8px;
+    }}
+
+    .metis-bar-dropdown-panel switch {{
+        background-color: rgba(255, 255, 255, 0.14);
+        border: none;
+        border-radius: 999px;
+        min-width: 40px;
+        min-height: 22px;
+    }}
+
+    .metis-bar-dropdown-panel switch:checked {{
+        background-color: {accent};
+    }}
+
+    .metis-bar-dropdown-panel switch > slider {{
+        background-color: #ffffff;
+        border-radius: 999px;
+        min-width: 18px;
+        min-height: 18px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    }}
+
+    .metis-bar-dropdown-panel separator {{
+        background-color: {border};
+        min-height: 1px;
     }}
 
     .metis-bar-popover-panel {{
@@ -447,6 +513,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border = theme.border,
         rm = rm,
         rs = rs,
+        rl = rl,
         raised = raised,
         accent = accent,
         text = theme.text,

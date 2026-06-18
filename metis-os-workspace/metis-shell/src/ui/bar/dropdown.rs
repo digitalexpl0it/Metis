@@ -54,6 +54,9 @@ pub fn wire_toggle_prepare(
             });
             return;
         }
+        // Single-open behavior: close any other popover before opening this one,
+        // so clicking a different bar icon switches instead of stacking.
+        close_all();
         prepare();
         // Defer popup so we are not inside the compositor's pointer-dispatch stack.
         glib::idle_add_local_once(move || {

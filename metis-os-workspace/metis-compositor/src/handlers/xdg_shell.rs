@@ -243,6 +243,17 @@ impl MetisState {
             return;
         };
 
+        // Keep popovers from sliding flush against (or off) the screen edge by
+        // shrinking the allowed placement area on every side.
+        const SCREEN_MARGIN: i32 = 10;
+        let inset = |mut r: Rectangle<i32, smithay::utils::Logical>| {
+            r.loc.x += SCREEN_MARGIN;
+            r.loc.y += SCREEN_MARGIN;
+            r.size.w = (r.size.w - 2 * SCREEN_MARGIN).max(1);
+            r.size.h = (r.size.h - 2 * SCREEN_MARGIN).max(1);
+            r
+        };
+
         if let Some(window) = self
             .space
             .elements()
@@ -252,7 +263,7 @@ impl MetisState {
             let output_geo = self.space.output_geometry(output).unwrap();
             let window_geo = self.space.element_geometry(window).unwrap();
 
-            let mut target = output_geo;
+            let mut target = inset(output_geo);
             target.loc -= get_popup_toplevel_coords(&kind);
             target.loc -= window_geo.loc;
 
@@ -266,7 +277,7 @@ impl MetisState {
             return;
         };
         let output_geo = self.space.output_geometry(&output).unwrap();
-        let mut target = output_geo;
+        let mut target = inset(output_geo);
         target.loc -= get_popup_toplevel_coords(&kind);
         target.loc -= layer_geo.loc;
 

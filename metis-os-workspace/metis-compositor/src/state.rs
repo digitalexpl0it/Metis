@@ -313,6 +313,86 @@ impl MetisState {
             cmd.env("XDG_RUNTIME_DIR", runtime);
         }
 
+        // Without these, GTK clients fall back to the built-in (large black) Xcursor
+        // because the nested session has no settings daemon. The catch: GNOME's
+        // `cursor-theme` is often "default", and the theme literally named "default"
+        // IS the big black cursor — on the host it only looks right because it
+        // inherits a real theme. So resolve the `Inherits=` chain to a theme that
+        // actually ships cursor images (e.g. default -> DMZ-White).
+        fn cursor_icon_dirs() -> Vec<std::path::PathBuf> {
+            let mut dirs = Vec::new();
+            if let Ok(home) = std::env::var("HOME") {
+                dirs.push(std::path::PathBuf::from(format!("{home}/.icons")));
+                dirs.push(std::path::PathBuf::from(format!("{home}/.local/share/icons")));
+            }
+            dirs.push(std::path::PathBuf::from("/usr/share/icons"));
+            dirs.push(std::path::PathBuf::from("/usr/local/share/icons"));
+            dirs
+        }
+        fn resolve_cursor_theme(name: &str) -> Option<String> {
+            fn inner(name: &str, dirs: &[std::path::PathBuf], depth: u8) -> Option<String> {
+                if name.is_empty() || depth > 8 {
+                    return None;
+                }
+                if dirs.iter().any(|d| d.join(name).join("cursors").is_dir()) {
+                    return Some(name.to_string());
+                }
+                for d in dirs {
+                    let Ok(text) = std::fs::read_to_string(d.join(name).join("index.theme")) else {
+                        continue;
+                    };
+                    for line in text.lines() {
+                        if let Some(rest) = line.trim().strip_prefix("Inherits") {
+                            let rest = rest.trim_start_matches([' ', '=']).trim();
+                            for parent in rest.split(',') {
+                                if let Some(found) = inner(parent.trim(), dirs, depth + 1) {
+                                    return Some(found);
+                                }
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            inner(name, &cursor_icon_dirs(), 0)
+        }
+        let gsettings_get = |key: &str| -> Option<String> {
+            let out = std::process::Command::new("gsettings")
+                .args(["get", "org.gnome.desktop.interface", key])
+                .output()
+                .ok()?;
+            if !out.status.success() {
+                return None;
+            }
+            let s = String::from_utf8_lossy(&out.stdout);
+            let s = s.trim().trim_matches('\'').trim().to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        };
+
+        let theme_pref = std::env::var("XCURSOR_THEME")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| gsettings_get("cursor-theme"))
+            .unwrap_or_else(|| "default".into());
+        let cursor_theme = resolve_cursor_theme(&theme_pref)
+            .or_else(|| resolve_cursor_theme("default"))
+            .or_else(|| resolve_cursor_theme("Yaru"))
+            .or_else(|| resolve_cursor_theme("Adwaita"))
+            .unwrap_or_else(|| "Adwaita".into());
+        let cursor_size = std::env::var("XCURSOR_SIZE")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| gsettings_get("cursor-size"))
+            .unwrap_or_else(|| "24".into());
+
+        tracing::info!(theme = %cursor_theme, size = %cursor_size, "client cursor theme");
+        cmd.env("XCURSOR_THEME", cursor_theme);
+        cmd.env("XCURSOR_SIZE", cursor_size);
+
         match cmd.spawn() {
             Ok(child) => {
                 tracing::info!(

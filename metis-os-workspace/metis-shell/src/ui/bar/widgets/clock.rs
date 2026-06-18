@@ -34,10 +34,6 @@ impl ClockWidget {
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(8);
-        panel.set_margin_top(10);
-        panel.set_margin_bottom(10);
-        panel.set_margin_start(12);
-        panel.set_margin_end(12);
         panel.set_width_request(320);
 
         // Custom, non-grabbing calendar. GtkCalendar requests an xdg_popup grab
