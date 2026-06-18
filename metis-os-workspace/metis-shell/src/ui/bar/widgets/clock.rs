@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Datelike, Local, Months, Utc};
 use chrono_tz::Tz;
 use gtk::prelude::*;
 
@@ -40,8 +40,10 @@ impl ClockWidget {
         panel.set_margin_end(12);
         panel.set_width_request(320);
 
-        let calendar = gtk::Calendar::new();
-        calendar.add_css_class("metis-bar-calendar");
+        // Custom, non-grabbing calendar. GtkCalendar requests an xdg_popup grab
+        // that our layer-parented popup can't satisfy, which locks the bar, so we
+        // render a plain label grid with month navigation instead.
+        let calendar = build_calendar();
         panel.append(&calendar);
 
         let tz_title = gtk::Label::builder()
@@ -103,6 +105,116 @@ impl ClockWidget {
     fn refresh_timezones(&self, zones: &[String]) {
         update_timezone_list(&self.timezone_box, zones);
     }
+}
+
+fn build_calendar() -> gtk::Widget {
+    let container = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(6)
+        .build();
+    container.add_css_class("metis-bar-calendar");
+
+    let header = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(6)
+        .build();
+    let prev = gtk::Button::builder().label("\u{2039}").build();
+    prev.add_css_class("metis-cal-nav");
+    let title = gtk::Label::builder().hexpand(true).build();
+    title.add_css_class("metis-cal-title");
+    let next = gtk::Button::builder().label("\u{203A}").build();
+    next.add_css_class("metis-cal-nav");
+    header.append(&prev);
+    header.append(&title);
+    header.append(&next);
+    container.append(&header);
+
+    let grid = gtk::Grid::builder()
+        .row_spacing(2)
+        .column_spacing(2)
+        .column_homogeneous(true)
+        .build();
+    container.append(&grid);
+
+    // Anchored to the first day of the currently displayed month.
+    let shown = std::rc::Rc::new(std::cell::RefCell::new(
+        Local::now()
+            .date_naive()
+            .with_day(1)
+            .unwrap_or_else(|| Local::now().date_naive()),
+    ));
+
+    let rebuild: std::rc::Rc<dyn Fn()> = {
+        let grid = grid.clone();
+        let title = title.clone();
+        let shown = shown.clone();
+        std::rc::Rc::new(move || {
+            while let Some(child) = grid.first_child() {
+                grid.remove(&child);
+            }
+
+            let anchor = *shown.borrow();
+            let today = Local::now().date_naive();
+            title.set_label(&anchor.format("%B %Y").to_string());
+
+            for (i, wd) in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+                .iter()
+                .enumerate()
+            {
+                let label = gtk::Label::new(Some(wd));
+                label.add_css_class("metis-cal-weekday");
+                grid.attach(&label, i as i32, 0, 1, 1);
+            }
+
+            let first_col = anchor.weekday().num_days_from_sunday() as i32;
+            let days_in_month = anchor
+                .checked_add_months(Months::new(1))
+                .map(|next| next.signed_duration_since(anchor).num_days() as u32)
+                .unwrap_or(30);
+
+            let mut col = first_col;
+            let mut row = 1;
+            for day in 1..=days_in_month {
+                let label = gtk::Label::new(Some(&day.to_string()));
+                label.add_css_class("metis-cal-day");
+                if anchor.with_day(day) == Some(today) {
+                    label.add_css_class("metis-cal-today");
+                }
+                grid.attach(&label, col, row, 1, 1);
+                col += 1;
+                if col > 6 {
+                    col = 0;
+                    row += 1;
+                }
+            }
+        })
+    };
+
+    {
+        let rebuild = rebuild.clone();
+        let shown = shown.clone();
+        prev.connect_clicked(move |_| {
+            let current = *shown.borrow();
+            if let Some(prev_month) = current.checked_sub_months(Months::new(1)) {
+                *shown.borrow_mut() = prev_month;
+                rebuild();
+            }
+        });
+    }
+    {
+        let rebuild = rebuild.clone();
+        let shown = shown.clone();
+        next.connect_clicked(move |_| {
+            let current = *shown.borrow();
+            if let Some(next_month) = current.checked_add_months(Months::new(1)) {
+                *shown.borrow_mut() = next_month;
+                rebuild();
+            }
+        });
+    }
+
+    rebuild();
+    container.upcast()
 }
 
 fn update_clock_labels(time_label: &gtk::Label, date_label: &gtk::Label, config: &ClockConfig) {

@@ -26,9 +26,16 @@ pub fn wire_toggle_prepare(
     panel: &gtk::Box,
     prepare: impl Fn() + 'static,
 ) {
+    // NOTE: `autohide` popovers request an xdg_popup grab. Our compositor
+    // intentionally ignores popup grabs (they hang GTK clients), and the bar is
+    // a `KeyboardMode::None` layer surface, so an autohide popover can never
+    // establish its grab and silently fails to present. A non-autohide popover
+    // needs no grab; we dismiss it via toggle + the compositor "close-popovers"
+    // signal when the pointer hits bare desktop.
     let popover = gtk::Popover::builder()
-        .autohide(true)
+        .autohide(false)
         .has_arrow(true)
+        .position(gtk::PositionType::Bottom)
         .child(panel)
         .build();
     popover.add_css_class("metis-bar-popover");

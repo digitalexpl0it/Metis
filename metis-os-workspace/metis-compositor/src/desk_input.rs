@@ -1,24 +1,23 @@
 use metis_grid::{cell_to_pixels, PixelRect, TileKind};
 use smithay::{
+    backend::renderer::utils::with_renderer_surface_state,
     desktop::{layer_map_for_output, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Logical, Point},
-    wayland::compositor::{with_states, SurfaceAttributes},
     wayland::shell::wlr_layer::Layer as WlrLayer,
 };
 
 use crate::focus::KeyboardFocusTarget;
 use crate::state::MetisState;
 
+/// True when the surface currently has a committed buffer.
+///
+/// NOTE: must read the *renderer* surface state, not `SurfaceAttributes.buffer`.
+/// `on_commit_buffer_handler` consumes the attribute buffer on every commit, so
+/// `SurfaceAttributes.current().buffer` is `None` except on the exact frame a new
+/// buffer was attached — which made every bar click miss.
 fn surface_has_buffer(surface: &WlSurface) -> bool {
-    with_states(surface, |states| {
-        states
-            .cached_state
-            .get::<SurfaceAttributes>()
-            .current()
-            .buffer
-            .is_some()
-    })
+    with_renderer_surface_state(surface, |state| state.buffer().is_some()).unwrap_or(false)
 }
 
 fn metis_bar_pointer_active(

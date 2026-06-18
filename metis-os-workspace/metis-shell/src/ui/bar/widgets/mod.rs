@@ -74,33 +74,33 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
             }
             BarWidgetId::Workspaces => {
                 let w = WorkspacesWidget::new(cfg.position);
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 w.update(&crate::services::workspace_snapshot());
                 *refs.workspaces.borrow_mut() = Some(w);
             }
             BarWidgetId::Clock => {
                 let w = ClockWidget::new(&cfg.clock);
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 *refs.clock.borrow_mut() = Some(w);
             }
             BarWidgetId::Battery => {
                 let w = BatteryWidget::new();
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 *refs.battery.borrow_mut() = Some(w);
             }
             BarWidgetId::Network => {
                 let w = NetworkWidget::new();
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 *refs.network.borrow_mut() = Some(w);
             }
             BarWidgetId::Volume => {
                 let w = VolumeWidget::new();
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 *refs.volume.borrow_mut() = Some(w);
             }
             BarWidgetId::Notifications => {
                 let w = NotificationsWidget::new();
-                append_bar_widget(root, w.root());
+                append_bar_widget(root, w.root(), bar_orientation);
                 *refs.notifications.borrow_mut() = Some(w);
             }
         }
@@ -109,9 +109,20 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
     refs
 }
 
-fn append_bar_widget(root: &gtk::Box, widget: &impl IsA<gtk::Widget>) {
+fn append_bar_widget(
+    root: &gtk::Box,
+    widget: &impl IsA<gtk::Widget>,
+    orientation: gtk::Orientation,
+) {
     let w = widget.upcast_ref::<gtk::Widget>();
-    w.set_valign(gtk::Align::Center);
-    w.set_vexpand(false);
+    // Fill the bar's cross axis so the hover gradient + underline reach the bar's
+    // edge instead of floating around the icon. Only stretch the cross axis.
+    if orientation == gtk::Orientation::Horizontal {
+        w.set_valign(gtk::Align::Fill);
+        w.set_vexpand(true);
+    } else {
+        w.set_halign(gtk::Align::Fill);
+        w.set_hexpand(true);
+    }
     root.append(w);
 }

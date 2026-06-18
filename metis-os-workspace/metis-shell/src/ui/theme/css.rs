@@ -24,83 +24,70 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-pill {{
         background-color: {surface};
         border: 1px solid {border};
-        padding: 4px 14px;
+        padding: 0 14px;
         color: {text};
     }}
 
     .metis-bar-full {{
         border-radius: 999px;
-        padding: 4px 20px;
+        padding: 0 20px;
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
     }}
 
     .metis-bar-floating {{
         border-radius: 999px;
-        padding: 4px 14px;
+        padding: 0 14px;
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     }}
 
+    /* Bar widget buttons share one geometry across every interaction state so
+       the icon never shifts on hover or press; only decoration changes. */
+    .metis-bar-widget,
     button.metis-bar-widget,
-    button.metis-bar-widget:hover {{
-        background-image: none;
-        background-color: transparent;
-        box-shadow: none;
-        min-height: 0;
+    button.metis-bar-widget:hover,
+    button.metis-bar-widget:active,
+    button.metis-bar-widget:checked,
+    button.metis-bar-widget:focus,
+    menubutton.metis-bar-widget,
+    menubutton.metis-bar-widget > button,
+    menubutton.metis-bar-widget:hover > button {{
         padding: 0 8px;
-    }}
-
-    menubutton.metis-bar-widget {{
-        background-image: none;
-        background-color: transparent;
-        box-shadow: none;
+        margin: 0;
+        min-height: 0;
         border: none;
-        min-height: 0;
-        padding: 0 8px;
+        outline: none;
+        border-radius: {rs}px;
     }}
 
+    .metis-bar-widget,
+    button.metis-bar-widget,
+    menubutton.metis-bar-widget,
     menubutton.metis-bar-widget > button {{
         background-image: none;
         background-color: transparent;
         box-shadow: none;
-        border: none;
-        min-height: 0;
-        padding: 0;
+        color: {text};
     }}
 
-    menubutton.metis-bar-widget > button,
-    button.metis-bar-widget {{
-        background-color: transparent;
-        border: none;
-        min-height: 0;
-        padding: 0;
-        box-shadow: none;
-    }}
-
-    menubutton.metis-bar-widget:hover > button,
-    button.metis-bar-widget:hover {{
-        background-color: rgba(255, 255, 255, 0.06);
+    /* Hover: cyan gradient rising from the bottom into the grey highlight, with
+       a thin 1px cyan line under the icon box (inset shadow adds no layout). */
+    button.metis-bar-widget:hover,
+    menubutton.metis-bar-widget:hover > button {{
+        background-image: linear-gradient(to top,
+            rgba(34, 211, 238, 0.34) 0%,
+            rgba(34, 211, 238, 0.10) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 0.95);
+        border-radius: {rs}px {rs}px 0 0;
     }}
 
     button.metis-bar-dropdown-active {{
-        background-color: rgba(255, 255, 255, 0.1);
-    }}
-
-    menubutton.metis-bar-notifications:hover > button,
-    button.metis-bar-notifications:hover {{
-        background-color: transparent;
-    }}
-
-    .metis-bar-widget {{
-        padding: 0 8px;
-        border-radius: {rs}px;
-        background-color: transparent;
-        border: none;
-        color: {text};
-        min-height: 0;
-    }}
-
-    .metis-bar-widget:hover {{
-        background-color: rgba(255, 255, 255, 0.06);
+        background-image: linear-gradient(to top,
+            rgba(34, 211, 238, 0.44) 0%,
+            rgba(34, 211, 238, 0.16) 45%,
+            rgba(255, 255, 255, 0.08) 100%);
+        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 1);
+        border-radius: {rs}px {rs}px 0 0;
     }}
 
     .metis-bar-sys-icon {{
@@ -386,6 +373,55 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-calendar {{
         margin: 0;
+    }}
+
+    .metis-cal-title {{
+        font-size: 13px;
+        font-weight: 700;
+        color: {text};
+    }}
+
+    .metis-cal-nav {{
+        padding: 0 8px;
+        min-height: 0;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        font-size: 16px;
+        border-radius: {rs}px;
+    }}
+
+    .metis-cal-nav:hover {{
+        color: {text};
+        background-image: linear-gradient(to top,
+            rgba(34, 211, 238, 0.30) 0%,
+            rgba(34, 211, 238, 0.10) 45%,
+            rgba(255, 255, 255, 0.05) 100%);
+        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 0.9);
+    }}
+
+    .metis-cal-weekday {{
+        font-size: 10px;
+        font-weight: 700;
+        color: {accent};
+        padding: 2px 0;
+    }}
+
+    .metis-cal-day {{
+        font-size: 12px;
+        color: {text};
+        padding: 4px 0;
+        min-width: 26px;
+        border-radius: {rs}px;
+    }}
+
+    .metis-cal-today {{
+        background-color: rgba(34, 211, 238, 0.85);
+        color: #06121a;
+        font-weight: 700;
     }}
 
     .metis-bar-section-title {{
