@@ -104,6 +104,18 @@ pub fn init_and_show(app: &gtk::Application) {
         if x < 0.0 || y < 0.0 || x > w || y > h {
             return;
         }
+        // If the press landed on (or inside) one of the bar's own icon buttons,
+        // let that button's own click handler toggle its popover. Dismissing here
+        // would race the toggle and re-open the popover on the second click.
+        if let Some(target) = pill_for_dismiss.pick(x, y, gtk::PickFlags::DEFAULT) {
+            let mut node = Some(target);
+            while let Some(w) = node {
+                if w.has_css_class("metis-bar-widget") {
+                    return;
+                }
+                node = w.parent();
+            }
+        }
         dropdown::request_close_all();
     });
     pill.add_controller(dismiss);

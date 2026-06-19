@@ -7,6 +7,8 @@ use gtk::prelude::*;
 
 use super::Store;
 
+const MAX_CLOCKS: usize = 3;
+
 pub struct WorldClocksPage {
     pub widget: gtk::Widget,
     inner: Rc<WorldInner>,
@@ -14,7 +16,12 @@ pub struct WorldClocksPage {
 
 struct WorldInner {
     store: Store,
-    cards: gtk::FlowBox,
+    list: gtk::Box,
+    picker: gtk::Box,
+    picker_rows: gtk::ListBox,
+    search: gtk::Entry,
+    tz_names: Vec<String>,
+    local_label: gtk::Label,
     times: RefCell<Vec<(Tz, gtk::Label)>>,
 }
 
@@ -22,52 +29,139 @@ impl WorldClocksPage {
     pub fn new(store: Store) -> Self {
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(10)
+            .spacing(12)
             .build();
-        root.set_width_request(600);
+        root.add_css_class("metis-world-page");
+        root.set_width_request(440);
 
-        // Add row: timezone search entry + button.
-        let add_row = gtk::Box::builder()
+        // ---- Local (main) clock ----
+        let local_card = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .spacing(8)
             .build();
-        let entry = gtk::Entry::builder()
-            .placeholder_text("Add a city / timezone (e.g. Europe/London)")
-            .hexpand(true)
+        local_card.add_css_class("metis-clock-card");
+        local_card.add_css_class("metis-clock-card-main");
+        let local_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        local_info.set_hexpand(true);
+        let local_name = gtk::Label::builder().label("Local Time").halign(gtk::Align::Start).build();
+        local_name.add_css_class("metis-clock-card-name");
+        let local_offset = gtk::Label::builder()
+            .label(&Local::now().format("%A, %B %-d").to_string())
+            .halign(gtk::Align::Start)
             .build();
-        entry.add_css_class("metis-clock-tz-entry");
-        attach_tz_completion(&entry);
-        let add_btn = gtk::Button::builder().label("Add").build();
-        add_btn.add_css_class("metis-cal-add-btn");
-        add_row.append(&entry);
-        add_row.append(&add_btn);
-        root.append(&add_row);
+        local_offset.add_css_class("metis-clock-card-offset");
+        local_info.append(&local_name);
+        local_info.append(&local_offset);
+        local_card.append(&local_info);
+        let local_label = gtk::Label::new(Some(&Local::now().format("%-I:%M %p").to_string()));
+        local_label.add_css_class("metis-clock-card-time");
+        local_label.add_css_class("metis-clock-card-time-main");
+        local_label.set_valign(gtk::Align::Center);
+        local_card.append(&local_label);
+        root.append(&local_card);
 
-        let cards = gtk::FlowBox::builder()
-            .selection_mode(gtk::SelectionMode::None)
-            .min_children_per_line(2)
-            .max_children_per_line(3)
-            .column_spacing(10)
-            .row_spacing(10)
-            .homogeneous(true)
+        // ---- Add row: an "Add clock" button that toggles an inline picker ----
+        let add_btn = gtk::Button::from_icon_name("list-add-symbolic");
+        add_btn.add_css_class("metis-cal-add-btn");
+        add_btn.set_tooltip_text(Some("Add a world clock"));
+        add_btn.set_halign(gtk::Align::End);
+        root.append(&add_btn);
+
+        // Inline picker (no nested popup): a search entry + a scrollable list of
+        // every IANA timezone. Lives inside the popover so it can never render
+        // behind it the way a GtkDropDown's own popup did.
+        let picker = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(8)
             .build();
-        cards.add_css_class("metis-clock-cards");
-        root.append(&cards);
+        picker.add_css_class("metis-tz-picker");
+        picker.set_visible(false);
+
+        let search = gtk::Entry::builder()
+            .placeholder_text("Search city / timezone…")
+            .primary_icon_name("system-search-symbolic")
+            .build();
+        picker.append(&search);
+
+        let tz_names: Vec<String> = chrono_tz::TZ_VARIANTS
+            .iter()
+            .map(|tz| tz.name().to_string())
+            .collect();
+        let picker_rows = gtk::ListBox::new();
+        picker_rows.set_selection_mode(gtk::SelectionMode::None);
+        picker_rows.add_css_class("metis-tz-list");
+        for name in &tz_names {
+            let row = gtk::ListBoxRow::new();
+            let label = gtk::Label::builder()
+                .label(&name.replace('_', " "))
+                .halign(gtk::Align::Start)
+                .build();
+            label.add_css_class("metis-tz-row");
+            row.set_child(Some(&label));
+            picker_rows.append(&row);
+        }
+        let picker_scroll = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .min_content_height(220)
+            .max_content_height(220)
+            .overlay_scrolling(false)
+            .child(&picker_rows)
+            .build();
+        picker_scroll.add_css_class("metis-tz-scroll");
+        picker.append(&picker_scroll);
+        root.append(&picker);
+
+        // ---- Added clocks list ----
+        let list = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(8)
+            .build();
+        root.append(&list);
 
         let inner = Rc::new(WorldInner {
             store,
-            cards,
+            list,
+            picker: picker.clone(),
+            picker_rows: picker_rows.clone(),
+            search: search.clone(),
+            tz_names,
+            local_label,
             times: RefCell::new(Vec::new()),
         });
 
         {
             let inner = inner.clone();
-            let entry = entry.clone();
-            add_btn.connect_clicked(move |_| inner.add_from_entry(&entry));
+            add_btn.connect_clicked(move |_| {
+                if inner.store.borrow().world_clocks.len() >= MAX_CLOCKS {
+                    return;
+                }
+                let show = !inner.picker.get_visible();
+                inner.picker.set_visible(show);
+                if show {
+                    inner.search.set_text("");
+                    inner.search.grab_focus();
+                }
+            });
         }
         {
             let inner = inner.clone();
-            entry.connect_activate(move |entry| inner.add_from_entry(entry));
+            picker_rows.set_filter_func(move |row| inner.row_matches(row));
+        }
+        {
+            let inner = inner.clone();
+            search.connect_changed(move |_| inner.picker_rows.invalidate_filter());
+        }
+        {
+            let inner = inner.clone();
+            picker_rows.connect_row_activated(move |_, row| {
+                let idx = row.index();
+                if idx >= 0 {
+                    if let Some(name) = inner.tz_names.get(idx as usize) {
+                        inner.add_zone(&name.clone());
+                    }
+                }
+            });
         }
 
         inner.rebuild();
@@ -80,6 +174,9 @@ impl WorldClocksPage {
 
     pub fn refresh(&self) {
         let now = Utc::now();
+        self.inner
+            .local_label
+            .set_label(&Local::now().format("%-I:%M %p").to_string());
         for (tz, label) in self.inner.times.borrow().iter() {
             let local: DateTime<Tz> = now.with_timezone(tz);
             label.set_label(&local.format("%-I:%M %p").to_string());
@@ -88,25 +185,33 @@ impl WorldClocksPage {
 }
 
 impl WorldInner {
-    fn add_from_entry(self: &Rc<Self>, entry: &gtk::Entry) {
-        let text = entry.text().to_string();
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return;
+    fn row_matches(&self, row: &gtk::ListBoxRow) -> bool {
+        let query = self.search.text().to_lowercase();
+        if query.is_empty() {
+            return true;
         }
-        let Ok(tz) = trimmed.parse::<Tz>() else {
-            entry.add_css_class("metis-entry-error");
-            return;
-        };
-        entry.remove_css_class("metis-entry-error");
+        let idx = row.index();
+        if idx < 0 {
+            return true;
+        }
+        self.tz_names
+            .get(idx as usize)
+            .map(|n| n.to_lowercase().replace('_', " ").contains(&query))
+            .unwrap_or(false)
+    }
+
+    fn add_zone(self: &Rc<Self>, name: &str) {
         {
             let mut cfg = self.store.borrow_mut();
-            if !cfg.world_clocks.iter().any(|z| z == tz.name()) {
-                cfg.world_clocks.push(tz.name().to_string());
+            if cfg.world_clocks.len() >= MAX_CLOCKS {
+                return;
+            }
+            if !cfg.world_clocks.iter().any(|z| z == name) {
+                cfg.world_clocks.push(name.to_string());
             }
         }
         self.store.save();
-        entry.set_text("");
+        self.picker.set_visible(false);
         self.rebuild();
     }
 
@@ -117,16 +222,27 @@ impl WorldInner {
     }
 
     fn rebuild(self: &Rc<Self>) {
-        while let Some(child) = self.cards.first_child() {
-            self.cards.remove(&child);
+        while let Some(child) = self.list.first_child() {
+            self.list.remove(&child);
         }
         self.times.borrow_mut().clear();
 
-        let zones = self.store.borrow().world_clocks.clone();
+        let zones: Vec<String> = self
+            .store
+            .borrow()
+            .world_clocks
+            .iter()
+            .take(MAX_CLOCKS)
+            .cloned()
+            .collect();
+
         if zones.is_empty() {
-            let empty = gtk::Label::builder().label("No world clocks yet").build();
+            let empty = gtk::Label::builder()
+                .label("Add up to 3 world clocks")
+                .halign(gtk::Align::Start)
+                .build();
             empty.add_css_class("metis-cal-empty");
-            self.cards.append(&empty);
+            self.list.append(&empty);
             return;
         }
 
@@ -173,7 +289,7 @@ impl WorldInner {
             }
             card.append(&remove);
 
-            self.cards.append(&card);
+            self.list.append(&card);
             self.times.borrow_mut().push((tz, time));
         }
     }
@@ -202,30 +318,4 @@ fn offset_label(tz: &Tz, now: DateTime<Utc>) -> String {
     } else {
         format!("{sign}{h}h{m:02} from local")
     }
-}
-
-// EntryCompletion is deprecated in GTK 4.10 but remains the simplest inline
-// autocomplete; the replacement (GtkColumnView popovers) is far heavier.
-#[allow(deprecated)]
-fn attach_tz_completion(entry: &gtk::Entry) {
-    let store = gtk::ListStore::new(&[glib::Type::STRING]);
-    for tz in chrono_tz::TZ_VARIANTS.iter() {
-        let iter = store.append();
-        store.set_value(&iter, 0, &tz.name().to_value());
-    }
-    let completion = gtk::EntryCompletion::builder()
-        .model(&store)
-        .text_column(0)
-        .inline_completion(false)
-        .popup_completion(true)
-        .build();
-    completion.set_match_func(|completion, key, iter| {
-        let key = key.to_lowercase();
-        let Some(model) = completion.model() else {
-            return false;
-        };
-        let value: String = model.get_value(iter, 0).get().unwrap_or_default();
-        value.to_lowercase().contains(&key)
-    });
-    entry.set_completion(Some(&completion));
 }

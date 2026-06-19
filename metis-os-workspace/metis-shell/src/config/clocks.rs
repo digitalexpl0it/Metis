@@ -22,10 +22,40 @@ pub struct Alarm {
     /// Days the alarm repeats on (0 = Sunday .. 6 = Saturday). Empty = every day.
     #[serde(default)]
     pub days: Vec<u8>,
+    /// Identifier of the alarm sound to play (see `AlarmSound`). `None` = default.
+    #[serde(default)]
+    pub sound: Option<String>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+/// A selectable alarm sound, mapped to a freedesktop/libcanberra event id.
+#[derive(Debug, Clone, Copy)]
+pub struct AlarmSound {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub canberra_id: &'static str,
+}
+
+/// The alarm sounds offered in the picker. The first entry is the default.
+pub const ALARM_SOUNDS: &[AlarmSound] = &[
+    AlarmSound { id: "default", label: "Default", canberra_id: "alarm-clock-elapsed" },
+    AlarmSound { id: "bell", label: "Bell", canberra_id: "bell" },
+    AlarmSound { id: "complete", label: "Complete", canberra_id: "complete" },
+    AlarmSound { id: "message", label: "Message", canberra_id: "message-new-instant" },
+    AlarmSound { id: "phone", label: "Phone", canberra_id: "phone-incoming-call" },
+];
+
+/// Resolve a stored sound id to its libcanberra event id, falling back to default.
+pub fn alarm_sound_canberra_id(id: Option<&str>) -> &'static str {
+    let id = id.unwrap_or("default");
+    ALARM_SOUNDS
+        .iter()
+        .find(|s| s.id == id)
+        .unwrap_or(&ALARM_SOUNDS[0])
+        .canberra_id
 }
 
 pub fn clocks_config_path() -> std::path::PathBuf {

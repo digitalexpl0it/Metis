@@ -127,4 +127,7 @@ pub use calendars::{
     default_local_dir, load_calendars_config, save_calendars_config, AccountKind, CalendarAccount,
     CalendarsConfig,
 };
-pub use clocks::{load_clocks_config, save_clocks_config, Alarm, ClocksConfig};
+pub use clocks::{
+    alarm_sound_canberra_id, load_clocks_config, save_clocks_config, Alarm, ClocksConfig,
+    ALARM_SOUNDS,
+};

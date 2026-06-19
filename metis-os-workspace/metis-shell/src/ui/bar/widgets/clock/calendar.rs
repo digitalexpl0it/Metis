@@ -74,7 +74,7 @@ impl CalendarPage {
             .orientation(gtk::Orientation::Vertical)
             .spacing(8)
             .build();
-        left.set_width_request(300);
+        left.set_width_request(258);
 
         let header_weekday = gtk::Label::builder()
             .halign(gtk::Align::Start)
@@ -119,7 +119,7 @@ impl CalendarPage {
             .orientation(gtk::Orientation::Vertical)
             .spacing(8)
             .build();
-        right.set_width_request(280);
+        right.set_width_request(240);
         right.set_hexpand(true);
 
         let events_header = gtk::Box::builder()

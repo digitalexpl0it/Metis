@@ -1,6 +1,8 @@
 mod accounts;
+mod alarms;
 mod calendar;
-mod timers;
+mod stopwatch;
+mod timer;
 mod world;
 
 use std::cell::RefCell;
@@ -10,12 +12,14 @@ use std::time::Duration as StdDuration;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, TimeZone, Timelike};
 use gtk::prelude::*;
 
-use crate::config::{save_clocks_config, ClockConfig, ClocksConfig};
+use crate::config::{alarm_sound_canberra_id, save_clocks_config, ClockConfig, ClocksConfig};
 use crate::services::{spawn_calendar_service, CalCommand, CalendarEvent, LocalEvent};
 
 use accounts::AccountsPage;
+use alarms::AlarmsPage;
 use calendar::{CalendarPage, CreateRequest, EventView};
-use timers::TimersPage;
+use stopwatch::StopwatchPage;
+use timer::TimerPage;
 use world::WorldClocksPage;
 
 /// Shared, persisted clock state (world clocks + alarms) used by the popover pages.
@@ -45,8 +49,13 @@ pub(crate) fn notify(title: &str, body: &str) {
 
 /// Best-effort alarm sound; degrades silently if no player/sound is present.
 pub(crate) fn play_alarm_sound() {
+    play_alarm_sound_id("alarm-clock-elapsed");
+}
+
+/// Play a specific libcanberra event sound, falling back to a bundled oga file.
+pub(crate) fn play_alarm_sound_id(canberra_id: &str) {
     if std::process::Command::new("canberra-gtk-play")
-        .args(["-i", "alarm-clock-elapsed"])
+        .args(["-i", canberra_id])
         .spawn()
         .is_ok()
     {
@@ -86,32 +95,44 @@ impl ClockWidget {
             &config.timezones,
         ))));
 
-        // ---- Popover content: wide multi-column stack ----
+        // ---- Popover content: pill-tabbed stack ----
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(10);
 
-        let switcher = gtk::StackSwitcher::new();
-        switcher.set_halign(gtk::Align::Center);
-        switcher.add_css_class("metis-clock-switcher");
         let stack = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::Crossfade)
             .transition_duration(150)
             .build();
-        switcher.set_stack(Some(&stack));
 
         let calendar = CalendarPage::new();
         let world = WorldClocksPage::new(store.clone());
-        let timers = TimersPage::new(store.clone());
+        let stopwatch = StopwatchPage::new();
+        let timer = TimerPage::new();
+        let alarms_page = AlarmsPage::new(store.clone());
 
-        stack.add_titled(&calendar.widget, Some("calendar"), "Calendar");
-        stack.add_titled(&world.widget, Some("clocks"), "Clocks");
-        stack.add_titled(&timers.widget, Some("timers"), "Timers");
+        stack.add_named(&calendar.widget, Some("calendar"));
+        stack.add_named(&world.widget, Some("clocks"));
+        stack.add_named(&stopwatch.widget, Some("stopwatch"));
+        stack.add_named(&timer.widget, Some("timer"));
+        stack.add_named(&alarms_page.widget, Some("alarms"));
 
         // ---- Calendar event service wiring ----
         let (cal_tx, cal_rx) = spawn_calendar_service();
 
         let calendars_page = AccountsPage::new(cal_tx.clone());
-        stack.add_titled(&calendars_page.widget, Some("calendars"), "Calendars");
+        stack.add_named(&calendars_page.widget, Some("calendars"));
+
+        let switcher = build_pill_switcher(
+            &stack,
+            &[
+                ("calendar", "Calendar", "x-office-calendar-symbolic"),
+                ("clocks", "World Clocks", "preferences-system-time-symbolic"),
+                ("stopwatch", "Stopwatch", "media-playback-start-symbolic"),
+                ("timer", "Timer", "alarm-symbolic"),
+                ("alarms", "Alarms", "alarm-symbolic"),
+                ("calendars", "Calendars", "system-users-symbolic"),
+            ],
+        );
         {
             let tx = cal_tx.clone();
             calendar.set_on_month_change(move |a, b| {
@@ -309,22 +330,66 @@ fn check_alarms(store: &Store) {
     let weekday = now.weekday().num_days_from_sunday() as u8;
     let hour = now.hour() as u8;
     let minute = now.minute() as u8;
-    let due: Vec<String> = store
+    let due: Vec<(String, &'static str)> = store
         .borrow()
         .alarms
         .iter()
         .filter(|a| a.enabled && a.hour == hour && a.minute == minute)
         .filter(|a| a.days.is_empty() || a.days.contains(&weekday))
         .map(|a| {
-            if a.label.is_empty() {
+            let label = if a.label.is_empty() {
                 format!("Alarm {:02}:{:02}", a.hour, a.minute)
             } else {
                 a.label.clone()
-            }
+            };
+            (label, alarm_sound_canberra_id(a.sound.as_deref()))
         })
         .collect();
-    for label in due {
+    for (label, sound) in due {
         notify(&label, "Metis alarm");
-        play_alarm_sound();
+        play_alarm_sound_id(sound);
     }
+}
+
+/// Build a horizontal strip of linked pill toggle buttons (icon + label) that
+/// switch the given `stack`. The first entry starts selected.
+fn build_pill_switcher(stack: &gtk::Stack, tabs: &[(&str, &str, &str)]) -> gtk::Box {
+    let bar = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(6)
+        .halign(gtk::Align::Center)
+        .build();
+    bar.add_css_class("metis-clock-tabs");
+
+    let mut group: Option<gtk::ToggleButton> = None;
+    for (i, (name, title, icon)) in tabs.iter().enumerate() {
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        content.set_halign(gtk::Align::Center);
+        let image = gtk::Image::from_icon_name(icon);
+        let label = gtk::Label::new(Some(title));
+        content.append(&image);
+        content.append(&label);
+
+        let pill = gtk::ToggleButton::builder().child(&content).build();
+        pill.add_css_class("metis-clock-tab");
+        if let Some(ref leader) = group {
+            pill.set_group(Some(leader));
+        } else {
+            group = Some(pill.clone());
+        }
+        if i == 0 {
+            pill.set_active(true);
+        }
+        {
+            let stack = stack.clone();
+            let name = name.to_string();
+            pill.connect_toggled(move |b| {
+                if b.is_active() {
+                    stack.set_visible_child_name(&name);
+                }
+            });
+        }
+        bar.append(&pill);
+    }
+    bar
 }

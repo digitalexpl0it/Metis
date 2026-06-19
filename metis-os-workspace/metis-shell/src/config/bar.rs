@@ -37,7 +37,7 @@ impl Default for ClockConfig {
         Self {
             time_format: default_time_format(),
             date_format: default_date_format(),
-            timezones: vec!["UTC".into()],
+            timezones: Vec::new(),
         }
     }
 }
