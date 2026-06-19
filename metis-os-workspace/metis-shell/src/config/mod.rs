@@ -1,4 +1,6 @@
 mod bar;
+mod calendars;
+mod clocks;
 use serde::{Deserialize, Serialize};
 
 use crate::ui::theme::ThemeMode;
@@ -121,3 +123,8 @@ pub use bar::{
     bar_config_path, load_bar_config, save_default_bar_config, BarConfig, BarPosition,
     BarWidgetId, ClockConfig,
 };
+pub use calendars::{
+    default_local_dir, load_calendars_config, save_calendars_config, AccountKind, CalendarAccount,
+    CalendarsConfig,
+};
+pub use clocks::{load_clocks_config, save_clocks_config, Alarm, ClocksConfig};

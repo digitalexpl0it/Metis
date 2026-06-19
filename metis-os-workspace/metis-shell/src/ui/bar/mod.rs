@@ -230,7 +230,9 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     window.set_layer(Layer::Top);
     window.set_namespace("metis-bar");
     window.add_css_class("metis-bar-window");
-    window.set_keyboard_mode(KeyboardMode::None);
+    // OnDemand (not None) so popovers spawned from the bar can receive keyboard
+    // focus via their xdg_popup grab (text entries in the clock/calendar popover).
+    window.set_keyboard_mode(KeyboardMode::OnDemand);
     window.auto_exclusive_zone_enable();
 
     for edge in [Edge::Left, Edge::Right, Edge::Top, Edge::Bottom] {

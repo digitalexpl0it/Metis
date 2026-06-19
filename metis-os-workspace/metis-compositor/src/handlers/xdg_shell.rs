@@ -1,9 +1,11 @@
+use crate::focus::KeyboardFocusTarget;
 use crate::grabs::{MoveSurfaceGrab, ResizeSurfaceGrab};
 use crate::state::MetisState;
 use smithay::{
     desktop::{
-        PopupKind, PopupManager, Space, Window, WindowSurfaceType, find_popup_root_surface,
-        get_popup_toplevel_coords, layer_map_for_output,
+        PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy, Space,
+        Window, WindowSurfaceType, find_popup_root_surface, get_popup_toplevel_coords,
+        layer_map_for_output,
     },
     input::{
         Seat,
@@ -121,9 +123,57 @@ impl XdgShellHandler for MetisState {
         }
     }
 
-    fn grab(&mut self, _surface: PopupSurface, _seat: wl_seat::WlSeat, _serial: Serial) {
-        // Layer-shell tray menus use in-window dropdowns; avoid popup grabs here —
-        // a partial grab stack hangs GTK clients in our compositor.
+    fn grab(&mut self, surface: PopupSurface, seat: wl_seat::WlSeat, serial: Serial) {
+        // Honor xdg_popup grabs so GTK popovers that need keyboard/pointer focus
+        // (text entries, dropdowns) can present and dismiss correctly. The root of
+        // the grab is either an app window or one of our layer surfaces (the bar).
+        let seat: Seat<MetisState> = Seat::from_resource(&seat).unwrap();
+        let kind = PopupKind::Xdg(surface);
+        let Some(root) = find_popup_root_surface(&kind).ok().and_then(|root| {
+            self.space
+                .elements()
+                .find(|w| {
+                    w.toplevel()
+                        .map(|t| t.wl_surface() == &root)
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .map(KeyboardFocusTarget::from)
+                .or_else(|| {
+                    self.space.outputs().find_map(|o| {
+                        let map = layer_map_for_output(o);
+                        map.layer_for_surface(&root, WindowSurfaceType::TOPLEVEL)
+                            .cloned()
+                            .map(KeyboardFocusTarget::LayerSurface)
+                    })
+                })
+        }) else {
+            return;
+        };
+
+        if let Ok(mut grab) = self.popups.grab_popup(root, kind, &seat, serial) {
+            if let Some(keyboard) = seat.get_keyboard() {
+                if keyboard.is_grabbed()
+                    && !(keyboard.has_grab(serial)
+                        || keyboard.has_grab(grab.previous_serial().unwrap_or(serial)))
+                {
+                    grab.ungrab(PopupUngrabStrategy::All);
+                    return;
+                }
+                keyboard.set_focus(self, grab.current_grab(), serial);
+                keyboard.set_grab(self, PopupKeyboardGrab::new(&grab), serial);
+            }
+            if let Some(pointer) = seat.get_pointer() {
+                if pointer.is_grabbed()
+                    && !(pointer.has_grab(serial)
+                        || pointer.has_grab(grab.previous_serial().unwrap_or_else(|| grab.serial())))
+                {
+                    grab.ungrab(PopupUngrabStrategy::All);
+                    return;
+                }
+                pointer.set_grab(self, PopupPointerGrab::new(&grab), serial, Focus::Keep);
+            }
+        }
     }
 
     fn maximize_request(&mut self, surface: ToplevelSurface) {

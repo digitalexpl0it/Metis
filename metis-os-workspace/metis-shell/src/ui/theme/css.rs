@@ -86,13 +86,25 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
        not the pointer is over it. Specificity is raised to beat `:hover`. */
     button.metis-bar-dropdown-active,
     button.metis-bar-widget.metis-bar-dropdown-active,
-    button.metis-bar-widget.metis-bar-dropdown-active:hover {{
+    button.metis-bar-widget.metis-bar-dropdown-active:hover,
+    menubutton.metis-bar-widget.metis-bar-dropdown-active > button,
+    menubutton.metis-bar-widget.metis-bar-dropdown-active:hover > button {{
         background-image: linear-gradient(to top,
             rgba(34, 211, 238, 0.34) 0%,
             rgba(34, 211, 238, 0.10) 45%,
             rgba(255, 255, 255, 0.06) 100%);
         box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 0.95);
         border-radius: {rs}px {rs}px 0 0;
+    }}
+
+    /* The clock MenuButton uses a custom time/date child; never reserve space for
+       the default dropdown arrow. */
+    menubutton.metis-bar-widget > button > .arrow {{
+        min-width: 0;
+        min-height: 0;
+        -gtk-icon-size: 0;
+        margin: 0;
+        padding: 0;
     }}
 
     .metis-bar-sys-icon {{
@@ -468,50 +480,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         margin: 0;
     }}
 
-    .metis-cal-title {{
-        font-size: 13px;
-        font-weight: 700;
-        color: {text};
-    }}
-
-    .metis-cal-nav {{
-        padding: 0 8px;
-        min-height: 0;
-        border: none;
-        outline: none;
-        background-image: none;
-        background-color: transparent;
-        box-shadow: none;
-        color: {muted};
-        font-size: 16px;
-        border-radius: {rs}px;
-    }}
-
-    .metis-cal-nav:hover {{
-        color: {text};
-        background-image: linear-gradient(to top,
-            rgba(34, 211, 238, 0.30) 0%,
-            rgba(34, 211, 238, 0.10) 45%,
-            rgba(255, 255, 255, 0.05) 100%);
-        box-shadow: inset 0 -1px 0 0 rgba(34, 211, 238, 0.9);
-    }}
-
-    .metis-cal-weekday {{
-        font-size: 10px;
-        font-weight: 700;
-        color: {accent};
-        padding: 2px 0;
-    }}
-
-    .metis-cal-day {{
-        font-size: 12px;
-        color: {text};
-        padding: 4px 0;
-        min-width: 26px;
-        border-radius: {rs}px;
-    }}
-
-    .metis-cal-today {{
+    .metis-cal-today-legacy {{
         background-color: rgba(34, 211, 238, 0.85);
         color: #06121a;
         font-weight: 700;
@@ -534,6 +503,245 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 13px;
         font-weight: 600;
         color: {text};
+    }}
+
+    /* ---- Clock / calendar popover (wide multi-column) ---- */
+    .metis-clock-switcher button {{
+        padding: 4px 14px;
+        min-height: 0;
+        border-radius: {rs}px;
+        color: {muted};
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        border: none;
+    }}
+    .metis-clock-switcher button:checked {{
+        color: {text};
+        background-color: rgba(34, 211, 238, 0.16);
+        box-shadow: inset 0 -2px 0 0 {accent};
+    }}
+    .metis-clock-switcher button:hover {{
+        color: {text};
+    }}
+
+    .metis-cal-head-weekday {{
+        font-size: 13px;
+        color: {muted};
+    }}
+    .metis-cal-head-date {{
+        font-size: 22px;
+        font-weight: 700;
+        color: {text};
+    }}
+    .metis-cal-title {{
+        font-size: 13px;
+        font-weight: 700;
+        color: {text};
+    }}
+    .metis-cal-nav, .metis-cal-today-btn {{
+        padding: 2px 8px;
+        min-height: 0;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+    .metis-cal-today-btn {{
+        font-size: 11px;
+        font-weight: 700;
+        color: {accent};
+    }}
+    .metis-cal-nav:hover, .metis-cal-today-btn:hover {{
+        color: {text};
+        background-color: rgba(34, 211, 238, 0.14);
+    }}
+
+    .metis-cal-weekday {{
+        font-size: 10px;
+        font-weight: 700;
+        color: {muted};
+        padding: 2px 0;
+    }}
+    button.metis-cal-day {{
+        padding: 2px 0;
+        min-width: 36px;
+        min-height: 34px;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {text};
+        border-radius: {rs}px;
+    }}
+    button.metis-cal-day:hover {{
+        background-color: rgba(255, 255, 255, 0.06);
+    }}
+    button.metis-cal-adjacent {{
+        opacity: 0.32;
+    }}
+    button.metis-cal-today .metis-cal-daynum {{
+        color: {accent};
+        font-weight: 700;
+    }}
+    button.metis-cal-selected {{
+        background-color: rgba(34, 211, 238, 0.10);
+        box-shadow: inset 0 0 0 1px {accent};
+    }}
+    .metis-cal-daynum {{
+        font-size: 12px;
+    }}
+    .metis-cal-dot {{
+        min-width: 5px;
+        min-height: 5px;
+        background-color: {accent};
+        border-radius: 999px;
+        margin-top: 1px;
+    }}
+
+    .metis-cal-empty {{
+        font-size: 12px;
+        color: {muted};
+        font-style: italic;
+    }}
+    .metis-cal-add-btn {{
+        padding: 4px 10px;
+        min-height: 0;
+        border: none;
+        background-color: rgba(34, 211, 238, 0.14);
+        color: {text};
+        border-radius: {rs}px;
+        box-shadow: none;
+    }}
+    .metis-cal-add-btn:hover {{
+        background-color: rgba(34, 211, 238, 0.24);
+    }}
+
+    .metis-cal-event {{
+        padding: 6px 4px;
+        border-radius: {rs}px;
+    }}
+    .metis-cal-event:hover {{
+        background-color: rgba(255, 255, 255, 0.04);
+    }}
+    .metis-cal-event-color {{
+        background-color: {accent};
+        border-radius: 999px;
+    }}
+    .metis-cal-event-title {{
+        font-size: 13px;
+        color: {text};
+    }}
+    .metis-cal-event-sub {{
+        font-size: 11px;
+        color: {muted};
+    }}
+    .metis-cal-event-action {{
+        padding: 2px;
+        min-height: 0;
+        min-width: 0;
+        border: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+    .metis-cal-event-action:hover {{
+        color: {text};
+        background-color: rgba(255, 255, 255, 0.08);
+    }}
+
+    .metis-clock-cards {{
+        margin-top: 2px;
+    }}
+    .metis-clock-card {{
+        padding: 10px 12px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border: 1px solid {border};
+        border-radius: {rm}px;
+    }}
+    .metis-clock-card-name {{
+        font-size: 14px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-clock-card-offset {{
+        font-size: 11px;
+        color: {muted};
+    }}
+    .metis-clock-card-time {{
+        font-size: 18px;
+        font-weight: 700;
+        color: {accent};
+    }}
+    .metis-entry-error {{
+        box-shadow: inset 0 0 0 1px #ff5c5c;
+    }}
+
+    .metis-clock-digits {{
+        font-size: 30px;
+        font-weight: 700;
+        color: {text};
+        font-feature-settings: "tnum";
+    }}
+    .metis-clock-btn {{
+        padding: 4px 12px;
+        min-height: 0;
+        border: none;
+        border-radius: {rs}px;
+        color: {text};
+        background-color: rgba(255, 255, 255, 0.06);
+        box-shadow: none;
+    }}
+    .metis-clock-btn:hover {{
+        background-color: rgba(34, 211, 238, 0.20);
+    }}
+    .metis-clock-lap {{
+        font-size: 12px;
+        color: {muted};
+    }}
+    .metis-clock-alarm {{
+        padding: 6px 8px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border-radius: {rs}px;
+    }}
+    .metis-clock-alarm-time {{
+        font-size: 16px;
+        font-weight: 700;
+        color: {text};
+    }}
+
+    /* ---- Add-event form + Calendars account management ---- */
+    .metis-cal-form {{
+        padding: 8px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border: 1px solid {border};
+        border-radius: {rm}px;
+    }}
+    .metis-acct-form {{
+        padding: 12px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border: 1px solid {border};
+        border-radius: {rm}px;
+    }}
+    .metis-acct-row {{
+        padding: 10px 12px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border: 1px solid {border};
+        border-radius: {rm}px;
+    }}
+    .metis-acct-name {{
+        font-size: 14px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-acct-status {{
+        font-size: 11px;
+        color: {muted};
     }}
 "#,
         surface = surface,

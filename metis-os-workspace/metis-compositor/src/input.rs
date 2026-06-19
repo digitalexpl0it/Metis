@@ -146,7 +146,10 @@ impl MetisState {
                 );
 
                 if ButtonState::Pressed == button_state {
-                    if self.should_dismiss_bar_popovers(loc) {
+                    // When a popup grab is active, smithay's PopupPointerGrab already
+                    // dismisses popovers on outside clicks (popup_done). Only fall back
+                    // to the manual signal when no grab is in effect.
+                    if !pointer.is_grabbed() && self.should_dismiss_bar_popovers(loc) {
                         let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
                     if !self.metis_bar_ui_hit(loc) {

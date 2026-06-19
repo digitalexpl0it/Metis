@@ -14,9 +14,16 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 gtk4-layer-shell = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 chrono-tz = "0.10"
 directories = "5"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 metis-protocol = { workspace = true }
+ical = "0.11"
+rrule = "0.14.0"
+async-trait = "0.1.89"
+quick-xml = "0.40.1"
+url = "2.5.8"
+oo7 = { version = "0.6.0", default-features = false, features = ["tokio", "native_crypto"] }
+rusqlite = { version = "0.40.1", features = ["bundled"] }

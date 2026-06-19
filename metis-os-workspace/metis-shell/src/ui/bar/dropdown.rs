@@ -80,10 +80,29 @@ pub fn wire_toggle_prepare(
     });
 }
 
+/// Register an externally-managed popover (e.g. a grab-based MenuButton popover)
+/// so the compositor "close-popovers" signal and single-open logic can still
+/// pop it down.
+pub fn register(popover: &gtk::Popover) {
+    POPOVERS.with(|list| list.borrow_mut().push(popover.clone()));
+}
+
 pub fn close_all() {
     POPOVERS.with(|list| {
         for popover in list.borrow().iter() {
             popover.popdown();
+        }
+    });
+}
+
+/// Pop down every registered popover except `keep` (used for single-open behavior
+/// when opening a grab-based popover that is itself registered).
+pub fn close_others(keep: &gtk::Popover) {
+    POPOVERS.with(|list| {
+        for popover in list.borrow().iter() {
+            if popover != keep {
+                popover.popdown();
+            }
         }
     });
 }
