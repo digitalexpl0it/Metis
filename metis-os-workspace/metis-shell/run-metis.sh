@@ -269,6 +269,7 @@ binary_needs_rebuild() {
     local workspace="$WORKSPACE"
     local newest_src
     newest_src="$(find "$workspace/metis-compositor" "$workspace/metis-shell" "$workspace/metis-grid" "$workspace/metis-protocol" \
+        "$workspace/metis-config" "$workspace/metis-secrets" "$workspace/metis-settings" \
         -name '*.rs' -newer "$bin" 2>/dev/null | head -1)"
     if [[ -n "$newest_src" ]]; then
         log "Source changed since last build ($newest_src) — rebuild required."
@@ -414,11 +415,11 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     if [[ "$PROFILE" == "release" ]]; then
         SHELL_BIN="$TARGET_DIR/release/metis-shell"
         COMP_BIN="$TARGET_DIR/release/metis-compositor"
-        BUILD_CMD=(cargo build --release -p metis-shell -p metis-compositor)
+        BUILD_CMD=(cargo build --release -p metis-shell -p metis-compositor -p metis-settings)
     else
         SHELL_BIN="$TARGET_DIR/debug/metis-shell"
         COMP_BIN="$TARGET_DIR/debug/metis-compositor"
-        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor)
+        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor -p metis-settings)
     fi
 
     if [[ "$FORCE_BUILD" -eq 1 ]] || binary_needs_rebuild "$SHELL_BIN" || binary_needs_rebuild "$COMP_BIN"; then

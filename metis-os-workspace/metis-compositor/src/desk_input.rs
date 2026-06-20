@@ -1,4 +1,4 @@
-use metis_grid::{cell_to_pixels, PixelRect, TileKind};
+use metis_grid::{app_tile_body_rect, cell_to_pixels, PixelRect, TileKind};
 use smithay::{
     backend::renderer::utils::with_renderer_surface_state,
     desktop::{layer_map_for_output, WindowSurfaceType},
@@ -61,9 +61,6 @@ fn layer_accepts_pointer(
         .is_some()
 }
 
-/// Height of the draggable app-tile chrome rendered by the shell (header bar).
-pub use metis_grid::APP_TILE_HEADER_PX;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeskHit {
     WidgetTile { tile_id: String },
@@ -96,14 +93,7 @@ impl MetisState {
                     window_id: Some(wid),
                     ..
                 } => {
-                    let header = APP_TILE_HEADER_PX.min(full.height);
-                    let body = PixelRect {
-                        x: full.x,
-                        y: full.y + header,
-                        width: full.width,
-                        height: full.height.saturating_sub(header),
-                    };
-                    if point_in_rect(x, y, body) {
+                    if point_in_rect(x, y, app_tile_body_rect(full)) {
                         return DeskHit::AppBody { window_id: *wid };
                     }
                     return DeskHit::AppHeader {
@@ -174,13 +164,7 @@ impl MetisState {
                 continue;
             }
             let full = cell_to_pixels(&metrics, &tile.rect);
-            let header = APP_TILE_HEADER_PX.min(full.height);
-            return Some(PixelRect {
-                x: full.x,
-                y: full.y + header,
-                width: full.width,
-                height: full.height.saturating_sub(header),
-            });
+            return Some(app_tile_body_rect(full));
         }
         None
     }

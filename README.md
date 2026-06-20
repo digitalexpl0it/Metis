@@ -18,6 +18,9 @@
 ├── metis-os-workspace/          # Cargo workspace
 │   ├── metis-compositor/        # Smithay Wayland compositor (winit nested backend for dev)
 │   ├── metis-shell/      # Metis shell — GTK4 layer-shell edge bar + command overlay
+│   ├── metis-settings/         # GTK4 settings app (appearance, weather, network, calendars)
+│   ├── metis-config/           # Shared config + theme-token types (serde, no GTK)
+│   ├── metis-secrets/          # Shared freedesktop Secret Service (oo7) wrapper
 │   ├── metis-grid/              # Window grid / tiling reflow engine
 │   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
 │   └── assets/wallpapers/     # Bundled default wallpaper
@@ -87,8 +90,13 @@ HUD, alarms), a grouped notification popup fed by a freedesktop
 (`org.freedesktop.Notifications`) D-Bus daemon, an interactive Wi-Fi popover, and
 a weather widget with a forecast popover (IP-geolocation auto-detect via
 Open-Meteo). Theming is fully token-driven with live reload, and the bar supports
-transparency plus a compositor backdrop blur. Next up (Phase 2) is a standalone
-`metis-settings` app and, after that, window-manager decorations. See
+transparency plus a compositor backdrop blur.
+
+Phase 2 is landing: a standalone **`metis-settings`** app (Appearance, Weather,
+Network, Calendars pages) backed by the shared `metis-config`/`metis-secrets`
+crates, plus **server-side window decorations** — the compositor forces SSD and
+draws a titlebar (with title text), a border, and close/minimize/maximize
+buttons around each tiled window. See
 [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
 [`CHANGELOG.md`](CHANGELOG.md) for recent changes.
 

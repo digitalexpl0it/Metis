@@ -2,9 +2,8 @@ use std::cell::RefCell;
 
 use gtk::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 
-use super::css::build_stylesheet;
-use super::tokens::{ThemeMode, ThemeTokens};
 use crate::config;
+use metis_config::{build_stylesheet, ThemeMode, ThemeTokens};
 
 thread_local! {
     static THEME_STATE: RefCell<ThemeState> = RefCell::new(ThemeState {

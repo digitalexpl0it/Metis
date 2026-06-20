@@ -1,4 +1,4 @@
-use super::tokens::ThemeTokens;
+use crate::theme::ThemeTokens;
 
 pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let accent = theme.accent_primary();
@@ -20,11 +20,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let c_success = theme.semantic.success.clone();
     let c_info = theme.semantic.info.clone();
     let c_payment = theme.semantic.payment.clone();
-    let c_error_rgb = super::tokens::rgb_triplet_from_hex(&theme.semantic.error);
-    let c_warning_rgb = super::tokens::rgb_triplet_from_hex(&theme.semantic.warning);
-    let c_success_rgb = super::tokens::rgb_triplet_from_hex(&theme.semantic.success);
-    let c_info_rgb = super::tokens::rgb_triplet_from_hex(&theme.semantic.info);
-    let c_payment_rgb = super::tokens::rgb_triplet_from_hex(&theme.semantic.payment);
+    let c_error_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.error);
+    let c_warning_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.warning);
+    let c_success_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.success);
+    let c_info_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.info);
+    let c_payment_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.payment);
 
     format!(
         r#"

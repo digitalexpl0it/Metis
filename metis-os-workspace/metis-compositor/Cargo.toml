@@ -17,6 +17,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 directories = "5"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+fontdue = "0.9"
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay"

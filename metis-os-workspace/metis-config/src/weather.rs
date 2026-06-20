@@ -70,6 +70,14 @@ pub fn load_weather_config() -> WeatherConfig {
     WeatherConfig::default()
 }
 
+/// Persist the weather configuration (used by the settings app's Weather page).
+/// The shell refetches on the next poll (or immediately via `reload-weather`).
+pub fn save_weather_config(config: &WeatherConfig) -> std::io::Result<()> {
+    super::ensure_config_dirs()?;
+    let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
+    std::fs::write(weather_config_path(), json)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

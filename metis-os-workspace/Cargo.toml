@@ -3,8 +3,11 @@ resolver = "2"
 members = [
     "metis-grid",
     "metis-protocol",
+    "metis-config",
+    "metis-secrets",
     "metis-compositor",
     "metis-shell",
+    "metis-settings",
 ]
 
 [workspace.package]
@@ -19,6 +22,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter"] }
 metis-grid = { path = "metis-grid" }
 metis-protocol = { path = "metis-protocol" }
+metis-config = { path = "metis-config" }
+metis-secrets = { path = "metis-secrets" }
 
 # Compile third-party dependencies optimized even in dev builds. Without this,
 # the `image` crate decodes/resizes the wallpaper ~50-100x slower (multi-second

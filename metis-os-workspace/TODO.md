@@ -1,7 +1,8 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 (edge bar) complete; starting Phase 2
-(`metis-settings` app + weather config UI).
+**Current phase:** Phase 1 (edge bar) complete; Phase 2 (`metis-settings` app +
+server-side window decorations) landed. Next: decoration polish (rounded button
+glyphs, focus-aware styling, border resize) and broader window management.
 
 ---
 
@@ -28,18 +29,35 @@
 
 ---
 
-## Phase 2 — Settings app + Weather
+## Phase 2 — Settings app + Window decorations
 
-A standalone `metis-settings` GTK4 toplevel (first real window-managed client)
-with a sidebar and per-domain pages. Centralizes config currently scattered
-across popovers.
+A standalone `metis-settings` GTK4 toplevel (the first real window-managed
+client) with a sidebar and per-domain pages, plus compositor-drawn server-side
+decorations so it (and every app) gets a real titlebar.
+
+### Shared crates
+- [x] `metis-config` — pure (serde + fs, no GTK) config + theme-token types and
+      stylesheet builder, shared by the shell and settings app
+- [x] `metis-secrets` — shared freedesktop Secret Service (`oo7`) wrapper
 
 ### `metis-settings` shell
-- [ ] New `metis-settings` binary — sidebar nav + content stack
-- [ ] Launch from the bar launcher icon and via `metis-cmd settings [page]`
-- [ ] Network page — wired/NIC config (DHCP vs static), Wi-Fi forget/known nets;
+- [x] New `metis-settings` binary — sidebar nav + content stack, `--page` preselect
+- [x] Launch from the bar launcher icon and via `metis-cmd settings [page]`
+- [x] Appearance page — theme mode, accent/secondary/semantic colors, opacity,
+      blur + blur radius (writes `themes/*.json` + `bar.json`, live reload)
+- [x] Network page — wired/NIC config (DHCP vs static), Wi-Fi scan/connect/forget;
       bar "wired-only" network click opens this page
-- [ ] Calendars page — move CalDAV/account config out of the clock popover
+- [x] Calendars page — moved CalDAV/MS365 account config out of the clock popover
+
+### Window decorations (server-side)
+- [x] `zxdg_decoration_manager_v1` + `XdgDecorationHandler`; force SSD so GTK
+      omits its client-side headerbar
+- [x] Frame vs client geometry split — titlebar + border replace the old undrawn
+      44 px grid tile-header inset
+- [x] Compositor-drawn titlebar (title via `fontdue`), border, and close /
+      minimize / maximize buttons
+- [x] Decoration input — button actions + titlebar drag (`MoveSurfaceGrab`)
+- [ ] Polish — rounded button glyphs, focus-aware dimming, working border resize
 
 ### Weather
 Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`
@@ -53,7 +71,7 @@ search. Attribution shown in the popover footer.
       an offline system-timezone (`zoneinfo`) fallback; 12s HTTP timeouts, cached,
       retries every 30s on failure
 - [x] `weather.json` config (unit, `auto_detect`, `ip_geolocation`, locations)
-- [ ] Settings → Weather page — manual location override + search, multiple saved
+- [x] Settings → Weather page — manual location override + search, multiple saved
       locations (reorder/remove), °F/°C unit toggle, IP-geolocation toggle
 
 ---

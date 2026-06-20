@@ -1,4 +1,3 @@
-mod accounts;
 mod alarms;
 mod calendar;
 mod stopwatch;
@@ -15,7 +14,6 @@ use gtk::prelude::*;
 use crate::config::{alarm_sound_canberra_id, save_clocks_config, ClockConfig, ClocksConfig};
 use crate::services::{spawn_calendar_service, CalCommand, CalendarEvent, LocalEvent};
 
-use accounts::AccountsPage;
 use alarms::AlarmsPage;
 use calendar::{CalendarPage, CreateRequest, EventView};
 use stopwatch::StopwatchPage;
@@ -119,10 +117,9 @@ impl ClockWidget {
         stack.add_named(&alarms_page.widget, Some("alarms"));
 
         // ---- Calendar event service wiring ----
+        // Account management moved to the settings app (Calendars page); the clock
+        // popover keeps only the calendar/clock/stopwatch/timer/alarm views.
         let (cal_tx, cal_rx) = spawn_calendar_service();
-
-        let calendars_page = AccountsPage::new(cal_tx.clone());
-        stack.add_named(&calendars_page.widget, Some("calendars"));
 
         let switcher = build_pill_switcher(
             &stack,
@@ -132,7 +129,6 @@ impl ClockWidget {
                 ("stopwatch", "Stopwatch", "media-playback-start-symbolic"),
                 ("timer", "Timer", "alarm-symbolic"),
                 ("alarms", "Alarms", "alarm-symbolic"),
-                ("calendars", "Calendars", "system-users-symbolic"),
             ],
         );
         {

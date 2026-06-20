@@ -252,3 +252,11 @@ pub fn save_default_bar_config() -> std::io::Result<()> {
     let json = serde_json::to_string_pretty(&BarConfig::default()).map_err(std::io::Error::other)?;
     std::fs::write(path, json)
 }
+
+/// Persist a full bar configuration (used by the settings app's Appearance page
+/// for opacity/blur edits). The shell's `watch_bar_config` re-applies it live.
+pub fn save_bar_config(config: &BarConfig) -> std::io::Result<()> {
+    super::ensure_config_dirs()?;
+    let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
+    std::fs::write(bar_config_path(), json)
+}

@@ -86,12 +86,12 @@ pub struct ThemeTokens {
 
 impl ThemeTokens {
     pub fn dark_default() -> Self {
-        serde_json::from_str(include_str!("../../../resources/themes/dark.json"))
+        serde_json::from_str(include_str!("../resources/themes/dark.json"))
             .expect("embedded dark theme must parse")
     }
 
     pub fn light_default() -> Self {
-        serde_json::from_str(include_str!("../../../resources/themes/light.json"))
+        serde_json::from_str(include_str!("../resources/themes/light.json"))
             .expect("embedded light theme must parse")
     }
 

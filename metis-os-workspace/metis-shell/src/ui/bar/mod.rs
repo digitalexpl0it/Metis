@@ -209,10 +209,26 @@ fn watch_compositor_dismiss() {
         let path = metis_protocol::runtime_command_path();
         if let Ok(cmd) = std::fs::read_to_string(&path) {
             let cmd = cmd.trim();
-            if cmd == "close-popovers" {
-                dropdown::request_close_all();
-            } else if cmd == "reload-bar" {
-                rebuild_from_config();
+            let (verb, arg) = cmd.split_once(char::is_whitespace).unwrap_or((cmd, ""));
+            match verb {
+                "close-popovers" => dropdown::request_close_all(),
+                "reload-bar" => rebuild_from_config(),
+                "reload-theme" => {
+                    let _ = crate::ui::theme::init_theme();
+                }
+                "reload-weather" => crate::services::weather::weather_refresh(),
+                "reload-calendars" => crate::services::reload_calendars(),
+                "settings" => {
+                    let program = if arg.trim().is_empty() {
+                        "metis-settings".to_string()
+                    } else {
+                        format!("metis-settings --page {}", arg.trim())
+                    };
+                    if let Err(err) = crate::compositor::launch_program(&program) {
+                        tracing::warn!(%err, "failed to launch metis-settings");
+                    }
+                }
+                _ => {}
             }
             let _ = std::fs::remove_file(&path);
         }

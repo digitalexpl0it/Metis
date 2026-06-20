@@ -1,7 +1,11 @@
 use crate::model::TileRect;
 
 /// Header strip rendered by the shell for app tiles; body is the live app window.
-pub const APP_TILE_HEADER_PX: i32 = 44;
+/// Height of the compositor-drawn server-side titlebar above each app window.
+pub const APP_TILE_HEADER_PX: i32 = 36;
+
+/// Thickness of the compositor-drawn border on the left/right/bottom of each app window.
+pub const APP_TILE_BORDER_PX: i32 = 2;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct MonitorRect {
@@ -50,7 +54,7 @@ pub fn desk_pixel_rect(metrics: &GridMetrics, rect: &TileRect) -> PixelRect {
     }
 }
 
-/// Shell layer chrome for an app tile — header strip only, not the app body.
+/// Server-side titlebar strip for an app tile — the draggable chrome at the top.
 pub fn app_tile_chrome_rect(full: PixelRect) -> PixelRect {
     let height = APP_TILE_HEADER_PX.min(full.height.max(1));
     PixelRect {
@@ -61,14 +65,17 @@ pub fn app_tile_chrome_rect(full: PixelRect) -> PixelRect {
     }
 }
 
-/// Region where the compositor maps the app window (below shell header chrome).
+/// Inner client region where the compositor maps the app window: the full tile
+/// frame minus the server-side titlebar (top) and border (left/right/bottom).
 pub fn app_tile_body_rect(full: PixelRect) -> PixelRect {
     let header = APP_TILE_HEADER_PX.min(full.height);
+    let border = APP_TILE_BORDER_PX.min((full.width / 2).max(0));
+    let bottom_border = APP_TILE_BORDER_PX.min((full.height - header).max(0));
     PixelRect {
-        x: full.x,
+        x: full.x + border,
         y: full.y + header,
-        width: full.width.max(1),
-        height: full.height.saturating_sub(header).max(1),
+        width: (full.width - border * 2).max(1),
+        height: (full.height - header - bottom_border).max(1),
     }
 }
 

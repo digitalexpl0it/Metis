@@ -7,6 +7,9 @@ mod provider;
 mod recurrence;
 mod thunderbird;
 
+// Device-code login lives here for the (now external) settings Calendars page;
+// the shell itself no longer calls it directly.
+#[allow(unused_imports)]
 pub use ms365::{complete_device_login, start_device_login};
 
 pub use local::LocalEvent;
@@ -16,6 +19,7 @@ pub use provider::EventProvider;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -45,9 +49,21 @@ pub enum CalCommand {
 const REFRESH_SECS: u64 = 300;
 const WATCH_SECS: u64 = 4;
 
+/// Global handle to the calendar service so the runtime command poller can ask
+/// it to rebuild providers after the settings app edits calendars.json.
+static CAL_CMD_TX: OnceLock<Sender<CalCommand>> = OnceLock::new();
+
+/// Trigger a provider rebuild from calendars.json (e.g. `reload-calendars`).
+pub fn reload_calendars() {
+    if let Some(tx) = CAL_CMD_TX.get() {
+        let _ = tx.send(CalCommand::Reload);
+    }
+}
+
 pub fn spawn_calendar_service() -> (Sender<CalCommand>, Receiver<Vec<Event>>) {
     let (cmd_tx, cmd_rx) = mpsc::channel::<CalCommand>();
     let (upd_tx, upd_rx) = mpsc::channel::<Vec<Event>>();
+    let _ = CAL_CMD_TX.set(cmd_tx.clone());
     let _ = thread::Builder::new()
         .name("metis-calendar".into())
         .spawn(move || match tokio::runtime::Builder::new_current_thread()

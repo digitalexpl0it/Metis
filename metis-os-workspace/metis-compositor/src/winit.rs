@@ -35,6 +35,7 @@ render_elements! {
     Wallpaper=TextureRenderElement<GlesTexture>,
     Cursor=WaylandSurfaceRenderElement<GlesRenderer>,
     Space=smithay::desktop::space::SpaceRenderElements<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>>,
+    Deco=crate::decoration::DecorationElement,
     Blur=crate::blur::BlurElement,
 }
 
@@ -214,6 +215,14 @@ pub fn init_winit(
                                 }
                             };
 
+                            // Server-side window decorations (titlebar + border +
+                            // controls). Built here so we have the GL renderer for
+                            // title-text texture uploads.
+                            let deco_elements = {
+                                let specs = state.decoration_specs();
+                                state.decorations.elements(renderer, &specs)
+                            };
+
                             let space_render_elements = match space_render_elements::<
                                 GlesRenderer,
                                 Window,
@@ -239,6 +248,12 @@ pub fn init_winit(
                                 space_render_elements
                                     .into_iter()
                                     .map(OutputStack::Space),
+                            );
+                            // Decorations sit just below the client surfaces (they
+                            // only fill the titlebar/border gap, never overlapping
+                            // the client buffer) and above the wallpaper/blur.
+                            render_elements.extend(
+                                deco_elements.into_iter().map(OutputStack::Deco),
                             );
                             // Below the bar (and windows), above the wallpaper.
                             if let Some(blur) = blur_element {

@@ -20,9 +20,11 @@ use smithay::{
     },
     utils::{Rectangle, Serial},
     wayland::shell::xdg::{
+        decoration::XdgDecorationHandler,
         PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     },
 };
+use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode;
 
 impl XdgShellHandler for MetisState {
     fn xdg_shell_state(&mut self) -> &mut XdgShellState {
@@ -221,6 +223,38 @@ impl XdgShellHandler for MetisState {
 
     fn app_id_changed(&mut self, surface: ToplevelSurface) {
         self.sync_toplevel_metadata(&surface);
+    }
+}
+
+impl XdgDecorationHandler for MetisState {
+    fn new_decoration(&mut self, toplevel: ToplevelSurface) {
+        // Metis draws server-side decorations (border + titlebar) itself, so force
+        // SSD on every toplevel — GTK then omits its client-side headerbar.
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(DecorationMode::ServerSide);
+        });
+        if toplevel.is_initial_configure_sent() {
+            toplevel.send_pending_configure();
+        }
+    }
+
+    fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: DecorationMode) {
+        // Ignore the client's preference; we always decorate server-side.
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(DecorationMode::ServerSide);
+        });
+        if toplevel.is_initial_configure_sent() {
+            toplevel.send_pending_configure();
+        }
+    }
+
+    fn unset_mode(&mut self, toplevel: ToplevelSurface) {
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(DecorationMode::ServerSide);
+        });
+        if toplevel.is_initial_configure_sent() {
+            toplevel.send_pending_configure();
+        }
     }
 }
 

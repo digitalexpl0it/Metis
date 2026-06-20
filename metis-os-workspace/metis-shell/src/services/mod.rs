@@ -6,7 +6,9 @@ pub mod secrets;
 pub mod weather;
 mod workspaces;
 
-pub use calendar::{spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent};
+pub use calendar::{
+    reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
+};
 pub use notifications::{
     clear_notifications, notification_count, push_notification, register_refresh,
     runtime_notifications, BarNotification, NotificationEntry, NotificationKind,

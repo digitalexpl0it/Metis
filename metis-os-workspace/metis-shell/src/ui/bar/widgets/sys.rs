@@ -280,6 +280,18 @@ impl NetworkWidget {
         connect_box.append(&btn_row);
         panel.append(&connect_box);
 
+        // ---- Footer: open the full Network settings page ----
+        let settings_btn = gtk::Button::with_label("Network Settings…");
+        settings_btn.add_css_class("metis-net-settings-btn");
+        settings_btn.set_halign(gtk::Align::Start);
+        settings_btn.connect_clicked(|_| {
+            if let Err(err) = crate::compositor::launch_program("metis-settings --page network") {
+                tracing::warn!(%err, "failed to launch network settings");
+            }
+            super::super::dropdown::request_close_all();
+        });
+        panel.append(&settings_btn);
+
         let inner = Rc::new(NetInner {
             list,
             status_label,

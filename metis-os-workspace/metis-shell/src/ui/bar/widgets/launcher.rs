@@ -33,8 +33,11 @@ impl LauncherWidget {
         root.set_child(Some(&image));
 
         root.connect_clicked(|_| {
-            // Placeholder until the app-menu launcher lands.
-            tracing::info!("launcher clicked (app menu not implemented yet)");
+            // For now the brand button opens the settings app. It will grow into a
+            // full app-menu launcher later.
+            if let Err(err) = crate::compositor::launch_program("metis-settings") {
+                tracing::warn!(%err, "failed to launch metis-settings");
+            }
         });
 
         Self { root }

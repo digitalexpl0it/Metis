@@ -146,6 +146,13 @@ impl MetisState {
                 );
 
                 if ButtonState::Pressed == button_state {
+                    // Server-side decorations (titlebar buttons / drag / border) are
+                    // compositor chrome, not client surfaces — intercept before any
+                    // client forwarding so close/min/max and titlebar drag work.
+                    if self.handle_decoration_press(loc, serial) {
+                        self.schedule_redraw();
+                        return;
+                    }
                     // When a popup grab is active, smithay's PopupPointerGrab already
                     // dismisses popovers on outside clicks (popup_done). Only fall back
                     // to the manual signal when no grab is in effect.

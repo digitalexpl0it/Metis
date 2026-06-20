@@ -25,7 +25,7 @@ use smithay::{
         },
         shell::{
             wlr_layer::WlrLayerShellState,
-            xdg::XdgShellState,
+            xdg::{decoration::XdgDecorationState, XdgShellState},
         },
         shm::ShmState,
         socket::ListeningSocketSource,
@@ -48,6 +48,7 @@ pub struct MetisState {
 
     pub compositor_state: CompositorState,
     pub xdg_shell_state: XdgShellState,
+    pub xdg_decoration_state: XdgDecorationState,
     pub layer_shell_state: WlrLayerShellState,
     pub shm_state: ShmState,
     pub _output_manager_state: OutputManagerState,
@@ -80,6 +81,7 @@ pub struct MetisState {
 
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
+    pub decorations: crate::decoration::DecorationRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
     /// When true, the next winit Redraw performs GL compositing + layer frame delivery.
@@ -98,6 +100,7 @@ impl MetisState {
 
         let compositor_state = CompositorState::new::<MetisState>(&dh);
         let xdg_shell_state = XdgShellState::new::<MetisState>(&dh);
+        let xdg_decoration_state = XdgDecorationState::new::<MetisState>(&dh);
         let layer_shell_state = WlrLayerShellState::new::<MetisState>(&dh);
         let shm_state = ShmState::new::<MetisState>(&dh, vec![]);
         let popups = PopupManager::default();
@@ -128,6 +131,7 @@ impl MetisState {
             loop_signal,
             compositor_state,
             xdg_shell_state,
+            xdg_decoration_state,
             layer_shell_state,
             shm_state,
             _output_manager_state: output_manager_state,
@@ -158,6 +162,7 @@ impl MetisState {
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
+            decorations: crate::decoration::DecorationRuntime::default(),
             redraw_trigger: None,
             damaged: true,
             defer_client_flush: false,
@@ -299,6 +304,34 @@ impl MetisState {
     }
 
     pub fn spawn_client(&mut self, program: &str) {
+        // Metis binaries (shell, settings) live alongside the compositor in the
+        // cargo target dir, which is usually not on PATH. Resolve a bare program
+        // name to its sibling-of-current-exe absolute path so `Launch` works.
+        fn resolve_sibling_program(program: &str) -> String {
+            let (bin, rest) = match program.split_once(' ') {
+                Some((b, r)) => (b, Some(r)),
+                None => (program, None),
+            };
+            if bin.contains('/') {
+                return program.to_string();
+            }
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let candidate = dir.join(bin);
+                    if candidate.is_file() {
+                        let p = candidate.display().to_string();
+                        return match rest {
+                            Some(r) => format!("{p} {r}"),
+                            None => p,
+                        };
+                    }
+                }
+            }
+            program.to_string()
+        }
+        let program = resolve_sibling_program(program);
+        let program = program.as_str();
+
         let mut cmd = if program.contains(' ') {
             let mut c = std::process::Command::new("sh");
             c.arg("-lc").arg(program);
@@ -667,6 +700,136 @@ impl MetisState {
         self.windows.set_target_rect(id, rect);
     }
 
+    /// Collect decoration specs (frame, title, focus) for every grid-tiled,
+    /// mapped window. Maximized/fullscreen/minimized windows are skipped.
+    pub fn decoration_specs(&self) -> Vec<crate::decoration::WindowDeco> {
+        let focused = self.focused_window_id();
+        let mut specs = Vec::new();
+        for id in self.windows.ids() {
+            if !self.is_window_grid_managed(id) {
+                continue;
+            }
+            let Some(record) = self.windows.get(id) else {
+                continue;
+            };
+            if !record.ready || self.windows.is_minimized(id) {
+                continue;
+            }
+            let Some(frame) = self.rect_for_window_tile(id) else {
+                continue;
+            };
+            specs.push(crate::decoration::WindowDeco {
+                id,
+                frame,
+                title: record.title.clone(),
+                focused: focused == Some(id),
+            });
+        }
+        specs
+    }
+
+    /// Handle a pointer press that may land on a server-side decoration (titlebar,
+    /// control buttons, or border). Returns true when the press was consumed by the
+    /// decoration (so the caller must not forward it to a client surface).
+    pub fn handle_decoration_press(
+        &mut self,
+        loc: Point<f64, Logical>,
+        serial: smithay::utils::Serial,
+    ) -> bool {
+        use crate::decoration::{control_hitboxes, DecoControl};
+        use crate::desk_input::point_in_rect;
+
+        // A live popup/move/resize grab owns the pointer — let it run.
+        if self
+            .seat
+            .get_pointer()
+            .is_some_and(|p| p.is_grabbed())
+        {
+            return false;
+        }
+
+        let (x, y) = (loc.x as i32, loc.y as i32);
+        for spec in self.decoration_specs() {
+            let frame = spec.frame;
+            if !point_in_rect(x, y, frame) {
+                continue;
+            }
+            // Inside the client body → not a decoration hit; let it pass through.
+            if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
+                return false;
+            }
+            for (control, rect) in control_hitboxes(frame) {
+                if !point_in_rect(x, y, rect) {
+                    continue;
+                }
+                match control {
+                    DecoControl::Close => self.close_window(spec.id),
+                    DecoControl::Minimize => {
+                        if let Some(tile_id) = self.tile_id_for_window(spec.id) {
+                            self.set_tile_mode(&tile_id, metis_protocol::TileMode::Minimized);
+                        } else {
+                            self.minimize_window(spec.id);
+                        }
+                    }
+                    DecoControl::Maximize => {
+                        let maxed = self
+                            .windows
+                            .get(spec.id)
+                            .map(|r| r.maximized)
+                            .unwrap_or(false);
+                        self.set_maximized(spec.id, !maxed);
+                    }
+                    DecoControl::Titlebar => self.start_titlebar_move(spec.id, loc, serial),
+                }
+                return true;
+            }
+            // Border (or any other decoration pixel): consume so the click does not
+            // fall through to the wallpaper, but take no action (grid tiles are
+            // sized by the layout, not by free resize).
+            return true;
+        }
+        false
+    }
+
+    fn start_titlebar_move(
+        &mut self,
+        id: u32,
+        loc: Point<f64, Logical>,
+        serial: smithay::utils::Serial,
+    ) {
+        use smithay::input::pointer::{Focus, GrabStartData};
+
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        let window = record.window.clone();
+        self.space.raise_element(&window, true);
+        let initial_window_location = self
+            .space
+            .element_location(&window)
+            .unwrap_or_default();
+
+        // Focus the window so keyboard input follows the titlebar grab.
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(window.clone().into()), serial);
+        }
+
+        let Some(pointer) = self.seat.get_pointer() else {
+            return;
+        };
+        let start_data = GrabStartData {
+            focus: None,
+            button: 0x110,
+            location: loc,
+        };
+        let grab = crate::grabs::MoveSurfaceGrab {
+            start_data,
+            window,
+            initial_window_location,
+        };
+        pointer.set_grab(self, grab, serial, Focus::Clear);
+    }
+
     fn rect_for_window_tile(&self, id: u32) -> Option<PixelRect> {
         self.grid_layout.tiles.iter().find_map(|t| {
             if let TileKind::App {
@@ -866,10 +1029,10 @@ impl MetisState {
             }
             CompositorCommand::SubscribeEvents => CompositorEvent::Pong,
             CompositorCommand::Launch { program } => {
-                let _ = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(&program)
-                    .spawn();
+                // Route through spawn_client so the child inherits the nested
+                // Wayland env (WAYLAND_DISPLAY, GDK_BACKEND, cursor theme) and is
+                // tracked for cleanup — a bare `sh -c` had no Wayland display.
+                self.spawn_client(&program);
                 CompositorEvent::Pong
             }
         }

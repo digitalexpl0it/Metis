@@ -5,6 +5,39 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-21]
+
+### Added
+
+- **Settings app (`metis-settings`)** — a standalone GTK4 application with a
+  sidebar/stack layout and four pages: **Appearance** (theme mode, accent/
+  secondary/semantic color pickers, bar opacity + blur + blur radius),
+  **Weather** (units, auto-detect/IP-geolocation toggles, Open-Meteo location
+  search, saved-location management), **Network** (Wi-Fi scan/connect/forget +
+  radio toggle, and per-NIC Ethernet IPv4 DHCP/static editors via `nmcli`), and
+  **Calendars** (CalDAV + Microsoft 365 account management). Pages write the
+  shared `~/.config/metis/*.json` files; the running shell picks changes up via
+  its file watchers and new `reload-theme`/`reload-weather`/`reload-calendars`
+  runtime commands. Launch it from the bar's launcher icon, the wired-only
+  network popover's "Network Settings…" button, or `metis-cmd settings [page]`
+  (`--page {appearance|weather|network|calendars}` preselects a page).
+- **Shared `metis-config` crate** — all pure (serde + filesystem, no GTK)
+  configuration types and the theme token model / stylesheet builder moved into a
+  new workspace crate so both the shell and the settings app consume one source
+  of truth. Added `save_bar_config`/`save_weather_config`/`save_theme_tokens`
+  helpers and exported the per-file path getters.
+- **Shared `metis-secrets` crate** — a thin `oo7` (freedesktop Secret Service)
+  wrapper so both apps read/write the same keyring items for CalDAV passwords and
+  Microsoft 365 refresh tokens.
+- **Server-side window decorations** — the compositor now advertises
+  `zxdg_decoration_manager_v1` and forces server-side mode on every toplevel, so
+  GTK omits its client-side headerbar. Each tiled app window gets a compositor-
+  drawn titlebar (with the window title rendered via `fontdue`), a thin border,
+  and macOS-style close / minimize / maximize buttons. Clicking the buttons maps
+  to the existing close/minimize/maximize actions and dragging the titlebar moves
+  the window; the old undrawn 44 px grid "tile header" inset is replaced by this
+  real chrome.
+
 ## [2026-06-20]
 
 ### Added
