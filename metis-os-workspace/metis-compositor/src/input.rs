@@ -152,9 +152,12 @@ impl MetisState {
                     if !pointer.is_grabbed() && self.should_dismiss_bar_popovers(loc) {
                         let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
-                    if !self.metis_bar_ui_hit(loc) {
-                        self.update_keyboard_focus(loc, serial);
-                    }
+                    // Always move keyboard focus to whatever was clicked — including
+                    // the bar's own OnDemand layer surface. Text entries inside
+                    // non-grabbing bar popovers (Wi-Fi password, world-clock search)
+                    // only receive keystrokes if the bar layer surface holds
+                    // wl_keyboard focus; GTK then routes keys to the focused widget.
+                    self.update_keyboard_focus(loc, serial);
                 }
 
                 pointer.button(

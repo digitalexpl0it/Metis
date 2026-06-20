@@ -59,10 +59,10 @@ defaults:
 
 | File | Purpose |
 |------|---------|
-| `bar.json` | Edge bar position, size, margins, opacity, and widget order |
+| `bar.json` | Edge bar position, size, margins, opacity, backdrop blur, and widget order |
 | `clock.json` | World clocks and alarms |
 | `calendars.json` | Calendar accounts (local / CalDAV / Thunderbird / Microsoft 365) |
-| `themes/dark.json`, `themes/light.json` | Design tokens |
+| `themes/dark.json`, `themes/light.json` | Design tokens — accent + secondary accent, semantic status colors, `text_on_accent`, shadows/glows |
 
 Other files are created on demand:
 
@@ -74,15 +74,20 @@ Other files are created on demand:
 | `briefing.json` | You create it yourself (optional) | Login-briefing weather coordinates and RSS feed URL |
 | `weather.json` | You create it yourself (optional) | Bar weather: unit, auto-detect / IP-geolocation toggles, pinned locations |
 
-Edit `bar.json` while the shell runs — changes apply within ~1s.
+Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
+within ~1s and theme edits re-apply the active theme live. Set `opacity` < 1 for
+a see-through bar and `blur: true` (with an optional `blur_radius`, default 18)
+for a compositor Gaussian backdrop blur behind it.
 
 ## Status
 
-Phase 1 — a configurable edge bar on the Metis compositor — is largely complete.
-The bar ships a tabbed clock popover (calendar, world clocks, stopwatch, movable
-timer HUD, alarms), a grouped notification popup with per-kind icons, an
-interactive Wi-Fi popover, and a weather widget with a forecast popover
-(IP-geolocation auto-detect via Open-Meteo). Next up (Phase 2) is a standalone
+Phase 1 — a configurable edge bar on the Metis compositor — is complete. The bar
+ships a tabbed clock popover (calendar, world clocks, stopwatch, movable timer
+HUD, alarms), a grouped notification popup fed by a freedesktop
+(`org.freedesktop.Notifications`) D-Bus daemon, an interactive Wi-Fi popover, and
+a weather widget with a forecast popover (IP-geolocation auto-detect via
+Open-Meteo). Theming is fully token-driven with live reload, and the bar supports
+transparency plus a compositor backdrop blur. Next up (Phase 2) is a standalone
 `metis-settings` app and, after that, window-manager decorations. See
 [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
 [`CHANGELOG.md`](CHANGELOG.md) for recent changes.

@@ -12,6 +12,7 @@ use smithay::backend::{
             texture::{TextureBuffer, TextureRenderElement},
         },
         gles::{GlesRenderer, GlesTexture},
+        ImportMem, Texture,
     },
 };
 use smithay::utils::{Physical, Point, Size, Transform};
@@ -27,6 +28,9 @@ struct DecodeOutput {
 pub struct Wallpaper {
     path: PathBuf,
     buffer: Option<TextureBuffer<GlesTexture>>,
+    /// The raw texture backing `buffer`, kept so the bar's backdrop blur can
+    /// sample the wallpaper region behind the bar (TextureBuffer hides it).
+    texture: Option<GlesTexture>,
     output_size: Size<i32, Physical>,
     /// Decoded RGBA pixels (CPU) ready for a fast GPU upload during render.
     cpu_pixels: Option<Vec<u8>>,
@@ -61,6 +65,7 @@ impl Wallpaper {
         Self {
             path,
             buffer: None,
+            texture: None,
             output_size: Size::from((0, 0)),
             cpu_pixels: None,
             source: None,
@@ -79,6 +84,7 @@ impl Wallpaper {
 
     pub fn invalidate(&mut self) {
         self.buffer = None;
+        self.texture = None;
         self.cpu_pixels = None;
         // Detach any in-flight decode rather than joining on the compositor
         // thread — joining here blocked the main loop for the entire decode
@@ -221,22 +227,29 @@ impl Wallpaper {
         let w = self.output_size.w;
         let h = self.output_size.h;
 
-        match TextureBuffer::from_memory(
-            renderer,
-            rgba,
-            Fourcc::Abgr8888,
-            (w, h),
-            false,
-            1,
-            Transform::Normal,
-            None,
-        ) {
-            Ok(buf) => {
+        // Import the texture explicitly (rather than letting TextureBuffer own it)
+        // so we can also hand the GlesTexture to the bar backdrop-blur element.
+        match renderer.import_memory(rgba, Fourcc::Abgr8888, (w, h).into(), false) {
+            Ok(texture) => {
+                let buf = TextureBuffer::from_texture(
+                    renderer,
+                    texture.clone(),
+                    1,
+                    Transform::Normal,
+                    None,
+                );
                 tracing::info!(path = %self.path.display(), width = w, height = h, "wallpaper ready");
+                self.texture = Some(texture);
                 self.buffer = Some(buf);
             }
             Err(err) => tracing::warn!(?err, "failed to upload wallpaper texture"),
         }
+    }
+
+    /// The wallpaper texture and its size, for sampling behind the bar (blur).
+    pub fn texture(&self) -> Option<(GlesTexture, Size<i32, smithay::utils::Buffer>)> {
+        let texture = self.texture.as_ref()?;
+        Some((texture.clone(), texture.size()))
     }
 
     pub fn render_element(&self) -> Option<TextureRenderElement<GlesTexture>> {

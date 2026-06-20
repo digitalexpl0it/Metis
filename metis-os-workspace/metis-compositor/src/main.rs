@@ -1,5 +1,6 @@
 #![allow(irrefutable_let_patterns)]
 
+mod blur;
 mod desk_input;
 mod events;
 mod focus;

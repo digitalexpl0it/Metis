@@ -73,6 +73,10 @@ pub struct BarConfig {
     pub opacity: f32,
     #[serde(default = "default_true")]
     pub blur: bool,
+    /// Gaussian backdrop-blur radius (in pixels) applied by the compositor behind
+    /// the bar when `blur` is enabled. Consumed by the compositor via bar.json.
+    #[serde(default = "default_blur_radius")]
+    pub blur_radius: f32,
     #[serde(default = "default_widgets")]
     pub widgets: Vec<BarWidgetId>,
     #[serde(default)]
@@ -110,6 +114,10 @@ fn default_opacity() -> f32 {
     0.92
 }
 
+fn default_blur_radius() -> f32 {
+    18.0
+}
+
 fn default_true() -> bool {
     true
 }
@@ -138,6 +146,7 @@ impl Default for BarConfig {
             full_width: default_full_width(),
             opacity: default_opacity(),
             blur: default_true(),
+            blur_radius: default_blur_radius(),
             widgets: default_widgets(),
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),

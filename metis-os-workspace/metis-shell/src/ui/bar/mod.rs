@@ -10,7 +10,8 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarPosition};
 use crate::services::{
-    spawn_bar_pollers, spawn_weather_service, workspace_snapshot, BarSnapshot, WeatherSnapshot,
+    spawn_bar_pollers, spawn_notification_service, spawn_weather_service, workspace_snapshot,
+    BarNotification, BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
@@ -158,7 +159,9 @@ pub fn init_and_show(app: &gtk::Application) {
         move || {
             attach_poll_channel(spawn_bar_pollers());
             attach_weather_channel(spawn_weather_service());
+            attach_notification_channel(spawn_notification_service());
             watch_bar_config(config.clone());
+            watch_theme_files();
             watch_compositor_dismiss();
             glib::ControlFlow::Break
         }
@@ -353,6 +356,30 @@ fn watch_bar_config(config: Rc<RefCell<BarConfig>>) {
     });
 }
 
+/// Live-reload the active theme when any `themes/*.json` changes. Mirrors
+/// `watch_bar_config`: the GFileMonitor stays alive via the main-context source,
+/// and the debounced callback re-runs `init_theme()` (which re-reads the active
+/// mode + on-disk token file and re-applies the CssProvider).
+fn watch_theme_files() {
+    let dir = crate::config::config_dir().join("themes");
+    if let Err(err) = crate::config::ensure_config_dirs() {
+        tracing::warn!(%err, "failed to ensure themes dir");
+    }
+    let file = gio::File::for_path(&dir);
+    let Ok(monitor) =
+        file.monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    else {
+        tracing::warn!(path = %dir.display(), "themes dir monitor unavailable");
+        return;
+    };
+
+    monitor.connect_changed(move |_, _, _event, _| {
+        glib::timeout_add_local_once(std::time::Duration::from_millis(250), || {
+            let _ = crate::ui::theme::init_theme();
+        });
+    });
+}
+
 fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
     glib::timeout_add_local(std::time::Duration::from_millis(1000), move || {
         while let Ok(snapshot) = rx.try_recv() {
@@ -366,6 +393,17 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
                     handle.widget_refs.apply_weather(&snapshot);
                 }
             });
+        }
+        glib::ControlFlow::Continue
+    });
+}
+
+/// Drain notifications delivered by the freedesktop D-Bus daemon thread and push
+/// them into the (thread-local) in-bar notification store on the UI thread.
+fn attach_notification_channel(rx: Receiver<BarNotification>) {
+    glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+        while let Ok(note) = rx.try_recv() {
+            crate::services::push_notification(note);
         }
         glib::ControlFlow::Continue
     });

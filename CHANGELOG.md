@@ -5,6 +5,34 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-20]
+
+### Added
+
+- **Live theme reload** — editing `~/.config/metis/themes/dark.json` or
+  `light.json` now re-applies the active theme within ~250 ms (a GFileMonitor on
+  the themes directory re-runs `init_theme()`), mirroring the existing live
+  `bar.json` reload. No restart needed to tweak colors.
+- **Freedesktop notifications** — Metis now runs an `org.freedesktop.Notifications`
+  D-Bus daemon (zbus, on a background thread) so any desktop app's notifications
+  surface in the in-bar notification popup. The bus name is acquired with the
+  replace flag, so Metis takes over from a previously running daemon (dunst/mako).
+  Urgency hints map to notification kinds (low→info, normal→alert, critical→error).
+- **Themeable palette** — the stylesheet is now token-driven instead of hardcoded.
+  Themes gain a secondary accent (`accent[1]`), a `semantic` status palette
+  (`error`/`warning`/`success`/`info`/`payment`), and `text_on_accent`. ~27 fixed
+  cyan literals, the notification kind colors, on-accent text, and the floating
+  card shadows now derive from theme tokens, so accent/secondary/semantic/shadow
+  changes flow through the whole bar UI. New token fields use serde defaults, so
+  existing theme files keep working.
+- **Bar transparency + backdrop blur** — `bar.json` `opacity` makes the bar
+  see-through, and a new compositor Gaussian **backdrop blur** frosts the
+  wallpaper behind the bar. Controlled by `blur` (on/off) and a new `blur_radius`
+  (pixels, 1–64). The compositor samples the wallpaper under the bar through a
+  custom GLES shader and re-reads the blur fields from `bar.json` live (~1s), so
+  a future Settings app only needs to write the file. (Blur targets the bar's
+  exclusive-zone rectangle; rounded-corner masking is a future refinement.)
+
 ## [2026-06-19]
 
 ### Added

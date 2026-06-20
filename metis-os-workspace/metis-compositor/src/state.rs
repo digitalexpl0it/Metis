@@ -79,6 +79,7 @@ pub struct MetisState {
     pub cursor_status: smithay::input::pointer::CursorImageStatus,
 
     pub wallpaper: crate::wallpaper::Wallpaper,
+    pub blur: crate::blur::BlurRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
     /// When true, the next winit Redraw performs GL compositing + layer frame delivery.
@@ -156,6 +157,7 @@ impl MetisState {
             child_processes: Vec::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             wallpaper: crate::wallpaper::Wallpaper::new(),
+            blur: crate::blur::BlurRuntime::default(),
             redraw_trigger: None,
             damaged: true,
             defer_client_flush: false,

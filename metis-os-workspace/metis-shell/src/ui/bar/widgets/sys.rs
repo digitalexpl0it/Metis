@@ -54,7 +54,7 @@ use crate::services::{EthernetStatus, WifiNetwork};
 struct NetInner {
     list: gtk::Box,
     status_label: gtk::Label,
-    connect_reveal: gtk::Revealer,
+    connect_box: gtk::Box,
     connect_title: gtk::Label,
     password_entry: gtk::Entry,
     selected_ssid: RefCell<Option<String>>,
@@ -139,13 +139,13 @@ impl NetInner {
             self.connect_title
                 .set_text(&format!("Connect to {}", net.ssid));
             self.password_entry.set_text("");
-            self.connect_reveal.set_reveal_child(true);
+            self.connect_box.set_visible(true);
             self.password_entry.grab_focus();
         } else {
             crate::services::wifi_connect(net.ssid.clone(), None);
             self.pending
                 .replace(Some((net.ssid.clone(), Instant::now())));
-            self.connect_reveal.set_reveal_child(false);
+            self.connect_box.set_visible(false);
             self.rebuild_list();
         }
     }
@@ -157,7 +157,7 @@ impl NetInner {
         let password = self.password_entry.text().to_string();
         crate::services::wifi_connect(ssid.clone(), Some(password));
         self.pending.replace(Some((ssid, Instant::now())));
-        self.connect_reveal.set_reveal_child(false);
+        self.connect_box.set_visible(false);
         self.password_entry.set_text("");
         self.rebuild_list();
     }
@@ -251,12 +251,14 @@ impl NetworkWidget {
         panel.append(&status_label);
 
         // ---- Inline connect area (shared password entry for secured nets) ----
-        let connect_reveal = gtk::Revealer::builder()
-            .transition_type(gtk::RevealerTransitionType::SlideDown)
-            .reveal_child(false)
-            .build();
+        // A plain, visibility-toggled Box (not a Revealer): the entry stays
+        // realized so a synchronous grab_focus() lands and the OnDemand layer
+        // surface actually receives keyboard input — same proven pattern as the
+        // clock world-clock picker. A Revealer's child isn't focusable mid-
+        // animation, so focus (and typing) silently failed.
         let connect_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
         connect_box.add_css_class("metis-net-connect");
+        connect_box.set_visible(false);
         let connect_title = gtk::Label::new(Some(""));
         connect_title.set_halign(gtk::Align::Start);
         connect_title.add_css_class("metis-net-connect-title");
@@ -276,13 +278,12 @@ impl NetworkWidget {
         btn_row.append(&cancel_btn);
         btn_row.append(&connect_btn);
         connect_box.append(&btn_row);
-        connect_reveal.set_child(Some(&connect_box));
-        panel.append(&connect_reveal);
+        panel.append(&connect_box);
 
         let inner = Rc::new(NetInner {
             list,
             status_label,
-            connect_reveal: connect_reveal.clone(),
+            connect_box: connect_box.clone(),
             connect_title,
             password_entry: password_entry.clone(),
             selected_ssid: RefCell::new(None),
@@ -304,7 +305,7 @@ impl NetworkWidget {
             let inner = inner.clone();
             cancel_btn.connect_clicked(move |_| {
                 inner.selected_ssid.replace(None);
-                inner.connect_reveal.set_reveal_child(false);
+                inner.connect_box.set_visible(false);
             });
         }
 

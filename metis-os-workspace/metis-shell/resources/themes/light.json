@@ -18,5 +18,13 @@
   "shadow_ambient": "0 8px 24px rgba(0, 0, 0, 0.10)",
   "glow_cool": "0 0 40px rgba(0, 120, 200, 0.08)",
   "glow_warm": "0 0 40px rgba(255, 120, 40, 0.08)",
-  "glow_violet": "0 0 40px rgba(120, 60, 200, 0.06)"
+  "glow_violet": "0 0 40px rgba(120, 60, 200, 0.06)",
+  "semantic": {
+    "error": "#dc2626",
+    "warning": "#d97706",
+    "success": "#059669",
+    "info": "#2563eb",
+    "payment": "#65a30d"
+  },
+  "text_on_accent": "#ffffff"
 }

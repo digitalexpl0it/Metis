@@ -1,6 +1,6 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 (edge bar) largely complete; starting Phase 2
+**Current phase:** Phase 1 (edge bar) complete; starting Phase 2
 (`metis-settings` app + weather config UI).
 
 ---
@@ -20,8 +20,11 @@
       clear-all with slide-out animation, scrollbar, in-bar alert routing
 - [x] WiFi / audio popover controls
 - [x] Weather widget — icon + temperature with a forecast popover (see Phase 2)
-- [ ] Theme file watcher (live `themes/*.json` reload)
-- [ ] Freedesktop notification D-Bus subscription
+- [x] Theme file watcher (live `themes/*.json` reload)
+- [x] Freedesktop notification D-Bus daemon (`org.freedesktop.Notifications`)
+- [x] Themeable token palette — accent + secondary accent, semantic status colors,
+      `text_on_accent`, configurable shadows/glows drive the stylesheet
+- [x] Bar transparency (`opacity`) + compositor backdrop blur (`blur`/`blur_radius`)
 
 ---
 
@@ -69,7 +72,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `calendars.json` | Calendar accounts |
 | `config.json` | Active theme, onboarding state, briefing-on-login |
 | `desk.json` | Compositor window-grid layout |
-| `themes/dark.json`, `themes/light.json` | Design tokens |
+| `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 
@@ -85,6 +88,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   "full_width": true,
   "opacity": 0.92,
   "blur": true,
+  "blur_radius": 18.0,
   "widgets": [
     "workspaces",
     "spacer",
@@ -112,14 +116,18 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `margin_top` | Gap between the bar and the screen edge |
 | `margin_h` | Margin along the bar's long axis |
 | `full_width` | Span the entire edge vs. hug content |
-| `opacity` / `blur` | Pill background opacity and blur |
+| `opacity` | Pill background opacity (0–1); enables a see-through bar |
+| `blur` | Enable the compositor Gaussian backdrop blur behind the bar |
+| `blur_radius` | Blur strength in pixels (1–64) when `blur` is on |
 | `widgets` | Ordered list; `spacer` pushes following widgets apart |
 | `clock.time_format` / `date_format` | `chrono` format strings |
 | `clock.timezones` | Extra zones listed in the calendar popover |
 | `workspace_count` | Number of workspace indicator dots (1–12) |
 
-Edit `bar.json` while the shell runs — changes apply within ~1s. Legacy layouts
-are migrated to the current defaults automatically.
+Edit `bar.json` while the shell runs — changes apply within ~1s (the compositor
+also re-reads `blur`/`blur_radius` live). Legacy layouts are migrated to the
+current defaults automatically. Editing `themes/dark.json` / `themes/light.json`
+re-applies the active theme live as well.
 
 ---
 
@@ -160,7 +168,7 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Battery | `/sys/class/power_supply/BAT*` |
 | Network | `nmcli` or sysfs fallback |
 | Volume | `pactl` (scroll on widget to adjust) |
-| Notifications | Runtime in-bar store (grouped, icons); freedesktop D-Bus next |
+| Notifications | Freedesktop D-Bus daemon → runtime in-bar store (grouped, icons) |
 | Weather | Open-Meteo (keyless); IP-geolocation auto-detect (timezone fallback), override in Settings |
 
 > Tip: set `METIS_DEMO_NOTIFICATIONS=1` before launching to seed demo notifications

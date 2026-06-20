@@ -24,7 +24,7 @@ use smithay::{
         EventLoop,
         timer::{TimeoutAction, Timer},
     },
-    utils::{Rectangle, Size, Transform},
+    utils::{Physical, Rectangle, Size, Transform},
 };
 
 use crate::ipc;
@@ -35,6 +35,21 @@ render_elements! {
     Wallpaper=TextureRenderElement<GlesTexture>,
     Cursor=WaylandSurfaceRenderElement<GlesRenderer>,
     Space=smithay::desktop::space::SpaceRenderElements<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>>,
+    Blur=crate::blur::BlurElement,
+}
+
+/// On-screen rectangle of the Metis bar layer surface, used to position the
+/// backdrop blur. `None` when the bar is not (yet) mapped.
+fn bar_layer_rect(output: &Output) -> Option<Rectangle<i32, Physical>> {
+    let map = smithay::desktop::layer_map_for_output(output);
+    for layer in map.layers() {
+        if layer.namespace() == "metis-bar" {
+            if let Some(geo) = map.layer_geometry(layer) {
+                return Some(geo.to_physical(1));
+            }
+        }
+    }
+    None
 }
 
 pub fn init_winit(
@@ -110,6 +125,12 @@ pub fn init_winit(
                 state.damaged = true;
             }
 
+            // Pick up live blur on/off + radius changes written to bar.json
+            // (e.g. by a future Settings app), throttled to ~1s.
+            if state.blur.maybe_refresh() {
+                state.damaged = true;
+            }
+
             // Frame callbacks are delivered after each render (see Redraw), not
             // on a fixed clock — that keeps GTK's frame clock from spinning when
             // nothing changed. Every client commit schedules a redraw, so a
@@ -179,6 +200,20 @@ pub fn init_winit(
 
                             let wallpaper_owned = state.wallpaper.render_element();
 
+                            // Build the bar backdrop-blur element (samples the
+                            // wallpaper under the bar through a Gaussian shader).
+                            // Drawn below the bar surface, above wallpaper/windows.
+                            let blur_element = {
+                                state.blur.ensure_program(renderer);
+                                let rect = bar_layer_rect(&output);
+                                match (rect, state.wallpaper.texture()) {
+                                    (Some(rect), Some((tex, tex_size))) => {
+                                        state.blur.element(rect, tex, tex_size)
+                                    }
+                                    _ => None,
+                                }
+                            };
+
                             let space_render_elements = match space_render_elements::<
                                 GlesRenderer,
                                 Window,
@@ -205,6 +240,10 @@ pub fn init_winit(
                                     .into_iter()
                                     .map(OutputStack::Space),
                             );
+                            // Below the bar (and windows), above the wallpaper.
+                            if let Some(blur) = blur_element {
+                                render_elements.push(OutputStack::Blur(blur));
+                            }
                             if let Some(wallpaper) = wallpaper_owned {
                                 render_elements.push(OutputStack::Wallpaper(wallpaper));
                             }
