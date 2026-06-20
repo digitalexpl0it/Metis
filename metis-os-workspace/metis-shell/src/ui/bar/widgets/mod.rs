@@ -36,7 +36,7 @@ impl WidgetRefs {
             w.update(snapshot.battery_percent, snapshot.battery_charging);
         }
         if let Some(w) = self.network.borrow().as_ref() {
-            w.update(&snapshot.network_label, snapshot.network_connected);
+            w.update(&snapshot.ethernet, &snapshot.wifi, snapshot.wifi_enabled);
         }
         if let Some(w) = self.volume.borrow().as_ref() {
             w.update(

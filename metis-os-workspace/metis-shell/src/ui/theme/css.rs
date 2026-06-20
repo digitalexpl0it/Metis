@@ -488,6 +488,87 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: rgba(34, 211, 238, 0.20);
     }}
 
+    .metis-net-eth-row {{
+        padding: 6px 4px;
+        border-bottom: 1px solid {border};
+        color: {text};
+    }}
+
+    .metis-net-row {{
+        padding: 6px 6px;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {text};
+        border-radius: {rs}px;
+    }}
+
+    .metis-net-row:hover {{
+        background-color: rgba(34, 211, 238, 0.12);
+    }}
+
+    .metis-net-lock {{
+        color: {muted};
+    }}
+
+    .metis-net-active {{
+        color: {accent};
+    }}
+
+    .metis-net-status {{
+        padding: 6px 4px;
+        color: {muted};
+        font-size: 12px;
+    }}
+
+    .metis-net-refresh {{
+        padding: 4px;
+        min-width: 0;
+        min-height: 0;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+
+    .metis-net-refresh:hover {{
+        color: {accent};
+        background-color: rgba(34, 211, 238, 0.12);
+    }}
+
+    .metis-net-connect {{
+        padding: 8px 4px 2px 4px;
+        border-top: 1px solid {border};
+    }}
+
+    .metis-net-connect-title {{
+        color: {text};
+        font-weight: 600;
+    }}
+
+    .metis-net-password {{
+        border-radius: {rs}px;
+    }}
+
+    .metis-net-connect-btn {{
+        background-color: {accent};
+        background-image: none;
+        color: #0a0e14;
+        font-weight: 600;
+        border-radius: {rs}px;
+        padding: 4px 12px;
+    }}
+
+    .metis-net-cancel {{
+        border-radius: {rs}px;
+        padding: 4px 12px;
+    }}
+
     .metis-bar-dropdown-panel switch {{
         background-color: rgba(255, 255, 255, 0.14);
         border: none;

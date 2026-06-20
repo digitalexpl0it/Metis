@@ -47,46 +47,393 @@ impl BatteryWidget {
     }
 }
 
+use crate::services::{EthernetStatus, WifiNetwork};
+
+/// Shared state + interactive widgets for the network popover so row/button
+/// closures can re-render the Wi-Fi list and drive the connect flow.
+struct NetInner {
+    list: gtk::Box,
+    status_label: gtk::Label,
+    connect_reveal: gtk::Revealer,
+    connect_title: gtk::Label,
+    password_entry: gtk::Entry,
+    selected_ssid: RefCell<Option<String>>,
+    /// SSID we just asked to connect to, with the time of the request (for the
+    /// in-row spinner). Cleared once that network reports active or it times out.
+    pending: RefCell<Option<(String, Instant)>>,
+    last_sig: RefCell<String>,
+    wifi: RefCell<Vec<WifiNetwork>>,
+    wifi_enabled: Cell<bool>,
+}
+
+impl NetInner {
+    fn rebuild_list(self: &Rc<Self>) {
+        while let Some(child) = self.list.first_child() {
+            self.list.remove(&child);
+        }
+        if !self.wifi_enabled.get() {
+            self.status_label.set_text("Wi-Fi is off");
+            self.status_label.set_visible(true);
+            return;
+        }
+        let wifi = self.wifi.borrow();
+        if wifi.is_empty() {
+            self.status_label.set_text("No networks found");
+            self.status_label.set_visible(true);
+            return;
+        }
+        self.status_label.set_visible(false);
+        let pending = self.pending.borrow().as_ref().map(|(s, _)| s.clone());
+        for net in wifi.iter() {
+            let row = self.build_row(net, pending.as_deref());
+            self.list.append(&row);
+        }
+    }
+
+    fn build_row(self: &Rc<Self>, net: &WifiNetwork, pending: Option<&str>) -> gtk::Button {
+        let row = gtk::Button::builder().has_frame(false).build();
+        row.add_css_class("metis-net-row");
+
+        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+
+        let signal = icons::image(wifi_signal_icon(net.signal));
+        hbox.append(&signal);
+
+        let ssid = gtk::Label::new(Some(&net.ssid));
+        ssid.set_halign(gtk::Align::Start);
+        ssid.set_hexpand(true);
+        ssid.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        ssid.set_max_width_chars(22);
+        hbox.append(&ssid);
+
+        if net.secured {
+            let lock = icons::image("network-wireless-encrypted-symbolic");
+            lock.add_css_class("metis-net-lock");
+            hbox.append(&lock);
+        }
+
+        if pending == Some(net.ssid.as_str()) && !net.active {
+            let spinner = gtk::Spinner::new();
+            spinner.start();
+            hbox.append(&spinner);
+        } else if net.active {
+            let check = icons::image("object-select-symbolic");
+            check.add_css_class("metis-net-active");
+            hbox.append(&check);
+        }
+
+        row.set_child(Some(&hbox));
+
+        let inner = self.clone();
+        let net = net.clone();
+        row.connect_clicked(move |_| inner.on_row_clicked(&net));
+        row
+    }
+
+    fn on_row_clicked(self: &Rc<Self>, net: &WifiNetwork) {
+        if net.active {
+            return;
+        }
+        if net.secured {
+            self.selected_ssid.replace(Some(net.ssid.clone()));
+            self.connect_title
+                .set_text(&format!("Connect to {}", net.ssid));
+            self.password_entry.set_text("");
+            self.connect_reveal.set_reveal_child(true);
+            self.password_entry.grab_focus();
+        } else {
+            crate::services::wifi_connect(net.ssid.clone(), None);
+            self.pending
+                .replace(Some((net.ssid.clone(), Instant::now())));
+            self.connect_reveal.set_reveal_child(false);
+            self.rebuild_list();
+        }
+    }
+
+    fn submit_connect(self: &Rc<Self>) {
+        let Some(ssid) = self.selected_ssid.borrow().clone() else {
+            return;
+        };
+        let password = self.password_entry.text().to_string();
+        crate::services::wifi_connect(ssid.clone(), Some(password));
+        self.pending.replace(Some((ssid, Instant::now())));
+        self.connect_reveal.set_reveal_child(false);
+        self.password_entry.set_text("");
+        self.rebuild_list();
+    }
+}
+
 pub struct NetworkWidget {
-    root: gtk::Box,
+    root: gtk::Button,
     icon: gtk::Image,
-    connected: std::cell::Cell<bool>,
+    eth_row: gtk::Box,
+    eth_icon: gtk::Image,
+    eth_label: gtk::Label,
+    wifi_switch: gtk::Switch,
+    updating_switch: Rc<Cell<bool>>,
+    inner: Rc<NetInner>,
 }
 
 impl NetworkWidget {
     pub fn new() -> Self {
-        let root = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(0)
-            .build();
+        let root = gtk::Button::builder().build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-network");
         root.add_css_class("metis-bar-sys-icon");
 
         let icon = icons::image(names::network(true));
-        root.append(&icon);
+        root.set_child(Some(&icon));
+
+        let panel = super::super::dropdown::build_panel();
+        panel.set_spacing(10);
+        panel.set_width_request(300);
+
+        // ---- Header: title, Wi-Fi radio toggle, refresh ----
+        let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let title = gtk::Label::builder()
+            .label("Network")
+            .halign(gtk::Align::Start)
+            .hexpand(true)
+            .build();
+        title.add_css_class("metis-bar-section-title");
+        header.append(&title);
+
+        let updating_switch = Rc::new(Cell::new(false));
+        let wifi_switch = gtk::Switch::new();
+        wifi_switch.set_valign(gtk::Align::Center);
+        wifi_switch.add_css_class("metis-net-switch");
+        {
+            let updating_switch = updating_switch.clone();
+            wifi_switch.connect_state_set(move |_, state| {
+                if !updating_switch.get() {
+                    crate::services::wifi_set_radio(state);
+                }
+                glib::Propagation::Proceed
+            });
+        }
+        header.append(&wifi_switch);
+
+        let refresh = gtk::Button::from_icon_name("view-refresh-symbolic");
+        refresh.set_valign(gtk::Align::Center);
+        refresh.add_css_class("metis-net-refresh");
+        refresh.connect_clicked(|_| crate::services::wifi_scan());
+        header.append(&refresh);
+        panel.append(&header);
+
+        // ---- Ethernet status row (read-only) ----
+        let eth_row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        eth_row.add_css_class("metis-net-eth-row");
+        let eth_icon = icons::image("network-wired-symbolic");
+        eth_row.append(&eth_icon);
+        let eth_label = gtk::Label::new(Some("Ethernet"));
+        eth_label.set_halign(gtk::Align::Start);
+        eth_label.set_hexpand(true);
+        eth_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        eth_row.append(&eth_label);
+        eth_row.set_visible(false);
+        panel.append(&eth_row);
+
+        // ---- Wi-Fi list (scrollable) ----
+        let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        let scroll = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .max_content_height(240)
+            .propagate_natural_height(true)
+            .child(&list)
+            .build();
+        scroll.add_css_class("metis-net-scroll");
+        panel.append(&scroll);
+
+        let status_label = gtk::Label::new(Some("Scanning…"));
+        status_label.add_css_class("metis-net-status");
+        status_label.set_halign(gtk::Align::Start);
+        panel.append(&status_label);
+
+        // ---- Inline connect area (shared password entry for secured nets) ----
+        let connect_reveal = gtk::Revealer::builder()
+            .transition_type(gtk::RevealerTransitionType::SlideDown)
+            .reveal_child(false)
+            .build();
+        let connect_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        connect_box.add_css_class("metis-net-connect");
+        let connect_title = gtk::Label::new(Some(""));
+        connect_title.set_halign(gtk::Align::Start);
+        connect_title.add_css_class("metis-net-connect-title");
+        connect_box.append(&connect_title);
+        let password_entry = gtk::Entry::builder()
+            .visibility(false)
+            .placeholder_text("Password")
+            .build();
+        password_entry.add_css_class("metis-net-password");
+        connect_box.append(&password_entry);
+        let btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        btn_row.set_halign(gtk::Align::End);
+        let cancel_btn = gtk::Button::with_label("Cancel");
+        cancel_btn.add_css_class("metis-net-cancel");
+        let connect_btn = gtk::Button::with_label("Connect");
+        connect_btn.add_css_class("metis-net-connect-btn");
+        btn_row.append(&cancel_btn);
+        btn_row.append(&connect_btn);
+        connect_box.append(&btn_row);
+        connect_reveal.set_child(Some(&connect_box));
+        panel.append(&connect_reveal);
+
+        let inner = Rc::new(NetInner {
+            list,
+            status_label,
+            connect_reveal: connect_reveal.clone(),
+            connect_title,
+            password_entry: password_entry.clone(),
+            selected_ssid: RefCell::new(None),
+            pending: RefCell::new(None),
+            last_sig: RefCell::new(String::new()),
+            wifi: RefCell::new(Vec::new()),
+            wifi_enabled: Cell::new(true),
+        });
+
+        {
+            let inner = inner.clone();
+            connect_btn.connect_clicked(move |_| inner.submit_connect());
+        }
+        {
+            let inner = inner.clone();
+            password_entry.connect_activate(move |_| inner.submit_connect());
+        }
+        {
+            let inner = inner.clone();
+            cancel_btn.connect_clicked(move |_| {
+                inner.selected_ssid.replace(None);
+                inner.connect_reveal.set_reveal_child(false);
+            });
+        }
+
+        // Trigger a scan whenever the popover opens.
+        super::super::dropdown::wire_toggle_prepare(&root, &panel, || {
+            crate::services::wifi_scan();
+        });
 
         Self {
             root,
             icon,
-            connected: std::cell::Cell::new(true),
+            eth_row,
+            eth_icon,
+            eth_label,
+            wifi_switch,
+            updating_switch,
+            inner,
         }
     }
 
-    pub fn root(&self) -> &gtk::Box {
+    pub fn root(&self) -> &gtk::Button {
         &self.root
     }
 
-    pub fn update(&self, label: &str, connected: bool) {
-        self.root.set_tooltip_text(Some(label));
-        if self.connected.get() != connected {
-            self.connected.set(connected);
-            icons::set_icon(&self.icon, names::network(connected));
+    pub fn update(&self, eth: &EthernetStatus, wifi: &[WifiNetwork], wifi_enabled: bool) {
+        icons::set_icon(&self.icon, bar_icon(eth, wifi, wifi_enabled));
+        self.root
+            .set_tooltip_text(Some(&network_tooltip(eth, wifi, wifi_enabled)));
+
+        self.eth_row.set_visible(eth.present);
+        if eth.present {
+            icons::set_icon(
+                &self.eth_icon,
+                if eth.connected {
+                    "network-wired-symbolic"
+                } else {
+                    "network-wired-disconnected-symbolic"
+                },
+            );
+            self.eth_label.set_text(&eth.label);
+        }
+
+        self.updating_switch.set(true);
+        self.wifi_switch.set_active(wifi_enabled);
+        self.updating_switch.set(false);
+
+        // Clear a stale "connecting" spinner once the target is active (or it
+        // has been pending too long).
+        {
+            let mut pending = self.inner.pending.borrow_mut();
+            if let Some((ssid, started)) = pending.clone() {
+                let connected_now = wifi.iter().any(|n| n.ssid == ssid && n.active);
+                if connected_now || started.elapsed() > Duration::from_secs(30) {
+                    *pending = None;
+                }
+            }
+        }
+
+        *self.inner.wifi.borrow_mut() = wifi.to_vec();
+        self.inner.wifi_enabled.set(wifi_enabled);
+
+        let sig = network_signature(wifi, wifi_enabled, &self.inner.pending.borrow());
+        if *self.inner.last_sig.borrow() != sig {
+            *self.inner.last_sig.borrow_mut() = sig;
+            self.inner.rebuild_list();
         }
     }
 }
 
-use std::cell::Cell;
+fn wifi_signal_icon(signal: u8) -> &'static str {
+    match signal {
+        80..=u8::MAX => "network-wireless-signal-excellent-symbolic",
+        55..=79 => "network-wireless-signal-good-symbolic",
+        30..=54 => "network-wireless-signal-ok-symbolic",
+        10..=29 => "network-wireless-signal-weak-symbolic",
+        _ => "network-wireless-signal-none-symbolic",
+    }
+}
+
+fn bar_icon(eth: &EthernetStatus, wifi: &[WifiNetwork], wifi_enabled: bool) -> &'static str {
+    if let Some(active) = wifi.iter().find(|n| n.active) {
+        return wifi_signal_icon(active.signal);
+    }
+    if eth.connected {
+        return "network-wired-symbolic";
+    }
+    if !wifi_enabled {
+        return "network-wireless-disabled-symbolic";
+    }
+    "network-wireless-offline-symbolic"
+}
+
+fn network_tooltip(eth: &EthernetStatus, wifi: &[WifiNetwork], wifi_enabled: bool) -> String {
+    if let Some(active) = wifi.iter().find(|n| n.active) {
+        return active.ssid.clone();
+    }
+    if eth.connected {
+        return eth.label.clone();
+    }
+    if !wifi_enabled {
+        return "Wi-Fi off".into();
+    }
+    "Offline".into()
+}
+
+fn network_signature(
+    wifi: &[WifiNetwork],
+    enabled: bool,
+    pending: &Option<(String, Instant)>,
+) -> String {
+    let mut s = format!("e{}|", enabled as u8);
+    for n in wifi {
+        // Bucket the signal so minor RSSI jitter doesn't trigger a rebuild.
+        s.push_str(&format!(
+            "{}:{}:{}:{};",
+            n.ssid,
+            n.active as u8,
+            n.secured as u8,
+            n.signal / 25
+        ));
+    }
+    if let Some((ssid, _)) = pending {
+        s.push_str("p:");
+        s.push_str(ssid);
+    }
+    s
+}
+
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 

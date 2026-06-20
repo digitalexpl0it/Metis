@@ -11,6 +11,7 @@ pub use notifications::{
 };
 pub use poll::{
     set_mic_mute, set_mic_volume_absolute, set_mute, set_volume_absolute, set_volume_relative,
-    spawn_bar_pollers, BarSnapshot,
+    spawn_bar_pollers, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, EthernetStatus,
+    WifiNetwork,
 };
 pub use workspaces::{dispatch_workspace, workspace_snapshot, WorkspaceSnapshot};

@@ -9,6 +9,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Wi-Fi popover** — the bar network icon is now interactive: clicking it opens a
+  popover with a read-only Ethernet status row, a scrollable list of nearby Wi-Fi
+  networks (signal strength, lock for secured, check for the active one), a Wi-Fi
+  radio toggle, and a refresh/rescan button. Secured networks reveal an inline
+  password entry; a spinner shows on the row while connecting. Backed by `nmcli`
+  through a background command queue mirroring the audio widget.
 - **Startup splash** — a centered overlay shows the Metis logo on a translucent card
   with a loading progress bar at session start. The bar crawls while the shell comes
   up, ramps to 100% once it's ready (with a minimum on-screen time and a hard timeout
