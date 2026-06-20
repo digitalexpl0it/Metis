@@ -1,9 +1,13 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use gtk::prelude::*;
 
-use crate::services::{register_refresh, runtime_notifications, BarNotification};
+use crate::services::{
+    clear_notifications, notification_count, register_refresh, runtime_notifications,
+    BarNotification, NotificationEntry, NotificationKind,
+};
 
 thread_local! {
     static DND: Cell<bool> = const { Cell::new(false) };
@@ -13,9 +17,10 @@ pub fn do_not_disturb() -> bool {
     DND.with(|d| d.get())
 }
 
+const SLIDE_MS: u32 = 240;
+
 pub struct NotificationsWidget {
     root: gtk::Button,
-    snapshot: Rc<RefCell<Vec<BarNotification>>>,
     refresh: Rc<dyn Fn()>,
 }
 
@@ -44,7 +49,7 @@ impl NotificationsWidget {
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(10);
-        panel.set_width_request(360);
+        panel.set_width_request(400);
 
         let header = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -66,10 +71,6 @@ impl NotificationsWidget {
 
         let dnd_switch = gtk::Switch::new();
         dnd_switch.set_active(do_not_disturb());
-        dnd_switch.connect_state_set(|_, state| {
-            DND.with(|d| d.set(state));
-            glib::Propagation::Proceed
-        });
 
         header.append(&title);
         header.append(&dnd_label);
@@ -80,7 +81,7 @@ impl NotificationsWidget {
             .hscrollbar_policy(gtk::PolicyType::Never)
             .vscrollbar_policy(gtk::PolicyType::Automatic)
             .height_request(320)
-            .width_request(332)
+            .width_request(372)
             .build();
         scrolled.add_css_class("metis-notif-scrolled");
 
@@ -88,34 +89,65 @@ impl NotificationsWidget {
             .orientation(gtk::Orientation::Vertical)
             .spacing(10)
             .build();
+        list.set_margin_top(2);
+        list.set_margin_bottom(2);
+        list.set_margin_start(2);
+        list.set_margin_end(2);
         scrolled.set_child(Some(&list));
         panel.append(&scrolled);
 
-        let snapshot: Rc<RefCell<Vec<BarNotification>>> = Rc::new(RefCell::new(Vec::new()));
+        // Footer with the clear-all action, bottom-right.
+        let footer = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .build();
+        let clear_btn = gtk::Button::with_label("Clear all");
+        clear_btn.add_css_class("metis-notif-clear");
+        clear_btn.set_halign(gtk::Align::End);
+        clear_btn.set_hexpand(true);
+        footer.append(&clear_btn);
+        panel.append(&footer);
 
-        // Recompute the merged feed (runtime notifications first, then the
-        // poll-provided ones) and repaint badge + list. Runs on the GTK main
-        // thread; invoked on poll updates, on open, and on runtime pushes.
+        // Recompute the feed from the runtime store and repaint badge + list.
+        // Runs on the GTK main thread; invoked on open and on runtime changes.
         let refresh: Rc<dyn Fn()> = {
-            let snapshot = snapshot.clone();
             let badge = badge.clone();
             let list = list.clone();
+            let clear_btn = clear_btn.clone();
             Rc::new(move || {
-                let mut merged = runtime_notifications();
-                merged.extend(snapshot.borrow().iter().cloned());
-
-                let count = merged.len() as u32;
-                if do_not_disturb() || count == 0 {
+                let entries = runtime_notifications();
+                let total = notification_count();
+                if do_not_disturb() || total == 0 {
                     badge.set_visible(false);
                 } else {
-                    badge.set_label(&count.to_string());
+                    badge.set_label(&total.to_string());
                     badge.set_visible(true);
                 }
-                fill_list(&list, &merged);
+                clear_btn.set_sensitive(!entries.is_empty());
+                fill_list(&list, &entries);
             })
         };
 
+        dnd_switch.connect_state_set({
+            let refresh = refresh.clone();
+            move |_, state| {
+                DND.with(|d| d.set(state));
+                refresh();
+                glib::Propagation::Proceed
+            }
+        });
+
+        clear_btn.connect_clicked({
+            let list = list.clone();
+            move |_| animate_clear(&list)
+        });
+
         register_refresh(refresh.clone());
+
+        // Optional demo feed for exercising the popup (grouping, scroll, icons).
+        if std::env::var("METIS_DEMO_NOTIFICATIONS").is_ok() {
+            seed_demo_notifications();
+        }
+
         refresh();
 
         {
@@ -125,7 +157,6 @@ impl NotificationsWidget {
 
         Self {
             root: root.clone(),
-            snapshot,
             refresh,
         }
     }
@@ -134,17 +165,40 @@ impl NotificationsWidget {
         &self.root
     }
 
-    pub fn update(&self, notifications: &[BarNotification]) {
-        *self.snapshot.borrow_mut() = notifications.to_vec();
+    /// Kept for the bar snapshot pipeline; runtime notifications are the source
+    /// of truth now, so poll-provided notifications are ignored here.
+    pub fn update(&self, _notifications: &[BarNotification]) {
         (self.refresh)();
     }
 }
 
-fn fill_list(list: &gtk::Box, notifications: &[BarNotification]) {
+/// Slide every card out to the left, then clear the store once the animation
+/// has had time to play.
+fn animate_clear(list: &gtk::Box) {
+    let mut any = false;
+    let mut child = list.first_child();
+    while let Some(c) = child {
+        let next = c.next_sibling();
+        if let Ok(rev) = c.clone().downcast::<gtk::Revealer>() {
+            rev.set_reveal_child(false);
+            any = true;
+        }
+        child = next;
+    }
+    if any {
+        glib::timeout_add_local_once(Duration::from_millis(SLIDE_MS as u64 + 20), || {
+            clear_notifications();
+        });
+    } else {
+        clear_notifications();
+    }
+}
+
+fn fill_list(list: &gtk::Box, entries: &[NotificationEntry]) {
     while let Some(child) = list.first_child() {
         list.remove(&child);
     }
-    if notifications.is_empty() {
+    if entries.is_empty() {
         let empty = gtk::Label::builder()
             .label("No notifications")
             .wrap(true)
@@ -154,41 +208,94 @@ fn fill_list(list: &gtk::Box, notifications: &[BarNotification]) {
         list.append(&empty);
         return;
     }
-    for notif in notifications {
-        list.append(&build_notification_card(notif));
+    for entry in entries {
+        let card = build_notification_card(entry);
+        let revealer = gtk::Revealer::builder()
+            .transition_type(gtk::RevealerTransitionType::SlideRight)
+            .transition_duration(SLIDE_MS)
+            .reveal_child(true)
+            .child(&card)
+            .build();
+        list.append(&revealer);
     }
 }
 
-fn build_notification_card(notif: &BarNotification) -> gtk::Box {
+fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
+    let notif = &entry.notification;
     let card = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(4)
-        .margin_top(10)
-        .margin_bottom(10)
-        .margin_start(12)
-        .margin_end(12)
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(12)
         .hexpand(true)
         .build();
     card.add_css_class("metis-notif-card");
     card.add_css_class(&format!("metis-notif-card-{}", notif.kind.css_suffix()));
 
+    let icon = gtk::Image::from_icon_name(notif.kind.icon_name());
+    icon.add_css_class("metis-notif-icon");
+    icon.set_valign(gtk::Align::Start);
+    icon.set_halign(gtk::Align::Start);
+    icon.set_hexpand(false);
+    icon.set_vexpand(false);
+    card.append(&icon);
+
+    let text = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(4)
+        .hexpand(true)
+        .build();
+
+    // Wrapping labels need a bounded width or GTK's height-for-width pass
+    // overflows inside the horizontal card (it allocated INT_MIN/huge widths).
     let title = gtk::Label::builder()
         .label(&notif.title)
-        .halign(gtk::Align::Start)
+        .halign(gtk::Align::Fill)
         .xalign(0.0)
+        .wrap(true)
+        .wrap_mode(gtk::pango::WrapMode::WordChar)
+        .max_width_chars(34)
         .build();
     title.add_css_class("metis-notif-title");
 
     let message = gtk::Label::builder()
         .label(&notif.message)
-        .halign(gtk::Align::Start)
+        .halign(gtk::Align::Fill)
         .xalign(0.0)
         .wrap(true)
-        .wrap_mode(gtk::pango::WrapMode::Word)
+        .wrap_mode(gtk::pango::WrapMode::WordChar)
+        .max_width_chars(34)
         .build();
     message.add_css_class("metis-notif-message");
 
-    card.append(&title);
-    card.append(&message);
+    text.append(&title);
+    text.append(&message);
+    card.append(&text);
+
+    if entry.count > 1 {
+        let count = gtk::Label::new(Some(&format!("{}", entry.count)));
+        count.add_css_class("metis-notif-count");
+        count.set_valign(gtk::Align::Start);
+        card.append(&count);
+    }
+
     card
+}
+
+fn seed_demo_notifications() {
+    use crate::services::push_notification;
+    let demos = [
+        (NotificationKind::Success, "Workspace saved", "Layout stored to disk."),
+        (NotificationKind::Information, "Update available", "Restart Metis when convenient."),
+        (NotificationKind::Payment, "Payment received", "Invoice #1042 was paid."),
+        (NotificationKind::Error, "Sync failed", "Could not reach the calendar server."),
+        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
+        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
+        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
+    ];
+    for (kind, title, message) in demos {
+        push_notification(BarNotification {
+            kind,
+            title: title.into(),
+            message: message.into(),
+        });
+    }
 }

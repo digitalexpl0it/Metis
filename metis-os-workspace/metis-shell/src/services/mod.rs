@@ -6,7 +6,8 @@ mod workspaces;
 
 pub use calendar::{spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent};
 pub use notifications::{
-    push_notification, register_refresh, runtime_notifications, BarNotification, NotificationKind,
+    clear_notifications, notification_count, push_notification, register_refresh,
+    runtime_notifications, BarNotification, NotificationEntry, NotificationKind,
 };
 pub use poll::{
     set_mic_mute, set_mic_volume_absolute, set_mute, set_volume_absolute, set_volume_relative,

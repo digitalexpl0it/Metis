@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
-use crate::services::notifications::{self, BarNotification};
+use crate::services::notifications::BarNotification;
 use crate::services::workspaces;
 
 #[derive(Debug)]
@@ -74,9 +74,6 @@ fn poll_loop(tx: Sender<BarSnapshot>, audio_rx: Receiver<AudioCommand>) {
             if let Some(m) = read_mic_muted() {
                 cached.mic_muted = m;
             }
-        }
-        if tick % 5 == 0 && std::env::var("METIS_DEMO_NOTIFICATIONS").is_ok() {
-            cached.notifications = notifications::demo_notifications();
         }
         cached.workspaces = workspaces::workspace_snapshot();
 

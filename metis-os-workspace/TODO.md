@@ -9,9 +9,14 @@
 - [x] `bar.json` config — position (top/left/right), height/width, opacity, widget order
 - [x] Live reload when `bar.json` changes
 - [x] Workspace indicator (single Metis desktop for now)
-- [x] Clock + calendar popover + multi-timezone list
+- [x] Clock popover — tabbed: calendar, world clocks, stopwatch, timer, alarms
+- [x] World Clocks — inline searchable timezone picker (up to 3 zones)
+- [x] Stopwatch with scrollable lap list
+- [x] Timer — movable, always-on-top layer-shell HUD with pause/close
+- [x] Alarms — segmented sound selector
 - [x] Battery, network, volume indicators
-- [x] Notifications tray (badge + popover shell)
+- [x] Notifications popup — badge, grouped duplicates + count badge, per-kind icons,
+      clear-all with slide-out animation, scrollbar, in-bar alert routing
 - [ ] Theme file watcher (live `themes/*.json` reload)
 - [ ] Freedesktop notification D-Bus subscription
 - [ ] WiFi / audio popover controls
@@ -113,8 +118,11 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Widget | Source |
 |--------|--------|
 | Workspaces | Metis compositor (single desktop stub) |
-| Clock | `chrono` + `GtkCalendar` popover |
+| Clock | `chrono` + `GtkCalendar`, tabbed popover (world clocks, stopwatch, timer, alarms) |
 | Battery | `/sys/class/power_supply/BAT*` |
 | Network | `nmcli` or sysfs fallback |
 | Volume | `pactl` (scroll on widget to adjust) |
-| Notifications | Placeholder count (D-Bus next) |
+| Notifications | Runtime in-bar store (grouped, icons); freedesktop D-Bus next |
+
+> Tip: set `METIS_DEMO_NOTIFICATIONS=1` before launching to seed demo notifications
+> for testing the notification popup.

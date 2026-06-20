@@ -1,10 +1,18 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// A notification plus how many identical copies have arrived (for de-duped
+/// grouping with a count badge).
+#[derive(Debug, Clone)]
+pub struct NotificationEntry {
+    pub notification: BarNotification,
+    pub count: u32,
+}
+
 thread_local! {
-    /// Notifications raised at runtime (timers, alarms, calendar reminders).
-    /// Kept newest-first and merged ahead of any poll-provided notifications.
-    static RUNTIME: RefCell<Vec<BarNotification>> = const { RefCell::new(Vec::new()) };
+    /// Notifications raised at runtime (timers, alarms, calendar reminders),
+    /// newest-first, with identical messages coalesced into a single entry.
+    static RUNTIME: RefCell<Vec<NotificationEntry>> = const { RefCell::new(Vec::new()) };
     /// Repaint hook installed by the bar's notifications widget.
     static REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 }
@@ -17,22 +25,48 @@ pub fn register_refresh(cb: Rc<dyn Fn()>) {
     REFRESH.with(|r| *r.borrow_mut() = Some(cb));
 }
 
-/// Push a notification into the in-bar notification popup (newest first).
-pub fn push_notification(notification: BarNotification) {
-    RUNTIME.with(|r| {
-        let mut list = r.borrow_mut();
-        list.insert(0, notification);
-        list.truncate(RUNTIME_CAP);
-    });
+fn fire_refresh() {
     let cb = REFRESH.with(|r| r.borrow().clone());
     if let Some(cb) = cb {
         cb();
     }
 }
 
-/// Snapshot of the runtime notification queue (newest first).
-pub fn runtime_notifications() -> Vec<BarNotification> {
+/// Push a notification into the in-bar notification popup. Identical
+/// notifications (same kind/title/message) are coalesced: the existing entry's
+/// count is bumped and it moves to the top instead of stacking duplicates.
+pub fn push_notification(notification: BarNotification) {
+    RUNTIME.with(|r| {
+        let mut list = r.borrow_mut();
+        if let Some(pos) = list
+            .iter()
+            .position(|e| e.notification == notification)
+        {
+            let mut entry = list.remove(pos);
+            entry.count = entry.count.saturating_add(1);
+            list.insert(0, entry);
+        } else {
+            list.insert(0, NotificationEntry { notification, count: 1 });
+            list.truncate(RUNTIME_CAP);
+        }
+    });
+    fire_refresh();
+}
+
+/// Remove all runtime notifications.
+pub fn clear_notifications() {
+    RUNTIME.with(|r| r.borrow_mut().clear());
+    fire_refresh();
+}
+
+/// Snapshot of the runtime notification queue (newest first), grouped.
+pub fn runtime_notifications() -> Vec<NotificationEntry> {
     RUNTIME.with(|r| r.borrow().clone())
+}
+
+/// Total number of notifications including coalesced duplicates.
+pub fn notification_count() -> u32 {
+    RUNTIME.with(|r| r.borrow().iter().map(|e| e.count).sum())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +98,17 @@ impl NotificationKind {
             Self::Payment => "$",
         }
     }
+
+    /// Symbolic icon name that matches the notification's nature.
+    pub fn icon_name(self) -> &'static str {
+        match self {
+            Self::Error => "dialog-error-symbolic",
+            Self::Notification => "alarm-symbolic",
+            Self::Success => "emblem-ok-symbolic",
+            Self::Information => "dialog-information-symbolic",
+            Self::Payment => "emblem-synchronizing-symbolic",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -73,48 +118,3 @@ pub struct BarNotification {
     pub message: String,
 }
 
-/// Placeholder feed until freedesktop notification D-Bus is wired.
-pub fn demo_notifications() -> Vec<BarNotification> {
-    vec![
-        BarNotification {
-            kind: NotificationKind::Error,
-            title: "Error".into(),
-            message: "System error occurred".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Notification,
-            title: "Notification".into(),
-            message: "You've been hired as a driver".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Success,
-            title: "Success".into(),
-            message: "You've completed all the tasks".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Information,
-            title: "Information".into(),
-            message: "You received a fine of $10,000".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Payment,
-            title: "Payment".into(),
-            message: "You purchased 10x bread".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Success,
-            title: "Success".into(),
-            message: "Workspace layout saved".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Information,
-            title: "Information".into(),
-            message: "System update available — restart when convenient".into(),
-        },
-        BarNotification {
-            kind: NotificationKind::Notification,
-            title: "Notification".into(),
-            message: "New message from Metis Core".into(),
-        },
-    ]
-}

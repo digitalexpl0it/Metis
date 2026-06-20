@@ -68,8 +68,11 @@ Edit `bar.json` while the shell runs — changes apply within ~1s.
 
 ## Status
 
-Phase 1 — a configurable edge bar on the Metis compositor. See
-[`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap.
+Phase 1 — a configurable edge bar on the Metis compositor. The bar ships a tabbed
+clock popover (calendar, world clocks, stopwatch, movable timer HUD, alarms) and a
+grouped notification popup with per-kind icons. See
+[`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
+[`CHANGELOG.md`](CHANGELOG.md) for recent changes.
 
 ## License
 

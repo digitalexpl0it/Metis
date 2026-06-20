@@ -257,7 +257,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-notif-scrolled {{
-        min-width: 332px;
+        min-width: 372px;
     }}
 
     .metis-notif-scrolled scrollbar.vertical {{
@@ -285,6 +285,41 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: rgba(12, 16, 22, 0.92);
         border-radius: 10px;
         border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 12px 14px;
+    }}
+
+    .metis-notif-icon {{
+        -gtk-icon-size: 20px;
+        margin-top: 1px;
+    }}
+
+    .metis-notif-count {{
+        min-width: 18px;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        color: currentColor;
+        background-color: rgba(255, 255, 255, 0.12);
+    }}
+
+    .metis-notif-clear {{
+        padding: 5px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: {muted};
+        background-color: rgba(255, 255, 255, 0.05);
+        background-image: none;
+        border: 1px solid {border};
+        box-shadow: none;
+    }}
+    .metis-notif-clear:hover {{
+        color: {text};
+        background-color: rgba(255, 255, 255, 0.10);
+    }}
+    .metis-notif-clear:disabled {{
+        opacity: 0.45;
     }}
 
     .metis-notif-accent {{
