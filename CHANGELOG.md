@@ -5,7 +5,7 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2026-06-19]
 
 ### Added
 
@@ -62,6 +62,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Blank screen on startup from the chime** — the GStreamer media backend aborts
+  (`gtk_gst_media_file_open: code should not be reached`) when a `MediaFile` is built
+  from an input stream, which killed the shell before the bar appeared. The embedded
+  chime is now materialized to a temp file and opened via `MediaFile::for_filename`.
 - **Square edge-bar shadow** — the rounded pill's drop shadow was clipped square at
   the layer surface's rectangular edge. The surface now reserves a small padding
   around the pill (`BAR_SHADOW_PAD`) with the pill inset inside it, and the shadow was
