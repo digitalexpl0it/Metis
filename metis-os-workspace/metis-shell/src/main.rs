@@ -22,7 +22,11 @@ fn main() {
     let (init, handles) = state::bootstrap();
 
     compositor::spawn_listener(handles.clone());
-    if std::env::var("METIS_NO_BRIEFING").is_err() {
+    // Disabled only when set to a non-empty value; `METIS_NO_BRIEFING=` enables it.
+    let briefing_disabled = std::env::var("METIS_NO_BRIEFING")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
+    if !briefing_disabled {
         briefing::BriefingScheduler::spawn(handles.events.clone());
     }
 

@@ -25,13 +25,17 @@
 
 ## Config
 
-Config lives under `~/.config/metis/` (falls back to `~/.config/metis/`, then
-`$HOME/.config/metis`). Defaults are written on first run:
+Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
+`clock.json`, `calendars.json`, `themes/dark.json`, `themes/light.json`. Created
+on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
+(compositor), `briefing.json` (optional, user-created).
 
 | File | Purpose |
 |------|---------|
-| `config.json` | Active theme, onboarding state, briefing-on-login |
 | `bar.json` | Edge bar layout and widgets |
+| `clock.json` | World clocks and alarms |
+| `calendars.json` | Calendar accounts |
+| `config.json` | Active theme, onboarding state, briefing-on-login |
 | `desk.json` | Compositor window-grid layout |
 | `themes/dark.json`, `themes/light.json` | Design tokens |
 | `briefing.json` | Weather coordinates + RSS feed URL |

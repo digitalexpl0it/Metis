@@ -28,14 +28,19 @@ cd metis-os-workspace/metis-shell
 ./run-metis.sh --build --session
 ```
 
-On first run, Metis writes defaults to `~/.config/metis/` (or `~/.config/metis/`):
+On first run, Metis writes defaults to `~/.config/metis/`:
 
-- `config.json` — active theme, onboarding state, briefing-on-login
 - `bar.json` — edge bar layout and widgets
+- `clock.json` — world clocks and alarms
+- `calendars.json` — calendar accounts
 - `themes/dark.json`, `themes/light.json` — design tokens
-- `briefing.json` — weather coordinates and RSS feed URL
 
-The compositor reads `desk.json` (same directory) for its window grid layout, separate from the edge bar.
+Created later, on demand:
+
+- `config.json` — active theme, onboarding state, briefing-on-login (written when you change a preference)
+- `dismissed.json` — dismissed calendar reminders
+- `desk.json` — compositor window-grid layout (written by the compositor, same directory)
+- `briefing.json` — weather coordinates and RSS feed URL (optional; create it yourself)
 
 ## Troubleshooting
 

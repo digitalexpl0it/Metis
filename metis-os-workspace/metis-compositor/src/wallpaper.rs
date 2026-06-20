@@ -25,9 +25,17 @@ pub struct Wallpaper {
     decode_thread: Option<JoinHandle<()>>,
 }
 
+/// True only when `METIS_NO_WALLPAPER` is set to a non-empty value. An explicit
+/// empty value (`METIS_NO_WALLPAPER=`) means "enable wallpaper".
+fn wallpaper_disabled() -> bool {
+    std::env::var("METIS_NO_WALLPAPER")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+}
+
 impl Wallpaper {
     pub fn new() -> Self {
-        let path = if std::env::var("METIS_NO_WALLPAPER").is_ok() {
+        let path = if wallpaper_disabled() {
             PathBuf::new()
         } else {
             resolve_path().unwrap_or_default()
@@ -46,7 +54,7 @@ impl Wallpaper {
     }
 
     pub fn enabled(&self) -> bool {
-        if std::env::var("METIS_NO_WALLPAPER").is_ok() {
+        if wallpaper_disabled() {
             return false;
         }
         self.path.is_file()

@@ -49,3 +49,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   (`max_width_chars`) and pinned the per-kind icon to a fixed size, fixing the GTK
   `gtk_widget_measure`/`size_allocate` overflow (huge/`INT_MIN` widths) introduced with
   the notification icons.
+- **Wallpaper/briefing could not be re-enabled in `--session`** — `METIS_NO_WALLPAPER=`
+  / `METIS_NO_BRIEFING=` (explicit empty) now correctly enable wallpaper and briefing.
+  `run-metis.sh` no longer collapses an empty value back to `1` (`${VAR:-1}`), and the
+  compositor/shell now treat the flags as disabled only when set to a *non-empty* value
+  (previously any set value, including empty, counted as disabled).

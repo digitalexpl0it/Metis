@@ -348,9 +348,24 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
     run_section "Session"
     if [[ "$SESSION" -eq 1 ]]; then
-        export METIS_NO_WALLPAPER="${METIS_NO_WALLPAPER:-1}"
-        export METIS_NO_BRIEFING="${METIS_NO_BRIEFING:-1}"
-        unset METIS_WALLPAPER
+        # Nested dev sessions default wallpaper + briefing OFF. Distinguish an
+        # explicit empty value (METIS_NO_WALLPAPER=, meaning "enable") from an
+        # unset var ("use the session default of disabled"). Using ${VAR-...}
+        # (no colon) treats an explicit empty value as set.
+        if [[ -z "${METIS_NO_WALLPAPER+set}" ]]; then
+            export METIS_NO_WALLPAPER=1   # unset → disable
+            unset METIS_WALLPAPER
+        elif [[ -z "$METIS_NO_WALLPAPER" ]]; then
+            unset METIS_NO_WALLPAPER       # explicit empty → enable
+        else
+            unset METIS_WALLPAPER          # non-empty → disable
+        fi
+
+        if [[ -z "${METIS_NO_BRIEFING+set}" ]]; then
+            export METIS_NO_BRIEFING=1     # unset → disable
+        elif [[ -z "$METIS_NO_BRIEFING" ]]; then
+            unset METIS_NO_BRIEFING        # explicit empty → enable
+        fi
     fi
     log "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
     log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"

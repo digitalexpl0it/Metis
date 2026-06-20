@@ -54,15 +54,24 @@ METIS_NO_WALLPAPER= METIS_NO_BRIEFING= ./run-metis.sh --session
 
 ## Configuration
 
-On first run, defaults are written to `~/.config/metis/` (falling back to `~/.config/metis/`):
+Configuration lives in `~/.config/metis/`. On first run the shell writes these
+defaults:
 
 | File | Purpose |
 |------|---------|
-| `config.json` | App preferences — active theme, onboarding state, briefing-on-login |
 | `bar.json` | Edge bar position, size, margins, opacity, and widget order |
-| `desk.json` | Compositor window-grid layout |
+| `clock.json` | World clocks and alarms |
+| `calendars.json` | Calendar accounts (local / CalDAV / Thunderbird / Microsoft 365) |
 | `themes/dark.json`, `themes/light.json` | Design tokens |
-| `briefing.json` | Weather coordinates and RSS feed URL |
+
+Other files are created on demand:
+
+| File | Created when | Purpose |
+|------|--------------|---------|
+| `config.json` | You change a preference (theme, onboarding) | Active theme, onboarding state, briefing-on-login |
+| `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
+| `desk.json` | The compositor persists its layout | Compositor window-grid layout |
+| `briefing.json` | You create it yourself (optional) | Weather coordinates and RSS feed URL |
 
 Edit `bar.json` while the shell runs — changes apply within ~1s.
 
