@@ -79,16 +79,6 @@ pub fn init_winit(
 
     if state.wallpaper.enabled() {
         state.wallpaper.start_async_decode();
-        event_loop
-            .handle()
-            .insert_source(Timer::from_duration(Duration::from_millis(200)), move |_, _, state| {
-                if state.wallpaper.decode_in_flight() {
-                    state.request_redraw();
-                    TimeoutAction::ToDuration(Duration::from_millis(200))
-                } else {
-                    TimeoutAction::Drop
-                }
-            })?;
     }
 
     let mut damage_tracker = OutputDamageTracker::from_output(&output);
@@ -112,6 +102,13 @@ pub fn init_winit(
             // Drive the startup state machine from the heartbeat (not from
             // rendering) so going idle can never starve shell/client spawn.
             state.run_pending_startup();
+
+            // Advance the debounced wallpaper decode off the render path and
+            // repaint while it settles, so a re-decode (e.g. after maximize)
+            // shows up without waiting for an unrelated damage event.
+            if state.wallpaper.tick_decode() {
+                state.damaged = true;
+            }
 
             // Frame callbacks are delivered after each render (see Redraw), not
             // on a fixed clock — that keeps GTK's frame clock from spinning when
@@ -139,10 +136,7 @@ pub fn init_winit(
                 );
                 state.monitor.width = size.w;
                 state.monitor.height = size.h;
-                state.wallpaper.resize(Size::from((size.w, size.h)));
-                if state.wallpaper.enabled() {
-                    state.wallpaper.start_async_decode();
-                }
+                state.wallpaper.schedule_redecode(Size::from((size.w, size.h)));
                 state.emit_monitor_changed();
                 frame_age = 0;
                 let ids: Vec<u32> = state.windows.ids();

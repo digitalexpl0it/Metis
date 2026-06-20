@@ -36,6 +36,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   off-screen instead, keeping the surface mapped for the session.
 - Notification cards are wider with proper internal padding so text no longer sits at
   the card edge.
+- **Wallpaper decoding** is now fully off the compositor's main thread and debounced:
+  - `invalidate()` detaches the in-flight decode instead of joining it on the main
+    loop, fixing a multi-second freeze on every window resize.
+  - Resizes (maximize/restore) are debounced into a single decode and driven from the
+    compositor heartbeat, so a re-decoded wallpaper appears promptly instead of after
+    the next unrelated damage event (previously a 10–20s delay on maximize).
 
 ### Fixed
 

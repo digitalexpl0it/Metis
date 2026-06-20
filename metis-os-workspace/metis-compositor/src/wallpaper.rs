@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use image::imageops::Triangle;
 use smithay::backend::{
@@ -23,6 +24,9 @@ pub struct Wallpaper {
     cpu_pixels: Option<Vec<u8>>,
     decode_result: Option<Arc<Mutex<Option<Vec<u8>>>>>,
     decode_thread: Option<JoinHandle<()>>,
+    /// When set, a (re)decode is due once this instant passes — debounces the
+    /// burst of resize events emitted while maximizing/restoring the window.
+    redecode_at: Option<Instant>,
 }
 
 /// True only when `METIS_NO_WALLPAPER` is set to a non-empty value. An explicit
@@ -50,6 +54,7 @@ impl Wallpaper {
             cpu_pixels: None,
             decode_result: None,
             decode_thread: None,
+            redecode_at: None,
         }
     }
 
@@ -63,9 +68,11 @@ impl Wallpaper {
     pub fn invalidate(&mut self) {
         self.buffer = None;
         self.cpu_pixels = None;
-        if let Some(handle) = self.decode_thread.take() {
-            let _ = handle.join();
-        }
+        // Detach any in-flight decode rather than joining on the compositor
+        // thread — joining here blocked the main loop for the entire decode
+        // (seconds) on every resize. The orphaned worker writes into its own
+        // (now-dropped) slot and exits on its own.
+        self.decode_thread = None;
         self.decode_result = None;
     }
 
@@ -74,6 +81,38 @@ impl Wallpaper {
             self.output_size = size;
             self.invalidate();
         }
+    }
+
+    /// Record a new output size from a window resize and schedule a single
+    /// decode after a short debounce, so a flood of resize events (maximize,
+    /// restore, drag) collapses into one decode instead of one per event.
+    pub fn schedule_redecode(&mut self, size: Size<i32, Physical>) {
+        if self.output_size == size && (self.buffer.is_some() || self.redecode_at.is_some()) {
+            return;
+        }
+        self.output_size = size;
+        self.invalidate();
+        self.redecode_at = Some(Instant::now() + Duration::from_millis(120));
+    }
+
+    /// Drive debounced decoding and result polling from the compositor
+    /// heartbeat. Returns true while the wallpaper still needs a frame rendered
+    /// (decode pending/running, or decoded pixels awaiting GPU upload).
+    pub fn tick_decode(&mut self) -> bool {
+        if !self.enabled() {
+            self.redecode_at = None;
+            return false;
+        }
+        if let Some(at) = self.redecode_at {
+            if Instant::now() >= at {
+                self.redecode_at = None;
+                self.start_async_decode();
+            }
+        }
+        self.poll_decode();
+        self.redecode_at.is_some()
+            || self.decode_in_flight()
+            || (self.cpu_pixels.is_some() && self.buffer.is_none())
     }
 
     /// Start JPEG decode on a background thread so compositor init stays responsive.
