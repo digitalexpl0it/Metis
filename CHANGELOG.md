@@ -42,6 +42,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   - Resizes (maximize/restore) are debounced into a single decode and driven from the
     compositor heartbeat, so a re-decoded wallpaper appears promptly instead of after
     the next unrelated damage event (previously a 10–20s delay on maximize).
+  - The full-resolution source image is cached in memory, so resizing only re-scales
+    instead of re-reading and re-decoding the JPEG from disk.
+- **Dev builds compile dependencies optimized** (`[profile.dev.package."*"] opt-level = 3`).
+  The `image` crate was running unoptimized, making wallpaper decode/resize take
+  several seconds; this brings it down to tens of milliseconds while keeping our own
+  crates fast to compile.
 
 ### Fixed
 

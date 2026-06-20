@@ -16,13 +16,24 @@ use smithay::backend::{
 };
 use smithay::utils::{Physical, Point, Size, Transform};
 
+/// Result handed back from the decode worker thread.
+struct DecodeOutput {
+    pixels: Vec<u8>,
+    /// Set only when the worker loaded the source from disk, so the main thread
+    /// can cache it and skip re-decoding the file on later (resize) decodes.
+    source: Option<Arc<image::RgbaImage>>,
+}
+
 pub struct Wallpaper {
     path: PathBuf,
     buffer: Option<TextureBuffer<GlesTexture>>,
     output_size: Size<i32, Physical>,
     /// Decoded RGBA pixels (CPU) ready for a fast GPU upload during render.
     cpu_pixels: Option<Vec<u8>>,
-    decode_result: Option<Arc<Mutex<Option<Vec<u8>>>>>,
+    /// Full-resolution source kept in memory so resizes only re-scale (cheap)
+    /// instead of re-reading and re-decoding the JPEG from disk (expensive).
+    source: Option<Arc<image::RgbaImage>>,
+    decode_result: Option<Arc<Mutex<Option<DecodeOutput>>>>,
     decode_thread: Option<JoinHandle<()>>,
     /// When set, a (re)decode is due once this instant passes — debounces the
     /// burst of resize events emitted while maximizing/restoring the window.
@@ -52,6 +63,7 @@ impl Wallpaper {
             buffer: None,
             output_size: Size::from((0, 0)),
             cpu_pixels: None,
+            source: None,
             decode_result: None,
             decode_thread: None,
             redecode_at: None,
@@ -127,6 +139,7 @@ impl Wallpaper {
         let w = self.output_size.w as u32;
         let h = self.output_size.h as u32;
         let path = self.path.clone();
+        let cached_source = self.source.clone();
         let slot = Arc::new(Mutex::new(None));
         let slot_worker = Arc::clone(&slot);
 
@@ -134,13 +147,23 @@ impl Wallpaper {
         let handle = std::thread::Builder::new()
             .name("metis-wallpaper-decode".into())
             .spawn(move || {
-                let Ok(img) = image::open(&path) else {
-                    tracing::warn!(path = %path.display(), "failed to open wallpaper");
-                    return;
+                let (source, fresh) = match cached_source {
+                    Some(src) => (src, false),
+                    None => {
+                        let Ok(img) = image::open(&path) else {
+                            tracing::warn!(path = %path.display(), "failed to open wallpaper");
+                            return;
+                        };
+                        (Arc::new(img.into_rgba8()), true)
+                    }
                 };
-                let pixels = cover_crop_rgba(img, w, h);
+                let pixels = cover_crop_rgba(&source, w, h);
+                let out = DecodeOutput {
+                    pixels,
+                    source: if fresh { Some(source) } else { None },
+                };
                 if let Ok(mut guard) = slot_worker.lock() {
-                    *guard = Some(pixels);
+                    *guard = Some(out);
                 }
             })
             .ok();
@@ -158,14 +181,17 @@ impl Wallpaper {
         }
         if let Some(slot) = &self.decode_result {
             if let Ok(mut guard) = slot.lock() {
-                if let Some(pixels) = guard.take() {
+                if let Some(out) = guard.take() {
                     tracing::info!(
                         path = %self.path.display(),
                         width = self.output_size.w,
                         height = self.output_size.h,
                         "wallpaper decoded"
                     );
-                    self.cpu_pixels = Some(pixels);
+                    if out.source.is_some() {
+                        self.source = out.source;
+                    }
+                    self.cpu_pixels = Some(out.pixels);
                 }
             }
         }
@@ -233,8 +259,7 @@ impl Wallpaper {
     }
 }
 
-fn cover_crop_rgba(img: image::DynamicImage, out_w: u32, out_h: u32) -> Vec<u8> {
-    let rgba = img.to_rgba8();
+fn cover_crop_rgba(rgba: &image::RgbaImage, out_w: u32, out_h: u32) -> Vec<u8> {
     let (iw, ih) = (rgba.width(), rgba.height());
     if iw == 0 || ih == 0 {
         return vec![0; (out_w as usize) * (out_h as usize) * 4];
@@ -243,7 +268,7 @@ fn cover_crop_rgba(img: image::DynamicImage, out_w: u32, out_h: u32) -> Vec<u8> 
     let scale = (out_w as f32 / iw as f32).max(out_h as f32 / ih as f32);
     let rw = ((iw as f32 * scale).ceil() as u32).max(1);
     let rh = ((ih as f32 * scale).ceil() as u32).max(1);
-    let resized = image::imageops::resize(&rgba, rw, rh, Triangle);
+    let resized = image::imageops::resize(rgba, rw, rh, Triangle);
     let x = rw.saturating_sub(out_w) / 2;
     let y = rh.saturating_sub(out_h) / 2;
     image::imageops::crop_imm(&resized, x, y, out_w, out_h)
