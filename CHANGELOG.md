@@ -51,6 +51,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Square edge-bar shadow** — the rounded pill's drop shadow was clipped square at
+  the layer surface's rectangular edge. The surface now reserves a small padding
+  around the pill (`BAR_SHADOW_PAD`) with the pill inset inside it, and the shadow was
+  tightened so it renders fully and follows the bar's rounded corners.
 - **Edge bar crash on timer completion** — removing the HUD's tooltips and keeping its
   layer surface mapped eliminates the `Broken pipe` Wayland protocol error that
   disconnected the shell when a timer ended.

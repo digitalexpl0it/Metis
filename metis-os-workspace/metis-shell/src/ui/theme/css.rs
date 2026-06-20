@@ -32,13 +32,13 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-full {{
         border-radius: 999px;
         padding: 0 20px;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.30);
     }}
 
     .metis-bar-floating {{
         border-radius: 999px;
         padding: 0 14px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     }}
 
     /* Bar widget buttons share one geometry across every interaction state so

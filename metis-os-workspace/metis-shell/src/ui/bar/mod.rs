@@ -177,10 +177,15 @@ fn layer_window_size(config: &BarConfig) -> (i32, i32) {
     }
 }
 
+/// Empty padding kept inside the layer surface around the visible pill so the
+/// pill's drop shadow renders fully (and follows its rounded corners) instead of
+/// being clipped square at the surface's rectangular edge.
+const BAR_SHADOW_PAD: i32 = 16;
+
 fn bar_body_thickness(config: &BarConfig) -> i32 {
     match config.position {
-        BarPosition::Top => (config.height + 8) as i32,
-        BarPosition::Left | BarPosition::Right => (config.width + 8) as i32,
+        BarPosition::Top => config.height as i32 + BAR_SHADOW_PAD,
+        BarPosition::Left | BarPosition::Right => config.width as i32 + BAR_SHADOW_PAD,
     }
 }
 
@@ -213,6 +218,20 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     pill.remove_css_class("metis-bar-full");
     pill.remove_css_class("metis-bar-floating");
     let vertical = matches!(config.position, BarPosition::Left | BarPosition::Right);
+    // Inset the pill within the (larger) layer surface so the rounded drop shadow
+    // has breathing room along the bar's long edges (the pill's rounded ends).
+    let side_pad = BAR_SHADOW_PAD - 4;
+    if vertical {
+        pill.set_margin_top(side_pad);
+        pill.set_margin_bottom(side_pad);
+        pill.set_margin_start(0);
+        pill.set_margin_end(0);
+    } else {
+        pill.set_margin_start(side_pad);
+        pill.set_margin_end(side_pad);
+        pill.set_margin_top(0);
+        pill.set_margin_bottom(0);
+    }
     if config.full_width {
         pill.add_css_class("metis-bar-full");
         pill.set_hexpand(!vertical);
