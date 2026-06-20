@@ -1,6 +1,6 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
-use gtk::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
+use gtk::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION, STYLE_PROVIDER_PRIORITY_USER};
 
 use crate::config;
 use metis_config::{build_stylesheet, ThemeMode, ThemeTokens};
@@ -10,6 +10,8 @@ thread_local! {
         tokens: ThemeTokens::dark_default(),
         provider: CssProvider::new(),
     });
+    static BAR_BG_PROVIDER: CssProvider = CssProvider::new();
+    static BAR_OPACITY: Cell<f32> = const { Cell::new(1.0) };
 }
 
 struct ThemeState {
@@ -76,6 +78,33 @@ fn apply_tokens(tokens: &ThemeTokens) {
                 &display,
                 &state.provider,
                 STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
+    });
+    // Re-apply the bar background opacity on top of the (possibly new) surface
+    // colour so theme edits don't reset the configured transparency.
+    apply_bar_opacity(BAR_OPACITY.with(Cell::get));
+}
+
+/// Apply the edge bar's configurable background transparency.
+///
+/// We override only the `.metis-bar-pill` background alpha via a dedicated, higher
+/// priority provider — never `window.set_opacity()`, which would also fade the
+/// icons and text. The icons stay fully opaque; only the bar's surface dims.
+pub fn apply_bar_opacity(opacity: f32) {
+    let alpha = opacity.clamp(0.0, 1.0);
+    BAR_OPACITY.with(|o| o.set(alpha));
+    let surface_rgb = active_tokens().surface_rgb();
+    let css = format!(
+        ".metis-bar-pill {{ background-color: rgba({surface_rgb}, {alpha:.3}); }}"
+    );
+    BAR_BG_PROVIDER.with(|provider| {
+        provider.load_from_data(&css);
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(
+                &display,
+                provider,
+                STYLE_PROVIDER_PRIORITY_USER,
             );
         }
     });

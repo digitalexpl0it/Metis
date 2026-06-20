@@ -38,6 +38,15 @@ use crate::focus::KeyboardFocusTarget;
 use crate::events::EventBus;
 use crate::windows::WindowRegistry;
 
+/// Thin padding kept between the edge bar's reserved (exclusive) zone and any
+/// window, so windows sit just under the bar without touching its drop shadow.
+pub const BAR_GAP_PX: i32 = 2;
+
+/// Hyprland-style uniform gap around a maximized window so it floats inside the
+/// usable area (under the bar, inset from the screen edges) instead of butting up
+/// against them.
+pub const WINDOW_GAP_PX: i32 = 8;
+
 pub struct MetisState {
     pub start_time: std::time::Instant,
     pub socket_name: OsString,
@@ -60,6 +69,9 @@ pub struct MetisState {
     pub seat: Seat<MetisState>,
 
     pub windows: WindowRegistry,
+    /// Windows the user has manually dragged out of the grid by their titlebar.
+    /// They keep their free position (no grid snap-back) until closed.
+    pub floating: std::collections::HashSet<u32>,
 
     pub grid_layout: GridLayout,
     pub gutter_px: u32,
@@ -141,6 +153,7 @@ impl MetisState {
             popups,
             seat,
             windows: WindowRegistry::new(),
+            floating: std::collections::HashSet::new(),
             grid_layout,
             gutter_px: 14,
             tile_modes: TileModeState::default(),
@@ -233,6 +246,9 @@ impl MetisState {
 
     /// App windows slotted in the desk grid — not free-floating or fullscreen.
     pub fn is_window_grid_managed(&self, id: u32) -> bool {
+        if self.floating.contains(&id) {
+            return false;
+        }
         if self.tile_id_for_window(id).is_none() {
             return false;
         }
@@ -579,8 +595,6 @@ impl MetisState {
         }
 
         if enabled {
-            let output = self.space.outputs().next().unwrap();
-            let geo = self.space.output_geometry(output).unwrap();
             let current = self
                 .space
                 .element_geometry(&record.window)
@@ -593,20 +607,35 @@ impl MetisState {
                 .unwrap_or(record.target_rect);
             self.windows.set_restore_rect(id, current);
 
+            // Maximize fills the usable area (below the edge bar) with a uniform
+            // Hyprland-style gap on every side, so the window floats inside the
+            // screen rather than butting up against the edges. The client (GTK)
+            // draws its own titlebar, so we don't reserve extra chrome here.
+            let zone = self.usable_zone().unwrap_or_else(|| {
+                let output = self.space.outputs().next().unwrap();
+                let g = self.space.output_geometry(output).unwrap();
+                PixelRect { x: g.loc.x, y: g.loc.y, width: g.size.w, height: g.size.h }
+            });
+            // Tight gap under the bar (matching a dragged window), larger
+            // Hyprland-style gaps against the screen edges.
+            let g = WINDOW_GAP_PX;
+            let client = PixelRect {
+                x: zone.x + g,
+                y: zone.y + BAR_GAP_PX,
+                width: (zone.width - g * 2).max(1),
+                height: (zone.height - BAR_GAP_PX - g).max(1),
+            };
+            let client_size = Size::from((client.width.max(1), client.height.max(1)));
+
             record.toplevel.with_pending_state(|state| {
                 state.states.unset(xdg_toplevel::State::Fullscreen);
                 state.states.set(xdg_toplevel::State::Maximized);
-                state.size = Some(geo.size);
+                state.size = Some(client_size);
                 state.fullscreen_output = None;
             });
             self.space
-                .map_element(record.window.clone(), geo.loc, true);
-            self.windows.set_rect(id, PixelRect {
-                x: geo.loc.x,
-                y: geo.loc.y,
-                width: geo.size.w,
-                height: geo.size.h,
-            });
+                .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
+            self.windows.set_rect(id, client);
         } else {
             record.toplevel.with_pending_state(|state| {
                 state.states.unset(xdg_toplevel::State::Maximized);
@@ -660,10 +689,13 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
-        let Some(rect) = self
-            .rect_for_window_tile(id)
-            .map(app_tile_body_rect)
-        else {
+        // Floating windows keep their free geometry; grid windows snap to their tile.
+        let rect = if self.floating.contains(&id) {
+            self.windows.target_rect(id)
+        } else {
+            self.rect_for_window_tile(id).map(app_tile_body_rect)
+        };
+        let Some(rect) = rect else {
             // No grid slot yet — never map at the registry default (0, 0).
             return;
         };
@@ -700,23 +732,40 @@ impl MetisState {
         self.windows.set_target_rect(id, rect);
     }
 
-    /// Collect decoration specs (frame, title, focus) for every grid-tiled,
-    /// mapped window. Maximized/fullscreen/minimized windows are skipped.
+    /// Collect decoration specs (frame, title, focus) for every mapped, ready
+    /// window that should be decorated. The frame is derived from the window's
+    /// *actual* mapped geometry (so chrome tracks tiled, floating, and maximized
+    /// windows alike). Fullscreen and minimized windows are skipped.
     pub fn decoration_specs(&self) -> Vec<crate::decoration::WindowDeco> {
         let focused = self.focused_window_id();
         let mut specs = Vec::new();
         for id in self.windows.ids() {
-            if !self.is_window_grid_managed(id) {
-                continue;
-            }
             let Some(record) = self.windows.get(id) else {
                 continue;
             };
-            if !record.ready || self.windows.is_minimized(id) {
+            if !record.ready || record.fullscreen || self.windows.is_minimized(id) {
                 continue;
             }
-            let Some(frame) = self.rect_for_window_tile(id) else {
+            // Floating and maximized windows sit flush in the usable zone and let
+            // the client (GTK) draw its own titlebar, so we don't add server-side
+            // chrome (which would otherwise stack as a wasted strip above it).
+            if record.maximized || self.floating.contains(&id) {
                 continue;
+            }
+            // The client is mapped at the inner body rect; the decoration frame is
+            // that rect grown by the titlebar (top) and border (sides/bottom).
+            let Some(loc) = self.space.element_location(&record.window) else {
+                continue;
+            };
+            let size = record.window.geometry().size;
+            if size.w <= 0 || size.h <= 0 {
+                continue;
+            }
+            let frame = PixelRect {
+                x: loc.x - metis_grid::APP_TILE_BORDER_PX,
+                y: loc.y - metis_grid::APP_TILE_HEADER_PX,
+                width: size.w + metis_grid::APP_TILE_BORDER_PX * 2,
+                height: size.h + metis_grid::APP_TILE_HEADER_PX + metis_grid::APP_TILE_BORDER_PX,
             };
             specs.push(crate::decoration::WindowDeco {
                 id,
@@ -726,6 +775,23 @@ impl MetisState {
             });
         }
         specs
+    }
+
+    /// The output area not covered by exclusive layer-shell zones (i.e. below the
+    /// edge bar), in global logical coordinates.
+    ///
+    /// `BAR_GAP_PX` is the thin padding kept between the edge bar and any window so
+    /// the bar's drop shadow has breathing room and nothing visually touches it.
+    pub fn usable_zone(&self) -> Option<PixelRect> {
+        let output = self.space.outputs().next()?;
+        let zone = layer_map_for_output(output).non_exclusive_zone();
+        let origin = self.space.output_geometry(output)?.loc;
+        Some(PixelRect {
+            x: zone.loc.x + origin.x,
+            y: zone.loc.y + origin.y,
+            width: zone.size.w,
+            height: zone.size.h,
+        })
     }
 
     /// Handle a pointer press that may land on a server-side decoration (titlebar,
@@ -804,6 +870,8 @@ impl MetisState {
         };
         let window = record.window.clone();
         self.space.raise_element(&window, true);
+        // Manual titlebar drag floats the window out of the grid (no snap-back).
+        self.floating.insert(id);
         let initial_window_location = self
             .space
             .element_location(&window)
@@ -1174,6 +1242,7 @@ impl MetisState {
     pub fn on_window_destroyed(&mut self, id: u32) {
         use metis_protocol::CompositorEvent;
 
+        self.floating.remove(&id);
         self.grid_layout.tiles.retain(|t| {
             !matches!(
                 &t.kind,

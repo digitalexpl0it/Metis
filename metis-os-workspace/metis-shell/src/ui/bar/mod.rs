@@ -286,7 +286,6 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     // OnDemand (not None) so popovers spawned from the bar can receive keyboard
     // focus via their xdg_popup grab (text entries in the clock/calendar popover).
     window.set_keyboard_mode(KeyboardMode::OnDemand);
-    window.auto_exclusive_zone_enable();
 
     for edge in [Edge::Left, Edge::Right, Edge::Top, Edge::Bottom] {
         window.set_anchor(edge, false);
@@ -294,6 +293,15 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     }
 
     let thickness = bar_body_thickness(config);
+    // Reserve only the *visible* bar (margin + body), not the extra shadow padding
+    // baked into the surface thickness. This lets windows tuck right up under the
+    // bar's bottom edge (the shadow pad region is transparent) instead of leaving a
+    // chunk of dead space below the bar.
+    let visible_thickness = match config.position {
+        BarPosition::Top => config.height as i32,
+        BarPosition::Left | BarPosition::Right => config.width as i32,
+    };
+    window.set_exclusive_zone(config.margin_top as i32 + visible_thickness);
 
     match config.position {
         BarPosition::Top => {
@@ -325,7 +333,11 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
         }
     }
 
-    window.set_opacity(config.opacity as f64);
+    // The configurable opacity dims only the bar's background surface (applied via
+    // a CSS provider in the theme loader), so icons/text stay fully opaque. The
+    // window itself must remain at full opacity.
+    window.set_opacity(1.0);
+    crate::ui::theme::apply_bar_opacity(config.opacity);
 }
 
 fn rebuild_bar(config: Rc<RefCell<BarConfig>>) {
@@ -444,9 +456,14 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
 }
 
 pub fn rebuild_from_config() {
-    BAR.with(|bar| {
-        if let Some(handle) = bar.borrow().as_ref() {
-            rebuild_bar(handle.config.clone());
-        }
-    });
+    // Clone the config Rc out and drop the BAR borrow *before* calling
+    // rebuild_bar, which re-borrows BAR mutably. Holding the borrow across the
+    // call panics with "RefCell already borrowed".
+    let config = BAR.with(|bar| bar.borrow().as_ref().map(|handle| handle.config.clone()));
+    if let Some(config) = config {
+        // Pull the latest on-disk bar config so live theme/opacity edits apply.
+        *config.borrow_mut() = load_bar_config();
+        rebuild_bar(config.clone());
+        crate::ui::theme::reload_stylesheet();
+    }
 }

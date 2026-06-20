@@ -27,7 +27,23 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
     ) {
         handle.motion(data, None, event);
         let delta = event.location - self.start_data.location;
-        let new_location = self.initial_window_location.to_f64() + delta;
+        let mut new_location = self.initial_window_location.to_f64() + delta;
+
+        // Keep the window inside the usable area (below the edge bar's exclusive
+        // zone). The client (GTK) draws its own titlebar, so the whole window is
+        // the client surface: clamp its origin so it sits just under the bar
+        // (with a thin gap) and never slips off-screen.
+        if let Some(zone) = data.usable_zone() {
+            let size = self.window.geometry().size;
+            let gap = crate::state::BAR_GAP_PX as f64;
+            let min_x = zone.x as f64;
+            let min_y = zone.y as f64 + gap;
+            let max_x = (zone.x + zone.width) as f64 - size.w as f64;
+            let max_y = (zone.y + zone.height) as f64 - size.h as f64;
+            new_location.x = new_location.x.clamp(min_x, max_x.max(min_x));
+            new_location.y = new_location.y.clamp(min_y, max_y.max(min_y));
+        }
+
         data.space
             .map_element(self.window.clone(), new_location.to_i32_round(), true);
 

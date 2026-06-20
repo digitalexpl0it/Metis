@@ -56,10 +56,10 @@ impl XdgShellHandler for MetisState {
     }
 
     fn move_request(&mut self, surface: ToplevelSurface, seat: wl_seat::WlSeat, serial: Serial) {
+        // A client-initiated move (e.g. dragging a GTK headerbar) floats the window
+        // out of the grid so it follows the pointer with no snap-back.
         if let Some(id) = self.window_id_for_toplevel(&surface) {
-            if self.is_window_grid_managed(id) {
-                return;
-            }
+            self.floating.insert(id);
         }
 
         let seat = Seat::from_resource(&seat).unwrap();

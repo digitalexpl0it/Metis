@@ -123,6 +123,13 @@ impl ThemeTokens {
         rgba_from_hex(&self.surface, self.card_opacity)
     }
 
+    /// The base surface colour as a bare `r, g, b` triplet, so callers can inline
+    /// it into `rgba(<triplet>, <alpha>)` with a runtime-chosen opacity (e.g. the
+    /// edge bar's configurable background transparency).
+    pub fn surface_rgb(&self) -> String {
+        rgb_triplet_from_hex(&self.surface)
+    }
+
     pub fn bg_rgba(&self) -> String {
         rgba_from_hex(&self.bg, self.card_opacity)
     }
