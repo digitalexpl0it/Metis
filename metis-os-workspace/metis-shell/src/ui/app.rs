@@ -5,7 +5,7 @@ use gtk::prelude::*;
 use gtk::Application;
 
 use crate::state::{MetisInit, SystemEvent};
-use crate::ui::{bar, theme};
+use crate::ui::{bar, splash, theme};
 
 thread_local! {
     /// Must outlive the GTK main loop — dropping `ApplicationHoldGuard` releases the app.
@@ -22,10 +22,14 @@ pub fn run(init: MetisInit) {
     app.connect_activate(move |app| {
         tracing::info!("GTK application activate — initializing edge bar");
         theme::install_theme();
+        splash::show(app);
         bar::init_and_show(app);
         if let Some(rx) = event_rx.borrow_mut().take() {
             attach_system_events(rx);
         }
+        // The bar maps and pollers attach shortly after activate; let the splash
+        // ramp to completion and fade once the shell is up and running.
+        glib::timeout_add_seconds_local_once(2, splash::finish);
         APP_HOLD.with(|hold| {
             *hold.borrow_mut() = Some(app.hold());
         });

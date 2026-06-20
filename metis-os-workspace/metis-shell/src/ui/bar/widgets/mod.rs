@@ -1,4 +1,5 @@
 pub mod clock;
+mod launcher;
 mod notifications;
 pub mod sys;
 pub mod workspaces;
@@ -12,6 +13,7 @@ use crate::config::{BarConfig, BarWidgetId};
 use crate::services::BarSnapshot;
 
 use clock::ClockWidget;
+use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
 use sys::{BatteryWidget, NetworkWidget, VolumeWidget};
 use workspaces::WorkspacesWidget;
@@ -67,6 +69,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
             gtk::Orientation::Vertical
         }
     };
+
+    // Pinned brand/launcher icon, always first so it sits at the far-leading edge
+    // of the bar (left for a top bar, top for a vertical bar).
+    let launcher = LauncherWidget::new();
+    append_bar_widget(root, launcher.root(), bar_orientation);
 
     for widget in &cfg.widgets {
         match widget {

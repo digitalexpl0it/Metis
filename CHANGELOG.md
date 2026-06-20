@@ -9,6 +9,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Startup splash** — a centered overlay shows the Metis logo on a translucent card
+  with a loading progress bar at session start. The bar crawls while the shell comes
+  up, ramps to 100% once it's ready (with a minimum on-screen time and a hard timeout
+  fallback), then fades out. The logo is embedded in the binary. Like the timer HUD,
+  the layer surface is kept mapped and parked off-screen rather than destroyed, so
+  closing it never disconnects the shell.
+- **Startup chime** — an embedded `startup.mp3` plays once alongside the splash via
+  GTK's media backend (best-effort; degrades silently if no media backend is present).
+- **Launcher icon** — the Metis brand icon is pinned to the far-leading edge of the
+  bar as a button (the seed of the upcoming app-menu launcher). The icon asset is
+  embedded in the binary, so it renders regardless of the working directory.
 - **Clock popover suite** — the bar clock now opens a tabbed popover with pill-style
   tabs: Calendar, World Clocks, Stopwatch, Timer, and Alarms.
   - **World Clocks** — inline searchable timezone picker (entry + list, no nested

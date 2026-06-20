@@ -107,6 +107,15 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 0;
     }}
 
+    .metis-bar-launcher {{
+        padding: 0 6px;
+        margin-right: 2px;
+    }}
+
+    .metis-bar-launcher-icon {{
+        -gtk-icon-style: regular;
+    }}
+
     .metis-bar-sys-icon {{
         padding: 0 5px;
         border: none;
@@ -846,6 +855,40 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-timer-hud-btn:hover {{
         background-color: rgba(34, 211, 238, 0.22);
+    }}
+
+    /* ---- Startup splash (centered overlay layer) ---- */
+    window.metis-splash-window {{
+        background-color: transparent;
+    }}
+    .metis-splash-card {{
+        padding: 40px 56px 34px 56px;
+        border-radius: 28px;
+        background-color: rgba(12, 16, 24, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }}
+    .metis-splash-label {{
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        color: {muted};
+    }}
+    .metis-splash-progress {{
+        min-height: 6px;
+    }}
+    .metis-splash-progress trough {{
+        min-height: 6px;
+        border-radius: 999px;
+        background-color: rgba(255, 255, 255, 0.10);
+        border: none;
+    }}
+    .metis-splash-progress progress {{
+        min-height: 6px;
+        border-radius: 999px;
+        background-image: linear-gradient(to right,
+            {accent} 0%, rgba(139, 92, 246, 0.95) 100%);
+        border: none;
     }}
 
     .metis-cal-head-weekday {{
