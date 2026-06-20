@@ -1,6 +1,7 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 — Configurable edge bar on the Metis Smithay compositor.
+**Current phase:** Phase 1 (edge bar) largely complete; starting Phase 2
+(`metis-settings` app + weather config UI).
 
 ---
 
@@ -17,9 +18,40 @@
 - [x] Battery, network, volume indicators
 - [x] Notifications popup — badge, grouped duplicates + count badge, per-kind icons,
       clear-all with slide-out animation, scrollbar, in-bar alert routing
+- [x] WiFi / audio popover controls
+- [x] Weather widget — icon + temperature with a forecast popover (see Phase 2)
 - [ ] Theme file watcher (live `themes/*.json` reload)
 - [ ] Freedesktop notification D-Bus subscription
-- [ ] WiFi / audio popover controls
+
+---
+
+## Phase 2 — Settings app + Weather
+
+A standalone `metis-settings` GTK4 toplevel (first real window-managed client)
+with a sidebar and per-domain pages. Centralizes config currently scattered
+across popovers.
+
+### `metis-settings` shell
+- [ ] New `metis-settings` binary — sidebar nav + content stack
+- [ ] Launch from the bar launcher icon and via `metis-cmd settings [page]`
+- [ ] Network page — wired/NIC config (DHCP vs static), Wi-Fi forget/known nets;
+      bar "wired-only" network click opens this page
+- [ ] Calendars page — move CalDAV/account config out of the clock popover
+
+### Weather
+Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`
+for `current` + `hourly` + `daily`, plus the Open-Meteo geocoding API for city
+search. Attribution shown in the popover footer.
+
+- [x] Bar widget — condition icon + temperature (matches reference screenshot)
+- [x] Popover — current conditions (temp, label, H/L), hourly strip, saved
+      locations list, attribution footer
+- [x] Auto-detect location — IP geolocation (city-level, keyless ipwho.is) with
+      an offline system-timezone (`zoneinfo`) fallback; 12s HTTP timeouts, cached,
+      retries every 30s on failure
+- [x] `weather.json` config (unit, `auto_detect`, `ip_geolocation`, locations)
+- [ ] Settings → Weather page — manual location override + search, multiple saved
+      locations (reorder/remove), °F/°C unit toggle, IP-geolocation toggle
 
 ---
 
@@ -39,6 +71,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `desk.json` | Compositor window-grid layout |
 | `themes/dark.json`, `themes/light.json` | Design tokens |
 | `briefing.json` | Weather coordinates + RSS feed URL |
+| `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 
 ### `bar.json` (defaults)
 
@@ -55,6 +88,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   "widgets": [
     "workspaces",
     "spacer",
+    "weather",
     "battery",
     "network",
     "volume",
@@ -127,6 +161,7 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Network | `nmcli` or sysfs fallback |
 | Volume | `pactl` (scroll on widget to adjust) |
 | Notifications | Runtime in-bar store (grouped, icons); freedesktop D-Bus next |
+| Weather | Open-Meteo (keyless); IP-geolocation auto-detect (timezone fallback), override in Settings |
 
 > Tip: set `METIS_DEMO_NOTIFICATIONS=1` before launching to seed demo notifications
 > for testing the notification popup.

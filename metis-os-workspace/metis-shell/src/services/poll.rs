@@ -51,8 +51,6 @@ pub struct EthernetStatus {
 pub struct BarSnapshot {
     pub battery_percent: Option<u8>,
     pub battery_charging: bool,
-    pub network_label: String,
-    pub network_connected: bool,
     pub wifi: Vec<WifiNetwork>,
     pub ethernet: EthernetStatus,
     pub wifi_enabled: bool,
@@ -96,8 +94,6 @@ fn poll_loop(
             cached.battery_charging = read_battery_charging();
         }
         if tick % 3 == 0 {
-            cached.network_label = read_network_label();
-            cached.network_connected = read_network_connected();
             cached.wifi_enabled = read_wifi_radio_enabled();
             cached.ethernet = read_ethernet_status();
             cached.wifi = if cached.wifi_enabled {
@@ -376,42 +372,6 @@ fn run_command(cmd: &mut std::process::Command) -> Option<std::process::Output> 
             return None;
         }
         thread::sleep(Duration::from_millis(50));
-    }
-}
-
-fn read_network_connected() -> bool {
-    let mut cmd = std::process::Command::new("nmcli");
-    cmd.args(["-t", "-f", "STATE", "general"]);
-    run_command(&mut cmd)
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "connected")
-        .unwrap_or_else(|| {
-            std::fs::read_to_string("/sys/class/net/wlan0/operstate")
-                .or_else(|_| std::fs::read_to_string("/sys/class/net/eth0/operstate"))
-                .map(|s| s.trim() == "up")
-                .unwrap_or(false)
-        })
-}
-
-fn read_network_label() -> String {
-    let mut cmd = std::process::Command::new("nmcli");
-    cmd.args(["-t", "-f", "ACTIVE,SSID", "dev", "wifi"]);
-    if let Some(output) = run_command(&mut cmd) {
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let mut parts = line.split(':');
-            if parts.next() == Some("yes") {
-                if let Some(ssid) = parts.next() {
-                    if !ssid.is_empty() {
-                        return ssid.to_string();
-                    }
-                }
-            }
-        }
-    }
-    if read_network_connected() {
-        "Connected".into()
-    } else {
-        "Offline".into()
     }
 }
 

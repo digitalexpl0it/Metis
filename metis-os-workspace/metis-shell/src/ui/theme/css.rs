@@ -569,6 +569,89 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 4px 12px;
     }}
 
+    .metis-bar-weather {{
+        padding: 0 8px;
+    }}
+
+    .metis-weather-bar-label {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+
+    .metis-weather-primary {{
+        padding: 2px 2px 6px 2px;
+    }}
+
+    .metis-weather-loc {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+
+    .metis-weather-temp {{
+        font-size: 34px;
+        font-weight: 300;
+        color: {text};
+    }}
+
+    .metis-weather-cond {{
+        font-size: 13px;
+        color: {text};
+    }}
+
+    .metis-weather-hl {{
+        font-size: 12px;
+        color: {muted};
+    }}
+
+    .metis-weather-hourly {{
+        padding: 6px 0;
+        border-top: 1px solid {border};
+        border-bottom: 1px solid {border};
+    }}
+
+    .metis-weather-hour {{
+        padding: 2px 0;
+    }}
+
+    .metis-weather-hour-label {{
+        font-size: 11px;
+        color: {muted};
+    }}
+
+    .metis-weather-hour-temp {{
+        font-size: 12px;
+        font-weight: 600;
+        color: {text};
+    }}
+
+    .metis-weather-sep {{
+        background-color: {border};
+        min-height: 1px;
+    }}
+
+    .metis-weather-other {{
+        padding: 4px 2px;
+    }}
+
+    .metis-weather-other-temp {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+
+    .metis-weather-status {{
+        font-size: 12px;
+        color: {muted};
+    }}
+
+    .metis-weather-attrib {{
+        font-size: 10px;
+        color: {muted};
+        opacity: 0.7;
+    }}
+
     .metis-bar-dropdown-panel switch {{
         background-color: rgba(255, 255, 255, 0.14);
         border: none;

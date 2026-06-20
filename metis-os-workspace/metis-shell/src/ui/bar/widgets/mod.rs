@@ -2,6 +2,7 @@ pub mod clock;
 mod launcher;
 mod notifications;
 pub mod sys;
+mod weather;
 pub mod workspaces;
 
 use std::cell::RefCell;
@@ -16,6 +17,7 @@ use clock::ClockWidget;
 use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
 use sys::{BatteryWidget, NetworkWidget, VolumeWidget};
+use weather::WeatherWidget;
 use workspaces::WorkspacesWidget;
 
 pub struct WidgetRefs {
@@ -25,6 +27,7 @@ pub struct WidgetRefs {
     network: RefCell<Option<NetworkWidget>>,
     volume: RefCell<Option<VolumeWidget>>,
     notifications: RefCell<Option<NotificationsWidget>>,
+    weather: RefCell<Option<WeatherWidget>>,
 }
 
 impl WidgetRefs {
@@ -50,6 +53,13 @@ impl WidgetRefs {
             w.update(&snapshot.notifications);
         }
     }
+
+    /// Weather arrives on its own (slow) channel, separate from the poll snapshot.
+    pub fn apply_weather(&self, snapshot: &crate::services::WeatherSnapshot) {
+        if let Some(w) = self.weather.borrow().as_ref() {
+            w.update(snapshot);
+        }
+    }
 }
 
 pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
@@ -60,6 +70,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
         network: RefCell::new(None),
         volume: RefCell::new(None),
         notifications: RefCell::new(None),
+        weather: RefCell::new(None),
     };
 
     let cfg = config.borrow().clone();
@@ -114,6 +125,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
                 let w = NotificationsWidget::new();
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.notifications.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Weather => {
+                let w = WeatherWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.weather.borrow_mut() = Some(w);
             }
         }
     }

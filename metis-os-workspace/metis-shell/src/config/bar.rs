@@ -52,6 +52,7 @@ pub enum BarWidgetId {
     Network,
     Volume,
     Notifications,
+    Weather,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,6 +118,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
     vec![
         BarWidgetId::Workspaces,
         BarWidgetId::Spacer,
+        BarWidgetId::Weather,
         BarWidgetId::Battery,
         BarWidgetId::Network,
         BarWidgetId::Volume,
@@ -206,6 +208,29 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
     }
     if cfg.clock.time_format == "%H:%M" {
         cfg.clock.time_format = default_time_format();
+    }
+
+    // Insert the weather widget into pre-existing layouts that predate it, ahead
+    // of the system/clock cluster so it leads the right-hand group.
+    if !cfg.widgets.contains(&BarWidgetId::Weather) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| {
+                matches!(
+                    w,
+                    BarWidgetId::Battery
+                        | BarWidgetId::Network
+                        | BarWidgetId::Volume
+                        | BarWidgetId::Notifications
+                        | BarWidgetId::Clock
+                )
+            })
+            .unwrap_or(cfg.widgets.len());
+        cfg.widgets.insert(pos, BarWidgetId::Weather);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
     }
 }
 

@@ -9,7 +9,9 @@ use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarPosition};
-use crate::services::{spawn_bar_pollers, workspace_snapshot, BarSnapshot};
+use crate::services::{
+    spawn_bar_pollers, spawn_weather_service, workspace_snapshot, BarSnapshot, WeatherSnapshot,
+};
 
 thread_local! {
     static BAR: RefCell<Option<BarHandle>> = const { RefCell::new(None) };
@@ -155,6 +157,7 @@ pub fn init_and_show(app: &gtk::Application) {
         let config = config.clone();
         move || {
             attach_poll_channel(spawn_bar_pollers());
+            attach_weather_channel(spawn_weather_service());
             watch_bar_config(config.clone());
             watch_compositor_dismiss();
             glib::ControlFlow::Break
@@ -347,6 +350,24 @@ fn watch_bar_config(config: Rc<RefCell<BarConfig>>) {
             rebuild_bar(config.clone());
             crate::ui::theme::reload_stylesheet();
         });
+    });
+}
+
+fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
+    glib::timeout_add_local(std::time::Duration::from_millis(1000), move || {
+        while let Ok(snapshot) = rx.try_recv() {
+            tracing::debug!(
+                locations = snapshot.locations.len(),
+                error = ?snapshot.error,
+                "weather: UI received snapshot"
+            );
+            BAR.with(|bar| {
+                if let Some(handle) = bar.borrow().as_ref() {
+                    handle.widget_refs.apply_weather(&snapshot);
+                }
+            });
+        }
+        glib::ControlFlow::Continue
     });
 }
 

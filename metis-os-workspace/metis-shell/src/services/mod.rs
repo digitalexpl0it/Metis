@@ -2,6 +2,7 @@ pub mod calendar;
 mod notifications;
 mod poll;
 pub mod secrets;
+pub mod weather;
 mod workspaces;
 
 pub use calendar::{spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent};
@@ -14,4 +15,5 @@ pub use poll::{
     spawn_bar_pollers, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, EthernetStatus,
     WifiNetwork,
 };
+pub use weather::{spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
 pub use workspaces::{dispatch_workspace, workspace_snapshot, WorkspaceSnapshot};

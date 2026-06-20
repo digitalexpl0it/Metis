@@ -71,15 +71,19 @@ Other files are created on demand:
 | `config.json` | You change a preference (theme, onboarding) | Active theme, onboarding state, briefing-on-login |
 | `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
 | `desk.json` | The compositor persists its layout | Compositor window-grid layout |
-| `briefing.json` | You create it yourself (optional) | Weather coordinates and RSS feed URL |
+| `briefing.json` | You create it yourself (optional) | Login-briefing weather coordinates and RSS feed URL |
+| `weather.json` | You create it yourself (optional) | Bar weather: unit, auto-detect / IP-geolocation toggles, pinned locations |
 
 Edit `bar.json` while the shell runs — changes apply within ~1s.
 
 ## Status
 
-Phase 1 — a configurable edge bar on the Metis compositor. The bar ships a tabbed
-clock popover (calendar, world clocks, stopwatch, movable timer HUD, alarms) and a
-grouped notification popup with per-kind icons. See
+Phase 1 — a configurable edge bar on the Metis compositor — is largely complete.
+The bar ships a tabbed clock popover (calendar, world clocks, stopwatch, movable
+timer HUD, alarms), a grouped notification popup with per-kind icons, an
+interactive Wi-Fi popover, and a weather widget with a forecast popover
+(IP-geolocation auto-detect via Open-Meteo). Next up (Phase 2) is a standalone
+`metis-settings` app and, after that, window-manager decorations. See
 [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
 [`CHANGELOG.md`](CHANGELOG.md) for recent changes.
 

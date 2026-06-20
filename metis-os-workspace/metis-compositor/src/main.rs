@@ -13,14 +13,68 @@ mod wallpaper;
 mod windows;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::Layer;
 
 use crate::state::MetisState;
 
+/// Drops one specific benign Smithay log line.
+///
+/// GTK creates short-lived sub-popups (text-entry selection menus, etc.) and
+/// tears them down before their xdg-popup grab is processed, which makes
+/// Smithay's pre-commit hook log `surface missing from known popups` at ERROR.
+/// The popover still works; this filter swallows only that exact message while
+/// keeping every other xdg-shell diagnostic intact.
+struct DropKnownPopupNoise;
+
+impl<S> tracing_subscriber::layer::Filter<S> for DropKnownPopupNoise {
+    fn enabled(
+        &self,
+        _meta: &tracing::Metadata<'_>,
+        _cx: &tracing_subscriber::layer::Context<'_, S>,
+    ) -> bool {
+        true
+    }
+
+    fn event_enabled(
+        &self,
+        event: &tracing::Event<'_>,
+        _cx: &tracing_subscriber::layer::Context<'_, S>,
+    ) -> bool {
+        if event.metadata().target() != "smithay::wayland::shell::xdg" {
+            return true;
+        }
+        let mut probe = PopupNoiseProbe::default();
+        event.record(&mut probe);
+        !probe.matched
+    }
+}
+
+#[derive(Default)]
+struct PopupNoiseProbe {
+    matched: bool,
+}
+
+impl tracing::field::Visit for PopupNoiseProbe {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message"
+            && format!("{value:?}").contains("surface missing from known popups")
+        {
+            self.matched = true;
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_filter(
+                    tracing_subscriber::EnvFilter::try_from_default_env()
+                        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+                )
+                .with_filter(DropKnownPopupNoise),
         )
         .init();
 

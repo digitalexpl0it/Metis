@@ -9,6 +9,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Weather widget** — a condition icon + temperature in the bar opens a popover
+  with current conditions (temp, label, daily high/low), a short hourly forecast
+  strip, any additional saved locations, and an Open-Meteo attribution footer.
+  Data is fetched (keyless) from Open-Meteo on a background thread and refreshed
+  every 15 minutes (and on popover open). Location auto-detects via IP
+  geolocation (city-level, keyless ipwho.is) with an offline system-timezone
+  fallback; temperature unit auto-resolves (US-style regions → °F, otherwise °C).
+  A `weather.json` config (unit, auto-detect, pinned locations) is read when
+  present (incl. an `ip_geolocation` toggle) — the upcoming Settings app will
+  manage it. Auto-detection prefers IP geolocation and falls back to the offline
+  `zoneinfo` tables, caches the result, applies a 12s timeout to all HTTP so a
+  stalled host can't hang the widget, logs failures, and retries every 30s after
+  a failed fetch instead of waiting the full refresh window.
 - **Wi-Fi popover** — the bar network icon is now interactive: clicking it opens a
   popover with a read-only Ethernet status row, a scrollable list of nearby Wi-Fi
   networks (signal strength, lock for secured, check for the active one), a Wi-Fi
@@ -49,6 +62,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- Existing `bar.json` layouts are migrated to include the new `weather` widget
+  ahead of the system/clock cluster.
+- Dropped two redundant `nmcli` calls per network poll (the legacy
+  `network_label`/`network_connected` snapshot fields the Wi-Fi popover replaced).
 - Timer-finished alerts no longer tear down the HUD's layer surface; the HUD is parked
   off-screen instead, keeping the surface mapped for the session.
 - Notification cards are wider with proper internal padding so text no longer sits at
@@ -68,6 +85,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- Silenced the benign `surface missing from known popups` ERROR from Smithay
+  (GTK tears down short-lived entry sub-popups before their grab resolves) with a
+  targeted log filter that keeps all other xdg-shell diagnostics.
 - **Blank screen on startup from the chime** — the GStreamer media backend aborts
   (`gtk_gst_media_file_open: code should not be reached`) when a `MediaFile` is built
   from an input stream, which killed the shell before the bar appeared. The embedded

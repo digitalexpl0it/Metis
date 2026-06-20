@@ -1,6 +1,7 @@
 mod bar;
 mod calendars;
 mod clocks;
+mod weather;
 use serde::{Deserialize, Serialize};
 
 use crate::ui::theme::ThemeMode;
@@ -131,3 +132,4 @@ pub use clocks::{
     alarm_sound_canberra_id, load_clocks_config, save_clocks_config, Alarm, ClocksConfig,
     ALARM_SOUNDS,
 };
+pub use weather::{load_weather_config, TempUnit};
