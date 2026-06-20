@@ -31,30 +31,83 @@ struct Inner {
     overlay: RefCell<Option<TimerOverlay>>,
 }
 
-/// A small layer-shell HUD that appears centered just under the edge bar while a
-/// timer is counting down, with Pause/Resume and Close controls.
+/// Logical-pixel size of the floating HUD's monitor, with a sane fallback.
+fn monitor_size() -> (i32, i32) {
+    if let Some(display) = gtk::gdk::Display::default() {
+        if let Some(obj) = display.monitors().item(0) {
+            if let Ok(monitor) = obj.downcast::<gtk::gdk::Monitor>() {
+                let g = monitor.geometry();
+                if g.width() > 0 && g.height() > 0 {
+                    return (g.width(), g.height());
+                }
+            }
+        }
+    }
+    (1280, 720)
+}
+
+/// Smallest gap (px) the HUD keeps below the edge bar. A Neutral layer surface
+/// is already positioned below the bar's exclusive zone, so its top margin is
+/// measured from the bar's bottom edge — a tiny value sits it just under the bar.
+const HUD_MIN_TOP: i32 = 4;
+
+/// Vertical space (px) the edge bar occupies from the top of the output. The
+/// HUD's top margin is relative to this, so it must be subtracted when clamping
+/// against the bottom of the screen.
+fn bar_offset() -> i32 {
+    let cfg = crate::config::load_bar_config();
+    (cfg.margin_top + cfg.height) as i32
+}
+
+/// A small, draggable, always-on-top layer-shell HUD that floats just under the
+/// edge bar while a timer is counting down, with Pause/Resume and Stop controls.
+///
+/// The window is created once and shown/hidden across runs — destroying and
+/// recreating a layer surface on every timer finish proved fragile.
 struct TimerOverlay {
     window: gtk::Window,
     label: gtk::Label,
     pause_btn: gtk::Button,
+    /// Current on-screen position (left, top margins), kept in sync by the drag
+    /// handler so the HUD reappears where the user left it.
+    pos: Rc<Cell<(i32, i32)>>,
 }
 
 impl TimerOverlay {
     fn new(inner: &Weak<Inner>) -> Self {
+        let min_top = HUD_MIN_TOP;
+        let bar_off = bar_offset();
+        let init_top = min_top + 4;
         let window = gtk::Window::builder().build();
         window.add_css_class("metis-timer-hud-window");
         window.init_layer_shell();
+        // Overlay keeps it above ordinary application windows; anchoring to the
+        // top-left corner lets us position it freely via margins (drag-to-move).
         window.set_layer(Layer::Overlay);
         window.set_keyboard_mode(KeyboardMode::None);
         window.set_anchor(Edge::Top, true);
-        // Centered horizontally (no left/right anchor); cleared below the bar.
-        window.set_margin(Edge::Top, 52);
+        window.set_anchor(Edge::Left, true);
+
+        let (mon_w, _) = monitor_size();
+        let init_left = ((mon_w - 220) / 2).max(0);
+        window.set_margin(Edge::Top, init_top);
+        window.set_margin(Edge::Left, init_left);
+        // Our own record of the current position (avoids reading back margins).
+        let pos = Rc::new(Cell::new((init_left, init_top)));
 
         let hud = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
-            .spacing(12)
+            .spacing(10)
             .build();
         hud.add_css_class("metis-timer-hud");
+
+        // NOTE: deliberately no tooltips on the HUD. GTK tooltips spawn child
+        // xdg_popups on this layer surface; if one is alive when the surface is
+        // torn down (timer end), the orphaned popup triggers a Wayland protocol
+        // error that disconnects the whole shell.
+        let grip = gtk::Image::from_icon_name("open-menu-symbolic");
+        grip.add_css_class("metis-timer-hud-grip");
+        hud.append(&grip);
 
         let icon = gtk::Image::from_icon_name("alarm-symbolic");
         icon.add_css_class("metis-timer-hud-icon");
@@ -66,7 +119,6 @@ impl TimerOverlay {
 
         let pause_btn = gtk::Button::from_icon_name("media-playback-pause-symbolic");
         pause_btn.add_css_class("metis-timer-hud-btn");
-        pause_btn.set_tooltip_text(Some("Pause / Resume"));
         {
             let inner = inner.clone();
             pause_btn.connect_clicked(move |_| {
@@ -83,7 +135,6 @@ impl TimerOverlay {
 
         let close_btn = gtk::Button::from_icon_name("window-close-symbolic");
         close_btn.add_css_class("metis-timer-hud-btn");
-        close_btn.set_tooltip_text(Some("Stop timer"));
         {
             let inner = inner.clone();
             close_btn.connect_clicked(move |_| {
@@ -94,14 +145,61 @@ impl TimerOverlay {
         }
         hud.append(&close_btn);
 
+        // Drag-to-move: translate pointer deltas into layer-shell margins,
+        // clamped so the HUD stays on-screen and never rides over the bar.
+        let drag = gtk::GestureDrag::new();
+        let start = Rc::new(Cell::new((init_left, init_top)));
+        {
+            let start = start.clone();
+            let pos = pos.clone();
+            drag.connect_drag_begin(move |_, _, _| start.set(pos.get()));
+        }
+        {
+            let window = window.clone();
+            let pos = pos.clone();
+            drag.connect_drag_update(move |_, dx, dy| {
+                let (sx, sy) = start.get();
+                let (mon_w, mon_h) = monitor_size();
+                let w = window.width().max(1);
+                let h = window.height().max(1);
+                // Top margin is relative to the bar's bottom edge, so the usable
+                // height is the screen minus the bar offset.
+                let max_top = (mon_h - bar_off - h).max(min_top);
+                let nl = (sx + dx as i32).clamp(0, (mon_w - w).max(0));
+                let nt = (sy + dy as i32).clamp(min_top, max_top);
+                window.set_margin(Edge::Left, nl);
+                window.set_margin(Edge::Top, nt);
+                pos.set((nl, nt));
+            });
+        }
+        hud.add_controller(drag);
+
         window.set_child(Some(&hud));
-        window.present();
 
         Self {
             window,
             label,
             pause_btn,
+            pos,
         }
+    }
+
+    /// Bring the HUD on-screen at its remembered position. The window is created
+    /// once and never unmapped; `present()` maps it the first time only.
+    fn show(&self) {
+        let (l, t) = self.pos.get();
+        self.window.set_margin(Edge::Left, l);
+        self.window.set_margin(Edge::Top, t);
+        self.window.present();
+    }
+
+    /// "Hide" by parking the window below the screen rather than destroying the
+    /// layer surface. Tearing the surface down (set_visible(false)) at
+    /// timer-finish raced the Wayland teardown and disconnected the whole shell;
+    /// keeping it mapped and off-screen avoids that entirely.
+    fn hide(&self) {
+        let (_, mon_h) = monitor_size();
+        self.window.set_margin(Edge::Top, mon_h + 200);
     }
 
     fn set_time(&self, text: &str) {
@@ -114,10 +212,6 @@ impl TimerOverlay {
         } else {
             "media-playback-pause-symbolic"
         });
-    }
-
-    fn close(self) {
-        self.window.destroy();
     }
 }
 
@@ -309,6 +403,10 @@ impl Inner {
         self.reset_btn.set_sensitive(true);
         self.setup.set_visible(false);
 
+        // Starting a timer dismisses the clock popover so the floating HUD is
+        // the only thing left on screen.
+        crate::ui::bar::dropdown::close_all();
+
         // Show (or update) the floating HUD under the bar.
         {
             let mut overlay = self.overlay.borrow_mut();
@@ -318,6 +416,7 @@ impl Inner {
             if let Some(o) = overlay.as_ref() {
                 o.set_paused(false);
                 o.set_time(&fmt(remaining));
+                o.show();
             }
         }
 
@@ -383,8 +482,8 @@ impl Inner {
     }
 
     fn close_overlay(&self) {
-        if let Some(o) = self.overlay.borrow_mut().take() {
-            o.close();
+        if let Some(o) = self.overlay.borrow().as_ref() {
+            o.hide();
         }
     }
 }

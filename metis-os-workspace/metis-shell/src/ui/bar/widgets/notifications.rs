@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use gtk::prelude::*;
 
-use crate::services::BarNotification;
+use crate::services::{register_refresh, runtime_notifications, BarNotification};
 
 thread_local! {
     static DND: Cell<bool> = const { Cell::new(false) };
@@ -15,9 +15,8 @@ pub fn do_not_disturb() -> bool {
 
 pub struct NotificationsWidget {
     root: gtk::Button,
-    badge: gtk::Label,
-    pending: Rc<RefCell<Vec<BarNotification>>>,
-    list_built: Rc<Cell<bool>>,
+    snapshot: Rc<RefCell<Vec<BarNotification>>>,
+    refresh: Rc<dyn Fn()>,
 }
 
 impl NotificationsWidget {
@@ -92,33 +91,43 @@ impl NotificationsWidget {
         scrolled.set_child(Some(&list));
         panel.append(&scrolled);
 
-        let widget = Self {
-            root: root.clone(),
-            badge,
-            pending: Rc::new(RefCell::new(Vec::new())),
-            list_built: Rc::new(Cell::new(false)),
-        };
+        let snapshot: Rc<RefCell<Vec<BarNotification>>> = Rc::new(RefCell::new(Vec::new()));
 
-        let prepare_list = {
+        // Recompute the merged feed (runtime notifications first, then the
+        // poll-provided ones) and repaint badge + list. Runs on the GTK main
+        // thread; invoked on poll updates, on open, and on runtime pushes.
+        let refresh: Rc<dyn Fn()> = {
+            let snapshot = snapshot.clone();
+            let badge = badge.clone();
             let list = list.clone();
-            let pending = widget.pending.clone();
-            let list_built = widget.list_built.clone();
-            move || {
-                if list_built.get() {
-                    return;
+            Rc::new(move || {
+                let mut merged = runtime_notifications();
+                merged.extend(snapshot.borrow().iter().cloned());
+
+                let count = merged.len() as u32;
+                if do_not_disturb() || count == 0 {
+                    badge.set_visible(false);
+                } else {
+                    badge.set_label(&count.to_string());
+                    badge.set_visible(true);
                 }
-                fill_list(&list, &pending.borrow());
-                list_built.set(true);
-            }
+                fill_list(&list, &merged);
+            })
         };
 
-        super::super::dropdown::wire_toggle_prepare(
-            &root,
-            &panel,
-            prepare_list,
-        );
+        register_refresh(refresh.clone());
+        refresh();
 
-        widget
+        {
+            let refresh = refresh.clone();
+            super::super::dropdown::wire_toggle_prepare(&root, &panel, move || refresh());
+        }
+
+        Self {
+            root: root.clone(),
+            snapshot,
+            refresh,
+        }
     }
 
     pub fn root(&self) -> &gtk::Button {
@@ -126,16 +135,8 @@ impl NotificationsWidget {
     }
 
     pub fn update(&self, notifications: &[BarNotification]) {
-        *self.pending.borrow_mut() = notifications.to_vec();
-        self.list_built.set(false);
-
-        let count = notifications.len() as u32;
-        if do_not_disturb() || count == 0 {
-            self.badge.set_visible(false);
-        } else {
-            self.badge.set_label(&count.to_string());
-            self.badge.set_visible(true);
-        }
+        *self.snapshot.borrow_mut() = notifications.to_vec();
+        (self.refresh)();
     }
 }
 

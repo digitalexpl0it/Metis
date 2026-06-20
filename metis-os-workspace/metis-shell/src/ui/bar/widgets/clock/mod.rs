@@ -38,13 +38,15 @@ impl Store {
     }
 }
 
-/// Best-effort desktop notification via the freedesktop spec (no GNOME coupling).
+/// Raise a notification in the bar's own notification popup (bell icon). This
+/// keeps timer/alarm/calendar alerts inside Metis instead of relying on an
+/// external `notify-send` daemon.
 pub(crate) fn notify(title: &str, body: &str) {
-    let _ = std::process::Command::new("notify-send")
-        .arg("--app-name=Metis")
-        .arg(title)
-        .arg(body)
-        .spawn();
+    crate::services::push_notification(crate::services::BarNotification {
+        kind: crate::services::NotificationKind::Notification,
+        title: title.to_string(),
+        message: body.to_string(),
+    });
 }
 
 /// Best-effort alarm sound; degrades silently if no player/sound is present.

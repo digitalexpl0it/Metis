@@ -784,6 +784,10 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
         color: {text};
     }}
+    .metis-timer-hud-grip {{
+        color: {muted};
+        opacity: 0.7;
+    }}
     .metis-timer-hud-icon {{
         color: {accent};
     }}
