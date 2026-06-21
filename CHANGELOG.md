@@ -9,6 +9,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Settings · Network tab overhaul** — the Network page is now split into three
+  segmented pill tabs (**Wireless / Wired / Proxy**):
+  - **Wireless** keeps the Wi-Fi scan/connect/radio controls and known-networks
+    list, and adds a **DNS override** for the active connection (a manual DNS list
+    applied with `ipv4.ignore-auto-dns` so it overrides the DHCP-provided servers;
+    empty restores DHCP DNS).
+  - **Wired** offers per-NIC IPv4 configuration: **Automatic (DHCP)** or **Manual
+    (static)** with address/gateway, plus a DNS override that applies in either
+    mode.
+  - **Proxy** edits the system proxy (**None / Manual / Automatic (PAC)**) with
+    per-protocol HTTP/HTTPS/SOCKS host:port, an ignore-hosts list, and a PAC URL.
+    Values are read from and written to GNOME's `org.gnome.system.proxy`
+    gsettings (honoured by GLib/GTK apps via the default proxy resolver); the tab
+    degrades to a hint when the schema is unavailable.
 - **Window snap zones (edge/corner drag-to-tile)** — dragging a window by its
   titlebar shows a live translucent preview when the pointer nears a screen edge
   and drops the window into that region: top edge → maximize, left/right →

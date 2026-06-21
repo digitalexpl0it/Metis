@@ -1,6 +1,7 @@
-//! Network: Wi-Fi (scan / connect / radio), known connections (forget), and a
-//! per-NIC Ethernet IPv4 editor (DHCP/static). All `nmcli` work runs off the GTK
-//! main thread; results arrive over an mpsc channel drained on a glib timeout.
+//! Network: a pill-tabbed page splitting Wireless (Wi-Fi scan/connect/known
+//! networks + DNS override), Wired (per-NIC IPv4 DHCP/static + DNS override), and
+//! Proxy (system proxy via GNOME gsettings). All `nmcli`/`gsettings` work runs off
+//! the GTK main thread; results arrive over an mpsc channel drained on a timeout.
 
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -12,18 +13,38 @@ use crate::net::{self, NetSnapshot};
 use crate::ui;
 
 struct Sections {
-    wifi: gtk::Box,
     radio: gtk::Switch,
+    wifi: gtk::Box,
     saved: gtk::Box,
+    wifi_dns: gtk::Box,
     eth: gtk::Box,
+    proxy: gtk::Box,
 }
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page("Network");
 
+    let stack = gtk::Stack::new();
+    stack.set_vexpand(true);
+    stack.set_transition_type(gtk::StackTransitionType::Crossfade);
+    stack.set_transition_duration(120);
+
+    content.append(&pill_tabs(
+        &stack,
+        &[
+            ("wireless", "Wireless"),
+            ("wired", "Wired"),
+            ("proxy", "Proxy"),
+        ],
+    ));
+    content.append(&stack);
+
+    // ---- Wireless page ----
+    let wireless = page_box();
     let (wifi_card, wifi_body) = ui::section("Wi-Fi");
     let radio = gtk::Switch::new();
     radio.set_halign(gtk::Align::End);
+    radio.set_valign(gtk::Align::Center);
     let radio_row = ui::row("Wi-Fi radio", &radio);
     let rescan = gtk::Button::with_label("Rescan");
     radio_row.append(&rescan);
@@ -31,19 +52,34 @@ pub fn build() -> gtk::Widget {
     let wifi_list = gtk::Box::new(gtk::Orientation::Vertical, 4);
     wifi_list.add_css_class("metis-settings-list");
     wifi_body.append(&wifi_list);
-    content.append(&wifi_card);
+    wireless.append(&wifi_card);
 
     let (saved_card, saved_body) = ui::section("Known networks");
-    content.append(&saved_card);
+    wireless.append(&saved_card);
 
+    let (wdns_card, wdns_body) = ui::section("DNS");
+    wireless.append(&wdns_card);
+    stack.add_named(&wireless, Some("wireless"));
+
+    // ---- Wired page ----
+    let wired = page_box();
     let (eth_card, eth_body) = ui::section("Ethernet");
-    content.append(&eth_card);
+    wired.append(&eth_card);
+    stack.add_named(&wired, Some("wired"));
+
+    // ---- Proxy page ----
+    let proxy_page = page_box();
+    let (proxy_card, proxy_body) = ui::section("System proxy");
+    proxy_page.append(&proxy_card);
+    stack.add_named(&proxy_page, Some("proxy"));
 
     let sections = Rc::new(Sections {
-        wifi: wifi_list,
         radio: radio.clone(),
+        wifi: wifi_list,
         saved: saved_body,
+        wifi_dns: wdns_body,
         eth: eth_body,
+        proxy: proxy_body,
     });
 
     // Snapshot delivery: worker thread -> mpsc -> glib poll -> render.
@@ -88,6 +124,42 @@ pub fn build() -> gtk::Widget {
     refresh();
 
     scroller.upcast()
+}
+
+/// A vertical content box for a stack page (matches the page's own spacing).
+fn page_box() -> gtk::Box {
+    let b = gtk::Box::new(gtk::Orientation::Vertical, 16);
+    b.set_margin_top(8);
+    b
+}
+
+/// A segmented pill-tab bar that switches `stack` between named children.
+fn pill_tabs(stack: &gtk::Stack, tabs: &[(&str, &str)]) -> gtk::Box {
+    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    bar.add_css_class("metis-settings-tabs");
+    bar.set_halign(gtk::Align::Center);
+
+    let mut group: Option<gtk::ToggleButton> = None;
+    for (i, (name, label)) in tabs.iter().enumerate() {
+        let btn = gtk::ToggleButton::with_label(label);
+        btn.add_css_class("metis-settings-tab");
+        match &group {
+            Some(g) => btn.set_group(Some(g)),
+            None => group = Some(btn.clone()),
+        }
+        if i == 0 {
+            btn.set_active(true);
+        }
+        let stack = stack.clone();
+        let name = name.to_string();
+        btn.connect_toggled(move |b| {
+            if b.is_active() {
+                stack.set_visible_child_name(&name);
+            }
+        });
+        bar.append(&btn);
+    }
+    bar
 }
 
 fn schedule_refresh(refresh: &Rc<impl Fn() + 'static>, delay_ms: u32) {
@@ -168,6 +240,17 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
         sections.saved.append(&saved_list);
     }
 
+    // ---- Wi-Fi DNS override ----
+    clear(&sections.wifi_dns);
+    match &snap.active_wifi {
+        Some(conn) => sections
+            .wifi_dns
+            .append(&dns_override_editor(&conn.name, &conn.ipv4, refresh)),
+        None => sections
+            .wifi_dns
+            .append(&hint("Connect to a Wi-Fi network to override its DNS.")),
+    }
+
     // ---- Ethernet ----
     clear(&sections.eth);
     if snap.eth.is_empty() {
@@ -177,6 +260,45 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
             sections.eth.append(&ethernet_editor(dev, refresh));
         }
     }
+
+    // ---- Proxy ----
+    clear(&sections.proxy);
+    sections.proxy.append(&proxy_editor(&snap.proxy, refresh));
+}
+
+/// A standalone DNS-override editor for a connection (used on the Wireless tab):
+/// a comma-separated DNS list applied with `ignore-auto-dns` so it overrides DHCP.
+fn dns_override_editor<F: Fn() + 'static>(
+    conn: &str,
+    ipv4: &net::Ipv4,
+    refresh: &Rc<F>,
+) -> gtk::Widget {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
+
+    let title = gtk::Label::new(Some(&format!("Connected: {conn}")));
+    title.set_xalign(0.0);
+    card.append(&title);
+
+    let dns = entry("1.1.1.1, 8.8.8.8", &ipv4.dns);
+    card.append(&ui::row("DNS servers", &dns));
+    card.append(&hint(
+        "Comma-separated. Leave empty to use the DHCP-provided DNS.",
+    ));
+
+    let apply = gtk::Button::with_label("Apply DNS");
+    apply.set_halign(gtk::Align::End);
+    apply.add_css_class("suggested-action");
+    card.append(&apply);
+    {
+        let refresh = refresh.clone();
+        let conn = conn.to_string();
+        apply.connect_clicked(move |_| {
+            net::set_dns_override(&conn, &dns.text());
+            schedule_refresh(&refresh, 2500);
+        });
+    }
+
+    card.upcast()
 }
 
 fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk::Widget {
@@ -202,15 +324,18 @@ fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk
     method.set_selected(if is_manual { 1 } else { 0 });
     card.append(&ui::row("IPv4 method", &method));
 
+    // Address + gateway only apply to a static config.
     let manual_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
     let addr = entry("192.168.1.50/24", &dev.ipv4.addresses);
     let gw = entry("192.168.1.1", &dev.ipv4.gateway);
-    let dns = entry("1.1.1.1,8.8.8.8", &dev.ipv4.dns);
     manual_box.append(&ui::row("Address (CIDR)", &addr));
     manual_box.append(&ui::row("Gateway", &gw));
-    manual_box.append(&ui::row("DNS", &dns));
     manual_box.set_visible(is_manual);
     card.append(&manual_box);
+
+    // DNS applies to both methods: on DHCP it overrides the provided servers.
+    let dns = entry("1.1.1.1, 8.8.8.8", &dev.ipv4.dns);
+    card.append(&ui::row("DNS (override)", &dns));
 
     {
         let manual_box = manual_box.clone();
@@ -221,6 +346,7 @@ fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk
 
     let apply = gtk::Button::with_label("Apply");
     apply.set_halign(gtk::Align::End);
+    apply.add_css_class("suggested-action");
     card.append(&apply);
     {
         let refresh = refresh.clone();
@@ -230,13 +356,133 @@ fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk
             if method.selected() == 1 {
                 net::set_ipv4_static(&conn, &addr.text(), &gw.text(), &dns.text());
             } else {
-                net::set_ipv4_dhcp(&conn);
+                net::set_ipv4_dhcp(&conn, &dns.text());
             }
             schedule_refresh(&refresh, 2500);
         });
     }
 
     card.upcast()
+}
+
+fn proxy_editor<F: Fn() + 'static>(cfg: &net::ProxyConfig, refresh: &Rc<F>) -> gtk::Widget {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
+
+    if !cfg.available {
+        card.append(&hint(
+            "System proxy settings are unavailable (the GNOME proxy schema isn't installed).",
+        ));
+        return card.upcast();
+    }
+
+    let mode = gtk::DropDown::from_strings(&["None", "Manual", "Automatic (PAC)"]);
+    let mode_idx = match cfg.mode.as_str() {
+        "manual" => 1,
+        "auto" => 2,
+        _ => 0,
+    };
+    mode.set_selected(mode_idx);
+    card.append(&ui::row("Proxy mode", &mode));
+
+    // Manual: per-protocol host:port + ignore list.
+    let manual_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    let (http_row, http_host, http_port) =
+        host_port_row("HTTP", &cfg.http_host, cfg.http_port);
+    let (https_row, https_host, https_port) =
+        host_port_row("HTTPS", &cfg.https_host, cfg.https_port);
+    let (socks_row, socks_host, socks_port) =
+        host_port_row("SOCKS", &cfg.socks_host, cfg.socks_port);
+    let ignore = entry("localhost, 127.0.0.0/8, ::1", &cfg.ignore_hosts);
+    manual_box.append(&http_row);
+    manual_box.append(&https_row);
+    manual_box.append(&socks_row);
+    manual_box.append(&ui::row("Ignore hosts", &ignore));
+    manual_box.set_visible(mode_idx == 1);
+    card.append(&manual_box);
+
+    // Automatic: PAC URL.
+    let auto_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    let pac = entry("http://example.com/proxy.pac", &cfg.auto_url);
+    auto_box.append(&ui::row("PAC URL", &pac));
+    auto_box.set_visible(mode_idx == 2);
+    card.append(&auto_box);
+
+    {
+        let manual_box = manual_box.clone();
+        let auto_box = auto_box.clone();
+        mode.connect_selected_notify(move |dd| {
+            manual_box.set_visible(dd.selected() == 1);
+            auto_box.set_visible(dd.selected() == 2);
+        });
+    }
+
+    card.append(&hint(
+        "Applies to GLib/GTK apps via the system proxy resolver.",
+    ));
+
+    let apply = gtk::Button::with_label("Apply");
+    apply.set_halign(gtk::Align::End);
+    apply.add_css_class("suggested-action");
+    card.append(&apply);
+    {
+        let refresh = refresh.clone();
+        let mode = mode.clone();
+        apply.connect_clicked(move |_| {
+            let mode_str = match mode.selected() {
+                1 => "manual",
+                2 => "auto",
+                _ => "none",
+            };
+            let new = net::ProxyConfig {
+                mode: mode_str.to_string(),
+                auto_url: pac.text().to_string(),
+                http_host: http_host.text().to_string(),
+                http_port: parse_port(&http_port.text()),
+                https_host: https_host.text().to_string(),
+                https_port: parse_port(&https_port.text()),
+                socks_host: socks_host.text().to_string(),
+                socks_port: parse_port(&socks_port.text()),
+                ignore_hosts: ignore.text().to_string(),
+                available: true,
+            };
+            net::set_proxy(new);
+            schedule_refresh(&refresh, 1200);
+        });
+    }
+
+    card.upcast()
+}
+
+/// A "<proto>  [host............] [port]" row for the proxy editor.
+fn host_port_row(label: &str, host: &str, port: u32) -> (gtk::Box, gtk::Entry, gtk::Entry) {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    row.add_css_class("metis-settings-row");
+    let lbl = gtk::Label::new(Some(label));
+    lbl.set_xalign(0.0);
+    lbl.set_width_chars(6);
+    row.append(&lbl);
+
+    let host_e = gtk::Entry::builder()
+        .placeholder_text("proxy.example.com")
+        .hexpand(true)
+        .build();
+    host_e.set_text(host);
+    row.append(&host_e);
+
+    let port_e = gtk::Entry::builder()
+        .placeholder_text("8080")
+        .max_width_chars(6)
+        .build();
+    if port != 0 {
+        port_e.set_text(&port.to_string());
+    }
+    row.append(&port_e);
+
+    (row, host_e, port_e)
+}
+
+fn parse_port(s: &str) -> u32 {
+    s.trim().parse().unwrap_or(0)
 }
 
 fn prompt_password<F: Fn() + 'static>(

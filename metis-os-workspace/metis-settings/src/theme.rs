@@ -173,6 +173,7 @@ fn settings_css(t: &ThemeTokens) -> String {
             background-color: {raised};
             border: 1px solid {border};
             border-radius: {rl}px;
+            padding: 8px 12px;
         }}
         .metis-settings-list row {{ padding: 8px 10px; background-color: transparent; }}
         .metis-settings-list,
@@ -313,6 +314,35 @@ fn settings_css(t: &ThemeTokens) -> String {
 
         .metis-settings-row colorswatch {{ border-radius: 6px; }}
         button.metis-accent2-hint {{ color: {accent2}; }}
+
+        /* Segmented pill tabs (e.g. Network: Wireless / Wired / Proxy). */
+        .metis-settings-tabs {{
+            padding: 3px;
+            background-color: {raised};
+            border: 1px solid {border};
+            border-radius: 999px;
+        }}
+        button.metis-settings-tab {{
+            padding: 6px 18px;
+            min-height: 0;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background-color: transparent;
+            background-image: none;
+            box-shadow: none;
+            color: {muted};
+        }}
+        button.metis-settings-tab:hover {{
+            background-color: {surface};
+            color: {text};
+        }}
+        button.metis-settings-tab:checked,
+        button.metis-settings-tab:active {{
+            background-color: {accent};
+            border-color: {accent};
+            color: {on_accent};
+        }}
+        button.metis-settings-tab:checked label {{ color: {on_accent}; font-weight: 700; }}
         "#
     )
 }
