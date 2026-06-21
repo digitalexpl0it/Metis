@@ -161,6 +161,11 @@ pub fn init_winit(
                 state.damaged = true;
             }
 
+            // Same for the configurable titlebar background opacity.
+            if state.decorations.maybe_refresh() {
+                state.damaged = true;
+            }
+
             // Frame callbacks are delivered after each render (see Redraw), not
             // on a fixed clock — that keeps GTK's frame clock from spinning when
             // nothing changed. Every client commit schedules a redraw, so a

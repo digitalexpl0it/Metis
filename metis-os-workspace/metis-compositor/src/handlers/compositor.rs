@@ -13,6 +13,7 @@ use smithay::{
             CompositorClientState, CompositorHandler, CompositorState, get_parent,
             is_sync_subsurface,
         },
+        seat::WaylandFocus,
         shm::{ShmHandler, ShmState},
     },
 };
@@ -23,6 +24,9 @@ impl CompositorHandler for MetisState {
     }
 
     fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
+        if let Some(state) = client.get_data::<smithay::xwayland::XWaylandClientData>() {
+            return &state.compositor_state;
+        }
         &client.get_data::<ClientState>().unwrap().compositor_state
     }
 
@@ -36,7 +40,7 @@ impl CompositorHandler for MetisState {
             if let Some(window) = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == &root)
+                .find(|w| w.wl_surface().is_some_and(|s| *s == root))
             {
                 window.on_commit();
             }

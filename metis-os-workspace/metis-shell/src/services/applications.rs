@@ -1,0 +1,158 @@
+//! Installed-application enumeration and app-menu state for the launcher popover.
+//!
+//! Apps are discovered through `gio::AppInfo` (the freedesktop `.desktop` index).
+//! Launch frequency and pinned apps persist to `menu.json` via `metis-config`.
+//! Launching routes through the compositor (`launch_program`) so children inherit
+//! the nested Wayland environment and are tracked for cleanup.
+
+use gio::prelude::*;
+
+use metis_config::{load_menu_config, save_menu_config};
+
+/// A single launchable application resolved from a `.desktop` entry.
+#[derive(Clone)]
+pub struct AppEntry {
+    /// Desktop file id, e.g. `firefox.desktop`. Stable key for pinning/frequency.
+    pub id: String,
+    pub name: String,
+    /// Command line with `.desktop` field codes stripped, ready for `launch_program`.
+    pub exec: String,
+    pub icon: Option<gio::Icon>,
+    pub keywords: Vec<String>,
+}
+
+/// Enumerate all visible installed applications, sorted alphabetically by name.
+pub fn list_apps() -> Vec<AppEntry> {
+    let mut entries: Vec<AppEntry> = gio::AppInfo::all()
+        .into_iter()
+        .filter(|info| info.should_show())
+        .filter_map(entry_from_info)
+        .collect();
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    entries
+}
+
+fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
+    let id = info.id()?.to_string();
+    let name = info.name().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let exec = info
+        .commandline()
+        .map(|cmd| clean_exec(&cmd.to_string_lossy()))
+        .filter(|s| !s.is_empty())?;
+
+    let keywords = info
+        .downcast_ref::<gio::DesktopAppInfo>()
+        .map(|desktop| {
+            desktop
+                .keywords()
+                .iter()
+                .map(|k| k.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Some(AppEntry {
+        id,
+        name,
+        exec,
+        icon: info.icon(),
+        keywords,
+    })
+}
+
+/// Strip freedesktop Exec field codes (`%U`, `%f`, `%i`, ...) so the residual
+/// command line can be spawned directly by the compositor.
+fn clean_exec(exec: &str) -> String {
+    exec.split_whitespace()
+        .filter(|tok| !(tok.len() == 2 && tok.starts_with('%')))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Apps the user has launched at least once, ordered by descending launch count
+/// (ties broken alphabetically). Drives the "Frequent Apps" section.
+pub fn frequent(limit: usize) -> Vec<AppEntry> {
+    let counts = load_menu_config().launch_counts;
+    let mut scored: Vec<(u32, AppEntry)> = list_apps()
+        .into_iter()
+        .filter_map(|e| counts.get(&e.id).copied().map(|c| (c, e)))
+        .filter(|(c, _)| *c > 0)
+        .collect();
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase()))
+    });
+    scored.into_iter().take(limit).map(|(_, e)| e).collect()
+}
+
+/// Case-insensitive search over app name and keywords, ranked by launch count.
+pub fn search(query: &str) -> Vec<AppEntry> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let counts = load_menu_config().launch_counts;
+    let mut matches: Vec<AppEntry> = list_apps()
+        .into_iter()
+        .filter(|e| {
+            e.name.to_lowercase().contains(&needle)
+                || e.keywords.iter().any(|k| k.to_lowercase().contains(&needle))
+        })
+        .collect();
+    matches.sort_by(|a, b| {
+        let starts_a = a.name.to_lowercase().starts_with(&needle);
+        let starts_b = b.name.to_lowercase().starts_with(&needle);
+        starts_b
+            .cmp(&starts_a)
+            .then_with(|| {
+                counts
+                    .get(&b.id)
+                    .copied()
+                    .unwrap_or(0)
+                    .cmp(&counts.get(&a.id).copied().unwrap_or(0))
+            })
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    matches
+}
+
+/// The user's pinned apps, in saved order, resolved to current `AppEntry`s.
+pub fn pinned_entries() -> Vec<AppEntry> {
+    let pinned = load_menu_config().pinned;
+    let apps = list_apps();
+    pinned
+        .iter()
+        .filter_map(|id| apps.iter().find(|e| &e.id == id).cloned())
+        .collect()
+}
+
+/// Toggle an app's pinned state, persisting the change. Returns the new state.
+pub fn toggle_pin(id: &str) -> bool {
+    let mut cfg = load_menu_config();
+    let now_pinned = if let Some(pos) = cfg.pinned.iter().position(|p| p == id) {
+        cfg.pinned.remove(pos);
+        false
+    } else {
+        cfg.pinned.push(id.to_string());
+        true
+    };
+    if let Err(err) = save_menu_config(&cfg) {
+        tracing::warn!(%err, "failed to persist menu.json after pin toggle");
+    }
+    now_pinned
+}
+
+/// Record a launch (bumping its frequency) and spawn the app via the compositor.
+pub fn launch(entry: &AppEntry) {
+    let mut cfg = load_menu_config();
+    *cfg.launch_counts.entry(entry.id.clone()).or_insert(0) += 1;
+    if let Err(err) = save_menu_config(&cfg) {
+        tracing::warn!(%err, "failed to persist menu.json after launch");
+    }
+    if let Err(err) = crate::compositor::launch_program(&entry.exec) {
+        tracing::warn!(%err, exec = %entry.exec, "failed to launch application");
+    }
+}

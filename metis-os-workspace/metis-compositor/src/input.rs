@@ -227,7 +227,9 @@ impl MetisState {
         if let Some(target) = self.focus_target_at(location) {
             if let KeyboardFocusTarget::Window(ref window) = target {
                 self.space.raise_element(window, true);
-                window.toplevel().unwrap().send_pending_configure();
+                if let Some(toplevel) = window.toplevel() {
+                    toplevel.send_pending_configure();
+                }
             }
             keyboard.set_focus(self, Some(target), serial);
             return;

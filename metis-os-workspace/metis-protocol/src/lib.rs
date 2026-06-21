@@ -15,6 +15,10 @@ pub enum CompositorCommand {
     ApplyLayout { layout: GridLayout, gutter_px: u32 },
     SetTileMode { tile_id: String, mode: TileMode },
     Launch { program: String },
+    /// End the Metis session: stop the compositor event loop so the session host
+    /// (run script / display manager) tears the session down cleanly. Used by the
+    /// app menu's "Log Out" action.
+    EndSession,
     /// Re-read `wallpaper.json` and apply the desktop background live (picture,
     /// solid colour, or gradient).
     ApplyBackground,

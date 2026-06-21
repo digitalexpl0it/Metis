@@ -1305,6 +1305,147 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 11px;
         color: {muted};
     }}
+
+    /* ---- App menu popover ---- */
+    .metis-menu-panel {{
+        padding: 14px;
+    }}
+
+    /* Floating tooltip for the icon-only rail (custom, since native GTK
+       tooltips do not present on this layer-shell popover). */
+    .metis-menu-tooltip > contents {{
+        padding: 4px 9px;
+        min-height: 0;
+        min-width: 0;
+        border-radius: {rs}px;
+        border: 1px solid {border};
+        background-color: {raised};
+        color: {text};
+        font-size: 12px;
+    }}
+    .metis-menu-tooltip > arrow {{
+        background: none;
+        border: none;
+    }}
+
+    .metis-menu-rail {{
+        padding: 2px 10px 2px 0;
+        margin-right: 4px;
+        border-right: 1px solid {border};
+    }}
+
+    .metis-menu-rail-btn {{
+        padding: 8px;
+        min-width: 0;
+        min-height: 0;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+    .metis-menu-rail-btn:hover {{
+        color: {accent};
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-menu-rail-btn:active {{
+        background-color: rgba({accent_rgb}, 0.22);
+    }}
+
+    .metis-menu-center {{
+        min-width: 320px;
+    }}
+
+    .metis-menu-pinned {{
+        min-width: 240px;
+        margin-left: 4px;
+    }}
+
+    .metis-menu-divider {{
+        background-color: {border};
+        min-width: 1px;
+        margin: 4px 8px;
+    }}
+
+    .metis-menu-scroll {{
+        min-height: 420px;
+    }}
+    .metis-menu-scroll scrollbar {{
+        background-color: transparent;
+    }}
+    .metis-menu-scroll scrollbar slider {{
+        min-width: 7px;
+        border-radius: 999px;
+        background-color: rgba({text_rgb}, 0.22);
+    }}
+    .metis-menu-scroll scrollbar slider:hover {{
+        background-color: rgba({text_rgb}, 0.34);
+    }}
+
+    .metis-menu-row {{
+        padding: 7px 8px;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {text};
+        border-radius: {rs}px;
+    }}
+    .metis-menu-row:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-menu-row:active {{
+        background-color: rgba({accent_rgb}, 0.22);
+    }}
+
+    .metis-menu-letter {{
+        font-size: 11px;
+        font-weight: 700;
+        color: {muted};
+        padding: 8px 8px 2px 8px;
+    }}
+
+    .metis-menu-empty {{
+        font-size: 12px;
+        color: {muted};
+        padding: 10px 8px;
+    }}
+
+    .metis-menu-search {{
+        margin-top: 4px;
+        border-radius: {rs}px;
+    }}
+
+    .metis-menu-pinned-flow {{
+        /* Extra right pad keeps the tiles clear of the overlay scrollbar. */
+        padding: 2px 12px 2px 2px;
+    }}
+
+    .metis-menu-tile {{
+        padding: 10px 6px;
+        border: none;
+        outline: none;
+        background-image: none;
+        background-color: transparent;
+        box-shadow: none;
+        color: {text};
+        border-radius: {rm}px;
+    }}
+    .metis-menu-tile:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-menu-tile:active {{
+        background-color: rgba({accent_rgb}, 0.22);
+    }}
+
+    .metis-menu-tile-label {{
+        font-size: 11px;
+        color: {text};
+        margin-top: 2px;
+    }}
 "#,
         surface = surface,
         border = theme.border,

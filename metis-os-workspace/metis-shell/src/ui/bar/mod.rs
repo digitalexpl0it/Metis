@@ -339,6 +339,7 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     // window itself must remain at full opacity.
     window.set_opacity(1.0);
     crate::ui::theme::apply_bar_opacity(config.opacity);
+    crate::ui::theme::apply_menu_opacity(config.menu_opacity);
 }
 
 fn rebuild_bar(config: Rc<RefCell<BarConfig>>) {

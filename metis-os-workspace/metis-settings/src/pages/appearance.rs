@@ -376,6 +376,16 @@ pub fn build() -> gtk::Widget {
     opacity.set_draw_value(true);
     bar_body.append(&ui::row_with_icon("display-brightness-symbolic", "Opacity", &opacity));
 
+    let menu_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
+    menu_opacity.set_value(bar.borrow().menu_opacity as f64);
+    menu_opacity.set_size_request(200, -1);
+    menu_opacity.set_draw_value(true);
+    bar_body.append(&ui::row_with_icon(
+        "view-app-grid-symbolic",
+        "Start menu opacity",
+        &menu_opacity,
+    ));
+
     let blur = gtk::Switch::new();
     blur.set_active(bar.borrow().blur);
     blur.set_halign(gtk::Align::End);
@@ -398,10 +408,47 @@ pub fn build() -> gtk::Widget {
     bar_body.append(&blur_hint);
     content.append(&bar_card);
 
+    // ---- Windows (titlebar) ----------------------------------------------
+    let (win_card, win_body) = ui::section_with_icon("Windows", "window-new-symbolic");
+
+    let titlebar_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
+    titlebar_opacity.set_value(bar.borrow().titlebar_opacity as f64);
+    titlebar_opacity.set_size_request(200, -1);
+    titlebar_opacity.set_draw_value(true);
+    win_body.append(&ui::row_with_icon(
+        "display-brightness-symbolic",
+        "Titlebar opacity",
+        &titlebar_opacity,
+    ));
+
+    let win_hint = gtk::Label::new(Some(
+        "Dims only the window titlebar background so the wallpaper shows through; \
+         the title text and window buttons stay solid. Changes apply within ~1s.",
+    ));
+    win_hint.set_xalign(0.0);
+    win_hint.set_wrap(true);
+    win_hint.add_css_class("metis-settings-hint");
+    win_body.append(&win_hint);
+    content.append(&win_card);
+
     {
         let bar = bar.clone();
         opacity.connect_value_changed(move |s| {
             bar.borrow_mut().opacity = s.value() as f32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        menu_opacity.connect_value_changed(move |s| {
+            bar.borrow_mut().menu_opacity = s.value() as f32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        titlebar_opacity.connect_value_changed(move |s| {
+            bar.borrow_mut().titlebar_opacity = s.value() as f32;
             save_bar(&bar.borrow());
         });
     }

@@ -6,6 +6,7 @@ pub mod bar;
 pub mod calendars;
 pub mod clocks;
 pub mod css;
+pub mod menu;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
@@ -167,6 +168,7 @@ pub use clocks::{
     AlarmSound, ClocksConfig, ALARM_SOUNDS,
 };
 pub use css::build_stylesheet;
+pub use menu::{load_menu_config, menu_config_path, save_menu_config, MenuConfig};
 pub use theme::{SemanticColors, ThemeMode, ThemeTokens};
 pub use wallpaper::{
     load_wallpaper_config, parse_hex_rgb, save_wallpaper_config, wallpaper_config_path,

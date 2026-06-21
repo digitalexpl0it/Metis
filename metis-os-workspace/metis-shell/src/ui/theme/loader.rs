@@ -12,6 +12,8 @@ thread_local! {
     });
     static BAR_BG_PROVIDER: CssProvider = CssProvider::new();
     static BAR_OPACITY: Cell<f32> = const { Cell::new(1.0) };
+    static MENU_BG_PROVIDER: CssProvider = CssProvider::new();
+    static MENU_OPACITY: Cell<f32> = const { Cell::new(1.0) };
 }
 
 struct ThemeState {
@@ -81,9 +83,10 @@ fn apply_tokens(tokens: &ThemeTokens) {
             );
         }
     });
-    // Re-apply the bar background opacity on top of the (possibly new) surface
-    // colour so theme edits don't reset the configured transparency.
+    // Re-apply the bar + menu background opacity on top of the (possibly new)
+    // surface colour so theme edits don't reset the configured transparency.
     apply_bar_opacity(BAR_OPACITY.with(Cell::get));
+    apply_menu_opacity(MENU_OPACITY.with(Cell::get));
 }
 
 /// Apply the edge bar's configurable background transparency.
@@ -99,6 +102,31 @@ pub fn apply_bar_opacity(opacity: f32) {
         ".metis-bar-pill {{ background-color: rgba({surface_rgb}, {alpha:.3}); }}"
     );
     BAR_BG_PROVIDER.with(|provider| {
+        provider.load_from_data(&css);
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(
+                &display,
+                provider,
+                STYLE_PROVIDER_PRIORITY_USER,
+            );
+        }
+    });
+}
+
+/// Apply the start-menu popover's configurable background transparency.
+///
+/// Like [`apply_bar_opacity`], this overrides only the `.metis-menu-panel`
+/// background alpha via a dedicated, higher-priority provider — never
+/// `popover.set_opacity()` — so the menu's text, icons, and tiles stay fully
+/// opaque while only the panel surface dims.
+pub fn apply_menu_opacity(opacity: f32) {
+    let alpha = opacity.clamp(0.0, 1.0);
+    MENU_OPACITY.with(|o| o.set(alpha));
+    let raised_rgb = active_tokens().surface_raised_rgb();
+    let css = format!(
+        ".metis-menu-panel {{ background-color: rgba({raised_rgb}, {alpha:.3}); }}"
+    );
+    MENU_BG_PROVIDER.with(|provider| {
         provider.load_from_data(&css);
         if let Some(display) = gtk::gdk::Display::default() {
             gtk::style_context_add_provider_for_display(

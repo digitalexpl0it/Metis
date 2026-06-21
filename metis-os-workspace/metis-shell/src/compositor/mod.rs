@@ -1,3 +1,3 @@
 pub mod client;
 
-pub use client::{launch_program, spawn_listener};
+pub use client::{end_session, launch_program, spawn_listener};

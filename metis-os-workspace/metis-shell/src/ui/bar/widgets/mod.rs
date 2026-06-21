@@ -1,5 +1,6 @@
 pub mod clock;
 mod launcher;
+mod menu;
 mod notifications;
 pub mod sys;
 mod weather;

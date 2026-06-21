@@ -8,8 +8,7 @@ const ICON_BYTES: &[u8] = include_bytes!("../../../../assets/metis_icon.png");
 
 const ICON_SIZE: i32 = 22;
 
-/// Far-left brand button on the edge bar. For now it is a visual placeholder that
-/// will grow into the app-menu launcher.
+/// Far-left brand button on the edge bar. Clicking it toggles the Metis app menu.
 pub struct LauncherWidget {
     root: gtk::Button,
 }
@@ -32,13 +31,7 @@ impl LauncherWidget {
         }
         root.set_child(Some(&image));
 
-        root.connect_clicked(|_| {
-            // For now the brand button opens the settings app. It will grow into a
-            // full app-menu launcher later.
-            if let Err(err) = crate::compositor::launch_program("metis-settings") {
-                tracing::warn!(%err, "failed to launch metis-settings");
-            }
-        });
+        super::menu::install(&root);
 
         Self { root }
     }

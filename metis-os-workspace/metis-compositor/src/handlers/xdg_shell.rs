@@ -19,9 +19,12 @@ use smithay::{
         },
     },
     utils::{Rectangle, Serial},
-    wayland::shell::xdg::{
-        decoration::XdgDecorationHandler,
-        PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+    wayland::{
+        seat::WaylandFocus,
+        shell::xdg::{
+            decoration::XdgDecorationHandler,
+            PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
+        },
     },
 };
 use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode;
@@ -78,7 +81,7 @@ impl XdgShellHandler for MetisState {
             let window = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == wl_surface))
                 .unwrap()
                 .clone();
             let initial_window_location = self.space.element_location(&window).unwrap();
@@ -112,7 +115,7 @@ impl XdgShellHandler for MetisState {
             let window = self
                 .space
                 .elements()
-                .find(|w| w.toplevel().unwrap().wl_surface() == wl_surface)
+                .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == wl_surface))
                 .unwrap()
                 .clone();
             let initial_window_location = self.space.element_location(&window).unwrap();
@@ -293,13 +296,13 @@ pub fn track_popup(state: &mut MetisState, surface: PopupSurface) {
 }
 
 pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: &WlSurface) {
-    if let Some(window) = space
+    if let Some(toplevel) = space
         .elements()
-        .find(|w| w.toplevel().unwrap().wl_surface() == surface)
-        .cloned()
+        .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == surface))
+        .and_then(|w| w.toplevel().cloned())
     {
-        if !window.toplevel().unwrap().is_initial_configure_sent() {
-            window.toplevel().unwrap().send_configure();
+        if !toplevel.is_initial_configure_sent() {
+            toplevel.send_configure();
         }
     }
 
@@ -356,7 +359,7 @@ impl MetisState {
         if let Some(window) = self
             .space
             .elements()
-            .find(|w| w.toplevel().unwrap().wl_surface() == &root)
+            .find(|w| w.wl_surface().is_some_and(|s| *s == root))
         {
             let output = self.space.outputs().next().unwrap();
             let output_geo = self.space.output_geometry(output).unwrap();

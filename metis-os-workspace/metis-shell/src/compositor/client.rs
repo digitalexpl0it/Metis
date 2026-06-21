@@ -66,6 +66,12 @@ pub fn launch_program(program: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Ask the compositor to end the Metis session (stops its event loop).
+pub fn end_session() -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::EndSession)?;
+    Ok(())
+}
+
 fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
     let path = metis_protocol::ipc_socket_path();
     let mut stream = UnixStream::connect(&path).map_err(|e| {

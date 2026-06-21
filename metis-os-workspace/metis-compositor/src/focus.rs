@@ -32,11 +32,22 @@ impl IsAlive for KeyboardFocusTarget {
 }
 
 impl KeyboardFocusTarget {
-    fn inner_keyboard_target(&self) -> &dyn KeyboardTarget<MetisState> {
+    /// Run `f` against the underlying keyboard target surface. Returns `None`
+    /// only for a `Window` that has no associated `wl_surface` yet (e.g. an
+    /// unmapped X11 surface), in which case the keyboard event is simply dropped.
+    fn with_keyboard_surface<R>(
+        &self,
+        f: impl FnOnce(&dyn KeyboardTarget<MetisState>) -> R,
+    ) -> Option<R> {
         match self {
-            Self::Window(w) => w.toplevel().unwrap().wl_surface(),
-            Self::LayerSurface(l) => l.wl_surface(),
-            Self::Popup(p) => p.wl_surface(),
+            // Wayland toplevels expose a stable `&WlSurface`; X11 windows only
+            // have one once associated, returned by value via `wl_surface()`.
+            Self::Window(w) => match w.toplevel() {
+                Some(toplevel) => Some(f(toplevel.wl_surface())),
+                None => w.wl_surface().map(|surface| f(&*surface)),
+            },
+            Self::LayerSurface(l) => Some(f(l.wl_surface())),
+            Self::Popup(p) => Some(f(p.wl_surface())),
         }
     }
 }
@@ -59,11 +70,11 @@ impl KeyboardTarget<MetisState> for KeyboardFocusTarget {
         keys: Vec<KeysymHandle<'_>>,
         serial: Serial,
     ) {
-        self.inner_keyboard_target().enter(seat, data, keys, serial)
+        self.with_keyboard_surface(|target| target.enter(seat, data, keys, serial));
     }
 
     fn leave(&self, seat: &Seat<MetisState>, data: &mut MetisState, serial: Serial) {
-        self.inner_keyboard_target().leave(seat, data, serial)
+        self.with_keyboard_surface(|target| target.leave(seat, data, serial));
     }
 
     fn key(
@@ -75,8 +86,7 @@ impl KeyboardTarget<MetisState> for KeyboardFocusTarget {
         serial: Serial,
         time: u32,
     ) {
-        self.inner_keyboard_target()
-            .key(seat, data, key, state, serial, time)
+        self.with_keyboard_surface(|target| target.key(seat, data, key, state, serial, time));
     }
 
     fn modifiers(
@@ -86,8 +96,7 @@ impl KeyboardTarget<MetisState> for KeyboardFocusTarget {
         modifiers: ModifiersState,
         serial: Serial,
     ) {
-        self.inner_keyboard_target()
-            .modifiers(seat, data, modifiers, serial)
+        self.with_keyboard_surface(|target| target.modifiers(seat, data, modifiers, serial));
     }
 }
 

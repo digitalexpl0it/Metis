@@ -154,6 +154,12 @@ impl ThemeTokens {
         rgb_triplet_from_hex(&self.surface)
     }
 
+    /// The raised surface colour as a bare `r, g, b` triplet, used for popover /
+    /// dropdown panels (e.g. the start menu's configurable background opacity).
+    pub fn surface_raised_rgb(&self) -> String {
+        rgb_triplet_from_hex(&self.surface_raised)
+    }
+
     /// The foreground/text colour as a bare `r, g, b` triplet, so the stylesheet
     /// can build `rgba(<triplet>, <alpha>)` outlines that stay legible in both
     /// light and dark themes (e.g. the edge bar's workspace dots).

@@ -531,6 +531,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0aafbcdb8afc29c1a7ee5fbe53b5d62f4565b35a042a662ca9fecd0b54dae6f4"
 
 [[package]]
+name = "encoding_rs"
+version = "0.8.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2914,6 +2923,7 @@ dependencies = [
  "cursor-icon",
  "downcast-rs",
  "drm-fourcc",
+ "encoding_rs",
  "errno",
  "gl_generator",
  "indexmap",
@@ -2922,6 +2932,7 @@ dependencies = [
  "profiling",
  "rand",
  "rustix",
+ "scopeguard",
  "sha2",
  "smallvec",
  "tempfile",
@@ -2935,6 +2946,7 @@ dependencies = [
  "wayland-protocols-wlr",
  "wayland-server",
  "winit",
+ "x11rb",
  "xkbcommon",
 ]
 

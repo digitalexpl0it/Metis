@@ -94,6 +94,15 @@ pub struct MetisState {
 
     pub seat: Seat<MetisState>,
 
+    /// XWayland shell protocol state (xwayland-surface association). Always
+    /// present; the X11 window manager (`xwm`) only exists once XWayland is up.
+    pub xwayland_shell_state: smithay::wayland::xwayland_shell::XWaylandShellState,
+    /// Live X11 window manager, populated when the XWayland server signals ready.
+    pub xwm: Option<smithay::xwayland::X11Wm>,
+    /// X11 display number (e.g. `0` → `:0`) for the running XWayland server, used
+    /// to set `DISPLAY` on X11 child processes.
+    pub xdisplay: Option<u32>,
+
     pub windows: WindowRegistry,
     /// Windows the user has manually dragged out of the grid by their titlebar.
     /// They keep their free position (no grid snap-back) until closed.
@@ -155,6 +164,8 @@ impl MetisState {
         let output_manager_state = OutputManagerState::new_with_xdg_output::<MetisState>(&dh);
         let data_device_state = DataDeviceState::new::<MetisState>(&dh);
         let primary_selection_state = PrimarySelectionState::new::<MetisState>(&dh);
+        let xwayland_shell_state =
+            smithay::wayland::xwayland_shell::XWaylandShellState::new::<MetisState>(&dh);
         TextInputManagerState::new::<MetisState>(&dh);
 
         let mut seat_state = SeatState::<MetisState>::new();
@@ -188,6 +199,9 @@ impl MetisState {
             primary_selection_state,
             popups,
             seat,
+            xwayland_shell_state,
+            xwm: None,
+            xdisplay: None,
             windows: WindowRegistry::new(),
             floating: std::collections::HashSet::new(),
             window_state: crate::window_state::WindowStateStore::load(),
@@ -354,7 +368,10 @@ impl MetisState {
         self.floating.insert(id);
         self.windows.set_maximized(id, false);
 
-        let size = Size::from((rect.width.max(1), rect.height.max(1)));
+        // `rect` is the snap *footprint*; inset to the body so Metis can draw the
+        // titlebar + border in the reserved strip around the client.
+        let body = app_tile_body_rect(rect);
+        let size = Size::from((body.width.max(1), body.height.max(1)));
         record.toplevel.with_pending_state(|state| {
             state.states.unset(xdg_toplevel::State::Maximized);
             state.states.unset(xdg_toplevel::State::Fullscreen);
@@ -365,9 +382,9 @@ impl MetisState {
             state.size = Some(size);
         });
         self.space
-            .map_element(record.window.clone(), Point::from((rect.x, rect.y)), true);
+            .map_element(record.window.clone(), Point::from((body.x, body.y)), true);
         record.toplevel.send_pending_configure();
-        self.windows.set_target_rect(id, rect);
+        self.windows.set_target_rect(id, body);
         self.save_window_geometry(id);
         tracing::info!(id, ?rect, label, "snap: window snapped to zone");
     }
@@ -462,7 +479,21 @@ impl MetisState {
         };
 
         cmd.env("WAYLAND_DISPLAY", &self.socket_name);
-        cmd.env_remove("DISPLAY");
+        // Marks the client as running inside a Metis session, so Metis-aware apps
+        // (e.g. the Settings app) can drop their own GTK titlebar and let the
+        // compositor draw the server-side chrome instead of doubling it up.
+        cmd.env("METIS_SESSION", "1");
+        // Point X11-only clients at our nested XWayland server (if running); GTK
+        // apps still prefer Wayland via GDK_BACKEND below. Without XWayland, drop
+        // DISPLAY so X11 apps don't leak onto the host X server.
+        match self.xdisplay {
+            Some(n) => {
+                cmd.env("DISPLAY", format!(":{n}"));
+            }
+            None => {
+                cmd.env_remove("DISPLAY");
+            }
+        }
         cmd.env("GDK_BACKEND", "wayland");
         cmd.env("GSK_RENDERER", std::env::var("GSK_RENDERER").unwrap_or_else(|_| "cairo".into()));
         if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
@@ -714,8 +745,9 @@ impl MetisState {
 
             // Maximize fills the usable area (below the edge bar) with a uniform
             // Hyprland-style gap on every side, so the window floats inside the
-            // screen rather than butting up against the edges. The client (GTK)
-            // draws its own titlebar, so we don't reserve extra chrome here.
+            // screen rather than butting up against the edges. Metis draws the
+            // server-side titlebar + border, so the client is inset to the body
+            // of that footprint (`app_tile_body_rect`).
             let zone = self.usable_zone().unwrap_or_else(|| {
                 let output = self.space.outputs().next().unwrap();
                 let g = self.space.output_geometry(output).unwrap();
@@ -724,12 +756,13 @@ impl MetisState {
             // Tight gap under the bar (matching a dragged window), larger
             // Hyprland-style gaps against the screen edges.
             let g = WINDOW_GAP_PX;
-            let client = PixelRect {
+            let footprint = PixelRect {
                 x: zone.x + g,
                 y: zone.y + BAR_GAP_PX,
                 width: (zone.width - g * 2).max(1),
                 height: (zone.height - BAR_GAP_PX - g).max(1),
             };
+            let client = app_tile_body_rect(footprint);
             let client_size = Size::from((client.width.max(1), client.height.max(1)));
 
             record.toplevel.with_pending_state(|state| {
@@ -851,17 +884,21 @@ impl MetisState {
             let Some(record) = self.windows.get(id) else {
                 continue;
             };
-            if !record.ready || record.fullscreen || self.windows.is_minimized(id) {
+            if record.fullscreen || self.windows.is_minimized(id) {
                 continue;
             }
-            // Floating and maximized windows sit flush in the usable zone and let
-            // the client (GTK) draw its own titlebar, so we don't add server-side
-            // chrome (which would otherwise stack as a wasted strip above it).
-            if record.maximized || self.floating.contains(&id) {
-                continue;
-            }
-            // The client is mapped at the inner body rect; the decoration frame is
-            // that rect grown by the titlebar (top) and border (sides/bottom).
+            // Gate on the window actually being mapped in the space with real
+            // geometry rather than the `ready` flag: floating windows can be mapped
+            // by `reposition_all_windows` without ever flipping `ready` (the
+            // commit-time activation's buffer check is unreliable — see the note in
+            // `handlers::compositor::commit`). A window that's in the space with a
+            // positive-size buffer is renderable, so it gets chrome.
+            //
+            // Every non-fullscreen window — tiled, floating, maximized, or snapped —
+            // is mapped at its inner *body* rect (placement insets the client by the
+            // titlebar + border), so Metis draws the same server-side chrome around
+            // all of them. The decoration frame is the body grown by the titlebar
+            // (top) and border (sides/bottom).
             let Some(loc) = self.space.element_location(&record.window) else {
                 continue;
             };
@@ -1033,7 +1070,10 @@ impl MetisState {
             .as_deref()
             .is_some_and(|t| CENTERED_FLOAT_TITLES.contains(&t));
         if by_app_id || by_title {
-            let rect = self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+            // Center the chrome footprint, then inset the client to its body so
+            // Metis draws the server-side titlebar + border around it.
+            let footprint = self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+            let rect = app_tile_body_rect(footprint);
             self.floating.insert(id);
             self.windows.set_target_rect(id, rect);
             tracing::info!(id, ?rect, "place_new_window: centered default-float app");
@@ -1165,8 +1205,17 @@ impl MetisState {
             let Some(geo) = self.space.element_geometry(window) else {
                 continue;
             };
-            let (gx, gy) = (geo.loc.x as f64, geo.loc.y as f64);
-            let (gw, gh) = (geo.size.w as f64, geo.size.h as f64);
+            // Resize against the *decorated frame* (client body grown by the
+            // server-side titlebar on top and border on the sides/bottom), not the
+            // inset client body — otherwise the top resize band lands at the
+            // titlebar/client seam instead of the true top edge of the window.
+            let border = metis_grid::APP_TILE_BORDER_PX as f64;
+            let header = metis_grid::APP_TILE_HEADER_PX as f64;
+            let (gx, gy) = (geo.loc.x as f64 - border, geo.loc.y as f64 - header);
+            let (gw, gh) = (
+                geo.size.w as f64 + border * 2.0,
+                geo.size.h as f64 + header + border,
+            );
 
             // Only consider points within the band around the window: up to `m`
             // outside each edge, but only `inner` inside (so client controls that
@@ -1524,6 +1573,11 @@ impl MetisState {
                 self.spawn_client(&program);
                 CompositorEvent::Pong
             }
+            CompositorCommand::EndSession => {
+                tracing::info!("EndSession requested — stopping compositor event loop");
+                self.loop_signal.stop();
+                CompositorEvent::Pong
+            }
             CompositorCommand::ApplyBackground => {
                 self.wallpaper.apply_config();
                 self.wallpaper.resize(self.output_physical_size());
@@ -1730,7 +1784,13 @@ impl MetisState {
 fn default_app_tile_rect(layout: &GridLayout) -> metis_grid::TileRect {
     let rows = layout.rows.max(8);
     let cols = layout.columns.max(12);
-    metis_grid::TileRect::new(0, rows.saturating_sub(4).max(2), cols.min(6).max(4), 4)
+    // Open new apps as a large, centered tile rather than a small bottom-left
+    // cell, so a freshly launched window is immediately usable.
+    let w = (cols * 2 / 3).clamp(4, cols);
+    let h = (rows * 2 / 3).clamp(3, rows);
+    let col = (cols - w) / 2;
+    let row = (rows - h) / 2;
+    metis_grid::TileRect::new(col, row, w, h)
 }
 
 /// Apply maximize-consistent edge gaps to a raw snap region. A side that sits on

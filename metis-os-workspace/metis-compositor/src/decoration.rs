@@ -11,6 +11,7 @@
 //! they never overlap the client buffer.
 
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use fontdue::Font;
 use metis_grid::{PixelRect, APP_TILE_BORDER_PX, APP_TILE_HEADER_PX};
@@ -45,6 +46,11 @@ const BTN_GAP: i32 = 8;
 const BTN_RIGHT_PAD: i32 = 12;
 const TITLE_LEFT_PAD: i32 = 12;
 const TITLE_FONT_PX: f32 = 14.0;
+
+/// Radius of the rounded top corners on the server-side titlebar.
+const CORNER_RADIUS_PX: i32 = 10;
+/// Supersample factor for the titlebar texture so the rounded corners are smooth.
+const TITLEBAR_SS: i32 = 2;
 
 render_elements! {
     pub DecorationElement<=GlesRenderer>;
@@ -88,14 +94,31 @@ struct CachedButton {
     buffer: TextureBuffer<GlesTexture>,
 }
 
+/// A cached titlebar-background texture with rounded top corners. Re-rasterized
+/// when the window's width, opacity, or focus changes (the corners need fully
+/// transparent pixels, so a flat `SolidColorRenderElement` can't be used).
+#[derive(Clone)]
+struct CachedTitlebar {
+    width: i32,
+    header: i32,
+    alpha: f32,
+    focused: bool,
+    buffer: TextureBuffer<GlesTexture>,
+}
+
 /// Persistent decoration resources owned by `MetisState`.
 pub struct DecorationRuntime {
     font: Option<Font>,
     ids: HashMap<(u32, u8), Id>,
     titles: HashMap<u32, CachedTitle>,
     buttons: HashMap<(u32, u8), CachedButton>,
+    titlebars: HashMap<u32, CachedTitlebar>,
     commit: CommitCounter,
     last_sig: u64,
+    /// Configurable titlebar background opacity (title text + buttons stay
+    /// opaque). Read from `bar.json` and refreshed live, mirroring the bar blur.
+    titlebar_alpha: f32,
+    last_config_check: Instant,
 }
 
 impl Default for DecorationRuntime {
@@ -105,13 +128,40 @@ impl Default for DecorationRuntime {
             ids: HashMap::new(),
             titles: HashMap::new(),
             buttons: HashMap::new(),
+            titlebars: HashMap::new(),
             commit: CommitCounter::default(),
             last_sig: 0,
+            titlebar_alpha: read_titlebar_opacity(),
+            last_config_check: Instant::now(),
         }
     }
 }
 
+/// Read the titlebar background opacity from `~/.config/metis/bar.json`, clamped
+/// to a sane range. Defaults are supplied by `metis-config`.
+fn read_titlebar_opacity() -> f32 {
+    metis_config::load_bar_config()
+        .titlebar_opacity
+        .clamp(0.0, 1.0)
+}
+
 impl DecorationRuntime {
+    /// Throttled re-read of `bar.json` (~1s) so a Settings app changing the
+    /// titlebar opacity is picked up live. Returns true when it changed (caller
+    /// flags damage).
+    pub fn maybe_refresh(&mut self) -> bool {
+        if self.last_config_check.elapsed() < Duration::from_secs(1) {
+            return false;
+        }
+        self.last_config_check = Instant::now();
+        let alpha = read_titlebar_opacity();
+        if (alpha - self.titlebar_alpha).abs() > f32::EPSILON {
+            self.titlebar_alpha = alpha;
+            return true;
+        }
+        false
+    }
+
     /// Build the render elements for every decorated window. Front-to-back order
     /// within the returned vec does not matter — decoration rects never overlap.
     pub fn elements(
@@ -124,8 +174,11 @@ impl DecorationRuntime {
         self.titles.retain(|id, _| live.contains(id));
         self.ids.retain(|(id, _), _| live.contains(id));
         self.buttons.retain(|(id, _), _| live.contains(id));
+        self.titlebars.retain(|id, _| live.contains(id));
 
-        let sig = signature(windows);
+        // Fold the titlebar alpha into the signature so a live opacity change
+        // re-damages the (otherwise unchanged) decoration rects.
+        let sig = signature(windows) ^ self.titlebar_alpha.to_bits() as u64;
         if sig != self.last_sig {
             self.last_sig = sig;
             self.commit.increment();
@@ -138,19 +191,17 @@ impl DecorationRuntime {
             if frame.width <= 2 || frame.height <= APP_TILE_HEADER_PX {
                 continue;
             }
-            let titlebar = BORDER_or(TITLEBAR_ACTIVE, TITLEBAR_INACTIVE, w.focused);
+            // Dim only the titlebar fill; the title text and traffic-light buttons
+            // are drawn as separate elements and stay fully opaque.
+            let titlebar_rgb = {
+                let c = BORDER_or(TITLEBAR_ACTIVE, TITLEBAR_INACTIVE, w.focused);
+                [c[0], c[1], c[2]]
+            };
+            let titlebar_alpha = self.titlebar_alpha;
             let border = BORDER_or(BORDER_ACTIVE, BORDER_INACTIVE, w.focused);
             let header = APP_TILE_HEADER_PX.min(frame.height);
             let b = APP_TILE_BORDER_PX;
 
-            // Titlebar background (full width across the top of the frame).
-            out.push(self.solid(
-                w.id,
-                0,
-                PixelRect { x: frame.x, y: frame.y, width: frame.width, height: header },
-                titlebar,
-                commit,
-            ));
             // Left / right / bottom borders around the client area.
             out.push(self.solid(
                 w.id,
@@ -206,6 +257,18 @@ impl DecorationRuntime {
                 if let Some(elem) = self.title_element(renderer, w, max_text_w, header) {
                     out.push(elem);
                 }
+            }
+
+            // Titlebar background (full width across the top of the frame) with
+            // rounded top corners. Pushed LAST so it sits *behind* the title text
+            // and control buttons: the damage renderer draws the first element on
+            // top, so an opaque bar would otherwise hide them (and a translucent bar
+            // would let them bleed through). Drawing it behind keeps text/buttons
+            // solid at any opacity.
+            if let Some(elem) =
+                self.titlebar_element(renderer, w, frame.width, header, titlebar_rgb, titlebar_alpha)
+            {
+                out.push(elem);
             }
         }
         out
@@ -278,6 +341,69 @@ impl DecorationRuntime {
                 None,
                 Some(src),
                 Some(Size::from((BTN_SIZE, BTN_SIZE))),
+                Kind::Unspecified,
+            ),
+        ))
+    }
+
+    /// Build (or reuse) the titlebar-background texture (rounded top corners) and
+    /// place it across the top of the frame. Re-rasterized only when the window's
+    /// width, opacity, or focus changes.
+    fn titlebar_element(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        w: &WindowDeco,
+        width: i32,
+        header: i32,
+        color: [f32; 3],
+        alpha: f32,
+    ) -> Option<DecorationElement> {
+        if width <= 0 || header <= 0 {
+            return None;
+        }
+        let needs_render = self
+            .titlebars
+            .get(&w.id)
+            .map(|c| {
+                c.width != width
+                    || c.header != header
+                    || c.focused != w.focused
+                    || (c.alpha - alpha).abs() > f32::EPSILON
+            })
+            .unwrap_or(true);
+
+        if needs_render {
+            let (pixels, pw, ph) = rasterize_titlebar(color, alpha, width, header)?;
+            let texture = renderer
+                .import_memory(&pixels, Fourcc::Abgr8888, Size::from((pw, ph)), false)
+                .ok()?;
+            let buffer =
+                TextureBuffer::from_texture(renderer, texture, TITLEBAR_SS, Transform::Normal, None);
+            self.titlebars.insert(
+                w.id,
+                CachedTitlebar {
+                    width,
+                    header,
+                    alpha,
+                    focused: w.focused,
+                    buffer,
+                },
+            );
+        }
+
+        let cached = self.titlebars.get(&w.id)?;
+        let src = Rectangle::<f64, Logical>::new(
+            Point::from((0.0, 0.0)),
+            Size::from((width as f64, header as f64)),
+        );
+        let loc = Point::<i32, Logical>::from((w.frame.x, w.frame.y)).to_physical(1);
+        Some(DecorationElement::Text(
+            TextureRenderElement::from_texture_buffer(
+                loc.to_f64(),
+                &cached.buffer,
+                None,
+                Some(src),
+                Some(Size::from((width, header))),
                 Kind::Unspecified,
             ),
         ))
@@ -449,6 +575,57 @@ fn rasterize(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(
         }
     }
     Some((pixels, width, canvas_h))
+}
+
+/// Rasterize the titlebar background with rounded TOP corners (the bottom edge
+/// stays square where it meets the client). `color` is the straight titlebar RGB
+/// and `alpha` the configured opacity; pixels outside the rounded corners are
+/// fully transparent so the wallpaper shows through. Returns premultiplied RGBA at
+/// `TITLEBAR_SS`× scale.
+fn rasterize_titlebar(color: [f32; 3], alpha: f32, width: i32, header: i32) -> Option<(Vec<u8>, i32, i32)> {
+    let ss = TITLEBAR_SS.max(1);
+    let w = width * ss;
+    let h = header * ss;
+    if w <= 0 || h <= 0 {
+        return None;
+    }
+    let r = (CORNER_RADIUS_PX * ss) as f32;
+    let mut pixels = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let cov = corner_coverage(x as f32 + 0.5, y as f32 + 0.5, w as f32, r);
+            if cov <= 0.0 {
+                continue;
+            }
+            let a = alpha * cov;
+            let idx = ((y * w + x) * 4) as usize;
+            pixels[idx] = (color[0] * a * 255.0) as u8;
+            pixels[idx + 1] = (color[1] * a * 255.0) as u8;
+            pixels[idx + 2] = (color[2] * a * 255.0) as u8;
+            pixels[idx + 3] = (a * 255.0) as u8;
+        }
+    }
+    Some((pixels, w, h))
+}
+
+/// Coverage (0–1) for the rounded TOP corners of the titlebar: 1.0 everywhere
+/// except inside the top-left / top-right corner squares, where it follows an
+/// anti-aliased quarter-circle of radius `r`.
+fn corner_coverage(px: f32, py: f32, w: f32, r: f32) -> f32 {
+    if r <= 0.0 {
+        return 1.0;
+    }
+    if py < r {
+        if px < r {
+            let d = ((px - r).powi(2) + (py - r).powi(2)).sqrt();
+            return aa(r - d);
+        }
+        if px > w - r {
+            let d = ((px - (w - r)).powi(2) + (py - r).powi(2)).sqrt();
+            return aa(r - d);
+        }
+    }
+    1.0
 }
 
 /// Rasterize a control button: an anti-aliased filled circle (traffic-light color

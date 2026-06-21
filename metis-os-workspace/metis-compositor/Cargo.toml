@@ -28,4 +28,5 @@ features = [
     "wayland_frontend",
     "desktop",
     "renderer_gl",
+    "xwayland",
 ]

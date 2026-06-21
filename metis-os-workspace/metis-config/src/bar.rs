@@ -79,6 +79,14 @@ pub struct BarConfig {
     pub full_width: bool,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
+    /// Background opacity for the start-menu popover (text/icons stay opaque).
+    /// Applied by the shell as a CSS override, mirroring `opacity` for the bar.
+    #[serde(default = "default_menu_opacity")]
+    pub menu_opacity: f32,
+    /// Background opacity for compositor-drawn window titlebars (title text and
+    /// the traffic-light buttons stay opaque). Consumed by the compositor.
+    #[serde(default = "default_titlebar_opacity")]
+    pub titlebar_opacity: f32,
     #[serde(default = "default_true")]
     pub blur: bool,
     /// Gaussian backdrop-blur radius (in pixels) applied by the compositor behind
@@ -122,6 +130,14 @@ fn default_opacity() -> f32 {
     0.92
 }
 
+fn default_menu_opacity() -> f32 {
+    0.92
+}
+
+fn default_titlebar_opacity() -> f32 {
+    1.0
+}
+
 fn default_blur_radius() -> f32 {
     18.0
 }
@@ -153,6 +169,8 @@ impl Default for BarConfig {
             margin_h: default_margin_h(),
             full_width: default_full_width(),
             opacity: default_opacity(),
+            menu_opacity: default_menu_opacity(),
+            titlebar_opacity: default_titlebar_opacity(),
             blur: default_true(),
             blur_radius: default_blur_radius(),
             widgets: default_widgets(),

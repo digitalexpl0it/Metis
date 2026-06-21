@@ -43,7 +43,9 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
             let min_x = zone.x as f64 + keep - size.w as f64;
             let max_x = (zone.x + zone.width) as f64 - keep;
             // Vertical: top blocked at the bar; bottom may run off, keeping `keep`.
-            let min_y = zone.y as f64 + gap;
+            // Reserve the server-side titlebar strip above the client so it stays
+            // below the edge bar (the chrome is drawn above the mapped body).
+            let min_y = zone.y as f64 + gap + metis_grid::APP_TILE_HEADER_PX as f64;
             let max_y = (zone.y + zone.height) as f64 - keep;
             new_location.x = new_location.x.clamp(min_x, max_x.max(min_x));
             new_location.y = new_location.y.clamp(min_y, max_y.max(min_y));

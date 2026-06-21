@@ -92,11 +92,17 @@ fn build_ui(app: &Application, page: Option<String>) {
         stack.set_visible_child_name(&page);
     }
 
+    // Inside a Metis session the compositor draws the server-side titlebar +
+    // window controls, so suppress GTK's own client-side titlebar to avoid a
+    // doubled-up frame. On the host (no Metis), keep GTK's titlebar so the window
+    // stays movable/closable.
+    let under_metis = std::env::var_os("METIS_SESSION").is_some();
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Metis Settings")
         .default_width(880)
         .default_height(640)
+        .decorated(!under_metis)
         .build();
     window.add_css_class("metis-settings-window");
     window.set_child(Some(&layout));

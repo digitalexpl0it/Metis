@@ -1,3 +1,4 @@
+pub mod applications;
 pub mod calendar;
 mod notifications;
 mod notify_dbus;
@@ -6,6 +7,7 @@ pub mod secrets;
 pub mod weather;
 mod workspaces;
 
+pub use applications::AppEntry;
 pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };

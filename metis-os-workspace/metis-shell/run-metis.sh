@@ -4,6 +4,8 @@
 # Usage (from this directory):
 #   ./run-metis.sh --session    # start Metis compositor + shell (full desktop)
 #   ./run-metis.sh --session -- -c foot   # session + spawn a client app
+#   ./run-metis.sh --session --import-env # also route D-Bus/systemd-activated
+#                                         # apps into the nested session (dev)
 #   ./run-metis.sh              # shell only (compositor must already run)
 #   ./run-metis.sh --build      # force rebuild before run
 #   ./run-metis.sh --release    # optimized binaries
@@ -62,6 +64,7 @@ AUDIT_LOG="${XDG_STATE_HOME:-$HOME/.local/state}/metis/launch-audit.log"
 
 FORCE_BUILD=0
 SESSION=0
+IMPORT_ENV=0
 FOREGROUND=0
 DO_STOP=0
 DO_VERIFY=0
@@ -79,12 +82,13 @@ while [[ $# -gt 0 ]]; do
         --build) FORCE_BUILD=1 ;;
         --release) PROFILE="release" ;;
         --session) SESSION=1 ;;
+        --import-env) IMPORT_ENV=1 ;;
         --foreground) FOREGROUND=1 ;;
         --stop) DO_STOP=1 ;;
         --verify) DO_VERIFY=1 ;;
         --verify-grid) DO_VERIFY_GRID=1 ;;
         -h|--help)
-            sed -n '2,23p' "$0"
+            sed -n '2,25p' "$0"
             exit 0
             ;;
         *)
@@ -403,6 +407,10 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         log "Wallpaper: disabled (METIS_NO_WALLPAPER)"
     fi
 
+    if [[ "$IMPORT_ENV" -eq 1 ]] && [[ "$SESSION" -eq 0 ]]; then
+        log "WARN: --import-env only applies to a full session; ignoring (add --session)."
+    fi
+
     if [[ "$SESSION" -eq 0 ]] && [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
         log "ERROR: WAYLAND_DISPLAY is not set."
         log "Start the full session: ./run-metis.sh --session"
@@ -490,6 +498,16 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
     if [[ "$SESSION" -eq 1 ]]; then
         export METIS_SHELL_BIN="$SHELL_BIN"
+
+        # Opt-in: redirect the user D-Bus/systemd activation environment at the
+        # nested compositor so D-Bus-activated and single-instance apps open
+        # inside Metis. The compositor performs (and reverts) the import once it
+        # knows its auto-assigned socket name. Heads-up: while active this
+        # temporarily points the logged-in user's activation env at Metis.
+        if [[ "$IMPORT_ENV" -eq 1 ]]; then
+            export METIS_IMPORT_ACTIVATION_ENV=1
+            log "Activation-env import ENABLED — D-Bus/systemd apps will target the nested session."
+        fi
 
         SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/metis"
         LOCK_FILE="$SESSION_DIR/session.lock"
