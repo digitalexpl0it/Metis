@@ -47,6 +47,11 @@ pub const BAR_GAP_PX: i32 = 2;
 /// against them.
 pub const WINDOW_GAP_PX: i32 = 8;
 
+/// Minimum slice of a window that must remain on-screen. Used both to clamp
+/// dragging (a window may slide off the left/right/bottom edges, but this much
+/// stays reachable) and to decide when an off-screen window needs rescuing.
+pub const MIN_VISIBLE_PX: i32 = 64;
+
 /// Apps that open as a centered floating window by default (rather than being
 /// snapped into the tiling grid).
 const CENTERED_FLOAT_APP_IDS: &[&str] = &["com.metis.Settings"];
@@ -856,7 +861,7 @@ impl MetisState {
     /// considered lost. The minimum overlap ensures the titlebar stays reachable.
     fn rect_visible_on_any_output(&self, rect: PixelRect) -> bool {
         // Require a chunk at least this big (incl. the titlebar) on some output.
-        const MIN_VISIBLE: i32 = 64;
+        const MIN_VISIBLE: i32 = MIN_VISIBLE_PX;
         for output in self.space.outputs() {
             let Some(g) = self.space.output_geometry(output) else {
                 continue;

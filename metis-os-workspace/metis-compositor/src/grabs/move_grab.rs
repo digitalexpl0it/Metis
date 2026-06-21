@@ -29,17 +29,22 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
         let delta = event.location - self.start_data.location;
         let mut new_location = self.initial_window_location.to_f64() + delta;
 
-        // Keep the window inside the usable area (below the edge bar's exclusive
-        // zone). The client (GTK) draws its own titlebar, so the whole window is
-        // the client surface: clamp its origin so it sits just under the bar
-        // (with a thin gap) and never slips off-screen.
+        // Constrain dragging: the top edge stays hard-blocked just under the edge
+        // bar (nothing may slide above/under the bar), but the window is free to
+        // move partially off the left, right, and bottom edges — Hyprland-style —
+        // as long as a grabbable slice (`MIN_VISIBLE_PX`) remains on-screen so it
+        // can always be pulled back. Fully-off-screen windows (e.g. a monitor that
+        // disconnected) are rescued separately in `recover_offscreen_rect`.
         if let Some(zone) = data.usable_zone() {
             let size = self.window.geometry().size;
             let gap = crate::state::BAR_GAP_PX as f64;
-            let min_x = zone.x as f64;
+            let keep = crate::state::MIN_VISIBLE_PX as f64;
+            // Horizontal: allow off-screen either side, keeping `keep` px within.
+            let min_x = zone.x as f64 + keep - size.w as f64;
+            let max_x = (zone.x + zone.width) as f64 - keep;
+            // Vertical: top blocked at the bar; bottom may run off, keeping `keep`.
             let min_y = zone.y as f64 + gap;
-            let max_x = (zone.x + zone.width) as f64 - size.w as f64;
-            let max_y = (zone.y + zone.height) as f64 - size.h as f64;
+            let max_y = (zone.y + zone.height) as f64 - keep;
             new_location.x = new_location.x.clamp(min_x, max_x.max(min_x));
             new_location.y = new_location.y.clamp(min_y, max_y.max(min_y));
         }

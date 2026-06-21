@@ -7,6 +7,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Changed
+
+- **Window dragging may now run off the left/right/bottom screen edges** —
+  floating windows can be dragged partially off those edges (Hyprland-style),
+  keeping a grabbable `MIN_VISIBLE_PX` (64px) slice on-screen so they can always
+  be pulled back. The top edge is still hard-blocked just under the edge bar.
+  Windows that end up off *every* active output (e.g. an external monitor that
+  disconnected) are still rescued onto the primary screen.
+
 ### Fixed
 
 - **Backdrop blur bled into the bar's drop shadow** — the blur was applied to the
