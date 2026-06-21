@@ -68,6 +68,12 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
                 },
             );
         }
+
+        // Live snap-zone preview follows the pointer (not the window), so the
+        // overlay highlights the destination as the cursor approaches an edge.
+        let p = event.location;
+        data.snap_preview = data.snap_target_at(p.x.round() as i32, p.y.round() as i32);
+        data.damaged = true;
     }
 
     fn relative_motion(
@@ -89,13 +95,24 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
         handle.button(data, event);
         const BTN_LEFT: u32 = 0x110;
         if !handle.current_pressed().contains(&BTN_LEFT) {
+            // Capture the snap target BEFORE unset_grab: unset_grab() invokes our
+            // `unset()`, which clears `snap_preview`, so reading it afterwards
+            // would always be `None` (the window would never actually snap).
+            let snap = data.snap_preview.take();
             handle.unset_grab(self, data, event.serial, event.time, true);
             if let Some(id) = data
                 .windows
                 .id_for_surface(self.window.toplevel().unwrap().wl_surface())
             {
-                data.enforce_grid_window_geometry(id);
+                // Dropped in a snap zone: tile it there. Otherwise leave it where
+                // the user let go (grid windows already floated on drag start).
+                if let Some((rect, label)) = snap {
+                    data.apply_snap(id, rect, label);
+                } else {
+                    data.enforce_grid_window_geometry(id);
+                }
             }
+            data.damaged = true;
         }
     }
 
@@ -188,5 +205,11 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
         &self.start_data
     }
 
-    fn unset(&mut self, _data: &mut MetisState) {}
+    fn unset(&mut self, data: &mut MetisState) {
+        // Clear any lingering preview if the grab ends without a normal release
+        // (e.g. the window closed mid-drag), so the overlay never sticks.
+        if data.snap_preview.take().is_some() {
+            data.damaged = true;
+        }
+    }
 }

@@ -52,9 +52,14 @@ pub const WINDOW_GAP_PX: i32 = 8;
 /// stays reachable) and to decide when an off-screen window needs rescuing.
 pub const MIN_VISIBLE_PX: i32 = 64;
 
-/// Thickness (in px) of the invisible grab band straddling each window edge that
-/// starts an interactive resize. Corners are where two bands overlap.
+/// How far *outside* a window edge the invisible resize grab band reaches (into
+/// the gap/border around the window). Corners are where two bands overlap.
 pub const RESIZE_MARGIN_PX: i32 = 8;
+
+/// How far *inside* a window edge the resize grab band reaches. Kept small so the
+/// band doesn't swallow edge-hugging client controls (e.g. scrollbars) — you grab
+/// the resize mostly from just outside the window instead.
+pub const RESIZE_INNER_MARGIN_PX: i32 = 3;
 
 /// Apps that open as a centered floating window by default (rather than being
 /// snapped into the tiling grid).
@@ -116,6 +121,11 @@ pub struct MetisState {
     /// Resize edge currently under the pointer (drives the host cursor shape).
     /// `None` when the pointer isn't hovering a window's resize band.
     pub hover_cursor: Option<crate::grabs::ResizeEdge>,
+    /// Active snap-zone preview while a window is being dragged by its titlebar:
+    /// the target rect (already inset) plus a short label. `None` when no drag is
+    /// in progress or the pointer isn't over a snap band. Drives both the live
+    /// overlay and where the window lands on drop.
+    pub snap_preview: Option<(PixelRect, &'static str)>,
 
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
@@ -201,6 +211,7 @@ impl MetisState {
             child_processes: Vec::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             hover_cursor: None,
+            snap_preview: None,
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
@@ -310,6 +321,72 @@ impl MetisState {
         if drifted {
             self.apply_window_rect(id);
         }
+    }
+
+    /// Compute the snap-zone target for a pointer at global-logical (`x`, `y`),
+    /// in pixel space against the usable area (so the top edge maximizes below
+    /// the bar). Returns the final *client* rect (gaps already applied to match
+    /// the maximize look) + label, or `None` when the pointer isn't near an edge.
+    pub fn snap_target_at(&self, x: i32, y: i32) -> Option<(PixelRect, &'static str)> {
+        let zone = self.usable_zone()?;
+        let (raw, label) = metis_grid::pixel_snap_target(x, y, zone)?;
+        Some((snap_client_rect(raw, zone), label))
+    }
+
+    /// Drop a window into a snap zone. The "Maximize" zone routes through the real
+    /// `set_maximized` so it's pixel-identical to the titlebar maximize button.
+    /// Half / quarter zones float the window and mark it *tiled* (all four edges)
+    /// so GTK squares its corners and drops its drop-shadow, filling the snapped
+    /// rect exactly — otherwise the leftover CSD shadow makes the padding look
+    /// uneven from edge to edge.
+    pub fn apply_snap(&mut self, id: u32, rect: PixelRect, label: &str) {
+        use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
+
+        if label == "Maximize" {
+            self.set_maximized(id, true);
+            return;
+        }
+
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        self.space.raise_element(&record.window, true);
+        self.floating.insert(id);
+        self.windows.set_maximized(id, false);
+
+        let size = Size::from((rect.width.max(1), rect.height.max(1)));
+        record.toplevel.with_pending_state(|state| {
+            state.states.unset(xdg_toplevel::State::Maximized);
+            state.states.unset(xdg_toplevel::State::Fullscreen);
+            state.states.set(xdg_toplevel::State::TiledLeft);
+            state.states.set(xdg_toplevel::State::TiledRight);
+            state.states.set(xdg_toplevel::State::TiledTop);
+            state.states.set(xdg_toplevel::State::TiledBottom);
+            state.size = Some(size);
+        });
+        self.space
+            .map_element(record.window.clone(), Point::from((rect.x, rect.y)), true);
+        record.toplevel.send_pending_configure();
+        self.windows.set_target_rect(id, rect);
+        self.save_window_geometry(id);
+        tracing::info!(id, ?rect, label, "snap: window snapped to zone");
+    }
+
+    /// Clear the tiled states a snap applied, so a window pulled off a snapped
+    /// position regains its normal floating chrome (GTK rounded corners + drop
+    /// shadow). `send_pending_configure` is a no-op when nothing actually changed.
+    fn clear_tiled_states(&mut self, id: u32) {
+        use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State;
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        record.toplevel.with_pending_state(|state| {
+            state.states.unset(State::TiledLeft);
+            state.states.unset(State::TiledRight);
+            state.states.unset(State::TiledTop);
+            state.states.unset(State::TiledBottom);
+        });
+        record.toplevel.send_pending_configure();
     }
 
     pub fn queue_startup(&mut self, shell: Option<String>, client: Option<String>) {
@@ -1071,6 +1148,7 @@ impl MetisState {
         use crate::grabs::ResizeEdge;
 
         let m = RESIZE_MARGIN_PX as f64;
+        let inner = RESIZE_INNER_MARGIN_PX as f64;
         // Topmost first: Space::elements() is bottom-to-top, so reverse.
         for window in self.space.elements().rev() {
             let Some(id) = self.windows.id_for_window(window) else {
@@ -1090,14 +1168,16 @@ impl MetisState {
             let (gx, gy) = (geo.loc.x as f64, geo.loc.y as f64);
             let (gw, gh) = (geo.size.w as f64, geo.size.h as f64);
 
-            // Only consider points within the band straddling the window border.
+            // Only consider points within the band around the window: up to `m`
+            // outside each edge, but only `inner` inside (so client controls that
+            // hug the edge, like scrollbars, stay clickable).
             if loc.x < gx - m || loc.x > gx + gw + m || loc.y < gy - m || loc.y > gy + gh + m {
                 continue;
             }
-            let near_left = loc.x <= gx + m;
-            let near_right = loc.x >= gx + gw - m;
-            let near_top = loc.y <= gy + m;
-            let near_bottom = loc.y >= gy + gh - m;
+            let near_left = loc.x <= gx + inner;
+            let near_right = loc.x >= gx + gw - inner;
+            let near_top = loc.y <= gy + inner;
+            let near_bottom = loc.y >= gy + gh - inner;
 
             let mut edges = ResizeEdge::empty();
             if near_left {
@@ -1163,6 +1243,8 @@ impl MetisState {
         // Edge-resize floats the window out of the grid (no snap-back).
         self.space.raise_element(&window, true);
         self.floating.insert(id);
+        // Resizing off a snapped position restores the normal floating chrome.
+        self.clear_tiled_states(id);
 
         if let Some(keyboard) = self.seat.get_keyboard() {
             keyboard.set_focus(self, Some(window.clone().into()), serial);
@@ -1209,6 +1291,8 @@ impl MetisState {
         self.space.raise_element(&window, true);
         // Manual titlebar drag floats the window out of the grid (no snap-back).
         self.floating.insert(id);
+        // Dragging off a snapped position restores the normal floating chrome.
+        self.clear_tiled_states(id);
         let initial_window_location = self
             .space
             .element_location(&window)
@@ -1647,6 +1731,33 @@ fn default_app_tile_rect(layout: &GridLayout) -> metis_grid::TileRect {
     let rows = layout.rows.max(8);
     let cols = layout.columns.max(12);
     metis_grid::TileRect::new(0, rows.saturating_sub(4).max(2), cols.min(6).max(4), 4)
+}
+
+/// Apply maximize-consistent edge gaps to a raw snap region. A side that sits on
+/// the usable-zone boundary gets the full outer gap (`WINDOW_GAP_PX`, or the
+/// tighter `BAR_GAP_PX` against the bar at the top); an interior split line gets
+/// half that, so the gap *between* two snapped windows equals the gap around
+/// them. The result matches the geometry `set_maximized` produces for a window
+/// that fills the whole zone.
+fn snap_client_rect(raw: PixelRect, zone: PixelRect) -> PixelRect {
+    let g = WINDOW_GAP_PX;
+    let half = WINDOW_GAP_PX / 2;
+    let touches_left = raw.x <= zone.x;
+    let touches_right = raw.x + raw.width >= zone.x + zone.width;
+    let touches_top = raw.y <= zone.y;
+    let touches_bottom = raw.y + raw.height >= zone.y + zone.height;
+
+    let l = if touches_left { g } else { half };
+    let r = if touches_right { g } else { half };
+    let t = if touches_top { BAR_GAP_PX } else { half };
+    let b = if touches_bottom { g } else { half };
+
+    PixelRect {
+        x: raw.x + l,
+        y: raw.y + t,
+        width: (raw.width - l - r).max(1),
+        height: (raw.height - t - b).max(1),
+    }
 }
 
 #[derive(Default)]

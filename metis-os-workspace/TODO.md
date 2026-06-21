@@ -66,8 +66,10 @@ decorations so it (and every app) gets a real titlebar.
       starts `ResizeSurfaceGrab`, floats tiled windows out of the grid, persists
       the new geometry, and shows directional resize cursors on hover
 - [ ] Polish — rounded button glyphs, focus-aware dimming
-- [ ] Snap zones / hot-spots — half-screen + maximize overlays when dragging a
-      window to a screen edge
+- [x] Snap zones / hot-spots — drag a window to a screen edge for a live
+      translucent preview that drops it into half / quarter / maximize regions
+      (`metis-grid::pixel_snap_target`, wired through `MoveSurfaceGrab` + winit
+      overlay; computed against the usable area so the top zone clears the bar)
 
 ### Weather
 Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`

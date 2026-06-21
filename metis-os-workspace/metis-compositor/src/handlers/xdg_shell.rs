@@ -59,6 +59,14 @@ impl XdgShellHandler for MetisState {
         // A client-initiated move (e.g. dragging a GTK headerbar) floats the window
         // out of the grid so it follows the pointer with no snap-back.
         if let Some(id) = self.window_id_for_toplevel(&surface) {
+            // A maximized (or fullscreen) window is pinned — ignore drag requests
+            // so its headerbar can't be used to move it around the screen. The
+            // user must unmaximize first.
+            if let Some(record) = self.windows.get(id) {
+                if record.maximized || record.fullscreen {
+                    return;
+                }
+            }
             self.floating.insert(id);
         }
 

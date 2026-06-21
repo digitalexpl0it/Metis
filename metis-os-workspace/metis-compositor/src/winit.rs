@@ -8,10 +8,14 @@ use smithay::{
             damage::OutputDamageTracker,
             element::{
                 render_elements,
+                solid::SolidColorRenderElement,
                 surface::WaylandSurfaceRenderElement,
                 texture::TextureRenderElement,
+                Id, Kind,
             },
             gles::{GlesRenderer, GlesTexture},
+            utils::CommitCounter,
+            Color32F,
         },
         winit::{self, WinitEvent},
     },
@@ -24,7 +28,7 @@ use smithay::{
         EventLoop,
         timer::{TimeoutAction, Timer},
     },
-    utils::{Physical, Rectangle, Size, Transform},
+    utils::{Logical, Physical, Point, Rectangle, Size, Transform},
 };
 
 use crate::ipc;
@@ -37,7 +41,11 @@ render_elements! {
     Space=smithay::desktop::space::SpaceRenderElements<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>>,
     Deco=crate::decoration::DecorationElement,
     Blur=crate::blur::BlurElement,
+    Snap=SolidColorRenderElement,
 }
+
+/// Translucent fill for the snap-zone drop preview (accent blue @ ~30% alpha).
+const SNAP_OVERLAY_COLOR: [f32; 4] = [0.36, 0.56, 0.96, 0.30];
 
 /// Map the hovered resize edge to the matching host (winit) cursor shape. This
 /// nested backend always draws the host cursor and ignores client cursor
@@ -163,6 +171,12 @@ pub fn init_winit(
             TimeoutAction::ToDuration(Duration::from_millis(16))
         })?;
 
+    // Persistent identity for the snap-zone overlay so the damage tracker treats
+    // it as one stable element; the commit only bumps when the target rect moves.
+    let snap_overlay_id = Id::new();
+    let mut snap_overlay_commit = CommitCounter::default();
+    let mut last_snap_rect: Option<metis_grid::PixelRect> = None;
+
     let backend_winit = backend.clone();
     event_loop.handle().insert_source(winit, move |event, _, state| {
         match event {
@@ -238,6 +252,34 @@ pub fn init_winit(
                                 }
                             };
 
+                            // Snap-zone drop preview (translucent fill at the
+                            // destination), drawn on top of everything during a
+                            // titlebar drag. Bump the commit only when it moves.
+                            let snap_element = match state.snap_preview {
+                                Some((rect, _label)) => {
+                                    if last_snap_rect != Some(rect) {
+                                        last_snap_rect = Some(rect);
+                                        snap_overlay_commit.increment();
+                                    }
+                                    let geo = Rectangle::<i32, Logical>::new(
+                                        Point::from((rect.x, rect.y)),
+                                        Size::from((rect.width.max(1), rect.height.max(1))),
+                                    )
+                                    .to_physical(1);
+                                    Some(SolidColorRenderElement::new(
+                                        snap_overlay_id.clone(),
+                                        geo,
+                                        snap_overlay_commit,
+                                        Color32F::from(SNAP_OVERLAY_COLOR),
+                                        Kind::Unspecified,
+                                    ))
+                                }
+                                None => {
+                                    last_snap_rect = None;
+                                    None
+                                }
+                            };
+
                             // Server-side window decorations (titlebar + border +
                             // controls). Built here so we have the GL renderer for
                             // title-text texture uploads.
@@ -267,6 +309,11 @@ pub fn init_winit(
                                 space_render_elements.len()
                                     + usize::from(wallpaper_owned.is_some()),
                             );
+                            // Snap preview sits on top of all windows so the drop
+                            // destination reads as a ghost over the dragged window.
+                            if let Some(snap) = snap_element {
+                                render_elements.push(OutputStack::Snap(snap));
+                            }
                             render_elements.extend(
                                 space_render_elements
                                     .into_iter()

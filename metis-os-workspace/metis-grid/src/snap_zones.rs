@@ -1,8 +1,98 @@
-use super::layout::{pixel_to_grid_cell, GridMetrics};
+use super::layout::{pixel_to_grid_cell, GridMetrics, PixelRect};
 use super::model::{GridLayout, TileRect};
 
 /// Distance from monitor edge to trigger a half/corner snap (macOS-style).
 const EDGE_SNAP_PX: i32 = 48;
+
+/// Pointer distance from the left / right / bottom usable-zone edges that
+/// triggers a pixel-space snap. Being within this band of two edges at once
+/// snaps to the matching quarter.
+const PIXEL_SNAP_PX: i32 = 64;
+
+/// The top edge (maximize) uses a much tighter band: the cursor must get right
+/// up against the top so a normal drag toward the upper area doesn't prematurely
+/// flip to a full-screen maximize.
+const PIXEL_SNAP_TOP_PX: i32 = 16;
+
+/// macOS / Windows-style edge snapping in *pixel* space, computed against the
+/// `zone` the window may occupy (the usable area, already excluding the bar).
+///
+/// Given the pointer at (`x`, `y`), returns the *raw* target region (a fraction
+/// of `zone`, with no inset) plus a short human label, or `None` when the
+/// pointer isn't inside any snap band. The caller applies its own edge gaps and
+/// window states (so the result matches the maximize look). Unlike
+/// [`drop_target_for_tile`] this works directly in screen pixels, so callers
+/// (the compositor's move grab) don't have to round-trip through grid cells and
+/// it naturally respects the bar's exclusive zone.
+pub fn pixel_snap_target(
+    x: i32,
+    y: i32,
+    zone: PixelRect,
+) -> Option<(PixelRect, &'static str)> {
+    let right = zone.x + zone.width;
+    let bottom = zone.y + zone.height;
+    if zone.width <= 0 || zone.height <= 0 {
+        return None;
+    }
+    if x < zone.x || y < zone.y || x > right || y > bottom {
+        return None;
+    }
+
+    let near_left = x - zone.x < PIXEL_SNAP_PX;
+    let near_right = right - x < PIXEL_SNAP_PX;
+    let near_top = y - zone.y < PIXEL_SNAP_TOP_PX;
+    let near_bottom = bottom - y < PIXEL_SNAP_PX;
+    if !near_left && !near_right && !near_top && !near_bottom {
+        return None;
+    }
+
+    let hw = zone.width / 2;
+    let hh = zone.height / 2;
+    let left = zone.x;
+    let top = zone.y;
+
+    // Corners (two edges at once) take priority over halves; the top edge maps to
+    // a full-screen maximize, the other three edges to halves.
+    let (rect, label) = match (near_top, near_bottom, near_left, near_right) {
+        (true, _, true, _) => (PixelRect { x: left, y: top, width: hw, height: hh }, "Top-left"),
+        (true, _, _, true) => (
+            PixelRect { x: left + hw, y: top, width: zone.width - hw, height: hh },
+            "Top-right",
+        ),
+        (_, true, true, _) => (
+            PixelRect { x: left, y: top + hh, width: hw, height: zone.height - hh },
+            "Bottom-left",
+        ),
+        (_, true, _, true) => (
+            PixelRect {
+                x: left + hw,
+                y: top + hh,
+                width: zone.width - hw,
+                height: zone.height - hh,
+            },
+            "Bottom-right",
+        ),
+        (true, _, _, _) => (
+            PixelRect { x: left, y: top, width: zone.width, height: zone.height },
+            "Maximize",
+        ),
+        (_, true, _, _) => (
+            PixelRect { x: left, y: top + hh, width: zone.width, height: zone.height - hh },
+            "Bottom half",
+        ),
+        (_, _, true, _) => (
+            PixelRect { x: left, y: top, width: hw, height: zone.height },
+            "Left half",
+        ),
+        (_, _, _, true) => (
+            PixelRect { x: left + hw, y: top, width: zone.width - hw, height: zone.height },
+            "Right half",
+        ),
+        _ => return None,
+    };
+
+    Some((rect, label))
+}
 
 /// Drop target while dragging `dragged_id` — edge snaps resize the tile; otherwise it keeps its size.
 pub fn drop_target_for_tile(
@@ -160,5 +250,41 @@ mod tests {
         let layout = GridLayout::default();
         let zone = drop_target_for_tile("clock", 1910, 540, &layout, &metrics());
         assert_eq!(zone, TileRect::new(6, 0, 6, 8));
+    }
+
+    fn zone() -> PixelRect {
+        // Usable area below a 40px bar.
+        PixelRect { x: 0, y: 40, width: 1920, height: 1040 }
+    }
+
+    #[test]
+    fn pixel_center_is_no_snap() {
+        assert!(pixel_snap_target(960, 560, zone()).is_none());
+    }
+
+    #[test]
+    fn pixel_left_edge_is_left_half() {
+        let (rect, label) = pixel_snap_target(5, 560, zone()).unwrap();
+        assert_eq!(label, "Left half");
+        assert_eq!(rect, PixelRect { x: 0, y: 40, width: 960, height: 1040 });
+    }
+
+    #[test]
+    fn pixel_top_edge_is_maximize() {
+        let (rect, label) = pixel_snap_target(960, 44, zone()).unwrap();
+        assert_eq!(label, "Maximize");
+        assert_eq!(rect, zone());
+    }
+
+    #[test]
+    fn pixel_top_left_corner_is_quarter() {
+        let (rect, label) = pixel_snap_target(10, 50, zone()).unwrap();
+        assert_eq!(label, "Top-left");
+        assert_eq!(rect, PixelRect { x: 0, y: 40, width: 960, height: 520 });
+    }
+
+    #[test]
+    fn pixel_outside_zone_is_none() {
+        assert!(pixel_snap_target(-5, 560, zone()).is_none());
     }
 }

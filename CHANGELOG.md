@@ -9,6 +9,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Window snap zones (edge/corner drag-to-tile)** — dragging a window by its
+  titlebar shows a live translucent preview when the pointer nears a screen edge
+  and drops the window into that region: top edge → maximize, left/right →
+  halves, the four corners → quarters, bottom → bottom half. The maximize zone
+  routes through the same path as the titlebar maximize button, and half/quarter
+  snaps mark the window *tiled* (so GTK squares its corners and drops its CSD
+  shadow) with edge gaps matching the maximize look — uniform spacing between and
+  around snapped windows. Pulling a snapped window off by drag or edge-resize
+  restores its normal floating chrome. The top/maximize trigger band is tight
+  (16 px) so a normal drag upward doesn't prematurely maximize; the other edges
+  use a roomy 64 px band. Core hit-testing lives in
+  `metis-grid::pixel_snap_target` (unit-tested); the compositor applies the gaps,
+  wires it into `MoveSurfaceGrab`, and renders the overlay in the winit pass.
 - **Session relaunch guards + launch audit (`run-metis.sh`)** — `--session` is now
   hardened against an automatic close→reopen loop:
   - **Single-instance lock** (`flock`): a relaunch that overlaps a live session
@@ -38,6 +51,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Resize band swallowed edge-hugging scrollbars** — the window resize grab band
+  reached 8 px *inside* each edge, so hovering a right-edge scrollbar triggered the
+  resize cursor instead of the scrollbar. The band now reaches mostly *outside* the
+  window (8 px into the gap) and only 3 px inside, so scrollbars stay clickable.
+- **Metis brand icon was hard to see in light mode** — the gradient launcher icon
+  washed out against the pale light-mode bar. It now gets a soft `-gtk-icon-shadow`
+  in light themes (omitted in dark, where a dark shadow would be invisible).
+- **Maximized windows could still be dragged** — a maximized (or fullscreen)
+  window's GTK headerbar still issued `xdg_toplevel` move requests, letting it be
+  dragged around the screen. The compositor now ignores client move requests for
+  maximized/fullscreen windows; unmaximize first to move.
 - **Session "closed and auto-reopened" (the real root cause)** — `run-metis.sh`'s
   `binary_needs_rebuild()` probed the binaries with `"$bin" --help`. But
   `metis-compositor` ignores `--help` (its parser only knows `-c`/`--command`),

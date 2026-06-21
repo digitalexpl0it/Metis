@@ -18,5 +18,8 @@ pub use layout_engine::{
 };
 pub use model::{GridLayout, GridTile, ReflowError, TileKind, TileRect};
 pub use presets::{apply_preset, remove_tile, TilePreset};
-pub use snap_zones::{drop_target_for_tile, monitor_point_from_grid_local, snap_label, snap_target_at_point};
+pub use snap_zones::{
+    drop_target_for_tile, monitor_point_from_grid_local, pixel_snap_target, snap_label,
+    snap_target_at_point,
+};
 pub use tile_mode::{TileMode, TileModeSnapshot, TileModeState};

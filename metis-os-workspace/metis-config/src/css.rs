@@ -12,6 +12,14 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let surface = theme.surface_rgba();
     let raised = theme.surface_raised.clone();
     let shadow = theme.shadow_ambient.clone();
+    // The gradient brand icon washes out against the pale light-mode bar, so add a
+    // soft drop shadow under it to lift it off the surface. A dark shadow is
+    // effectively invisible on the dark theme, so it's only emitted for light.
+    let launcher_icon_shadow = if theme.mode.eq_ignore_ascii_case("light") {
+        "-gtk-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);"
+    } else {
+        ""
+    };
     let rs = theme.radius_sm;
     let rm = theme.radius_md;
     let rl = theme.radius_lg;
@@ -133,6 +141,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-launcher-icon {{
         -gtk-icon-style: regular;
+        {launcher_icon_shadow}
     }}
 
     .metis-bar-sys-icon {{
