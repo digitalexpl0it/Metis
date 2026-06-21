@@ -209,6 +209,8 @@ impl XdgShellHandler for MetisState {
             return;
         };
         let ready = self.windows.is_ready(id);
+        // Remember floating app geometry before the record is dropped.
+        self.save_window_geometry(id);
         if let Some(record) = self.windows.unregister(id) {
             self.space.unmap_elem(&record.window);
         }
@@ -311,6 +313,11 @@ impl MetisState {
         let (title, app_id) = crate::state::read_toplevel_metadata(surface);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
+        // GTK frequently sets app_id just after its first buffer commit, so the
+        // initial activation can miss it. Now that it's known, place the window
+        // (center default-floating apps / restore saved geometry) if it hasn't
+        // already been positioned.
+        self.maybe_autoplace_window(id);
         if self.windows.is_ready(id) {
             use metis_protocol::CompositorEvent;
             self.event_bus.emit(&CompositorEvent::WindowMetadata {

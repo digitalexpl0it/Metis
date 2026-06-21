@@ -96,7 +96,10 @@ Phase 2 is landing: a standalone **`metis-settings`** app (Appearance, Weather,
 Network, Calendars pages) backed by the shared `metis-config`/`metis-secrets`
 crates, plus **server-side window decorations** — the compositor forces SSD and
 draws a titlebar (with title text), a border, and close/minimize/maximize
-buttons around each tiled window. See
+buttons around each tiled window. The Appearance page includes a Light/Dark style
+chooser and a **background picker** — a picture (bundled + imported images, "Add
+Picture…"), a solid colour, or a two-stop gradient with selectable direction —
+that switches the desktop background live and remembers it across restarts. See
 [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
 [`CHANGELOG.md`](CHANGELOG.md) for recent changes.
 

@@ -5,6 +5,38 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Backdrop blur bled into the bar's drop shadow** — the blur was applied to the
+  bar's entire layer surface, which includes the transparent shadow-padding margin
+  around the pill, producing an ugly blurred rectangle below/around the bar. The
+  compositor now confines the blur to the visible pill (excluding the shadow pad),
+  using bar-geometry constants shared via `metis-config`.
+
+### Added
+
+- **Background picker (Appearance)** — the Settings app's Appearance page now has
+  a GNOME-style **Style** chooser (two large Light/Dark preview tiles that show
+  the current background with a mock window) plus a **Background** section with a
+  **Type** selector offering three modes:
+  - **Picture** — a thumbnail grid of bundled and user-imported wallpapers plus
+    an **Add Picture…** button that copies a chosen image into
+    `~/.config/metis/wallpapers/`.
+  - **Solid colour** — a single colour picker.
+  - **Gradient** — start/end colour pickers and a direction selector
+    (top↓bottom, bottom↑top, left→right, right→left, and both diagonals).
+
+  Changes apply **live** via a new `ApplyBackground` compositor IPC command and
+  persist to `~/.config/metis/wallpaper.json` so they survive restarts.
+- **Live background switching (compositor)** — `CompositorCommand::ApplyBackground`
+  makes the compositor re-read `wallpaper.json` and rebuild the background without
+  a restart. Solid/gradient backgrounds are generated procedurally at the output
+  resolution (and feed the bar's backdrop blur just like a wallpaper image does).
+  `resolve_path` honors `wallpaper.json`, and `run-metis.sh` defers to it instead
+  of forcing `METIS_WALLPAPER` to a default when a selection exists.
+
 ## [2026-06-21]
 
 ### Added

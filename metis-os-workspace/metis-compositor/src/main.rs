@@ -12,6 +12,7 @@ mod ipc;
 mod state;
 mod winit;
 mod wallpaper;
+mod window_state;
 mod windows;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};

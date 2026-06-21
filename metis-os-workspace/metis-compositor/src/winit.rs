@@ -206,7 +206,8 @@ pub fn init_winit(
                             // Drawn below the bar surface, above wallpaper/windows.
                             let blur_element = {
                                 state.blur.ensure_program(renderer);
-                                let rect = bar_layer_rect(&output);
+                                let rect = bar_layer_rect(&output)
+                                    .map(|r| state.blur.confine_to_pill(r));
                                 match (rect, state.wallpaper.texture()) {
                                     (Some(rect), Some((tex, tex_size))) => {
                                         state.blur.element(rect, tex, tex_size)

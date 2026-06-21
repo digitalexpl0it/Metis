@@ -55,6 +55,14 @@ pub enum BarWidgetId {
     Weather,
 }
 
+/// Transparent padding baked into the bar's layer surface (beyond the visible
+/// pill) so the pill's rounded drop shadow renders without being clipped square.
+/// `SHADOW_PAD` is on the inner edge (below a top bar); `PILL_SIDE_INSET` is on
+/// the two long edges. The compositor uses these to confine backdrop effects
+/// (e.g. blur) to the visible pill and exclude the shadow margin.
+pub const SHADOW_PAD: i32 = 16;
+pub const PILL_SIDE_INSET: i32 = SHADOW_PAD - 4;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BarConfig {
     #[serde(default)]
@@ -99,7 +107,7 @@ fn default_width() -> u32 {
 }
 
 fn default_margin_top() -> u32 {
-    8
+    4
 }
 
 fn default_margin_h() -> u32 {

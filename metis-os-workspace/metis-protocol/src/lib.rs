@@ -15,6 +15,9 @@ pub enum CompositorCommand {
     ApplyLayout { layout: GridLayout, gutter_px: u32 },
     SetTileMode { tile_id: String, mode: TileMode },
     Launch { program: String },
+    /// Re-read `wallpaper.json` and apply the desktop background live (picture,
+    /// solid colour, or gradient).
+    ApplyBackground,
     SubscribeEvents,
 }
 

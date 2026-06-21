@@ -43,8 +43,13 @@ decorations so it (and every app) gets a real titlebar.
 ### `metis-settings` shell
 - [x] New `metis-settings` binary — sidebar nav + content stack, `--page` preselect
 - [x] Launch from the bar launcher icon and via `metis-cmd settings [page]`
-- [x] Appearance page — theme mode, accent/secondary/semantic colors, opacity,
-      blur + blur radius (writes `themes/*.json` + `bar.json`, live reload)
+- [x] Appearance page — Light/Dark style chooser, accent/secondary/semantic
+      colors, opacity, blur + blur radius (writes `themes/*.json` + `bar.json`,
+      live reload)
+- [x] Appearance page — background picker with three types: Picture (bundled +
+      imported grid, "Add Picture…"), Solid colour, and Gradient (start/end +
+      direction); live switch via `ApplyBackground` IPC, persisted to
+      `wallpaper.json`
 - [x] Network page — wired/NIC config (DHCP vs static), Wi-Fi scan/connect/forget;
       bar "wired-only" network click opens this page
 - [x] Calendars page — moved CalDAV/MS365 account config out of the clock popover

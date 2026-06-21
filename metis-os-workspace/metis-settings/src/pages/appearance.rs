@@ -4,14 +4,19 @@
 //! switch (since the mode lives in `config.json`, which isn't watched).
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use gtk::gdk;
+use gtk::gio;
 use gtk::prelude::*;
 
 use metis_config::ThemeMode;
 
 use crate::{runtime, ui};
+
+const WALLPAPER_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp"];
 
 struct State {
     name: String,
@@ -41,25 +46,30 @@ pub fn build() -> gtk::Widget {
     // Guards programmatic `set_rgba` (during refresh) from triggering a save.
     let suppress = Rc::new(Cell::new(false));
 
-    // ---- Theme mode -------------------------------------------------------
-    let (mode_card, mode_body) = ui::section("Theme");
-    let mode_dd = gtk::DropDown::from_strings(&["Dark", "Light", "System"]);
-    mode_dd.set_selected(match mode {
-        ThemeMode::Dark => 0,
-        ThemeMode::Light => 1,
-        ThemeMode::System => 2,
-    });
-    mode_body.append(&ui::row("Mode", &mode_dd));
-    let hint = gtk::Label::new(Some(
-        "Colours below edit the active theme file (dark or light).",
-    ));
-    hint.set_xalign(0.0);
-    hint.add_css_class("metis-settings-hint");
-    mode_body.append(&hint);
+    // Current wallpaper drives the live preview thumbnails in the style buttons.
+    let current_wp = current_wallpaper();
+
+    // ---- Style (light / dark) --------------------------------------------
+    let (mode_card, mode_body) = ui::section_with_icon("Style", "applications-graphics-symbolic");
+    let chooser = gtk::Box::new(gtk::Orientation::Horizontal, 16);
+    chooser.set_halign(gtk::Align::Center);
+    chooser.set_margin_top(4);
+    chooser.set_margin_bottom(4);
+    let light_btn = style_button("Light", false, current_wp.as_deref());
+    let dark_btn = style_button("Dark", true, current_wp.as_deref());
+    dark_btn.set_group(Some(&light_btn));
+    match mode {
+        ThemeMode::Light => light_btn.set_active(true),
+        // System falls back to Dark in the picker (auto-detect was unreliable).
+        _ => dark_btn.set_active(true),
+    }
+    chooser.append(&light_btn);
+    chooser.append(&dark_btn);
+    mode_body.append(&chooser);
     content.append(&mode_card);
 
     // ---- Colours ----------------------------------------------------------
-    let (color_card, color_body) = ui::section("Colours");
+    let (color_card, color_body) = ui::section_with_icon("Colours", "applications-graphics-symbolic");
     let buttons = ColorButtons {
         accent: color_dialog_button(),
         accent2: color_dialog_button(),
@@ -69,13 +79,29 @@ pub fn build() -> gtk::Widget {
         info: color_dialog_button(),
         payment: color_dialog_button(),
     };
-    color_body.append(&ui::row("Accent", &buttons.accent));
-    color_body.append(&ui::row("Accent (secondary)", &buttons.accent2));
-    color_body.append(&ui::row("Error", &buttons.error));
-    color_body.append(&ui::row("Warning", &buttons.warning));
-    color_body.append(&ui::row("Success", &buttons.success));
-    color_body.append(&ui::row("Info", &buttons.info));
-    color_body.append(&ui::row("Payment", &buttons.payment));
+    color_body.append(&ui::row_with_icon("starred-symbolic", "Accent", &buttons.accent));
+    color_body.append(&ui::row_with_icon(
+        "starred-symbolic",
+        "Accent (secondary)",
+        &buttons.accent2,
+    ));
+    color_body.append(&ui::row_with_icon("dialog-error-symbolic", "Error", &buttons.error));
+    color_body.append(&ui::row_with_icon(
+        "dialog-warning-symbolic",
+        "Warning",
+        &buttons.warning,
+    ));
+    color_body.append(&ui::row_with_icon("emblem-ok-symbolic", "Success", &buttons.success));
+    color_body.append(&ui::row_with_icon(
+        "dialog-information-symbolic",
+        "Info",
+        &buttons.info,
+    ));
+    color_body.append(&ui::row_with_icon(
+        "emblem-system-symbolic",
+        "Payment",
+        &buttons.payment,
+    ));
     content.append(&color_card);
 
     refresh_buttons(&buttons, &state.borrow().tokens, &suppress);
@@ -89,17 +115,12 @@ pub fn build() -> gtk::Widget {
     wire_color(&buttons.info, &state, &suppress, |t, hex| t.semantic.info = hex);
     wire_color(&buttons.payment, &state, &suppress, |t, hex| t.semantic.payment = hex);
 
-    // Mode dropdown: persist preference, re-target the colour editor, re-theme.
-    {
+    // Style buttons: persist preference, re-target the colour editor, re-theme.
+    let apply_mode: Rc<dyn Fn(ThemeMode)> = {
         let state = state.clone();
         let buttons = buttons.clone();
         let suppress = suppress.clone();
-        mode_dd.connect_selected_notify(move |dd| {
-            let mode = match dd.selected() {
-                1 => ThemeMode::Light,
-                2 => ThemeMode::System,
-                _ => ThemeMode::Dark,
-            };
+        Rc::new(move |mode: ThemeMode| {
             if let Err(err) = metis_config::save_theme_preference(mode.clone()) {
                 tracing::warn!(%err, "failed to save theme preference");
             }
@@ -111,30 +132,202 @@ pub fn build() -> gtk::Widget {
                 s.name = name;
                 s.tokens = tokens;
             }
+            // Re-theme this settings window (incl. titlebar) live, then nudge the
+            // shell/compositor to reload too.
+            crate::theme::reapply();
             runtime::send("reload-theme");
+        })
+    };
+    {
+        let apply_mode = apply_mode.clone();
+        light_btn.connect_toggled(move |b| {
+            if b.is_active() {
+                apply_mode(ThemeMode::Light);
+            }
+        });
+    }
+    {
+        let apply_mode = apply_mode.clone();
+        dark_btn.connect_toggled(move |b| {
+            if b.is_active() {
+                apply_mode(ThemeMode::Dark);
+            }
+        });
+    }
+
+    // ---- Background (picture / solid / gradient) -------------------------
+    let (bg_card, bg_body) = ui::section_with_icon("Background", "preferences-desktop-wallpaper-symbolic");
+    let bgcfg = Rc::new(RefCell::new(metis_config::load_wallpaper_config()));
+
+    let type_dd = gtk::DropDown::from_strings(&["Picture", "Solid colour", "Gradient"]);
+    type_dd.set_selected(match bgcfg.borrow().kind {
+        metis_config::BackgroundKind::Image => 0,
+        metis_config::BackgroundKind::Solid => 1,
+        metis_config::BackgroundKind::Gradient => 2,
+    });
+    bg_body.append(&ui::row_with_icon("view-paged-symbolic", "Type", &type_dd));
+
+    // -- Picture controls --
+    let picture_box = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    let add_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    add_row.set_halign(gtk::Align::End);
+    let add_btn = gtk::Button::new();
+    add_btn.add_css_class("flat");
+    let add_content = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    add_content.append(&gtk::Image::from_icon_name("list-add-symbolic"));
+    add_content.append(&gtk::Label::new(Some("Add Picture…")));
+    add_btn.set_child(Some(&add_content));
+    add_row.append(&add_btn);
+    picture_box.append(&add_row);
+
+    let flow = gtk::FlowBox::new();
+    flow.set_selection_mode(gtk::SelectionMode::None);
+    flow.set_max_children_per_line(3);
+    flow.set_min_children_per_line(2);
+    flow.set_column_spacing(12);
+    flow.set_row_spacing(12);
+    flow.set_homogeneous(true);
+    flow.add_css_class("metis-wallpaper-grid");
+    picture_box.append(&flow);
+    bg_body.append(&picture_box);
+    populate_wallpapers(&flow, current_wp.as_deref(), &bgcfg);
+
+    // -- Solid colour controls --
+    let solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let solid_btn = color_dialog_button();
+    solid_btn.set_rgba(&hex_to_rgba(&bgcfg.borrow().color));
+    solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Colour",
+        &solid_btn,
+    ));
+    bg_body.append(&solid_box);
+
+    // -- Gradient controls --
+    let gradient_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let grad_start = color_dialog_button();
+    grad_start.set_rgba(&hex_to_rgba(&bgcfg.borrow().gradient_start));
+    let grad_end = color_dialog_button();
+    grad_end.set_rgba(&hex_to_rgba(&bgcfg.borrow().gradient_end));
+    let dir_dd = gtk::DropDown::from_strings(&[
+        "Top → Bottom",
+        "Bottom → Top",
+        "Left → Right",
+        "Right → Left",
+        "Diagonal ↘",
+        "Diagonal ↗",
+    ]);
+    dir_dd.set_selected(direction_to_index(bgcfg.borrow().gradient_direction));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "Start colour", &grad_start));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "End colour", &grad_end));
+    gradient_box.append(&ui::row_with_icon("object-rotate-right-symbolic", "Direction", &dir_dd));
+    bg_body.append(&gradient_box);
+
+    content.append(&bg_card);
+
+    // Show only the controls for the active background kind.
+    let update_visibility = {
+        let picture_box = picture_box.clone();
+        let solid_box = solid_box.clone();
+        let gradient_box = gradient_box.clone();
+        Rc::new(move |kind: metis_config::BackgroundKind| {
+            picture_box.set_visible(kind == metis_config::BackgroundKind::Image);
+            solid_box.set_visible(kind == metis_config::BackgroundKind::Solid);
+            gradient_box.set_visible(kind == metis_config::BackgroundKind::Gradient);
+        })
+    };
+    update_visibility(bgcfg.borrow().kind);
+
+    // Type chooser.
+    {
+        let bgcfg = bgcfg.clone();
+        let update_visibility = update_visibility.clone();
+        type_dd.connect_selected_notify(move |dd| {
+            let kind = match dd.selected() {
+                1 => metis_config::BackgroundKind::Solid,
+                2 => metis_config::BackgroundKind::Gradient,
+                _ => metis_config::BackgroundKind::Image,
+            };
+            bgcfg.borrow_mut().kind = kind;
+            update_visibility(kind);
+            save_and_apply(&bgcfg.borrow());
+        });
+    }
+    // Solid colour.
+    {
+        let bgcfg = bgcfg.clone();
+        solid_btn.connect_rgba_notify(move |b| {
+            bgcfg.borrow_mut().color = rgba_to_hex(&b.rgba());
+            save_and_apply(&bgcfg.borrow());
+        });
+    }
+    // Gradient stops + direction.
+    {
+        let bgcfg = bgcfg.clone();
+        grad_start.connect_rgba_notify(move |b| {
+            bgcfg.borrow_mut().gradient_start = rgba_to_hex(&b.rgba());
+            save_and_apply(&bgcfg.borrow());
+        });
+    }
+    {
+        let bgcfg = bgcfg.clone();
+        grad_end.connect_rgba_notify(move |b| {
+            bgcfg.borrow_mut().gradient_end = rgba_to_hex(&b.rgba());
+            save_and_apply(&bgcfg.borrow());
+        });
+    }
+    {
+        let bgcfg = bgcfg.clone();
+        dir_dd.connect_selected_notify(move |dd| {
+            bgcfg.borrow_mut().gradient_direction = index_to_direction(dd.selected());
+            save_and_apply(&bgcfg.borrow());
+        });
+    }
+    // Add Picture… → import + select.
+    {
+        let flow = flow.clone();
+        let bgcfg = bgcfg.clone();
+        add_btn.connect_clicked(move |btn| {
+            let flow = flow.clone();
+            let bgcfg = bgcfg.clone();
+            let root = btn.root().and_then(|r| r.downcast::<gtk::Window>().ok());
+            pick_picture(root.as_ref(), move |path| {
+                select_picture(&bgcfg, &path);
+                populate_wallpapers(&flow, Some(&path), &bgcfg);
+            });
         });
     }
 
     // ---- Bar (opacity / blur) --------------------------------------------
     let bar = Rc::new(RefCell::new(metis_config::load_bar_config()));
-    let (bar_card, bar_body) = ui::section("Edge bar");
+    let (bar_card, bar_body) = ui::section_with_icon("Edge bar", "preferences-system-symbolic");
 
     let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     opacity.set_value(bar.borrow().opacity as f64);
     opacity.set_size_request(200, -1);
     opacity.set_draw_value(true);
-    bar_body.append(&ui::row("Opacity", &opacity));
+    bar_body.append(&ui::row_with_icon("display-brightness-symbolic", "Opacity", &opacity));
 
     let blur = gtk::Switch::new();
     blur.set_active(bar.borrow().blur);
     blur.set_halign(gtk::Align::End);
-    bar_body.append(&ui::row("Backdrop blur", &blur));
+    blur.set_valign(gtk::Align::Center);
+    bar_body.append(&ui::row_with_icon("weather-fog-symbolic", "Backdrop blur", &blur));
 
     let blur_radius = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 40.0, 1.0);
     blur_radius.set_value(bar.borrow().blur_radius as f64);
     blur_radius.set_size_request(200, -1);
     blur_radius.set_draw_value(true);
-    bar_body.append(&ui::row("Blur radius", &blur_radius));
+    bar_body.append(&ui::row_with_icon("weather-fog-symbolic", "Blur radius", &blur_radius));
+
+    let blur_hint = gtk::Label::new(Some(
+        "Blur frosts the wallpaper behind the bar — it needs a wallpaper set and \
+         the bar opacity below 1.0 to show through. Changes apply within ~1s.",
+    ));
+    blur_hint.set_xalign(0.0);
+    blur_hint.set_wrap(true);
+    blur_hint.add_css_class("metis-settings-hint");
+    bar_body.append(&blur_hint);
     content.append(&bar_card);
 
     {
@@ -208,6 +401,7 @@ fn wire_color<F>(
         if let Err(err) = metis_config::save_theme_tokens(&name, &tokens) {
             tracing::warn!(%err, "failed to save theme tokens");
         }
+        crate::theme::reapply();
         runtime::send("reload-theme");
     });
 }
@@ -249,4 +443,280 @@ fn rgba_to_hex(rgba: &gdk::RGBA) -> String {
         to_u8(rgba.green()),
         to_u8(rgba.blue())
     )
+}
+
+// ---- Style preview buttons ------------------------------------------------
+
+/// A large toggle showing the current wallpaper with a mock window in the given
+/// (light/dark) tone, plus a caption — mirrors GNOME's Style chooser.
+fn style_button(label: &str, dark: bool, wallpaper: Option<&Path>) -> gtk::ToggleButton {
+    let btn = gtk::ToggleButton::new();
+    btn.add_css_class("metis-style-button");
+
+    let vbox = gtk::Box::new(gtk::Orientation::Vertical, 8);
+
+    let overlay = gtk::Overlay::new();
+    overlay.add_css_class("metis-style-preview");
+    overlay.set_size_request(150, 94);
+
+    let pic = gtk::Picture::new();
+    pic.set_content_fit(gtk::ContentFit::Cover);
+    pic.set_size_request(150, 94);
+    if let Some(path) = wallpaper {
+        pic.set_filename(Some(path));
+    } else {
+        pic.add_css_class(if dark { "metis-style-fallback-dark" } else { "metis-style-fallback-light" });
+    }
+    overlay.set_child(Some(&pic));
+
+    // Mock window floated over the wallpaper to convey the light/dark surface.
+    let mock = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    mock.add_css_class(if dark { "metis-style-mock-dark" } else { "metis-style-mock-light" });
+    mock.set_halign(gtk::Align::Center);
+    mock.set_valign(gtk::Align::Center);
+    mock.set_size_request(82, 52);
+    overlay.add_overlay(&mock);
+
+    vbox.append(&overlay);
+
+    let caption = gtk::Label::new(Some(label));
+    caption.add_css_class("metis-style-caption");
+    vbox.append(&caption);
+
+    btn.set_child(Some(&vbox));
+    btn
+}
+
+// ---- Wallpaper discovery + selection --------------------------------------
+
+fn current_wallpaper() -> Option<PathBuf> {
+    if let Some(p) = metis_config::load_wallpaper_config().path {
+        let p = PathBuf::from(p);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    list_wallpapers().into_iter().next()
+}
+
+/// Collect selectable wallpapers: user-imported pictures first, then bundled.
+fn list_wallpapers() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    collect_images(&metis_config::wallpaper_store_dir(), &mut out, &mut seen);
+    for dir in bundled_wallpaper_dirs() {
+        collect_images(&dir, &mut out, &mut seen);
+    }
+    out
+}
+
+fn collect_images(dir: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_image = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| WALLPAPER_EXTS.contains(&e.to_ascii_lowercase().as_str()))
+            .unwrap_or(false);
+        if !is_image {
+            continue;
+        }
+        let canon = path.canonicalize().unwrap_or(path.clone());
+        if seen.insert(canon) {
+            found.push(path);
+        }
+    }
+    found.sort();
+    out.extend(found);
+}
+
+/// Candidate directories holding the bundled wallpapers (resolved relative to the
+/// settings binary, mirroring the compositor's lookup).
+fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for rel in [
+                "assets/wallpapers",
+                "../assets/wallpapers",
+                "../../assets/wallpapers",
+            ] {
+                let p = dir.join(rel);
+                if p.is_dir() {
+                    dirs.push(p);
+                }
+            }
+        }
+    }
+    dirs
+}
+
+fn populate_wallpapers(
+    flow: &gtk::FlowBox,
+    selected: Option<&Path>,
+    bgcfg: &Rc<RefCell<metis_config::WallpaperConfig>>,
+) {
+    while let Some(child) = flow.first_child() {
+        flow.remove(&child);
+    }
+    let selected_canon = selected.and_then(|p| p.canonicalize().ok());
+    for path in list_wallpapers() {
+        let is_selected = path
+            .canonicalize()
+            .ok()
+            .zip(selected_canon.clone())
+            .map(|(a, b)| a == b)
+            .unwrap_or(false);
+        flow.insert(&wallpaper_thumb(&path, is_selected, flow, bgcfg), -1);
+    }
+}
+
+fn wallpaper_thumb(
+    path: &Path,
+    selected: bool,
+    flow: &gtk::FlowBox,
+    bgcfg: &Rc<RefCell<metis_config::WallpaperConfig>>,
+) -> gtk::Widget {
+    let btn = gtk::Button::new();
+    btn.add_css_class("metis-wallpaper-thumb");
+    btn.add_css_class("flat");
+    if selected {
+        btn.add_css_class("selected");
+    }
+
+    let overlay = gtk::Overlay::new();
+    let pic = gtk::Picture::for_filename(path);
+    pic.set_content_fit(gtk::ContentFit::Cover);
+    pic.set_size_request(150, 92);
+    pic.add_css_class("metis-wallpaper-image");
+    overlay.set_child(Some(&pic));
+
+    if selected {
+        let check = gtk::Image::from_icon_name("emblem-ok-symbolic");
+        check.add_css_class("metis-wallpaper-check");
+        check.set_halign(gtk::Align::End);
+        check.set_valign(gtk::Align::End);
+        check.set_margin_end(6);
+        check.set_margin_bottom(6);
+        overlay.add_overlay(&check);
+    }
+    btn.set_child(Some(&overlay));
+
+    {
+        let path = path.to_path_buf();
+        let flow = flow.clone();
+        let bgcfg = bgcfg.clone();
+        btn.connect_clicked(move |_| {
+            select_picture(&bgcfg, &path);
+            populate_wallpapers(&flow, Some(&path), &bgcfg);
+        });
+    }
+    btn.upcast()
+}
+
+/// Switch the background to the given picture (preserving solid/gradient fields)
+/// and persist + apply it.
+fn select_picture(bgcfg: &Rc<RefCell<metis_config::WallpaperConfig>>, path: &Path) {
+    {
+        let mut cfg = bgcfg.borrow_mut();
+        cfg.kind = metis_config::BackgroundKind::Image;
+        cfg.path = Some(path.to_string_lossy().to_string());
+    }
+    save_and_apply(&bgcfg.borrow());
+}
+
+/// Persist the background config (live via the compositor, durable via
+/// `wallpaper.json` which the compositor also reads on next start).
+fn save_and_apply(cfg: &metis_config::WallpaperConfig) {
+    if let Err(err) = metis_config::save_wallpaper_config(cfg) {
+        tracing::warn!(%err, "failed to save wallpaper.json");
+    }
+    runtime::apply_background();
+}
+
+fn direction_to_index(dir: metis_config::GradientDirection) -> u32 {
+    use metis_config::GradientDirection as D;
+    match dir {
+        D::Vertical => 0,
+        D::VerticalReverse => 1,
+        D::Horizontal => 2,
+        D::HorizontalReverse => 3,
+        D::Diagonal => 4,
+        D::DiagonalReverse => 5,
+    }
+}
+
+fn index_to_direction(idx: u32) -> metis_config::GradientDirection {
+    use metis_config::GradientDirection as D;
+    match idx {
+        1 => D::VerticalReverse,
+        2 => D::Horizontal,
+        3 => D::HorizontalReverse,
+        4 => D::Diagonal,
+        5 => D::DiagonalReverse,
+        _ => D::Vertical,
+    }
+}
+
+/// Open a file chooser for a custom picture; copies it into the wallpaper store
+/// then invokes `on_pick` with the stored copy's path.
+fn pick_picture<F>(parent: Option<&gtk::Window>, on_pick: F)
+where
+    F: Fn(PathBuf) + 'static,
+{
+    let dialog = gtk::FileDialog::new();
+    dialog.set_title("Choose a picture");
+    let filter = gtk::FileFilter::new();
+    filter.set_name(Some("Images"));
+    for ext in WALLPAPER_EXTS {
+        filter.add_pattern(&format!("*.{ext}"));
+        filter.add_pattern(&format!("*.{}", ext.to_ascii_uppercase()));
+    }
+    let filters = gio::ListStore::new::<gtk::FileFilter>();
+    filters.append(&filter);
+    dialog.set_filters(Some(&filters));
+
+    dialog.open(parent, gio::Cancellable::NONE, move |res| {
+        let Ok(file) = res else { return };
+        let Some(src) = file.path() else { return };
+        match import_picture(&src) {
+            Ok(stored) => on_pick(stored),
+            Err(err) => tracing::warn!(%err, "failed to import wallpaper"),
+        }
+    });
+}
+
+fn import_picture(src: &Path) -> std::io::Result<PathBuf> {
+    let dir = metis_config::wallpaper_store_dir();
+    std::fs::create_dir_all(&dir)?;
+    let name = src
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "wallpaper".to_string());
+    let mut dest = dir.join(&name);
+    // Avoid clobbering an existing import with the same name.
+    if dest.exists() && std::fs::canonicalize(&dest).ok() != std::fs::canonicalize(src).ok() {
+        let stem = src.file_stem().map(|s| s.to_string_lossy().to_string());
+        let ext = src.extension().map(|e| e.to_string_lossy().to_string());
+        let unique = format!(
+            "{}-{}",
+            stem.as_deref().unwrap_or("wallpaper"),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+        );
+        dest = match ext {
+            Some(ext) => dir.join(format!("{unique}.{ext}")),
+            None => dir.join(unique),
+        };
+    }
+    if std::fs::canonicalize(&dest).ok() != std::fs::canonicalize(src).ok() {
+        std::fs::copy(src, &dest)?;
+    }
+    Ok(dest)
 }

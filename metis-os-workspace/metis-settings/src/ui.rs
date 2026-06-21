@@ -42,6 +42,48 @@ pub fn section(title: &str) -> (gtk::Box, gtk::Box) {
     (card, body)
 }
 
+/// Like [`section`] but with a leading symbolic icon in the header.
+pub fn section_with_icon(title: &str, icon: &str) -> (gtk::Box, gtk::Box) {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    card.add_css_class("metis-settings-section");
+
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    header.add_css_class("metis-settings-section-header");
+    let img = gtk::Image::from_icon_name(icon);
+    img.set_pixel_size(16);
+    img.add_css_class("metis-settings-section-icon");
+    header.append(&img);
+    let label = gtk::Label::new(Some(title));
+    label.set_xalign(0.0);
+    label.add_css_class("metis-settings-section-title");
+    header.append(&label);
+    card.append(&header);
+
+    let body = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    card.append(&body);
+    (card, body)
+}
+
+/// A leading-icon + label + trailing control row.
+pub fn row_with_icon(
+    icon: &str,
+    label: &str,
+    control: &impl IsA<gtk::Widget>,
+) -> gtk::Box {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    row.add_css_class("metis-settings-row");
+    let img = gtk::Image::from_icon_name(icon);
+    img.set_pixel_size(16);
+    img.add_css_class("metis-settings-row-icon");
+    row.append(&img);
+    let lbl = gtk::Label::new(Some(label));
+    lbl.set_xalign(0.0);
+    lbl.set_hexpand(true);
+    row.append(&lbl);
+    row.append(control);
+    row
+}
+
 /// A label + trailing control row.
 pub fn row(label: &str, control: &impl IsA<gtk::Widget>) -> gtk::Box {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);

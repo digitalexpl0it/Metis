@@ -185,8 +185,9 @@ fn layer_window_size(config: &BarConfig) -> (i32, i32) {
 
 /// Empty padding kept inside the layer surface around the visible pill so the
 /// pill's drop shadow renders fully (and follows its rounded corners) instead of
-/// being clipped square at the surface's rectangular edge.
-const BAR_SHADOW_PAD: i32 = 16;
+/// being clipped square at the surface's rectangular edge. Shared with the
+/// compositor (via `metis-config`) so backdrop blur can exclude this margin.
+const BAR_SHADOW_PAD: i32 = metis_config::bar::SHADOW_PAD;
 
 fn bar_body_thickness(config: &BarConfig) -> i32 {
     match config.position {
@@ -242,7 +243,7 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     let vertical = matches!(config.position, BarPosition::Left | BarPosition::Right);
     // Inset the pill within the (larger) layer surface so the rounded drop shadow
     // has breathing room along the bar's long edges (the pill's rounded ends).
-    let side_pad = BAR_SHADOW_PAD - 4;
+    let side_pad = metis_config::bar::PILL_SIDE_INSET;
     if vertical {
         pill.set_margin_top(side_pad);
         pill.set_margin_bottom(side_pad);

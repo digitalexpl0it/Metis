@@ -4,6 +4,8 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use image::imageops::Triangle;
+use image::{Rgba, RgbaImage};
+use metis_config::{BackgroundKind, GradientDirection};
 use smithay::backend::{
     allocator::Fourcc,
     renderer::{
@@ -25,7 +27,21 @@ struct DecodeOutput {
     source: Option<Arc<image::RgbaImage>>,
 }
 
+/// How the desktop background is produced. `Image` reads `path`; the others are
+/// generated procedurally at the output resolution.
+#[derive(Clone, PartialEq)]
+enum BackgroundMode {
+    Image,
+    Solid([u8; 3]),
+    Gradient {
+        a: [u8; 3],
+        b: [u8; 3],
+        dir: GradientDirection,
+    },
+}
+
 pub struct Wallpaper {
+    mode: BackgroundMode,
     path: PathBuf,
     buffer: Option<TextureBuffer<GlesTexture>>,
     /// The raw texture backing `buffer`, kept so the bar's backdrop blur can
@@ -54,15 +70,12 @@ fn wallpaper_disabled() -> bool {
 
 impl Wallpaper {
     pub fn new() -> Self {
-        let path = if wallpaper_disabled() {
-            PathBuf::new()
-        } else {
-            resolve_path().unwrap_or_default()
-        };
+        let (mode, path) = resolve_background();
         if path.is_file() {
             tracing::info!(path = %path.display(), "wallpaper configured");
         }
         Self {
+            mode,
             path,
             buffer: None,
             texture: None,
@@ -79,7 +92,25 @@ impl Wallpaper {
         if wallpaper_disabled() {
             return false;
         }
-        self.path.is_file()
+        match self.mode {
+            BackgroundMode::Image => self.path.is_file(),
+            BackgroundMode::Solid(_) | BackgroundMode::Gradient { .. } => true,
+        }
+    }
+
+    /// Re-read `wallpaper.json` and switch the background at runtime: drop the
+    /// cached source/buffers so the next decode regenerates from the new config.
+    /// The caller sizes the output and kicks off the decode.
+    pub fn apply_config(&mut self) {
+        let (mode, path) = resolve_background();
+        if mode == self.mode && path == self.path {
+            return;
+        }
+        tracing::info!("wallpaper: applying new background config");
+        self.mode = mode;
+        self.path = path;
+        self.source = None; // force regeneration / re-read
+        self.invalidate();
     }
 
     pub fn invalidate(&mut self) {
@@ -145,6 +176,7 @@ impl Wallpaper {
         let w = self.output_size.w as u32;
         let h = self.output_size.h as u32;
         let path = self.path.clone();
+        let mode = self.mode.clone();
         let cached_source = self.source.clone();
         let slot = Arc::new(Mutex::new(None));
         let slot_worker = Arc::clone(&slot);
@@ -156,11 +188,20 @@ impl Wallpaper {
                 let (source, fresh) = match cached_source {
                     Some(src) => (src, false),
                     None => {
-                        let Ok(img) = image::open(&path) else {
-                            tracing::warn!(path = %path.display(), "failed to open wallpaper");
-                            return;
+                        let img = match &mode {
+                            BackgroundMode::Image => {
+                                let Ok(img) = image::open(&path) else {
+                                    tracing::warn!(path = %path.display(), "failed to open wallpaper");
+                                    return;
+                                };
+                                img.into_rgba8()
+                            }
+                            BackgroundMode::Solid(rgb) => gen_solid(*rgb, w, h),
+                            BackgroundMode::Gradient { a, b, dir } => {
+                                gen_gradient(*a, *b, *dir, w, h)
+                            }
                         };
-                        (Arc::new(img.into_rgba8()), true)
+                        (Arc::new(img), true)
                     }
                 };
                 let pixels = cover_crop_rgba(&source, w, h);
@@ -289,6 +330,68 @@ fn cover_crop_rgba(rgba: &image::RgbaImage, out_w: u32, out_h: u32) -> Vec<u8> {
         .into_raw()
 }
 
+/// Build the active background mode (and image path, if any) from `wallpaper.json`.
+fn resolve_background() -> (BackgroundMode, PathBuf) {
+    let cfg = metis_config::load_wallpaper_config();
+    match cfg.kind {
+        BackgroundKind::Image => (
+            BackgroundMode::Image,
+            resolve_path().unwrap_or_default(),
+        ),
+        BackgroundKind::Solid => (
+            BackgroundMode::Solid(metis_config::parse_hex_rgb(&cfg.color)),
+            PathBuf::new(),
+        ),
+        BackgroundKind::Gradient => (
+            BackgroundMode::Gradient {
+                a: metis_config::parse_hex_rgb(&cfg.gradient_start),
+                b: metis_config::parse_hex_rgb(&cfg.gradient_end),
+                dir: cfg.gradient_direction,
+            },
+            PathBuf::new(),
+        ),
+    }
+}
+
+fn gen_solid(rgb: [u8; 3], w: u32, h: u32) -> RgbaImage {
+    RgbaImage::from_pixel(w.max(1), h.max(1), Rgba([rgb[0], rgb[1], rgb[2], 255]))
+}
+
+fn gen_gradient(a: [u8; 3], b: [u8; 3], dir: GradientDirection, w: u32, h: u32) -> RgbaImage {
+    let w = w.max(1);
+    let h = h.max(1);
+    let mut img = RgbaImage::new(w, h);
+    let wf = (w.saturating_sub(1)).max(1) as f32;
+    let hf = (h.saturating_sub(1)).max(1) as f32;
+    let lerp = |c0: u8, c1: u8, t: f32| (c0 as f32 + (c1 as f32 - c0 as f32) * t).round() as u8;
+    for y in 0..h {
+        let yt = y as f32 / hf;
+        for x in 0..w {
+            let xt = x as f32 / wf;
+            let t = match dir {
+                GradientDirection::Vertical => yt,
+                GradientDirection::VerticalReverse => 1.0 - yt,
+                GradientDirection::Horizontal => xt,
+                GradientDirection::HorizontalReverse => 1.0 - xt,
+                GradientDirection::Diagonal => (xt + yt) * 0.5,
+                GradientDirection::DiagonalReverse => ((1.0 - xt) + yt) * 0.5,
+            }
+            .clamp(0.0, 1.0);
+            img.put_pixel(
+                x,
+                y,
+                Rgba([
+                    lerp(a[0], b[0], t),
+                    lerp(a[1], b[1], t),
+                    lerp(a[2], b[2], t),
+                    255,
+                ]),
+            );
+        }
+    }
+    img
+}
+
 pub fn resolve_path() -> Option<PathBuf> {
     if let Ok(raw) = std::env::var("METIS_WALLPAPER") {
         let path = PathBuf::from(raw);
@@ -296,6 +399,14 @@ pub fn resolve_path() -> Option<PathBuf> {
             return Some(path);
         }
         tracing::warn!(path = %path.display(), "METIS_WALLPAPER is not a file");
+    }
+
+    // User's explicit selection from the settings app (wallpaper.json).
+    if let Some(path) = metis_config::load_wallpaper_config().path {
+        let path = PathBuf::from(path);
+        if path.is_file() {
+            return Some(path);
+        }
     }
 
     if let Some(dirs) = directories::ProjectDirs::from("com", "metis", "metis") {

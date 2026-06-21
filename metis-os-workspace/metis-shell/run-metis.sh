@@ -25,8 +25,13 @@ export CARGO_TARGET_DIR="$WORKSPACE/target"
 
 WALLPAPER_DEFAULT="$WORKSPACE/assets/wallpapers/default.jpg"
 WALLPAPER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/metis/wallpaper.jpg"
+# wallpaper.json holds the Settings app's selection; let the compositor resolve it
+# (so a user pick survives restarts) and only fall back to a default here.
+WALLPAPER_JSON="${XDG_CONFIG_HOME:-$HOME/.config}/metis/wallpaper.json"
 if [[ -z "${METIS_WALLPAPER:-}" ]] && [[ -z "${METIS_NO_WALLPAPER:-}" ]]; then
-    if [[ -f "$WALLPAPER_CONFIG" ]]; then
+    if [[ -f "$WALLPAPER_JSON" ]]; then
+        : # compositor reads wallpaper.json directly — don't override it
+    elif [[ -f "$WALLPAPER_CONFIG" ]]; then
         export METIS_WALLPAPER="$WALLPAPER_CONFIG"
     elif [[ -f "$WALLPAPER_DEFAULT" ]]; then
         export METIS_WALLPAPER="$WALLPAPER_DEFAULT"

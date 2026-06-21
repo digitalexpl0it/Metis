@@ -7,6 +7,7 @@ pub mod calendars;
 pub mod clocks;
 pub mod css;
 pub mod theme;
+pub mod wallpaper;
 pub mod weather;
 
 use serde::{Deserialize, Serialize};
@@ -167,6 +168,10 @@ pub use clocks::{
 };
 pub use css::build_stylesheet;
 pub use theme::{SemanticColors, ThemeMode, ThemeTokens};
+pub use wallpaper::{
+    load_wallpaper_config, parse_hex_rgb, save_wallpaper_config, wallpaper_config_path,
+    wallpaper_store_dir, BackgroundKind, GradientDirection, WallpaperConfig,
+};
 pub use weather::{
     load_weather_config, save_weather_config, weather_config_path, TempUnit, WeatherConfig,
     WeatherLocation,

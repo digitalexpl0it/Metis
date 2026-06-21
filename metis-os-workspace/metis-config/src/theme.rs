@@ -130,6 +130,13 @@ impl ThemeTokens {
         rgb_triplet_from_hex(&self.surface)
     }
 
+    /// The foreground/text colour as a bare `r, g, b` triplet, so the stylesheet
+    /// can build `rgba(<triplet>, <alpha>)` outlines that stay legible in both
+    /// light and dark themes (e.g. the edge bar's workspace dots).
+    pub fn text_rgb(&self) -> String {
+        rgb_triplet_from_hex(&self.text)
+    }
+
     pub fn bg_rgba(&self) -> String {
         rgba_from_hex(&self.bg, self.card_opacity)
     }

@@ -8,6 +8,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let accent2 = theme.accent_secondary();
     let accent2_rgb = theme.accent_secondary_rgb();
     let on_accent = theme.text_on_accent.clone();
+    let text_rgb = theme.text_rgb();
     let surface = theme.surface_rgba();
     let raised = theme.surface_raised.clone();
     let shadow = theme.shadow_ambient.clone();
@@ -231,7 +232,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         margin: 0;
         border-radius: 999px;
         background-color: transparent;
-        border: 1.5px solid rgba(255, 255, 255, 0.45);
+        border: 1.5px solid rgba({text_rgb}, 0.55);
     }}
 
     .metis-bar-icon {{
@@ -244,7 +245,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-bar-ws-dot:hover {{
-        background-color: rgba(255, 255, 255, 0.35);
+        background-color: rgba({text_rgb}, 0.30);
     }}
 
     .metis-bar-ws-dot-active {{

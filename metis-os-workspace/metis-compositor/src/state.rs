@@ -47,6 +47,18 @@ pub const BAR_GAP_PX: i32 = 2;
 /// against them.
 pub const WINDOW_GAP_PX: i32 = 8;
 
+/// Apps that open as a centered floating window by default (rather than being
+/// snapped into the tiling grid).
+const CENTERED_FLOAT_APP_IDS: &[&str] = &["com.metis.Settings"];
+
+/// Window titles that default to a centered floating window. Title fallback for
+/// when GTK sets the Wayland app_id late (or not at all).
+const CENTERED_FLOAT_TITLES: &[&str] = &["Metis Settings"];
+
+/// Default size for a centered floating app when nothing is saved yet.
+const DEFAULT_FLOAT_W: i32 = 900;
+const DEFAULT_FLOAT_H: i32 = 660;
+
 pub struct MetisState {
     pub start_time: std::time::Instant,
     pub socket_name: OsString,
@@ -72,6 +84,8 @@ pub struct MetisState {
     /// Windows the user has manually dragged out of the grid by their titlebar.
     /// They keep their free position (no grid snap-back) until closed.
     pub floating: std::collections::HashSet<u32>,
+    /// Persisted per-app floating geometry, so apps reopen where they were left.
+    pub window_state: crate::window_state::WindowStateStore,
 
     pub grid_layout: GridLayout,
     pub gutter_px: u32,
@@ -154,6 +168,7 @@ impl MetisState {
             seat,
             windows: WindowRegistry::new(),
             floating: std::collections::HashSet::new(),
+            window_state: crate::window_state::WindowStateStore::load(),
             grid_layout,
             gutter_px: 14,
             tile_modes: TileModeState::default(),
@@ -689,9 +704,12 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
-        // Floating windows keep their free geometry; grid windows snap to their tile.
+        // Floating windows keep their free geometry (only recovered if they'd
+        // land off every active output); grid windows snap to their tile.
         let rect = if self.floating.contains(&id) {
-            self.windows.target_rect(id)
+            self.windows
+                .target_rect(id)
+                .map(|r| self.recover_offscreen_rect(r))
         } else {
             self.rect_for_window_tile(id).map(app_tile_body_rect)
         };
@@ -792,6 +810,178 @@ impl MetisState {
             width: zone.size.w,
             height: zone.size.h,
         })
+    }
+
+    /// The usable area, falling back to the full output if the bar zone isn't
+    /// known yet, and finally to the configured monitor size. Always returns the
+    /// main (first) output, so off-screen windows are recovered onto it.
+    fn placement_zone(&self) -> PixelRect {
+        if let Some(zone) = self.usable_zone() {
+            return zone;
+        }
+        if let Some(output) = self.space.outputs().next() {
+            if let Some(g) = self.space.output_geometry(output) {
+                return PixelRect {
+                    x: g.loc.x,
+                    y: g.loc.y,
+                    width: g.size.w,
+                    height: g.size.h,
+                };
+            }
+        }
+        PixelRect {
+            x: self.monitor.x,
+            y: self.monitor.y,
+            width: self.monitor.width as i32,
+            height: self.monitor.height as i32,
+        }
+    }
+
+    /// A rect of `width`x`height` centered in the usable area (clamped to fit).
+    fn centered_rect(&self, width: i32, height: i32) -> PixelRect {
+        let zone = self.placement_zone();
+        let w = width.min((zone.width - WINDOW_GAP_PX * 2).max(1)).max(1);
+        let h = height.min((zone.height - WINDOW_GAP_PX * 2).max(1)).max(1);
+        PixelRect {
+            x: zone.x + (zone.width - w) / 2,
+            y: zone.y + (zone.height - h).max(0) / 2,
+            width: w,
+            height: h,
+        }
+    }
+
+    /// True when `rect` is visible on at least one active output — i.e. it
+    /// overlaps some monitor by a grabbable amount. A window on a secondary
+    /// monitor counts as on-screen; only a window that lies off *every* output is
+    /// considered lost. The minimum overlap ensures the titlebar stays reachable.
+    fn rect_visible_on_any_output(&self, rect: PixelRect) -> bool {
+        // Require a chunk at least this big (incl. the titlebar) on some output.
+        const MIN_VISIBLE: i32 = 64;
+        for output in self.space.outputs() {
+            let Some(g) = self.space.output_geometry(output) else {
+                continue;
+            };
+            let left = rect.x.max(g.loc.x);
+            let right = (rect.x + rect.width).min(g.loc.x + g.size.w);
+            let top = rect.y.max(g.loc.y);
+            let bottom = (rect.y + rect.height).min(g.loc.y + g.size.h);
+            let overlap_w = (right - left).min(rect.width);
+            let overlap_h = (bottom - top).min(rect.height);
+            if overlap_w >= MIN_VISIBLE.min(rect.width) && overlap_h >= MIN_VISIBLE.min(rect.height) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Keep a window reachable: if `rect` lies off every active output (e.g. it
+    /// was saved on a monitor that's no longer connected), pull it back onto the
+    /// primary output. Windows already visible on *some* monitor — including a
+    /// secondary one in a multi-monitor setup — are left exactly where they are.
+    pub fn recover_offscreen_rect(&self, rect: PixelRect) -> PixelRect {
+        if self.rect_visible_on_any_output(rect) {
+            return rect;
+        }
+        self.clamp_rect_on_screen(rect)
+    }
+
+    /// Force `rect` to be fully visible on the main output: cap its size to the
+    /// usable area and shift its origin so the whole window is on-screen (under
+    /// the bar). Used to recover a window that's off every active output.
+    pub fn clamp_rect_on_screen(&self, rect: PixelRect) -> PixelRect {
+        let zone = self.placement_zone();
+        let width = rect.width.clamp(1, zone.width.max(1));
+        let height = rect.height.clamp(1, zone.height.max(1));
+        let min_x = zone.x;
+        let min_y = zone.y + BAR_GAP_PX;
+        let max_x = (zone.x + zone.width - width).max(min_x);
+        let max_y = (zone.y + zone.height - height).max(min_y);
+        PixelRect {
+            x: rect.x.clamp(min_x, max_x),
+            y: rect.y.clamp(min_y, max_y),
+            width,
+            height,
+        }
+    }
+
+    /// Auto-place a window if it hasn't been positioned yet. Safe to call again
+    /// whenever the app_id becomes known (GTK often sets it just *after* its first
+    /// buffer commit, so the initial activation may not see it). No-ops once the
+    /// window is floating — i.e. already auto-placed or moved by the user.
+    pub(crate) fn maybe_autoplace_window(&mut self, id: u32) {
+        if self.floating.contains(&id) {
+            return;
+        }
+        let app_id = self.windows.get(id).and_then(|r| r.app_id.clone());
+        if self.place_new_window(id, app_id.as_deref()) && self.windows.is_ready(id) {
+            self.apply_window_rect(id);
+        }
+    }
+
+    /// Decide where a freshly-mapped window should appear (called once, on first
+    /// activation). Restores saved per-app geometry, or centers apps that open
+    /// floating by default. Returns true when the window was placed as floating.
+    fn place_new_window(&mut self, id: u32, app_id: Option<&str>) -> bool {
+        let title = self.windows.get(id).map(|r| r.title.clone());
+        tracing::info!(id, ?app_id, ?title, "place_new_window: deciding placement");
+        // Restore a previously saved position/size for this app (keyed by app_id).
+        // Only recovered onto the primary output if the saved spot is off every
+        // active monitor (e.g. a monitor that's since been disconnected).
+        if let Some(app_id) = app_id {
+            if let Some(saved) = self.window_state.get(app_id) {
+                let rect = self.recover_offscreen_rect(saved.to_rect());
+                self.floating.insert(id);
+                self.windows.set_target_rect(id, rect);
+                tracing::info!(id, "place_new_window: restored saved geometry");
+                return true;
+            }
+        }
+        // No saved state: center apps that default to floating. Match on app_id, or
+        // fall back to the window title (GTK can be slow to set app_id over Wayland).
+        let by_app_id = app_id.is_some_and(|a| CENTERED_FLOAT_APP_IDS.contains(&a));
+        let by_title = title
+            .as_deref()
+            .is_some_and(|t| CENTERED_FLOAT_TITLES.contains(&t));
+        if by_app_id || by_title {
+            let rect = self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+            self.floating.insert(id);
+            self.windows.set_target_rect(id, rect);
+            tracing::info!(id, ?rect, "place_new_window: centered default-float app");
+            return true;
+        }
+        false
+    }
+
+    /// Persist a floating window's current on-screen geometry under its app_id,
+    /// so it reopens in the same place next time. No-op for grid-tiled windows
+    /// (their position is derived from the grid) or windows without an app_id.
+    pub(crate) fn save_window_geometry(&mut self, id: u32) {
+        if !self.floating.contains(&id) {
+            return;
+        }
+        let Some(record) = self.windows.get(id) else {
+            return;
+        };
+        let Some(app_id) = record.app_id.clone() else {
+            return;
+        };
+        // Prefer the live mapped geometry (captures user resizes); for a maximized
+        // window save its pre-maximize rect so it reopens at a sane floating size.
+        let rect = if record.maximized {
+            record.restore_rect.unwrap_or(record.target_rect)
+        } else if let Some(loc) = self.space.element_location(&record.window) {
+            let size = record.window.geometry().size;
+            PixelRect {
+                x: loc.x,
+                y: loc.y,
+                width: size.w.max(1),
+                height: size.h.max(1),
+            }
+        } else {
+            record.target_rect
+        };
+        self.window_state
+            .set(&app_id, crate::window_state::SavedGeometry::from_rect(rect));
     }
 
     /// Handle a pointer press that may land on a server-side decoration (titlebar,
@@ -1103,7 +1293,25 @@ impl MetisState {
                 self.spawn_client(&program);
                 CompositorEvent::Pong
             }
+            CompositorCommand::ApplyBackground => {
+                self.wallpaper.apply_config();
+                self.wallpaper.resize(self.output_physical_size());
+                self.wallpaper.start_async_decode();
+                self.damaged = true;
+                self.request_redraw();
+                CompositorEvent::Pong
+            }
         }
+    }
+
+    /// The current output size in physical pixels (for wallpaper decoding).
+    fn output_physical_size(&self) -> smithay::utils::Size<i32, smithay::utils::Physical> {
+        self.space
+            .outputs()
+            .next()
+            .and_then(|o| self.space.output_geometry(o))
+            .map(|g| smithay::utils::Size::from((g.size.w, g.size.h)))
+            .unwrap_or_else(|| smithay::utils::Size::from((self.monitor.width as i32, self.monitor.height as i32)))
     }
 
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
@@ -1124,6 +1332,11 @@ impl MetisState {
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
 
         let already_ready = self.windows.is_ready(id);
+        // First activation: choose a placement (restore saved geometry or center
+        // default-floating apps) before the window is mapped.
+        if !already_ready {
+            self.place_new_window(id, app_id.as_deref());
+        }
         self.apply_window_rect(id);
 
         if already_ready {
@@ -1273,6 +1486,8 @@ impl MetisState {
             .collect();
 
         for id in stale {
+            // Remember floating app geometry before the record is dropped.
+            self.save_window_geometry(id);
             if let Some(record) = self.windows.unregister(id) {
                 self.space.unmap_elem(&record.window);
             }

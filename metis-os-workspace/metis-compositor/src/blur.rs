@@ -82,6 +82,7 @@ void main() {
 pub struct BlurRuntime {
     pub enabled: bool,
     pub radius: f32,
+    position: metis_config::BarPosition,
     id: Id,
     pub program: Option<GlesTexProgram>,
     commit: CommitCounter,
@@ -91,10 +92,11 @@ pub struct BlurRuntime {
 
 impl Default for BlurRuntime {
     fn default() -> Self {
-        let (enabled, radius) = read_bar_blur_config();
+        let (enabled, radius, position) = read_bar_blur_config();
         Self {
             enabled,
             radius,
+            position,
             id: Id::new(),
             program: None,
             commit: CommitCounter::default(),
@@ -112,13 +114,57 @@ impl BlurRuntime {
             return false;
         }
         self.last_check = Instant::now();
-        let (enabled, radius) = read_bar_blur_config();
-        if enabled != self.enabled || (radius - self.radius).abs() > f32::EPSILON {
+        let (enabled, radius, position) = read_bar_blur_config();
+        if enabled != self.enabled
+            || (radius - self.radius).abs() > f32::EPSILON
+            || position != self.position
+        {
             self.enabled = enabled;
             self.radius = radius;
+            self.position = position;
             return true;
         }
         false
+    }
+
+    /// Shrink the bar's full layer rect down to just the visible pill, excluding
+    /// the transparent drop-shadow padding baked into the surface, so the blur
+    /// only frosts inside the bar (not the soft shadow around it).
+    pub fn confine_to_pill(
+        &self,
+        rect: Rectangle<i32, Physical>,
+    ) -> Rectangle<i32, Physical> {
+        let pad = metis_config::bar::SHADOW_PAD;
+        let side = metis_config::bar::PILL_SIDE_INSET;
+        let mut x = rect.loc.x;
+        let mut y = rect.loc.y;
+        let mut w = rect.size.w;
+        let mut h = rect.size.h;
+        match self.position {
+            // Pill flush to the top; shadow pad sits below. Long edges: left/right.
+            metis_config::BarPosition::Top => {
+                h -= pad;
+                x += side;
+                w -= 2 * side;
+            }
+            // Pill flush to the left; shadow pad on the right. Long edges: top/bottom.
+            metis_config::BarPosition::Left => {
+                w -= pad;
+                y += side;
+                h -= 2 * side;
+            }
+            // Pill flush to the right; shadow pad on the left. Long edges: top/bottom.
+            metis_config::BarPosition::Right => {
+                x += pad;
+                w -= pad;
+                y += side;
+                h -= 2 * side;
+            }
+        }
+        Rectangle::new(
+            Point::from((x, y)),
+            Size::from((w.max(0), h.max(0))),
+        )
     }
 
     /// Lazily compile the blur shader using the renderer. Safe to call every
@@ -261,41 +307,10 @@ impl RenderElement<GlesRenderer> for BlurElement {
     }
 }
 
-/// Best-effort read of the bar's blur settings from `~/.config/metis/bar.json`.
-/// Defaults to enabled with a moderate radius when the file or fields are
-/// missing, matching the shell's defaults.
-fn read_bar_blur_config() -> (bool, f32) {
-    const DEFAULT_ENABLED: bool = true;
-    const DEFAULT_RADIUS: f32 = 18.0;
-
-    let Some(path) = bar_config_path() else {
-        return (DEFAULT_ENABLED, DEFAULT_RADIUS);
-    };
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return (DEFAULT_ENABLED, DEFAULT_RADIUS);
-    };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return (DEFAULT_ENABLED, DEFAULT_RADIUS);
-    };
-    let enabled = value
-        .get("blur")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(DEFAULT_ENABLED);
-    let radius = value
-        .get("blur_radius")
-        .and_then(|v| v.as_f64())
-        .map(|r| r as f32)
-        .unwrap_or(DEFAULT_RADIUS)
-        .clamp(1.0, 64.0);
-    (enabled, radius)
-}
-
-fn bar_config_path() -> Option<std::path::PathBuf> {
-    directories::ProjectDirs::from("com", "metis", "metis")
-        .map(|dirs| dirs.config_dir().join("bar.json"))
-        .or_else(|| {
-            std::env::var("HOME")
-                .ok()
-                .map(|h| std::path::PathBuf::from(h).join(".config/metis/bar.json"))
-        })
+/// Read the bar's blur settings (and position) from `~/.config/metis/bar.json`
+/// via `metis-config`, which supplies the shell's defaults when fields/file are
+/// missing. Radius is clamped to the shader's usable range.
+fn read_bar_blur_config() -> (bool, f32, metis_config::BarPosition) {
+    let cfg = metis_config::load_bar_config();
+    (cfg.blur, cfg.blur_radius.clamp(1.0, 64.0), cfg.position)
 }
