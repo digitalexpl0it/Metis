@@ -154,6 +154,31 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
                     initial_rect: self.initial_rect,
                 };
             });
+
+            // Persist the final floating geometry so a later reposition (or the
+            // window-state store) keeps the resized size instead of snapping back.
+            // Mirror handle_commit's top/left origin shift so x/y are correct for
+            // those edges before the last commit lands.
+            let final_size = self.last_window_size;
+            let mut origin = self.initial_rect.loc;
+            if self.edges.intersects(ResizeEdge::LEFT) {
+                origin.x = self.initial_rect.loc.x + (self.initial_rect.size.w - final_size.w);
+            }
+            if self.edges.intersects(ResizeEdge::TOP) {
+                origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - final_size.h);
+            }
+            if let Some(id) = data.windows.id_for_surface(xdg.wl_surface()) {
+                data.windows.set_target_rect(
+                    id,
+                    metis_grid::PixelRect {
+                        x: origin.x,
+                        y: origin.y,
+                        width: final_size.w,
+                        height: final_size.h,
+                    },
+                );
+                data.save_window_geometry(id);
+            }
         }
     }
 

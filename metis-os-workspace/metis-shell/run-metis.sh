@@ -42,6 +42,24 @@ LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/metis/logs"
 PID_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/metis/metis.pid"
 mkdir -p "$LOG_DIR" "$(dirname "$PID_FILE")"
 
+# --- launch audit -----------------------------------------------------------
+# Records who invoked this script (PID + full parent chain) on every run. If a
+# Metis session ever relaunches itself "automatically", this log names the exact
+# process responsible — the script/compositor have no respawn logic of their own,
+# so any reopen comes from an external invoker (IDE task, shell trap, systemd,…).
+AUDIT_LOG="${XDG_STATE_HOME:-$HOME/.local/state}/metis/launch-audit.log"
+{
+    printf '[%s] invoked pid=%s ppid=%s args=[%s]\n' "$(date '+%F %T')" "$$" "$PPID" "$*"
+    p="$PPID"
+    depth=0
+    while [[ -n "$p" && "$p" -gt 1 && "$depth" -lt 10 ]]; do
+        cmd="$(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null)"
+        printf '    parent[%s] pid=%s : %s\n' "$depth" "$p" "${cmd:-<gone>}"
+        p="$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null)"
+        depth=$((depth + 1))
+    done
+} >>"$AUDIT_LOG" 2>/dev/null || true
+
 FORCE_BUILD=0
 SESSION=0
 FOREGROUND=0
@@ -288,12 +306,14 @@ binary_needs_rebuild() {
         return 0
     fi
 
-    if ! "$bin" --help >/dev/null 2>&1; then
-        # Binary may not support --help; try a dry run via file check only
-        if [[ -n "$interp" && ! -f "$interp" ]]; then
-            log "Stale binary: interpreter missing ($interp) — rebuild required."
-            return 0
-        fi
+    # Stale-binary check WITHOUT executing the binary. We must NOT run the binary
+    # to probe it: `metis-compositor` ignores `--help` (its arg parser only knows
+    # `-c`/`--command`) and would boot a full nested compositor window — which
+    # looked exactly like the session "closing and auto-reopening". Just verify
+    # the ELF interpreter still exists on disk.
+    if [[ -n "$interp" && ! -f "$interp" ]]; then
+        log "Stale binary: interpreter missing ($interp) — rebuild required."
+        return 0
     fi
 
     return 1
@@ -470,11 +490,52 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
     if [[ "$SESSION" -eq 1 ]]; then
         export METIS_SHELL_BIN="$SHELL_BIN"
+
+        SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/metis"
+        LOCK_FILE="$SESSION_DIR/session.lock"
+        LAST_EXIT_FILE="$SESSION_DIR/session.last-exit"
+        mkdir -p "$SESSION_DIR" 2>/dev/null || true
+
+        # Single-instance lock. A stray relaunch that OVERLAPS a live session
+        # can't stack a second nested compositor — it hits this guard and bails.
+        exec 9>"$LOCK_FILE"
+        if ! flock -n 9; then
+            holder="$(cat "$LOCK_FILE" 2>/dev/null)"
+            log "ERROR: a Metis session is already running (lock held${holder:+ by PID $holder})."
+            log "       Refusing to start a second session. Stop the first: ./run-metis.sh --stop"
+            log "       If you didn't start this, see launch audit: $AUDIT_LOG"
+            exit 1
+        fi
+        printf '%s\n' "$BASHPID" >&9
+
+        # Rapid-relaunch cooldown. Stops an instant auto-reopen after you close
+        # the window (a session exiting and immediately respawning). A genuine
+        # quick restart can override with METIS_FORCE=1.
+        COOLDOWN="${METIS_SESSION_COOLDOWN:-4}"
+        if [[ -z "${METIS_FORCE:-}" && -f "$LAST_EXIT_FILE" ]]; then
+            now="$(date +%s)"
+            last="$(cat "$LAST_EXIT_FILE" 2>/dev/null || echo 0)"
+            delta=$(( now - last ))
+            if (( delta >= 0 && delta < COOLDOWN )); then
+                log "ERROR: a Metis session exited ${delta}s ago — refusing rapid auto-relaunch (cooldown ${COOLDOWN}s)."
+                log "       This breaks an automatic close→reopen loop. To restart on purpose:"
+                log "       METIS_FORCE=1 ./run-metis.sh --session   (or wait ${COOLDOWN}s)"
+                log "       Who launched this run is recorded in: $AUDIT_LOG"
+                exit 1
+            fi
+        fi
+
         log "Starting Metis compositor session (spawns shell automatically) …"
         if [[ ${#COMP_ARGS[@]} -gt 0 ]]; then
             log "Compositor args: ${COMP_ARGS[*]}"
         fi
-        exec "$COMP_BIN" "${COMP_ARGS[@]}"
+        # Run as a child (not exec) so we can stamp the exit time for the cooldown
+        # guard above. The lock on FD 9 is held by this subshell for the session's
+        # lifetime and released when it returns.
+        "$COMP_BIN" "${COMP_ARGS[@]}"
+        session_rc=$?
+        date +%s >"$LAST_EXIT_FILE" 2>/dev/null || true
+        exit "$session_rc"
     fi
 
     if [[ "$FOREGROUND" -eq 1 ]]; then

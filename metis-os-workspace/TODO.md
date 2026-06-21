@@ -62,7 +62,12 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Compositor-drawn titlebar (title via `fontdue`), border, and close /
       minimize / maximize buttons
 - [x] Decoration input — button actions + titlebar drag (`MoveSurfaceGrab`)
-- [ ] Polish — rounded button glyphs, focus-aware dimming, working border resize
+- [x] Border resize — compositor-side edge/corner hit-test (`RESIZE_MARGIN_PX`)
+      starts `ResizeSurfaceGrab`, floats tiled windows out of the grid, persists
+      the new geometry, and shows directional resize cursors on hover
+- [ ] Polish — rounded button glyphs, focus-aware dimming
+- [ ] Snap zones / hot-spots — half-screen + maximize overlays when dragging a
+      window to a screen edge
 
 ### Weather
 Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`

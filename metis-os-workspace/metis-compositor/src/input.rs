@@ -85,6 +85,7 @@ impl MetisState {
                 pointer.set_location(location);
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
+                self.update_hover_cursor(location);
                 if !self.should_forward_pointer_motion(location) {
                     return;
                 }
@@ -109,6 +110,7 @@ impl MetisState {
                 pointer.set_location(pos);
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
+                self.update_hover_cursor(pos);
                 if !self.should_forward_pointer_motion(pos) {
                     return;
                 }
@@ -146,6 +148,13 @@ impl MetisState {
                 );
 
                 if ButtonState::Pressed == button_state {
+                    // Window resize bands sit on the outer edges/corners — check them
+                    // before decorations so grabbing an edge starts a resize (and
+                    // floats a tiled window out of the grid).
+                    if self.handle_resize_press(loc, serial) {
+                        self.schedule_redraw();
+                        return;
+                    }
                     // Server-side decorations (titlebar buttons / drag / border) are
                     // compositor chrome, not client surfaces — intercept before any
                     // client forwarding so close/min/max and titlebar drag work.

@@ -7,6 +7,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+
+- **Session relaunch guards + launch audit (`run-metis.sh`)** — `--session` is now
+  hardened against an automatic close→reopen loop:
+  - **Single-instance lock** (`flock`): a relaunch that overlaps a live session
+    can't stack a second nested compositor.
+  - **Rapid-relaunch cooldown**: a session that respawns within `4s`
+    (`METIS_SESSION_COOLDOWN`) of a clean exit is refused, breaking an instant
+    auto-reopen. Override an intentional quick restart with `METIS_FORCE=1`.
+  - **Launch audit**: every invocation appends its PID + full parent-process
+    chain to `~/.local/state/metis/launch-audit.log`, so an unexpected reopen can
+    be traced to the exact invoker (the script/compositor have no respawn logic).
+- **Window edge/corner resizing** — any window can now be resized by grabbing its
+  edges or corners (an 8px band straddling the border). Because the compositor
+  forces server-side decorations, it hit-tests the border itself and starts the
+  existing `ResizeSurfaceGrab` directly. Grabbing a tiled window's edge pops it
+  out of the grid into a freely-resizable floating window; the new size is
+  persisted so it survives later re-layouts. The host cursor shows the matching
+  directional resize arrow on hover (↔, ↕, and the two diagonals).
+
 ### Changed
 
 - **Window dragging may now run off the left/right/bottom screen edges** —
@@ -18,6 +38,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Session "closed and auto-reopened" (the real root cause)** — `run-metis.sh`'s
+  `binary_needs_rebuild()` probed the binaries with `"$bin" --help`. But
+  `metis-compositor` ignores `--help` (its parser only knows `-c`/`--command`),
+  so the probe **booted a full nested compositor window**. The user saw that
+  probe window, closed it (assuming it was the session), and the script then
+  proceeded to launch the *actual* session — looking exactly like a
+  close→auto-reopen. It was intermittent because the probe only runs when the
+  binaries are already up to date (otherwise `find -newer` returns first). The
+  binary is no longer executed to test it; the ELF interpreter is checked on disk
+  instead.
 - **Backdrop blur bled into the bar's drop shadow** — the blur was applied to the
   bar's entire layer surface, which includes the transparent shadow-padding margin
   around the pill, producing an ugly blurred rectangle below/around the bar. The

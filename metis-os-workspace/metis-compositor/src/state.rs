@@ -52,6 +52,10 @@ pub const WINDOW_GAP_PX: i32 = 8;
 /// stays reachable) and to decide when an off-screen window needs rescuing.
 pub const MIN_VISIBLE_PX: i32 = 64;
 
+/// Thickness (in px) of the invisible grab band straddling each window edge that
+/// starts an interactive resize. Corners are where two bands overlap.
+pub const RESIZE_MARGIN_PX: i32 = 8;
+
 /// Apps that open as a centered floating window by default (rather than being
 /// snapped into the tiling grid).
 const CENTERED_FLOAT_APP_IDS: &[&str] = &["com.metis.Settings"];
@@ -109,6 +113,9 @@ pub struct MetisState {
     pub child_processes: Vec<std::process::Child>,
 
     pub cursor_status: smithay::input::pointer::CursorImageStatus,
+    /// Resize edge currently under the pointer (drives the host cursor shape).
+    /// `None` when the pointer isn't hovering a window's resize band.
+    pub hover_cursor: Option<crate::grabs::ResizeEdge>,
 
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
@@ -193,6 +200,7 @@ impl MetisState {
             client_spawned: false,
             child_processes: Vec::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
+            hover_cursor: None,
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
@@ -1050,6 +1058,140 @@ impl MetisState {
             return true;
         }
         false
+    }
+
+    /// Hit-test the pointer against every mapped window's resize band. Returns the
+    /// topmost window whose edge/corner (within `RESIZE_MARGIN_PX`) is under the
+    /// pointer, plus the combined edge(s). Skips minimized, maximized, and
+    /// fullscreen windows (resize those after restoring), and the window body.
+    pub fn resize_edge_at(
+        &self,
+        loc: Point<f64, Logical>,
+    ) -> Option<(u32, crate::grabs::ResizeEdge)> {
+        use crate::grabs::ResizeEdge;
+
+        let m = RESIZE_MARGIN_PX as f64;
+        // Topmost first: Space::elements() is bottom-to-top, so reverse.
+        for window in self.space.elements().rev() {
+            let Some(id) = self.windows.id_for_window(window) else {
+                continue;
+            };
+            if self.windows.is_minimized(id) {
+                continue;
+            }
+            if let Some(record) = self.windows.get(id) {
+                if record.maximized || record.fullscreen {
+                    continue;
+                }
+            }
+            let Some(geo) = self.space.element_geometry(window) else {
+                continue;
+            };
+            let (gx, gy) = (geo.loc.x as f64, geo.loc.y as f64);
+            let (gw, gh) = (geo.size.w as f64, geo.size.h as f64);
+
+            // Only consider points within the band straddling the window border.
+            if loc.x < gx - m || loc.x > gx + gw + m || loc.y < gy - m || loc.y > gy + gh + m {
+                continue;
+            }
+            let near_left = loc.x <= gx + m;
+            let near_right = loc.x >= gx + gw - m;
+            let near_top = loc.y <= gy + m;
+            let near_bottom = loc.y >= gy + gh - m;
+
+            let mut edges = ResizeEdge::empty();
+            if near_left {
+                edges |= ResizeEdge::LEFT;
+            } else if near_right {
+                edges |= ResizeEdge::RIGHT;
+            }
+            if near_top {
+                edges |= ResizeEdge::TOP;
+            } else if near_bottom {
+                edges |= ResizeEdge::BOTTOM;
+            }
+            if edges.is_empty() {
+                // Inside the window body, not on an edge — block lower windows.
+                return None;
+            }
+            return Some((id, edges));
+        }
+        None
+    }
+
+    /// Update the hovered resize edge from the pointer position so the host cursor
+    /// can show the matching directional arrow. No-op while a grab owns the pointer
+    /// (the active move/resize keeps its cursor). Flags a redraw on change.
+    pub fn update_hover_cursor(&mut self, loc: Point<f64, Logical>) {
+        if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return;
+        }
+        let edge = self.resize_edge_at(loc).map(|(_, e)| e);
+        if edge != self.hover_cursor {
+            self.hover_cursor = edge;
+            self.schedule_redraw();
+        }
+    }
+
+    /// Handle a pointer press that may land on a window's resize band. On a hit,
+    /// floats the window out of the grid and starts an interactive resize grab.
+    /// Returns true when the press was consumed.
+    pub fn handle_resize_press(
+        &mut self,
+        loc: Point<f64, Logical>,
+        serial: smithay::utils::Serial,
+    ) -> bool {
+        use smithay::input::pointer::{Focus, GrabStartData};
+
+        // A live popup/move/resize grab owns the pointer — let it run.
+        if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return false;
+        }
+
+        let Some((id, edges)) = self.resize_edge_at(loc) else {
+            return false;
+        };
+        let Some(record) = self.windows.get(id).cloned() else {
+            return false;
+        };
+        let window = record.window.clone();
+        let Some(initial_window_location) = self.space.element_location(&window) else {
+            return false;
+        };
+        let initial_window_size = window.geometry().size;
+
+        // Edge-resize floats the window out of the grid (no snap-back).
+        self.space.raise_element(&window, true);
+        self.floating.insert(id);
+
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(window.clone().into()), serial);
+        }
+
+        let toplevel = window.toplevel().unwrap();
+        toplevel.with_pending_state(|state| {
+            state
+                .states
+                .set(smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Resizing);
+        });
+        toplevel.send_pending_configure();
+
+        let Some(pointer) = self.seat.get_pointer() else {
+            return false;
+        };
+        let start_data = GrabStartData {
+            focus: None,
+            button: 0x110,
+            location: loc,
+        };
+        let grab = crate::grabs::ResizeSurfaceGrab::start(
+            start_data,
+            window,
+            edges,
+            smithay::utils::Rectangle::new(initial_window_location, initial_window_size),
+        );
+        pointer.set_grab(self, grab, serial, Focus::Clear);
+        true
     }
 
     fn start_titlebar_move(

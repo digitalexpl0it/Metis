@@ -39,6 +39,27 @@ render_elements! {
     Blur=crate::blur::BlurElement,
 }
 
+/// Map the hovered resize edge to the matching host (winit) cursor shape. This
+/// nested backend always draws the host cursor and ignores client cursor
+/// surfaces, so directional resize feedback has to be applied here.
+fn resize_cursor(edge: Option<crate::grabs::ResizeEdge>) -> smithay::reexports::winit::cursor::Cursor {
+    use crate::grabs::ResizeEdge;
+    use smithay::reexports::winit::cursor::CursorIcon;
+
+    let icon = match edge {
+        Some(e) if e == ResizeEdge::TOP_LEFT || e == ResizeEdge::BOTTOM_RIGHT => {
+            CursorIcon::NwseResize
+        }
+        Some(e) if e == ResizeEdge::TOP_RIGHT || e == ResizeEdge::BOTTOM_LEFT => {
+            CursorIcon::NeswResize
+        }
+        Some(e) if e.intersects(ResizeEdge::LEFT | ResizeEdge::RIGHT) => CursorIcon::EwResize,
+        Some(e) if e.intersects(ResizeEdge::TOP | ResizeEdge::BOTTOM) => CursorIcon::NsResize,
+        _ => CursorIcon::Default,
+    };
+    icon.into()
+}
+
 /// On-screen rectangle of the Metis bar layer surface, used to position the
 /// backdrop blur. `None` when the bar is not (yet) mapped.
 fn bar_layer_rect(output: &Output) -> Option<Rectangle<i32, Physical>> {
@@ -193,6 +214,7 @@ pub fn init_winit(
                     // rendering the client's own cursor produced a second cursor with a
                     // mismatched size over GTK surfaces; the host cursor stays uniform.
                     backend.window().set_cursor_visible(true);
+                    backend.window().set_cursor(resize_cursor(state.hover_cursor));
 
                     match backend.bind() {
                         Ok((renderer, mut framebuffer)) => {
