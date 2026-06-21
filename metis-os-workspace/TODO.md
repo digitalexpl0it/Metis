@@ -1,8 +1,9 @@
 # Metis Shell — Edge Bar (v2)
 
 **Current phase:** Phase 1 (edge bar) complete; Phase 2 (`metis-settings` app +
-server-side window decorations) landed. Next: decoration polish (rounded button
-glyphs, focus-aware styling, border resize) and broader window management.
+server-side window decorations) complete, including decoration polish (rounded
+button glyphs + focus-aware dimming). Next: Phase 3 — broader window management
+(multi-workspace, richer tiling).
 
 ---
 
@@ -65,7 +66,8 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Border resize — compositor-side edge/corner hit-test (`RESIZE_MARGIN_PX`)
       starts `ResizeSurfaceGrab`, floats tiled windows out of the grid, persists
       the new geometry, and shows directional resize cursors on hover
-- [ ] Polish — rounded button glyphs, focus-aware dimming
+- [x] Polish — rounded, anti-aliased control buttons with glyphs (× / + / −) and
+      focus-aware dimming (traffic-light colors when focused, gray when not)
 - [x] Snap zones / hot-spots — drag a window to a screen edge for a live
       translucent preview that drops it into half / quarter / maximize regions
       (`metis-grid::pixel_snap_target`, wired through `MoveSurfaceGrab` + winit

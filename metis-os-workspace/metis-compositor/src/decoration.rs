@@ -33,6 +33,12 @@ const TITLE_TEXT: [f32; 4] = [0.92, 0.93, 0.96, 1.0];
 const BTN_CLOSE: [f32; 4] = [0.93, 0.33, 0.31, 1.0];
 const BTN_MIN: [f32; 4] = [0.96, 0.74, 0.25, 1.0];
 const BTN_MAX: [f32; 4] = [0.30, 0.78, 0.34, 1.0];
+/// Traffic-light buttons desaturate to a flat gray when the window is unfocused.
+const BTN_INACTIVE: [f32; 4] = [0.34, 0.36, 0.40, 1.0];
+/// Glyph (×, +, −) drawn over a focused button — a dark translucent symbol.
+const BTN_GLYPH: [f32; 4] = [0.0, 0.0, 0.0, 0.55];
+/// Supersample factor for button textures so the circle/glyph edges are smooth.
+const BTN_SS: i32 = 3;
 
 const BTN_SIZE: i32 = 14;
 const BTN_GAP: i32 = 8;
@@ -73,11 +79,21 @@ struct CachedTitle {
     buffer: TextureBuffer<GlesTexture>,
 }
 
+/// A cached, anti-aliased control-button texture (rounded circle + glyph). Keyed
+/// per `(window, role)` so each window owns a distinct buffer id; re-rasterized
+/// only when the window's focus state flips.
+#[derive(Clone)]
+struct CachedButton {
+    focused: bool,
+    buffer: TextureBuffer<GlesTexture>,
+}
+
 /// Persistent decoration resources owned by `MetisState`.
 pub struct DecorationRuntime {
     font: Option<Font>,
     ids: HashMap<(u32, u8), Id>,
     titles: HashMap<u32, CachedTitle>,
+    buttons: HashMap<(u32, u8), CachedButton>,
     commit: CommitCounter,
     last_sig: u64,
 }
@@ -88,6 +104,7 @@ impl Default for DecorationRuntime {
             font: load_font(),
             ids: HashMap::new(),
             titles: HashMap::new(),
+            buttons: HashMap::new(),
             commit: CommitCounter::default(),
             last_sig: 0,
         }
@@ -106,6 +123,7 @@ impl DecorationRuntime {
         let live: std::collections::HashSet<u32> = windows.iter().map(|w| w.id).collect();
         self.titles.retain(|id, _| live.contains(id));
         self.ids.retain(|(id, _), _| live.contains(id));
+        self.buttons.retain(|(id, _), _| live.contains(id));
 
         let sig = signature(windows);
         if sig != self.last_sig {
@@ -167,31 +185,20 @@ impl DecorationRuntime {
             ));
 
             // Control buttons, laid out from the right: close, maximize, minimize.
+            // Each is a cached rounded texture; unfocused windows get gray buttons.
             let cy = frame.y + (header - BTN_SIZE) / 2;
             let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
             let max_x = close_x - (BTN_GAP + BTN_SIZE);
             let min_x = max_x - (BTN_GAP + BTN_SIZE);
-            out.push(self.solid(
-                w.id,
-                4,
-                PixelRect { x: close_x, y: cy, width: BTN_SIZE, height: BTN_SIZE },
-                BTN_CLOSE,
-                commit,
-            ));
-            out.push(self.solid(
-                w.id,
-                5,
-                PixelRect { x: max_x, y: cy, width: BTN_SIZE, height: BTN_SIZE },
-                BTN_MAX,
-                commit,
-            ));
-            out.push(self.solid(
-                w.id,
-                6,
-                PixelRect { x: min_x, y: cy, width: BTN_SIZE, height: BTN_SIZE },
-                BTN_MIN,
-                commit,
-            ));
+            for (role, kind, x) in [
+                (4u8, DecoControl::Close, close_x),
+                (5u8, DecoControl::Maximize, max_x),
+                (6u8, DecoControl::Minimize, min_x),
+            ] {
+                if let Some(elem) = self.button_element(renderer, w, role, kind, x, cy) {
+                    out.push(elem);
+                }
+            }
 
             // Title text (cached texture), clipped to the space before the buttons.
             let max_text_w = (min_x - (frame.x + TITLE_LEFT_PAD) - BTN_GAP).max(0);
@@ -224,6 +231,55 @@ impl DecorationRuntime {
             commit,
             Color32F::from(color),
             Kind::Unspecified,
+        ))
+    }
+
+    /// Build (or reuse) a rounded control-button texture and place it at `(x, cy)`.
+    fn button_element(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        w: &WindowDeco,
+        role: u8,
+        kind: DecoControl,
+        x: i32,
+        cy: i32,
+    ) -> Option<DecorationElement> {
+        let needs_render = self
+            .buttons
+            .get(&(w.id, role))
+            .map(|c| c.focused != w.focused)
+            .unwrap_or(true);
+
+        if needs_render {
+            let (pixels, pw, ph) = rasterize_button(kind, w.focused)?;
+            let texture = renderer
+                .import_memory(&pixels, Fourcc::Abgr8888, Size::from((pw, ph)), false)
+                .ok()?;
+            let buffer = TextureBuffer::from_texture(renderer, texture, BTN_SS, Transform::Normal, None);
+            self.buttons.insert(
+                (w.id, role),
+                CachedButton {
+                    focused: w.focused,
+                    buffer,
+                },
+            );
+        }
+
+        let cached = self.buttons.get(&(w.id, role))?;
+        let src = Rectangle::<f64, Logical>::new(
+            Point::from((0.0, 0.0)),
+            Size::from((BTN_SIZE as f64, BTN_SIZE as f64)),
+        );
+        let loc = Point::<i32, Logical>::from((x, cy)).to_physical(1);
+        Some(DecorationElement::Text(
+            TextureRenderElement::from_texture_buffer(
+                loc.to_f64(),
+                &cached.buffer,
+                None,
+                Some(src),
+                Some(Size::from((BTN_SIZE, BTN_SIZE))),
+                Kind::Unspecified,
+            ),
         ))
     }
 
@@ -393,6 +449,86 @@ fn rasterize(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(
         }
     }
     Some((pixels, width, canvas_h))
+}
+
+/// Rasterize a control button: an anti-aliased filled circle (traffic-light color
+/// when focused, gray when not) with a dark glyph (× close, + maximize, − minimize)
+/// drawn only on focused buttons. Returns premultiplied RGBA at `BTN_SS`× scale.
+fn rasterize_button(kind: DecoControl, focused: bool) -> Option<(Vec<u8>, i32, i32)> {
+    let n = BTN_SIZE * BTN_SS;
+    if n <= 0 {
+        return None;
+    }
+    let circle = if focused {
+        match kind {
+            DecoControl::Close => BTN_CLOSE,
+            DecoControl::Maximize => BTN_MAX,
+            DecoControl::Minimize => BTN_MIN,
+            DecoControl::Titlebar => return None,
+        }
+    } else {
+        BTN_INACTIVE
+    };
+
+    let mut pixels = vec![0u8; (n * n * 4) as usize];
+    let center = n as f32 / 2.0;
+    let radius = center - BTN_SS as f32 * 0.5;
+    let half_len = radius * 0.46;
+    let half_thick = BTN_SS as f32 * 0.7;
+
+    for y in 0..n {
+        for x in 0..n {
+            let dx = x as f32 + 0.5 - center;
+            let dy = y as f32 + 0.5 - center;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let circle_cov = aa(radius - dist);
+            if circle_cov <= 0.0 {
+                continue;
+            }
+
+            let mut rgb = [circle[0], circle[1], circle[2]];
+            if focused {
+                let g = glyph_coverage(kind, dx, dy, half_len, half_thick);
+                if g > 0.0 {
+                    let ga = g * BTN_GLYPH[3];
+                    rgb[0] = BTN_GLYPH[0] * ga + rgb[0] * (1.0 - ga);
+                    rgb[1] = BTN_GLYPH[1] * ga + rgb[1] * (1.0 - ga);
+                    rgb[2] = BTN_GLYPH[2] * ga + rgb[2] * (1.0 - ga);
+                }
+            }
+
+            let a = circle_cov;
+            let idx = ((y * n + x) * 4) as usize;
+            pixels[idx] = (rgb[0] * a * 255.0) as u8;
+            pixels[idx + 1] = (rgb[1] * a * 255.0) as u8;
+            pixels[idx + 2] = (rgb[2] * a * 255.0) as u8;
+            pixels[idx + 3] = (a * 255.0) as u8;
+        }
+    }
+    Some((pixels, n, n))
+}
+
+/// Coverage (0–1) of a button glyph at offset `(dx, dy)` from the button center.
+fn glyph_coverage(kind: DecoControl, dx: f32, dy: f32, len: f32, thick: f32) -> f32 {
+    // A single bar running `along` an axis with thickness measured `across` it.
+    let bar = |along: f32, across: f32| aa(thick - across.abs()) * aa(len - along.abs() + 0.5);
+    match kind {
+        DecoControl::Minimize => bar(dx, dy),
+        DecoControl::Maximize => bar(dx, dy).max(bar(dy, dx)),
+        DecoControl::Close => {
+            // Rotate 45° so the two bars form an ×.
+            let inv = std::f32::consts::FRAC_1_SQRT_2;
+            let u = (dx + dy) * inv;
+            let v = (dx - dy) * inv;
+            bar(u, v).max(bar(v, u))
+        }
+        DecoControl::Titlebar => 0.0,
+    }
+}
+
+/// 1px-wide anti-aliased edge: maps a signed distance (px) to coverage in [0, 1].
+fn aa(edge: f32) -> f32 {
+    (edge + 0.5).clamp(0.0, 1.0)
 }
 
 /// FNV-1a over the decoration-relevant state so we only re-damage on change.

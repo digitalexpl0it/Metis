@@ -9,6 +9,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Decoration polish — rounded buttons + focus-aware dimming** — the server-side
+  window controls are no longer flat squares: each is a cached, anti-aliased
+  rounded button rendered at 3× supersampling. Focused windows show the
+  traffic-light colors (red/green/yellow) with a dark glyph (× close, + maximize,
+  − minimize); unfocused windows desaturate all three buttons to gray with no
+  glyph, complementing the existing focus-aware titlebar/border/title dimming.
+  Button textures are cached per window and only re-rasterized when focus flips.
 - **Settings · Appearance Font section** — a new Font card lets you choose the
   DE-wide UI font family + size (via a native font picker) and the body text
   color. Font family/size are stored as theme tokens (`font_family`,
