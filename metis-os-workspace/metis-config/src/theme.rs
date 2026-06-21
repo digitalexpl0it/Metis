@@ -82,6 +82,30 @@ pub struct ThemeTokens {
     pub semantic: SemanticColors,
     #[serde(default = "default_text_on_accent")]
     pub text_on_accent: String,
+    /// Optional UI font family (empty = system default). Applied DE-wide via the
+    /// shared stylesheet's base `window` rule.
+    #[serde(default)]
+    pub font_family: String,
+    /// Optional UI font size in points (0 = use each widget's default size).
+    #[serde(default)]
+    pub font_size_pt: u32,
+}
+
+impl ThemeTokens {
+    /// Build the optional base font declarations (family/size) injected into the
+    /// stylesheet's root `window` rule. Empty when neither is customized, so the
+    /// default theme renders exactly as before.
+    pub fn font_declarations(&self) -> String {
+        let mut decls = String::new();
+        let family = self.font_family.trim();
+        if !family.is_empty() {
+            decls.push_str(&format!("font-family: \"{family}\";"));
+        }
+        if self.font_size_pt > 0 {
+            decls.push_str(&format!("font-size: {}pt;", self.font_size_pt));
+        }
+        decls
+    }
 }
 
 impl ThemeTokens {

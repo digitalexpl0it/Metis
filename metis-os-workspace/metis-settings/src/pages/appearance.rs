@@ -32,6 +32,7 @@ struct ColorButtons {
     success: gtk::ColorDialogButton,
     info: gtk::ColorDialogButton,
     payment: gtk::ColorDialogButton,
+    text: gtk::ColorDialogButton,
 }
 
 pub fn build() -> gtk::Widget {
@@ -68,8 +69,8 @@ pub fn build() -> gtk::Widget {
     mode_body.append(&chooser);
     content.append(&mode_card);
 
-    // ---- Colours ----------------------------------------------------------
-    let (color_card, color_body) = ui::section_with_icon("Colours", "applications-graphics-symbolic");
+    // ---- Colors -----------------------------------------------------------
+    let (color_card, color_body) = ui::section_with_icon("Colors", "applications-graphics-symbolic");
     let buttons = ColorButtons {
         accent: color_dialog_button(),
         accent2: color_dialog_button(),
@@ -78,6 +79,7 @@ pub fn build() -> gtk::Widget {
         success: color_dialog_button(),
         info: color_dialog_button(),
         payment: color_dialog_button(),
+        text: color_dialog_button(),
     };
     color_body.append(&ui::row_with_icon("starred-symbolic", "Accent", &buttons.accent));
     color_body.append(&ui::row_with_icon(
@@ -106,14 +108,80 @@ pub fn build() -> gtk::Widget {
 
     refresh_buttons(&buttons, &state.borrow().tokens, &suppress);
 
-    // Wire each colour button to its token field.
-    wire_color(&buttons.accent, &state, &suppress, |t, hex| set_accent(t, 0, hex));
+    // Wire each color button to its token field. Changing the primary accent also
+    // re-derives the on-accent text color so labels stay readable on it (e.g. a
+    // black accent flips on-accent text to white).
+    wire_color(&buttons.accent, &state, &suppress, |t, hex| {
+        t.text_on_accent = contrast_on(&hex);
+        set_accent(t, 0, hex);
+    });
     wire_color(&buttons.accent2, &state, &suppress, |t, hex| set_accent(t, 1, hex));
     wire_color(&buttons.error, &state, &suppress, |t, hex| t.semantic.error = hex);
     wire_color(&buttons.warning, &state, &suppress, |t, hex| t.semantic.warning = hex);
     wire_color(&buttons.success, &state, &suppress, |t, hex| t.semantic.success = hex);
     wire_color(&buttons.info, &state, &suppress, |t, hex| t.semantic.info = hex);
     wire_color(&buttons.payment, &state, &suppress, |t, hex| t.semantic.payment = hex);
+
+    // ---- Font -------------------------------------------------------------
+    // Text color edits the theme's `text` token (recolors body text DE-wide).
+    wire_color(&buttons.text, &state, &suppress, |t, hex| t.text = hex);
+
+    let (font_card, font_body) = ui::section_with_icon("Font", "font-x-generic-symbolic");
+    let font_btn = gtk::FontDialogButton::new(Some(gtk::FontDialog::new()));
+    {
+        let st = state.borrow();
+        let fam = st.tokens.font_family.trim();
+        let pt = st.tokens.font_size_pt;
+        if !fam.is_empty() || pt > 0 {
+            let mut desc = gtk::pango::FontDescription::new();
+            if !fam.is_empty() {
+                desc.set_family(fam);
+            }
+            let size_pt = if pt > 0 { pt } else { 11 };
+            desc.set_size(size_pt as i32 * gtk::pango::SCALE);
+            font_btn.set_font_desc(&desc);
+        }
+    }
+    font_body.append(&ui::row_with_icon(
+        "font-x-generic-symbolic",
+        "Family & size",
+        &font_btn,
+    ));
+    font_body.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Text color",
+        &buttons.text,
+    ));
+    content.append(&font_card);
+    {
+        let state = state.clone();
+        font_btn.connect_font_desc_notify(move |btn| {
+            let desc = btn.font_desc();
+            let family = desc
+                .as_ref()
+                .and_then(|d| d.family())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let size = desc.as_ref().map(|d| d.size()).unwrap_or(0);
+            let pt = if size > 0 {
+                (size / gtk::pango::SCALE) as u32
+            } else {
+                0
+            };
+            let name = {
+                let mut s = state.borrow_mut();
+                s.tokens.font_family = family;
+                s.tokens.font_size_pt = pt;
+                s.name.clone()
+            };
+            let tokens = state.borrow().tokens.clone();
+            if let Err(err) = metis_config::save_theme_tokens(&name, &tokens) {
+                tracing::warn!(%err, "failed to save theme tokens");
+            }
+            crate::theme::reapply();
+            runtime::send("reload-theme");
+        });
+    }
 
     // Style buttons: persist preference, re-target the colour editor, re-theme.
     let apply_mode: Rc<dyn Fn(ThemeMode)> = {
@@ -159,7 +227,7 @@ pub fn build() -> gtk::Widget {
     let (bg_card, bg_body) = ui::section_with_icon("Background", "preferences-desktop-wallpaper-symbolic");
     let bgcfg = Rc::new(RefCell::new(metis_config::load_wallpaper_config()));
 
-    let type_dd = gtk::DropDown::from_strings(&["Picture", "Solid colour", "Gradient"]);
+    let type_dd = gtk::DropDown::from_strings(&["Picture", "Solid color", "Gradient"]);
     type_dd.set_selected(match bgcfg.borrow().kind {
         metis_config::BackgroundKind::Image => 0,
         metis_config::BackgroundKind::Solid => 1,
@@ -198,7 +266,7 @@ pub fn build() -> gtk::Widget {
     solid_btn.set_rgba(&hex_to_rgba(&bgcfg.borrow().color));
     solid_box.append(&ui::row_with_icon(
         "applications-graphics-symbolic",
-        "Colour",
+        "Color",
         &solid_btn,
     ));
     bg_body.append(&solid_box);
@@ -218,8 +286,8 @@ pub fn build() -> gtk::Widget {
         "Diagonal ↗",
     ]);
     dir_dd.set_selected(direction_to_index(bgcfg.borrow().gradient_direction));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", "Start colour", &grad_start));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", "End colour", &grad_end));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "Start color", &grad_start));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "End color", &grad_end));
     gradient_box.append(&ui::row_with_icon("object-rotate-right-symbolic", "Direction", &dir_dd));
     bg_body.append(&gradient_box);
 
@@ -415,6 +483,7 @@ fn refresh_buttons(b: &ColorButtons, t: &metis_config::ThemeTokens, suppress: &R
     b.success.set_rgba(&hex_to_rgba(&t.semantic.success));
     b.info.set_rgba(&hex_to_rgba(&t.semantic.info));
     b.payment.set_rgba(&hex_to_rgba(&t.semantic.payment));
+    b.text.set_rgba(&hex_to_rgba(&t.text));
     suppress.set(false);
 }
 
@@ -433,6 +502,27 @@ fn effective_name(mode: &ThemeMode) -> String {
 
 fn hex_to_rgba(hex: &str) -> gdk::RGBA {
     gdk::RGBA::parse(hex).unwrap_or_else(|_| gdk::RGBA::new(0.0, 0.95, 1.0, 1.0))
+}
+
+/// Pick a readable text color (near-black or white) for content drawn on top of
+/// `hex`, using perceived luminance so dark accents get light text and vice versa.
+fn contrast_on(hex: &str) -> String {
+    let h = hex.trim_start_matches('#');
+    let (r, g, b) = if h.len() == 6 {
+        (
+            u8::from_str_radix(&h[0..2], 16).unwrap_or(0) as f32,
+            u8::from_str_radix(&h[2..4], 16).unwrap_or(0) as f32,
+            u8::from_str_radix(&h[4..6], 16).unwrap_or(0) as f32,
+        )
+    } else {
+        (0.0, 0.0, 0.0)
+    };
+    let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    if luminance > 150.0 {
+        "#0a0e14".to_string()
+    } else {
+        "#ffffff".to_string()
+    }
 }
 
 fn rgba_to_hex(rgba: &gdk::RGBA) -> String {

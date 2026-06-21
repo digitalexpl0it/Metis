@@ -9,6 +9,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Settings · Appearance Font section** — a new Font card lets you choose the
+  DE-wide UI font family + size (via a native font picker) and the body text
+  color. Font family/size are stored as theme tokens (`font_family`,
+  `font_size_pt`) and applied through the shared stylesheet's base `window` rule;
+  when unset (the default) rendering is unchanged.
 - **Settings · Network tab overhaul** — the Network page is now split into three
   segmented pill tabs (**Wireless / Wired / Proxy**):
   - **Wireless** keeps the Wi-Fi scan/connect/radio controls and known-networks
@@ -65,6 +70,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Settings · unreadable text on dark accents** — picking a dark accent (e.g.
+  black) left the on-accent text dark and illegible. Changing the primary accent
+  now auto-derives a readable on-accent text color (near-black or white) from the
+  accent's perceived luminance.
+- **Settings · "Colours" → "Colors"** — the Appearance section and related color
+  labels now use the American spelling.
+- **Settings · colour picker was transparent** — the shared bar stylesheet makes
+  every `window` transparent for the layer-shell overlays, which leaked into the
+  settings app's spawned dialogs (the colour chooser rendered see-through). The
+  settings app now forces a solid themed background on its own windows/dialogs.
+- **Settings · Network card padding + stretched Wi-Fi toggle** — list/card content
+  (SSID rows, NIC editor text) was flush against the card edges; the
+  `.metis-settings-list` container now has internal padding, and the Wi-Fi radio
+  switch centres vertically instead of stretching to the row height.
 - **Resize band swallowed edge-hugging scrollbars** — the window resize grab band
   reached 8 px *inside* each edge, so hovering a right-edge scrollbar triggered the
   resize cursor instead of the scrollbar. The band now reaches mostly *outside* the

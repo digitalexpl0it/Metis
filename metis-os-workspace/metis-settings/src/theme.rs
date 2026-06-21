@@ -99,6 +99,12 @@ fn settings_css(t: &ThemeTokens) -> String {
     let accent2 = t.accent_secondary();
     format!(
         r#"
+        /* The shared bar stylesheet makes every `window` transparent for the
+           layer-shell overlays; in the settings app we want solid windows so
+           spawned dialogs (e.g. the colour picker) aren't see-through. */
+        window {{ background-color: {bg}; color: {text}; }}
+        window.dialog, window.csd, .colorchooser {{ background-color: {bg}; color: {text}; }}
+
         /* Window + CSD titlebar so the whole frame tracks the active theme. */
         .metis-settings-window {{ background-color: {bg}; color: {text}; }}
         windowhandle, headerbar, .titlebar {{

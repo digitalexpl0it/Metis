@@ -35,10 +35,14 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let c_info_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.info);
     let c_payment_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.payment);
 
+    // Optional DE-wide font family/size; empty unless the user customized them.
+    let font_decls = theme.font_declarations();
+
     format!(
         r#"
     window {{
         background-color: transparent;
+        {font_decls}
     }}
 
     .metis-bar-window {{
