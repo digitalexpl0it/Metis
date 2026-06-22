@@ -148,24 +148,32 @@ impl MetisState {
                 );
 
                 if ButtonState::Pressed == button_state {
-                    // Window resize bands sit on the outer edges/corners — check them
-                    // before decorations so grabbing an edge starts a resize (and
-                    // floats a tiled window out of the grid).
-                    if self.handle_resize_press(loc, serial) {
-                        self.schedule_redraw();
-                        return;
-                    }
-                    // Server-side decorations (titlebar buttons / drag / border) are
-                    // compositor chrome, not client surfaces — intercept before any
-                    // client forwarding so close/min/max and titlebar drag work.
-                    if self.handle_decoration_press(loc, serial) {
-                        self.schedule_redraw();
-                        return;
+                    // A press over the bar or one of its open popovers (e.g. the app
+                    // launcher) belongs to the shell. The bar's popovers don't take a
+                    // pointer grab, so without this guard a click would fall through to
+                    // window resize/move chrome rendered geometrically *beneath* the
+                    // popover — letting you drag a window through the open menu.
+                    let on_bar_ui = self.metis_bar_ui_hit(loc);
+                    if !on_bar_ui {
+                        // Window resize bands sit on the outer edges/corners — check them
+                        // before decorations so grabbing an edge starts a resize (and
+                        // floats a tiled window out of the grid).
+                        if self.handle_resize_press(loc, serial) {
+                            self.schedule_redraw();
+                            return;
+                        }
+                        // Server-side decorations (titlebar buttons / drag / border) are
+                        // compositor chrome, not client surfaces — intercept before any
+                        // client forwarding so close/min/max and titlebar drag work.
+                        if self.handle_decoration_press(loc, serial) {
+                            self.schedule_redraw();
+                            return;
+                        }
                     }
                     // When a popup grab is active, smithay's PopupPointerGrab already
                     // dismisses popovers on outside clicks (popup_done). Only fall back
                     // to the manual signal when no grab is in effect.
-                    if !pointer.is_grabbed() && self.should_dismiss_bar_popovers(loc) {
+                    if !pointer.is_grabbed() && !on_bar_ui {
                         let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
                     // Always move keyboard focus to whatever was clicked — including
