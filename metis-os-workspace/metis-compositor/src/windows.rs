@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use metis_grid::PixelRect;
 use metis_protocol::WindowInfo;
+use smithay::reexports::wayland_server::backend::ObjectId;
 use smithay::reexports::wayland_server::Resource;
 use smithay::{
     desktop::Window,
@@ -27,7 +28,10 @@ pub struct WindowRecord {
 pub struct WindowRegistry {
     next_id: u32,
     by_id: HashMap<u32, WindowRecord>,
-    surface_to_id: HashMap<u32, u32>,
+    // Keyed on the surface's globally-unique `ObjectId` — NOT `protocol_id()`, which
+    // is only unique per client connection, so surfaces from two different clients
+    // (shell, terminal, settings, …) can share a number and clobber each other.
+    surface_to_id: HashMap<ObjectId, u32>,
 }
 
 impl WindowRegistry {
@@ -43,7 +47,7 @@ impl WindowRegistry {
         let id = self.next_id;
         self.next_id += 1;
         let toplevel = window.toplevel().unwrap().clone();
-        let surface_id = toplevel.wl_surface().id().protocol_id();
+        let surface_id = toplevel.wl_surface().id();
         let rect = PixelRect {
             x: 0,
             y: 0,
@@ -99,7 +103,7 @@ impl WindowRegistry {
         &self,
         surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
     ) -> Option<u32> {
-        self.surface_to_id.get(&surface.id().protocol_id()).copied()
+        self.surface_to_id.get(&surface.id()).copied()
     }
 
     pub fn id_for_window(&self, window: &Window) -> Option<u32> {
@@ -185,7 +189,7 @@ impl WindowRegistry {
 
     pub fn unregister(&mut self, id: u32) -> Option<WindowRecord> {
         let record = self.by_id.remove(&id)?;
-        let surface_id = record.toplevel.wl_surface().id().protocol_id();
+        let surface_id = record.toplevel.wl_surface().id();
         self.surface_to_id.remove(&surface_id);
         Some(record)
     }

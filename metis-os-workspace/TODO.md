@@ -149,6 +149,12 @@ so each milestone is shippable on its own:
 - [ ] Taskbar follows: filter the dock to the current output + active workspace
       (the `WindowInfo.output`/`workspace` fields are already reserved)
 - [ ] DRM/udev backend (real multi-seat sessions) — deferred until the above lands
+- [ ] **Settings portal (`org.freedesktop.portal.Settings`)** — once Metis runs as
+      a standalone DE (not nested in GNOME), serve an empty GTK decoration layout so
+      stubborn CSD apps (e.g. GTK3 Cheese) drop their own close/min/max buttons and
+      only Metis's server-side controls show; also a clean handoff for theme / font /
+      dark-mode prefs to clients. (Avoided while nested — it would alter the host
+      GNOME session live.)
 
 ---
 

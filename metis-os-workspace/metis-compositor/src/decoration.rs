@@ -49,6 +49,15 @@ const CORNER_RADIUS_PX: i32 = 10;
 /// Supersample factor for the titlebar texture so the rounded corners are smooth.
 const TITLEBAR_SS: i32 = 2;
 
+/// Soft drop shadow cast behind every framed window, drawn as an outer ring that
+/// lives *entirely outside* the frame: the alpha peaks at the window edge and fades
+/// to zero `MARGIN` px outward, so no part of it ever overlaps (and darkens) the
+/// client or a translucent titlebar. It is 9-sliced from a single cached texture, so
+/// it costs one shared texture plus eight stretched quads per window regardless of
+/// size (no per-resize re-rasterization). `ALPHA` is the peak opacity at the edge.
+const SHADOW_MARGIN: i32 = 14;
+const SHADOW_ALPHA: f32 = 0.34;
+
 /// The decoration colors, derived from the active Metis theme (`themes/*.json`) so
 /// the server-side chrome tracks light/dark mode like the rest of the DE. Refreshed
 /// live (~1s) alongside the titlebar opacity.
@@ -203,6 +212,18 @@ pub struct DecorationRuntime {
     titles: HashMap<u32, CachedTitle>,
     buttons: HashMap<(u32, u8), CachedButton>,
     titlebars: HashMap<u32, CachedTitlebar>,
+    /// Single shared drop-shadow texture (black, premultiplied), rasterized once
+    /// and 9-sliced for every window. `None` until the first frame imports it.
+    /// Used for the straight edges and the (square) bottom corners.
+    shadow_tex: Option<GlesTexture>,
+    /// Rounded top-corner shadow textures (left + right). The window's titlebar has
+    /// rounded top corners, so the shadow there hugs the arc instead of a square
+    /// corner. Fixed size (`MARGIN + CORNER_RADIUS`), rasterized once.
+    shadow_corner_tl: Option<GlesTexture>,
+    shadow_corner_tr: Option<GlesTexture>,
+    /// Per-window texture buffers wrapping the shadow textures — one per slice so
+    /// each quad has a stable, distinct element id for damage tracking.
+    shadow_bufs: HashMap<u32, Vec<TextureBuffer<GlesTexture>>>,
     commit: CommitCounter,
     last_sig: u64,
     /// Configurable titlebar background opacity (title text + buttons stay
@@ -221,6 +242,10 @@ impl Default for DecorationRuntime {
             titles: HashMap::new(),
             buttons: HashMap::new(),
             titlebars: HashMap::new(),
+            shadow_tex: None,
+            shadow_corner_tl: None,
+            shadow_corner_tr: None,
+            shadow_bufs: HashMap::new(),
             commit: CommitCounter::default(),
             last_sig: 0,
             titlebar_alpha: read_titlebar_opacity(),
@@ -281,6 +306,7 @@ impl DecorationRuntime {
         self.ids.retain(|(id, _), _| live.contains(id));
         self.buttons.retain(|(id, _), _| live.contains(id));
         self.titlebars.retain(|id, _| live.contains(id));
+        self.shadow_bufs.retain(|id, _| live.contains(id));
 
         // Fold the titlebar alpha into the signature so a live opacity change
         // re-damages the (otherwise unchanged) decoration rects.
@@ -401,6 +427,15 @@ impl DecorationRuntime {
                 w.overlay,
             ) {
                 out.push(elem);
+            }
+
+            // Soft drop shadow, pushed LAST so it sits *behind* the frame, border
+            // and titlebar (first element = top). Only normal framed windows get a
+            // shadow — the auto-hide reveal overlay floats edge-to-edge with none.
+            if !w.overlay {
+                for elem in self.shadow_elements(renderer, w) {
+                    out.push(elem);
+                }
             }
         }
         DecoElements { below, overlay }
@@ -622,6 +657,119 @@ impl DecorationRuntime {
             ),
         ))
     }
+
+    /// Build the drop-shadow quads for one window. The shadow is an outer ring that
+    /// never overlaps the frame interior: straight edges + (square) bottom corners
+    /// come from one shared radial texture, while the two top corners use dedicated
+    /// rounded-corner textures so the shadow hugs the titlebar's rounded top corners.
+    /// All textures are imported once; each window owns one `TextureBuffer` per piece
+    /// so every quad has a stable, distinct element id for damage tracking.
+    fn shadow_elements(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        w: &WindowDeco,
+    ) -> Vec<DecorationElement> {
+        let m = SHADOW_MARGIN;
+        let r = CORNER_RADIUS_PX;
+        let f = w.frame;
+        // Need room for the rounded top corners (2*r wide) plus the straight runs.
+        if m <= 0 || f.width <= 2 * r || f.height <= r + m {
+            return Vec::new();
+        }
+
+        // Ensure the three shared shadow textures exist (radial edge tex + the two
+        // rounded top-corner textures). Any failure simply skips the shadow.
+        if self.shadow_tex.is_none() {
+            let Some((px, pw, ph)) = rasterize_shadow() else {
+                return Vec::new();
+            };
+            match renderer.import_memory(&px, Fourcc::Abgr8888, Size::from((pw, ph)), false) {
+                Ok(t) => self.shadow_tex = Some(t),
+                Err(_) => return Vec::new(),
+            }
+        }
+        if self.shadow_corner_tl.is_none() {
+            let Some((px, pw, ph)) = rasterize_shadow_corner(false) else {
+                return Vec::new();
+            };
+            match renderer.import_memory(&px, Fourcc::Abgr8888, Size::from((pw, ph)), false) {
+                Ok(t) => self.shadow_corner_tl = Some(t),
+                Err(_) => return Vec::new(),
+            }
+        }
+        if self.shadow_corner_tr.is_none() {
+            let Some((px, pw, ph)) = rasterize_shadow_corner(true) else {
+                return Vec::new();
+            };
+            match renderer.import_memory(&px, Fourcc::Abgr8888, Size::from((pw, ph)), false) {
+                Ok(t) => self.shadow_corner_tr = Some(t),
+                Err(_) => return Vec::new(),
+            }
+        }
+        let (Some(edge), Some(ctl), Some(ctr)) = (
+            self.shadow_tex.clone(),
+            self.shadow_corner_tl.clone(),
+            self.shadow_corner_tr.clone(),
+        ) else {
+            return Vec::new();
+        };
+
+        // Ensure this window's slice buffers exist. Index → source texture is fixed:
+        // 0 = rounded TL, 1 = rounded TR, 2..8 = radial (edges + square bottom corners).
+        if !self.shadow_bufs.contains_key(&w.id) {
+            let sources = [&ctl, &ctr, &edge, &edge, &edge, &edge, &edge, &edge];
+            let bufs = sources
+                .iter()
+                .map(|t| {
+                    TextureBuffer::from_texture(renderer, (*t).clone(), 1, Transform::Normal, None)
+                })
+                .collect::<Vec<_>>();
+            self.shadow_bufs.insert(w.id, bufs);
+        }
+        let Some(bufs) = self.shadow_bufs.get(&w.id) else {
+            return Vec::new();
+        };
+
+        let s2 = m + r; // rounded-corner texture side
+        let tail = m + 2; // far edge/corner offset in the radial texture
+
+        // (src_x, src_y, src_w, src_h, dst_x, dst_y, dst_w, dst_h). Index order must
+        // match the `sources` mapping above. Every dst sits outside the frame.
+        let slices: [(i32, i32, i32, i32, i32, i32, i32, i32); 8] = [
+            // Rounded top corners (full corner texture, unstretched).
+            (0, 0, s2, s2, f.x - m, f.y - m, s2, s2),
+            (0, 0, s2, s2, f.x + f.width - r, f.y - m, s2, s2),
+            // Top + bottom edges (vertical fade), between the corners.
+            (m, 0, 2, m, f.x + r, f.y - m, f.width - 2 * r, m),
+            (m, tail, 2, m, f.x, f.y + f.height, f.width, m),
+            // Left + right edges (horizontal fade), below the rounded top corners.
+            (0, m, m, 2, f.x - m, f.y + r, m, f.height - r),
+            (tail, m, m, 2, f.x + f.width, f.y + r, m, f.height - r),
+            // Square bottom corners (radial fade).
+            (0, tail, m, m, f.x - m, f.y + f.height, m, m),
+            (tail, tail, m, m, f.x + f.width, f.y + f.height, m, m),
+        ];
+
+        let mut out = Vec::with_capacity(8);
+        for (i, (sx, sy, sw, sh, dx, dy, dw, dh)) in slices.iter().enumerate() {
+            let src = Rectangle::<f64, Logical>::new(
+                Point::from((*sx as f64, *sy as f64)),
+                Size::from((*sw as f64, *sh as f64)),
+            );
+            let loc = Point::<i32, Logical>::from((*dx, *dy)).to_physical(1);
+            out.push(DecorationElement::Text(
+                TextureRenderElement::from_texture_buffer(
+                    loc.to_f64(),
+                    &bufs[i],
+                    None,
+                    Some(src),
+                    Some(Size::from((*dw, *dh))),
+                    Kind::Unspecified,
+                ),
+            ));
+        }
+        out
+    }
 }
 
 /// Compute hit-test rects (monitor-logical) for a window's controls, given its
@@ -800,6 +948,93 @@ fn edge_dist(px: f32, py: f32, w: f32, r: f32) -> f32 {
         }
     }
     px.min(w - px).min(py)
+}
+
+/// Rasterize the shared drop-shadow texture: a black field that peaks at a small 2px
+/// center and fades smoothly to zero across `SHADOW_MARGIN` px in every direction.
+/// 9-slicing this with an `m`-wide border maps the center to the window edge (peak)
+/// and the borders to the outward fade, so the ring sits entirely outside the frame.
+/// Premultiplied RGBA (rgb is always 0; only the alpha channel carries the shape).
+fn rasterize_shadow() -> Option<(Vec<u8>, i32, i32)> {
+    let m = SHADOW_MARGIN;
+    if m <= 0 {
+        return None;
+    }
+    let side = 2 * m + 2;
+    let mf = m as f32;
+    let (cmin, cmax) = (m as f32, (m + 2) as f32);
+    let mut pixels = vec![0u8; (side * side * 4) as usize];
+    for y in 0..side {
+        for x in 0..side {
+            let px = x as f32 + 0.5;
+            let py = y as f32 + 0.5;
+            // Distance from the central 2px peak rect (0 inside it).
+            let dx = (cmin - px).max(px - cmax).max(0.0);
+            let dy = (cmin - py).max(py - cmax).max(0.0);
+            let d = (dx * dx + dy * dy).sqrt();
+            let t = (d / mf).clamp(0.0, 1.0);
+            let fall = 1.0 - t;
+            let a = SHADOW_ALPHA * fall * fall;
+            if a <= 0.0 {
+                continue;
+            }
+            let av = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+            let idx = ((y * side + x) * 4) as usize;
+            // Premultiplied black: rgb stays 0, alpha carries the falloff.
+            pixels[idx + 3] = av;
+        }
+    }
+    Some((pixels, side, side))
+}
+
+/// Rasterize a rounded top-corner shadow tile (size `MARGIN + CORNER_RADIUS`). The
+/// window silhouette in this tile is a rounded rectangle whose top-left corner is
+/// rounded to `CORNER_RADIUS` (matching the titlebar); the alpha peaks along that
+/// silhouette and fades to zero `MARGIN` px outward, so the shadow wraps the rounded
+/// corner. `mirror_x` flips it horizontally for the top-right corner. Premultiplied
+/// black (only the alpha channel carries the shape).
+fn rasterize_shadow_corner(mirror_x: bool) -> Option<(Vec<u8>, i32, i32)> {
+    let m = SHADOW_MARGIN;
+    let r = CORNER_RADIUS_PX;
+    let s2 = m + r;
+    if s2 <= 0 || m <= 0 {
+        return None;
+    }
+    let mf = m as f32;
+    let rf = r as f32;
+    // Frame edges sit at x=m, y=m; the rounded corner's arc is centered at (m+r,m+r).
+    let (cx, cy) = ((m + r) as f32, (m + r) as f32);
+    let mut pixels = vec![0u8; (s2 * s2 * 4) as usize];
+    for y in 0..s2 {
+        for x in 0..s2 {
+            // Sample mirrored (write straight) to produce the right-corner variant.
+            let sx = if mirror_x { s2 - 1 - x } else { x };
+            let px = sx as f32 + 0.5;
+            let py = y as f32 + 0.5;
+            // Distance from the window silhouette: inside the arc/edges => <= 0.
+            let outward = if px < cx && py < cy {
+                let dxc = cx - px;
+                let dyc = cy - py;
+                (dxc * dxc + dyc * dyc).sqrt() - rf
+            } else {
+                (mf - px).max(mf - py).max(0.0)
+            };
+            let a = if outward <= 0.0 {
+                SHADOW_ALPHA
+            } else {
+                let t = (outward / mf).clamp(0.0, 1.0);
+                let f = 1.0 - t;
+                SHADOW_ALPHA * f * f
+            };
+            if a <= 0.0 {
+                continue;
+            }
+            let av = (a * 255.0).round().clamp(0.0, 255.0) as u8;
+            let idx = ((y * s2 + x) * 4) as usize;
+            pixels[idx + 3] = av;
+        }
+    }
+    Some((pixels, s2, s2))
 }
 
 /// Rasterize a control button: an anti-aliased filled circle (traffic-light color

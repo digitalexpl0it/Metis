@@ -68,7 +68,18 @@ pub fn reapply() {
     let tokens = active_tokens();
     PROVIDERS.with(|p| {
         if let Some((base, extra)) = p.borrow().as_ref() {
-            base.load_from_data(&metis_config::build_stylesheet(&tokens));
+            // The shared stylesheet sets `window { background-color: transparent }`
+            // so the shell's layer-shell overlays (bar, popovers) can show through.
+            // The settings app is a real opaque toplevel, though — without forcing it
+            // solid, a transparent window behind it (e.g. a terminal) bleeds through
+            // the body. Append the opaque override LAST in the *same* provider so it
+            // always wins by source order, regardless of cross-provider cascade.
+            let mut css = metis_config::build_stylesheet(&tokens);
+            css.push_str(&format!(
+                "\nwindow, window.background {{ background-color: {}; }}\n",
+                tokens.bg
+            ));
+            base.load_from_data(&css);
             extra.load_from_data(&settings_css(&tokens));
         }
     });
