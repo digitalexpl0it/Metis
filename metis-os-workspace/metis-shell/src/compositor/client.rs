@@ -38,6 +38,23 @@ pub fn set_window_fullscreen(id: u32, enabled: bool) -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn focus_window(id: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::FocusWindow { id })?;
+    Ok(())
+}
+
+/// Minimize or restore a window by id.
+pub fn set_minimized(id: u32, minimized: bool) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SetMinimized { id, minimized })?;
+    Ok(())
+}
+
+/// Bring a window to the foreground (restore + raise + focus).
+pub fn activate_window(id: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::ActivateWindow { id })?;
+    Ok(())
+}
+
 pub fn set_tile_mode(tile_id: &str, mode: TileMode) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::SetTileMode {
         tile_id: tile_id.to_string(),

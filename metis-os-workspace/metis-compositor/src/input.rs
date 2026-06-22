@@ -238,6 +238,12 @@ impl MetisState {
                 if let Some(toplevel) = window.toplevel() {
                     toplevel.send_pending_configure();
                 }
+                // Tell the shell (taskbar) which window now has focus — focus
+                // changes are otherwise only reported as a reply to FocusWindow.
+                if let Some(id) = self.windows.id_for_window(window) {
+                    self.event_bus
+                        .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+                }
             }
             keyboard.set_focus(self, Some(target), serial);
             return;

@@ -1,3 +1,6 @@
 pub mod client;
 
-pub use client::{end_session, launch_program, spawn_listener};
+pub use client::{
+    activate_window, close_window, end_session, launch_program, list_windows, set_minimized,
+    spawn_listener,
+};

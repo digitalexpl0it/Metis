@@ -77,6 +77,13 @@ impl WindowStateStore {
         self.save();
     }
 
+    /// Drop an app's saved geometry (e.g. a stale/degenerate entry) and persist.
+    pub fn remove(&mut self, app_id: &str) {
+        if self.geometries.remove(app_id).is_some() {
+            self.save();
+        }
+    }
+
     fn save(&self) {
         let path = window_state_path();
         if let Some(parent) = path.parent() {

@@ -70,6 +70,12 @@ impl CompositorHandler for MetisState {
             while let Some(parent) = get_parent(&root) {
                 root = parent;
             }
+            // Send the initial configure on the client's first commit so it can
+            // attach a buffer immediately, instead of waiting (potentially
+            // forever) for an unrelated layout pass to place the window.
+            if let Some(id) = self.windows.id_for_surface(&root) {
+                self.ensure_initial_configure(id);
+            }
             self.try_activate_committed_window(&root);
         }
     }

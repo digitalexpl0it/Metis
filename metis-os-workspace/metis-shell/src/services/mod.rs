@@ -5,6 +5,7 @@ mod notify_dbus;
 mod poll;
 pub mod secrets;
 pub mod weather;
+pub mod windows;
 mod workspaces;
 
 pub use applications::AppEntry;

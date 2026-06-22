@@ -19,6 +19,9 @@ pub struct AppEntry {
     pub exec: String,
     pub icon: Option<gio::Icon>,
     pub keywords: Vec<String>,
+    /// `StartupWMClass` from the desktop entry, used to map a running window's
+    /// Wayland `app_id` back to its launcher entry/icon.
+    pub wm_class: Option<String>,
 }
 
 /// Enumerate all visible installed applications, sorted alphabetically by name.
@@ -43,8 +46,8 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
         .map(|cmd| clean_exec(&cmd.to_string_lossy()))
         .filter(|s| !s.is_empty())?;
 
-    let keywords = info
-        .downcast_ref::<gio::DesktopAppInfo>()
+    let desktop = info.downcast_ref::<gio::DesktopAppInfo>();
+    let keywords = desktop
         .map(|desktop| {
             desktop
                 .keywords()
@@ -53,6 +56,9 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    let wm_class = desktop
+        .and_then(|desktop| desktop.startup_wm_class())
+        .map(|s| s.to_string());
 
     Some(AppEntry {
         id,
@@ -60,6 +66,7 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
         exec,
         icon: info.icon(),
         keywords,
+        wm_class,
     })
 }
 
@@ -143,6 +150,42 @@ pub fn toggle_pin(id: &str) -> bool {
         tracing::warn!(%err, "failed to persist menu.json after pin toggle");
     }
     now_pinned
+}
+
+/// Fallback icon name used when a window's `app_id` matches no installed app.
+pub const FALLBACK_ICON_NAME: &str = "application-x-executable-symbolic";
+
+/// Resolve a running window's Wayland `app_id` to its launcher entry. The
+/// Wayland `app_id` is usually reverse-DNS (e.g. `org.gnome.Calculator`), which
+/// matches a desktop file basename, but some apps report their `StartupWMClass`
+/// instead — both are matched case-insensitively.
+pub fn resolve_entry_for_app_id(app_id: &str) -> Option<AppEntry> {
+    let needle = app_id.trim().to_lowercase();
+    if needle.is_empty() {
+        return None;
+    }
+    list_apps().into_iter().find(|e| {
+        let base = e
+            .id
+            .strip_suffix(".desktop")
+            .unwrap_or(&e.id)
+            .to_lowercase();
+        base == needle
+            || e.id.to_lowercase() == needle
+            || e
+                .wm_class
+                .as_deref()
+                .is_some_and(|w| w.to_lowercase() == needle)
+    })
+}
+
+/// Resolve a window's `app_id` to a displayable icon, falling back to a generic
+/// application glyph when no match (or no `app_id`) is found.
+pub fn resolve_icon_for_app_id(app_id: Option<&str>) -> gio::Icon {
+    app_id
+        .and_then(resolve_entry_for_app_id)
+        .and_then(|e| e.icon)
+        .unwrap_or_else(|| gio::ThemedIcon::new(FALLBACK_ICON_NAME).upcast())
 }
 
 /// Record a launch (bumping its frequency) and spawn the app via the compositor.

@@ -11,7 +11,7 @@ use smithay::{
                 solid::SolidColorRenderElement,
                 surface::WaylandSurfaceRenderElement,
                 texture::TextureRenderElement,
-                Id, Kind,
+                AsRenderElements, Id, Kind,
             },
             gles::{GlesRenderer, GlesTexture},
             utils::CommitCounter,
@@ -19,16 +19,14 @@ use smithay::{
         },
         winit::{self, WinitEvent},
     },
-    desktop::{
-        space::space_render_elements,
-        Window,
-    },
+    desktop::{layer_map_for_output, Window},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::{
         EventLoop,
         timer::{TimeoutAction, Timer},
     },
-    utils::{Logical, Physical, Point, Rectangle, Size, Transform},
+    utils::{Logical, Physical, Point, Rectangle, Scale, Size, Transform},
+    wayland::shell::wlr_layer::Layer,
 };
 
 use crate::ipc;
@@ -37,8 +35,7 @@ use crate::state::MetisState;
 render_elements! {
     OutputStack<=GlesRenderer>;
     Wallpaper=TextureRenderElement<GlesTexture>,
-    Cursor=WaylandSurfaceRenderElement<GlesRenderer>,
-    Space=smithay::desktop::space::SpaceRenderElements<GlesRenderer, WaylandSurfaceRenderElement<GlesRenderer>>,
+    Surface=WaylandSurfaceRenderElement<GlesRenderer>,
     Deco=crate::decoration::DecorationElement,
     Blur=crate::blur::BlurElement,
     Snap=SolidColorRenderElement,
@@ -147,6 +144,13 @@ pub fn init_winit(
             // Drive the startup state machine from the heartbeat (not from
             // rendering) so going idle can never starve shell/client spawn.
             state.run_pending_startup();
+
+            // Service shell IPC every tick, not just on render. Redraws are
+            // damage-gated, so when the compositor is idle the `Redraw` handler
+            // never fires — which previously left shell commands (taskbar
+            // minimize/activate, etc.) unread until the 400ms client timeout
+            // expired with `EAGAIN`. handle_ipc flags damage as needed below.
+            ipc::drain_ipc(state);
 
             // Advance the debounced wallpaper decode off the render path and
             // repaint while it settles, so a re-decode (e.g. after maximize)
@@ -293,31 +297,42 @@ pub fn init_winit(
                                 state.decorations.elements(renderer, &specs)
                             };
                             let crate::decoration::DecoElements {
-                                below: deco_below,
+                                below: mut deco_below,
                                 overlay: deco_overlay,
                             } = deco_elements;
 
-                            let space_render_elements = match space_render_elements::<
-                                GlesRenderer,
-                                Window,
-                                _,
-                            >(
-                                renderer, [&state.space], &output, 1.0,
-                            ) {
-                                Ok(elements) => elements,
-                                Err(err) => {
-                                    tracing::warn!(?err, "space_render_elements failed");
-                                    Vec::new()
+                            let output_scale =
+                                Scale::from(output.current_scale().fractional_scale());
+
+                            // Layer-shell surfaces: background/bottom render beneath
+                            // windows, top/overlay above them (the Metis bar is a Top
+                            // layer).
+                            let layer_map = layer_map_for_output(&output);
+                            let (lower_layers, upper_layers): (Vec<_>, Vec<_>) = layer_map
+                                .layers()
+                                .rev()
+                                .partition(|s| {
+                                    matches!(s.layer(), Layer::Background | Layer::Bottom)
+                                });
+                            let render_layer = |renderer: &mut GlesRenderer,
+                                                out: &mut Vec<OutputStack>,
+                                                surface: &smithay::desktop::LayerSurface| {
+                                if let Some(geo) = layer_map.layer_geometry(surface) {
+                                    let loc = geo.loc.to_physical_precise_round(output_scale);
+                                    let elems = AsRenderElements::<GlesRenderer>::render_elements::<
+                                        WaylandSurfaceRenderElement<GlesRenderer>,
+                                    >(
+                                        surface, renderer, loc, output_scale, 1.0
+                                    );
+                                    out.extend(elems.into_iter().map(OutputStack::Surface));
                                 }
                             };
 
                             // smithay's damage renderer draws elements front-to-back:
                             // the FIRST element in the slice ends up on top, so the
                             // wallpaper goes last (behind everything).
-                            let mut render_elements = Vec::with_capacity(
-                                space_render_elements.len()
-                                    + usize::from(wallpaper_owned.is_some()),
-                            );
+                            let mut render_elements: Vec<OutputStack> = Vec::new();
+
                             // Snap preview sits on top of all windows so the drop
                             // destination reads as a ghost over the dragged window.
                             if let Some(snap) = snap_element {
@@ -328,19 +343,74 @@ pub fn init_winit(
                             render_elements.extend(
                                 deco_overlay.into_iter().map(OutputStack::Deco),
                             );
-                            render_elements.extend(
-                                space_render_elements
-                                    .into_iter()
-                                    .map(OutputStack::Space),
-                            );
-                            // Normal decorations sit just below the client surfaces
-                            // (they only fill the titlebar/border gap, never
-                            // overlapping the client buffer) and above the
-                            // wallpaper/blur.
-                            render_elements.extend(
-                                deco_below.into_iter().map(OutputStack::Deco),
-                            );
-                            // Below the bar (and windows), above the wallpaper.
+                            // Top/overlay layer surfaces (the bar) above all windows.
+                            for surface in &upper_layers {
+                                render_layer(renderer, &mut render_elements, surface);
+                            }
+                            // Defensive: chrome whose window can't be matched in the
+                            // space stacking below would otherwise render behind every
+                            // window (titlebar tucked behind an overlapping app). Draw
+                            // any such orphans on top instead — a visible glitch beats
+                            // an invisible one — and flag it so we can chase the cause.
+                            {
+                                let stack_ids: std::collections::HashSet<u32> = state
+                                    .space
+                                    .elements()
+                                    .filter_map(|w| state.windows.id_for_window(w))
+                                    .collect();
+                                let orphans: Vec<u32> = deco_below
+                                    .keys()
+                                    .copied()
+                                    .filter(|id| !stack_ids.contains(id))
+                                    .collect();
+                                for id in orphans {
+                                    tracing::warn!(id, "deco: window chrome not matched to a stacked window — drawing on top");
+                                    if let Some(decos) = deco_below.remove(&id) {
+                                        render_elements
+                                            .extend(decos.into_iter().map(OutputStack::Deco));
+                                    }
+                                }
+                            }
+                            // Windows top-to-bottom, each immediately followed by its
+                            // own server-side chrome so an overlapping window can
+                            // never hide a lower window's titlebar/border.
+                            // `space.elements()` yields bottom-to-top, so reverse it.
+                            let stacking: Vec<Window> =
+                                state.space.elements().cloned().collect();
+                            for window in stacking.iter().rev() {
+                                // Match smithay's `render_location`: the surface
+                                // origin sits at the mapped location minus the
+                                // window-geometry offset (CSD shadow margin). GTK
+                                // changes that offset between floating and tiled, so
+                                // using the raw map location shifts snapped windows.
+                                let loc = (state
+                                    .space
+                                    .element_location(window)
+                                    .unwrap_or_default()
+                                    - window.geometry().loc)
+                                    .to_physical_precise_round(output_scale);
+                                let elems = AsRenderElements::<GlesRenderer>::render_elements::<
+                                    WaylandSurfaceRenderElement<GlesRenderer>,
+                                >(
+                                    window, renderer, loc, output_scale, 1.0
+                                );
+                                render_elements
+                                    .extend(elems.into_iter().map(OutputStack::Surface));
+                                if let Some(id) = state.windows.id_for_window(window) {
+                                    if let Some(decos) = deco_below.remove(&id) {
+                                        render_elements
+                                            .extend(decos.into_iter().map(OutputStack::Deco));
+                                    }
+                                }
+                            }
+                            // Any remaining chrome belongs to mapped windows that were
+                            // handled inline above; nothing should be left here.
+                            debug_assert!(deco_below.is_empty());
+                            // Background/bottom layer surfaces beneath the windows.
+                            for surface in &lower_layers {
+                                render_layer(renderer, &mut render_elements, surface);
+                            }
+                            // Below the windows, above the wallpaper.
                             if let Some(blur) = blur_element {
                                 render_elements.push(OutputStack::Blur(blur));
                             }

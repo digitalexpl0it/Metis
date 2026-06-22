@@ -84,6 +84,20 @@ impl XdgShellHandler for MetisState {
                 .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == wl_surface))
                 .unwrap()
                 .clone();
+            // Raise to the top before moving. Dragging a GTK headerbar issues this
+            // client-side move request; without an explicit raise the window keeps
+            // its old stacking position and slides *behind* whatever it's dragged
+            // over (its titlebar disappears under the other app). The SSD-titlebar
+            // and X11 move paths already raise — mirror them here.
+            self.space.raise_element(&window, true);
+            if let Some(keyboard) = self.seat.get_keyboard() {
+                keyboard.set_focus(self, Some(window.clone().into()), serial);
+            }
+            if let Some(id) = self.windows.id_for_window(&window) {
+                self.event_bus
+                    .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+            }
+            self.schedule_redraw();
             let initial_window_location = self.space.element_location(&window).unwrap();
             let grab = MoveSurfaceGrab {
                 start_data,

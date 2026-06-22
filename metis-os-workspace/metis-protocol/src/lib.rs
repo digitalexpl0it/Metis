@@ -11,6 +11,11 @@ pub enum CompositorCommand {
     MoveWindow { id: u32, rect: PixelRect },
     CloseWindow { id: u32 },
     FocusWindow { id: u32 },
+    /// Minimize or restore a window by id (works for grid and floating windows).
+    SetMinimized { id: u32, minimized: bool },
+    /// Bring a window to the foreground: unminimize (if needed), raise, and focus.
+    /// Used by the taskbar to surface a background/minimized app.
+    ActivateWindow { id: u32 },
     SetFullscreen { id: u32, enabled: bool },
     ApplyLayout { layout: GridLayout, gutter_px: u32 },
     SetTileMode { tile_id: String, mode: TileMode },
@@ -54,6 +59,7 @@ pub enum CompositorEvent {
     },
     WindowClosed { id: u32 },
     WindowFocused { id: u32 },
+    WindowMinimized { id: u32, minimized: bool },
     WindowMetadata {
         id: u32,
         title: String,
@@ -71,6 +77,16 @@ pub struct WindowInfo {
     pub app_id: Option<String>,
     pub rect: PixelRect,
     pub fullscreen: bool,
+    #[serde(default)]
+    pub minimized: bool,
+    #[serde(default)]
+    pub focused: bool,
+    /// Output the window is currently on (0 until multi-output lands in Phase 3).
+    #[serde(default)]
+    pub output: u32,
+    /// Workspace the window belongs to (0 until workspaces land in Phase 3).
+    #[serde(default)]
+    pub workspace: u32,
 }
 
 pub fn ipc_socket_path() -> std::path::PathBuf {

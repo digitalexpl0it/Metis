@@ -3,6 +3,7 @@ mod launcher;
 mod menu;
 mod notifications;
 pub mod sys;
+mod tasks;
 mod weather;
 pub mod workspaces;
 
@@ -18,11 +19,13 @@ use clock::ClockWidget;
 use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
 use sys::{BatteryWidget, NetworkWidget, VolumeWidget};
+use tasks::TasksWidget;
 use weather::WeatherWidget;
 use workspaces::WorkspacesWidget;
 
 pub struct WidgetRefs {
     workspaces: RefCell<Option<WorkspacesWidget>>,
+    tasks: RefCell<Option<TasksWidget>>,
     clock: RefCell<Option<ClockWidget>>,
     battery: RefCell<Option<BatteryWidget>>,
     network: RefCell<Option<NetworkWidget>>,
@@ -55,6 +58,15 @@ impl WidgetRefs {
         }
     }
 
+    /// Repaint the taskbar from the latest window store snapshot. The tasks
+    /// widget also self-refreshes via the window store's `register_refresh` hook;
+    /// this fan-out is the explicit driver for callers that hold the snapshot.
+    pub fn apply_tasks(&self, snapshot: &crate::services::windows::WindowsSnapshot) {
+        if let Some(w) = self.tasks.borrow().as_ref() {
+            w.update(snapshot);
+        }
+    }
+
     /// Weather arrives on its own (slow) channel, separate from the poll snapshot.
     pub fn apply_weather(&self, snapshot: &crate::services::WeatherSnapshot) {
         if let Some(w) = self.weather.borrow().as_ref() {
@@ -66,6 +78,7 @@ impl WidgetRefs {
 pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
     let refs = WidgetRefs {
         workspaces: RefCell::new(None),
+        tasks: RefCell::new(None),
         clock: RefCell::new(None),
         battery: RefCell::new(None),
         network: RefCell::new(None),
@@ -101,6 +114,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
                 append_bar_widget(root, w.root(), bar_orientation);
                 w.update(&crate::services::workspace_snapshot());
                 *refs.workspaces.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Tasks => {
+                let w = TasksWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.tasks.borrow_mut() = Some(w);
             }
             BarWidgetId::Clock => {
                 let w = ClockWidget::new(&cfg.clock);

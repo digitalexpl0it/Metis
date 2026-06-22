@@ -22,6 +22,9 @@ pub struct WindowRecord {
     pub minimized: bool,
     /// True after the first buffer commit; probe toplevels that never commit are dropped quietly.
     pub ready: bool,
+    /// When the toplevel was registered — used to measure how long it waits for
+    /// its initial configure / first map (client load latency).
+    pub created: std::time::Instant,
 }
 
 pub struct WindowRegistry {
@@ -65,6 +68,7 @@ impl WindowRegistry {
                 maximized: false,
                 minimized: false,
                 ready: false,
+                created: std::time::Instant::now(),
             },
         );
         id
@@ -162,6 +166,9 @@ impl WindowRegistry {
         self.by_id.get(&id).is_some_and(|r| r.minimized)
     }
 
+    /// Snapshot of ready windows. `focused` is left `false` here (the registry
+    /// has no seat access); the caller patches the focused id. `output`/`workspace`
+    /// are placeholders (0) until multi-output/workspaces land in Phase 3.
     pub fn list(&self) -> Vec<WindowInfo> {
         self.by_id
             .values()
@@ -172,6 +179,10 @@ impl WindowRegistry {
                 app_id: r.app_id.clone(),
                 rect: r.target_rect,
                 fullscreen: r.fullscreen,
+                minimized: r.minimized,
+                focused: false,
+                output: 0,
+                workspace: 0,
             })
             .collect()
     }

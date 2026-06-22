@@ -248,6 +248,88 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border: 1.5px solid rgba({text_rgb}, 0.55);
     }}
 
+    /* Taskbar / running-apps dock. The ScrolledWindow hosts a horizontal row of
+       app buttons; its scrollbar gutter is hidden so overflow scrolls without a
+       visible track stealing bar height. */
+    .metis-bar-tasks {{
+        background-color: transparent;
+        min-height: 0;
+    }}
+
+    .metis-bar-tasks scrollbar,
+    .metis-bar-tasks scrollbar.horizontal {{
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        opacity: 0;
+    }}
+
+    .metis-bar-tasks-row {{
+        background-color: transparent;
+        padding: 0 2px;
+    }}
+
+    /* Each app entry reuses the shared bar-widget geometry; the indicator dot and
+       focus highlight are layered on top via state classes. */
+    .metis-bar-task {{
+        padding: 0 6px;
+        background-color: transparent;
+    }}
+
+    /* Running-app underline dot, centered under the icon. */
+    .metis-bar-task-dot {{
+        min-width: 5px;
+        min-height: 5px;
+        margin-bottom: 1px;
+        border-radius: 999px;
+        background-color: rgba({text_rgb}, 0.45);
+    }}
+
+    .metis-bar-task.running .metis-bar-task-dot {{
+        background-color: rgba({accent_rgb}, 0.9);
+    }}
+
+    /* The focused app gets a wider, brighter accent pill under the icon. */
+    .metis-bar-task.focused .metis-bar-task-dot {{
+        min-width: 12px;
+        background-color: {accent};
+    }}
+
+    .metis-bar-task.focused {{
+        background-image: linear-gradient(to top,
+            rgba({accent_rgb}, 0.28) 0%,
+            rgba({accent2_rgb}, 0.10) 45%,
+            rgba(255, 255, 255, 0.05) 100%);
+        border-radius: {rs}px {rs}px 0 0;
+    }}
+
+    /* A fully-minimized app reads as dimmed until restored. */
+    .metis-bar-task.minimized {{
+        opacity: 0.55;
+    }}
+
+    /* Window picker + context menu rows inside task popovers. */
+    .metis-bar-task-pick,
+    .metis-bar-task-menu-item {{
+        background-color: transparent;
+        border-radius: {rs}px;
+        padding: 6px 10px;
+        color: {text};
+    }}
+
+    .metis-bar-task-pick:hover,
+    .metis-bar-task-menu-item:hover {{
+        background-color: rgba({accent_rgb}, 0.18);
+    }}
+
+    .metis-bar-task-pick.focused {{
+        background-color: rgba({accent_rgb}, 0.26);
+    }}
+
+    .metis-bar-task-pick.minimized {{
+        opacity: 0.6;
+    }}
+
     .metis-bar-icon {{
         -gtk-icon-style: regular;
         background-color: transparent;

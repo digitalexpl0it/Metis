@@ -4,8 +4,9 @@
 complete; Phase 2 (`metis-settings` app + server-side window decorations) complete,
 including decoration polish (rounded button glyphs + focus-aware dimming),
 theme-aware + translucent titlebars with an auto-hide overlay for maximized /
-edge-snapped windows, and XWayland support. Next: Phase 3 — broader window
-management (multi-workspace, richer tiling).
+edge-snapped windows, and XWayland support. A taskbar / running-apps dock has
+landed on the edge bar (live window state over IPC). Next: Phase 3 — broader
+window management (multi-monitor, workspaces, richer tiling).
 
 ---
 
@@ -105,6 +106,52 @@ search. Attribution shown in the popover footer.
 
 ---
 
+## Phase 2.5 — Taskbar / running-apps dock
+
+A dock-style `tasks` widget on the edge bar, driven by live compositor window
+state. Built for a single output now, but designed forward-compatible with the
+Phase 3 per-output bars + per-output workspaces.
+
+- [x] Protocol — `WindowInfo` gains `minimized`/`focused` (+ `output`/`workspace`
+      placeholders for Phase 3); new `SetMinimized`/`ActivateWindow` commands and a
+      `WindowMinimized` event; `WindowFocused` now also pushed on the event bus
+- [x] Compositor — minimize/restore/activate by id (grid tiles routed through
+      `set_tile_mode`, floating windows directly), focus emitted on pointer focus
+- [x] Shell window-state cache (`services/windows.rs`) — folds the compositor event
+      stream into a snapshot, seeded by `list_windows()` with a slow reconcile
+- [x] Per-app grouping — windows grouped by resolved app identity (desktop id /
+      `StartupWMClass`, case-insensitive `app_id` match, fallback icon)
+- [x] Running indicator dot + focus highlight; minimized apps dimmed
+- [x] Click — toggle focus/minimize (single window), window picker popover
+      (multi-window), launch (pinned-but-not-running)
+- [x] Right-click — pin/unpin (separate `taskbar_pinned` list in `bar.json`) and
+      close window(s)
+- [x] Overflow — horizontal scroll when the dock outgrows the bar
+
+---
+
+## Phase 3 — Multi-monitor, workspaces & tiling
+
+Broaden window management beyond the single-output, single-desktop stub. Staged
+so each milestone is shippable on its own:
+
+- [ ] **Output-agnostic refactor** — remove the `space.outputs().next()` /
+      single-monitor assumptions; thread an output id through placement, grid,
+      snapping, decorations, and IPC
+- [ ] **Per-output state** — each output owns its own usable area, grid, and
+      wallpaper; the bar (and dock) become per-output
+- [ ] **Per-output workspaces** — Hyprland-style: each workspace is its own grid;
+      switch/move-to-workspace keybinds + IPC; the workspaces widget drives them
+- [ ] **Virtual outputs under winit** — simulate multiple monitors in the nested
+      dev session for testing before real DRM/udev
+- [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs
+- [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
+- [ ] Taskbar follows: filter the dock to the current output + active workspace
+      (the `WindowInfo.output`/`workspace` fields are already reserved)
+- [ ] DRM/udev backend (real multi-seat sessions) — deferred until the above lands
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
@@ -140,6 +187,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   "blur_radius": 18.0,
   "widgets": [
     "workspaces",
+    "tasks",
     "spacer",
     "weather",
     "battery",
@@ -153,7 +201,8 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
     "date_format": "%a %b %d",
     "timezones": ["UTC"]
   },
-  "workspace_count": 4
+  "workspace_count": 4,
+  "taskbar_pinned": []
 }
 ```
 
@@ -170,10 +219,11 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `titlebar_opacity` | Server-side titlebar background opacity (0–1); title/buttons stay opaque |
 | `blur` | Enable the compositor Gaussian backdrop blur behind the bar |
 | `blur_radius` | Blur strength in pixels (1–64) when `blur` is on |
-| `widgets` | Ordered list; `spacer` pushes following widgets apart |
+| `widgets` | Ordered list; `spacer` pushes following widgets apart. Includes `tasks` (the running-apps dock) |
 | `clock.time_format` / `date_format` | `chrono` format strings |
 | `clock.timezones` | Extra zones listed in the calendar popover |
 | `workspace_count` | Number of workspace indicator dots (1–12) |
+| `taskbar_pinned` | App ids pinned to the `tasks` dock, in order (independent of `menu.json` launcher pins) |
 
 Edit `bar.json` while the shell runs — changes apply within ~1s (the compositor
 also re-reads `blur`/`blur_radius` live). Legacy layouts are migrated to the
@@ -216,6 +266,7 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Widget | Source |
 |--------|--------|
 | Workspaces | Metis compositor (single desktop stub) |
+| Tasks | Running-apps dock — live compositor window state (`services/windows.rs`), per-app grouping, pin/minimize |
 | Clock | `chrono` + `GtkCalendar`, tabbed popover (world clocks, stopwatch, timer, alarms) |
 | Battery | `/sys/class/power_supply/BAT*` |
 | Network | `nmcli` or sysfs fallback |

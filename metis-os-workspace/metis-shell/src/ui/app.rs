@@ -43,12 +43,24 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
         while let Ok(event) = event_rx.try_recv() {
             match event {
                 SystemEvent::Status(msg) => tracing::debug!(%msg, "status"),
-                SystemEvent::CompositorConnected | SystemEvent::Compositor(_) => {}
+                SystemEvent::CompositorConnected => {
+                    crate::services::windows::reconcile_now();
+                }
+                SystemEvent::Compositor(evt) => {
+                    crate::services::windows::apply_event(&evt);
+                }
                 SystemEvent::BriefingReady(items) => {
                     tracing::info!(count = items.len(), "briefing ready");
                 }
             }
         }
+        glib::ControlFlow::Continue
+    });
+
+    // Safety-net reconcile: the event stream is authoritative, but a periodic
+    // ListWindows resync guards against any dropped/missed window events.
+    glib::timeout_add_seconds_local(5, || {
+        crate::services::windows::reconcile_now();
         glib::ControlFlow::Continue
     });
 }

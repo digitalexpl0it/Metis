@@ -43,7 +43,16 @@ pub fn drain_ipc(state: &mut MetisState) {
     }
 
     for mut stream in pending {
-        let _ = stream.set_nonblocking(true);
+        // A freshly-accepted connection may not have its command bytes available
+        // in this same drain pass (the client connects, then writes). Reading
+        // non-blocking here dropped the connection without a reply whenever we
+        // lost that race, which surfaced as `EAGAIN` on the shell. Use a short
+        // blocking read/write timeout instead: clients write immediately after
+        // connecting, so this returns in well under a millisecond in practice and
+        // only ever waits when a command is genuinely mid-flight.
+        let timeout = std::time::Duration::from_millis(50);
+        let _ = stream.set_read_timeout(Some(timeout));
+        let _ = stream.set_write_timeout(Some(timeout));
         let request = match read_request_line(&mut stream) {
             Some(line) => line,
             None => continue,
@@ -88,7 +97,14 @@ fn read_request_line(stream: &mut std::os::unix::net::UnixStream) -> Option<Stri
                     break;
                 }
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                break;
+            }
             Err(e) => {
                 tracing::warn!(%e, "IPC read error");
                 break;

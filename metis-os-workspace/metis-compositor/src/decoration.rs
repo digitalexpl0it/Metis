@@ -146,7 +146,12 @@ pub struct WindowDeco {
 /// surfaces: `below` chrome draws behind the clients (it only fills the reserved
 /// gaps), `overlay` chrome draws on top of them (the auto-hide titlebar reveal).
 pub struct DecoElements {
-    pub below: Vec<DecorationElement>,
+    /// Normal chrome, grouped per window id. The renderer interleaves each
+    /// window's chrome directly beneath that window's own surface (and above the
+    /// windows stacked below it), so an overlapping window can never hide a
+    /// lower window's titlebar.
+    pub below: HashMap<u32, Vec<DecorationElement>>,
+    /// Auto-hide reveal chrome (drawn above all clients as a translucent strip).
     pub overlay: Vec<DecorationElement>,
 }
 
@@ -286,7 +291,7 @@ impl DecorationRuntime {
         }
         let commit = self.commit;
 
-        let mut below = Vec::with_capacity(windows.len() * 7);
+        let mut below: HashMap<u32, Vec<DecorationElement>> = HashMap::new();
         let mut overlay = Vec::new();
         for w in windows {
             let frame = w.frame;
@@ -294,8 +299,13 @@ impl DecorationRuntime {
                 continue;
             }
             // Overlay (auto-hide reveal) chrome stacks above the client; normal
-            // chrome stacks below it.
-            let out = if w.overlay { &mut overlay } else { &mut below };
+            // chrome is grouped per window so the renderer can stack it directly
+            // beneath that window (and above the windows below it).
+            let out = if w.overlay {
+                &mut overlay
+            } else {
+                below.entry(w.id).or_default()
+            };
             // Dim only the titlebar fill; the title text and traffic-light buttons
             // are drawn as separate elements and stay fully opaque.
             let titlebar_rgb = if w.focused {

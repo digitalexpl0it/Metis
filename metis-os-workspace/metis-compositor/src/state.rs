@@ -72,6 +72,10 @@ const CENTERED_FLOAT_TITLES: &[&str] = &["Metis Settings"];
 /// Default size for a centered floating app when nothing is saved yet.
 const DEFAULT_FLOAT_W: i32 = 900;
 const DEFAULT_FLOAT_H: i32 = 660;
+/// Smallest width/height (logical px) considered a valid persisted window size.
+/// Guards against stale degenerate entries (e.g. a 1x1 saved by a window torn
+/// down before it ever got a buffer) reopening as an unusable sliver.
+const MIN_SAVED_WINDOW_PX: i32 = 120;
 
 pub struct MetisState {
     pub start_time: std::time::Instant,
@@ -852,23 +856,87 @@ impl MetisState {
                 .unwrap()
                 .set_focus(self, Option::<KeyboardFocusTarget>::None, serial);
         }
+        self.event_bus.emit(&metis_protocol::CompositorEvent::WindowMinimized {
+            id,
+            minimized: true,
+        });
     }
 
     fn unminimize_window(&mut self, id: u32) {
         self.windows.set_minimized(id, false);
         self.apply_window_rect(id);
+        self.event_bus.emit(&metis_protocol::CompositorEvent::WindowMinimized {
+            id,
+            minimized: false,
+        });
+    }
+
+    /// Minimize a window by id, routing grid tiles through `set_tile_mode` (so the
+    /// tile's mode stays consistent) and floating windows directly. Mirrors the
+    /// decoration minimize button.
+    pub fn minimize_by_id(&mut self, id: u32) {
+        if let Some(tile_id) = self.tile_id_for_window(id) {
+            self.set_tile_mode(&tile_id, metis_protocol::TileMode::Minimized);
+        } else {
+            self.minimize_window(id);
+        }
+    }
+
+    /// Restore a window by id (grid tiles back to Grid mode, floating windows via
+    /// `unminimize_window`).
+    pub fn restore_by_id(&mut self, id: u32) {
+        if !self.windows.is_minimized(id) {
+            return;
+        }
+        if let Some(tile_id) = self.tile_id_for_window(id) {
+            self.set_tile_mode(&tile_id, metis_protocol::TileMode::Grid);
+        } else {
+            self.unminimize_window(id);
+        }
+    }
+
+    /// Bring a window to the foreground: restore if minimized, raise, and focus.
+    pub fn activate_window_by_id(&mut self, id: u32) {
+        self.restore_by_id(id);
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        self.space.raise_element(&record.window, true);
+        let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+        self.seat
+            .get_keyboard()
+            .unwrap()
+            .set_focus(self, Some(record.window.clone().into()), serial);
+        self.event_bus
+            .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+        self.schedule_redraw();
     }
 
     pub fn apply_window_rect(&mut self, id: u32) {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
+        // Never (re)map a minimized window. Restoring goes through
+        // `unminimize_window`, which clears the flag *before* calling this. Without
+        // this guard a bulk `reposition_all_windows` (triggered when restoring a
+        // single grid tile) would re-map and un-minimize *every* minimized window.
+        if self.windows.is_minimized(id) {
+            return;
+        }
         // Floating windows keep their free geometry (only recovered if they'd
         // land off every active output); grid windows snap to their tile.
         let rect = if self.floating.contains(&id) {
-            self.windows
-                .target_rect(id)
-                .map(|r| self.recover_offscreen_rect(r))
+            // Auto-hide (snapped/maximized) windows map flush under the bar; only
+            // ordinary floating windows reserve the titlebar strip above the body.
+            let auto_hide = self.auto_hide_titlebar.contains(&id);
+            self.windows.target_rect(id).map(|r| {
+                let r = self.recover_offscreen_rect(r);
+                if auto_hide {
+                    r
+                } else {
+                    self.clamp_body_below_bar(r)
+                }
+            })
         } else {
             self.rect_for_window_tile(id).map(app_tile_body_rect)
         };
@@ -880,15 +948,11 @@ impl MetisState {
             .space
             .elements()
             .any(|w| self.windows.id_for_window(w) == Some(id));
-        if self.windows.is_minimized(id) {
-            self.windows.set_minimized(id, false);
-        }
         let loc = Point::from((rect.x, rect.y));
         let width = rect.width.max(1);
         let height = rect.height.max(1);
         let size = Size::from((width, height));
         if mapped
-            && !self.windows.is_minimized(id)
             && self
                 .space
                 .element_location(&record.window)
@@ -902,6 +966,13 @@ impl MetisState {
             self.space.unmap_elem(&record.window);
         }
         self.space.map_element(record.window.clone(), loc, true);
+        if !record.toplevel.is_initial_configure_sent() {
+            tracing::info!(
+                id,
+                waited_ms = record.created.elapsed().as_millis() as u64,
+                "loadlat: sending INITIAL configure (first map via apply_window_rect)"
+            );
+        }
         record.toplevel.with_pending_state(|state| {
             state.size = Some(size);
         });
@@ -1125,6 +1196,20 @@ impl MetisState {
         }
     }
 
+    /// Keep a floating window's *body* low enough that its server-side titlebar
+    /// (drawn `APP_TILE_HEADER_PX` above the body) stays below the edge bar. The
+    /// move grab enforces this live; this covers the other entry points (restored
+    /// saved geometry, re-applied floating rects) so chrome never tucks under the
+    /// bar. Auto-hide windows are mapped flush by design and must skip this.
+    pub fn clamp_body_below_bar(&self, mut rect: PixelRect) -> PixelRect {
+        let zone = self.placement_zone();
+        let min_y = zone.y + BAR_GAP_PX + metis_grid::APP_TILE_HEADER_PX;
+        if rect.y < min_y {
+            rect.y = min_y;
+        }
+        rect
+    }
+
     /// Auto-place a window if it hasn't been positioned yet. Safe to call again
     /// whenever the app_id becomes known (GTK often sets it just *after* its first
     /// buffer commit, so the initial activation may not see it). No-ops once the
@@ -1150,11 +1235,25 @@ impl MetisState {
         // active monitor (e.g. a monitor that's since been disconnected).
         if let Some(app_id) = app_id {
             if let Some(saved) = self.window_state.get(app_id) {
-                let rect = self.recover_offscreen_rect(saved.to_rect());
-                self.floating.insert(id);
-                self.windows.set_target_rect(id, rect);
-                tracing::info!(id, "place_new_window: restored saved geometry");
-                return true;
+                let saved_rect = saved.to_rect();
+                // Ignore degenerate saved geometry (a stale 1x1 from a window that
+                // never got a buffer) so the app falls back to a sane default.
+                if saved_rect.width < MIN_SAVED_WINDOW_PX
+                    || saved_rect.height < MIN_SAVED_WINDOW_PX
+                {
+                    self.window_state.remove(app_id);
+                } else {
+                    let rect = self.recover_offscreen_rect(saved_rect);
+                    // Geometry saved from a snapped/maximized (auto-hide) window
+                    // sits flush under the bar; restored as a floating window its
+                    // titlebar would draw above the body, under the edge bar. Drop
+                    // it below.
+                    let rect = self.clamp_body_below_bar(rect);
+                    self.floating.insert(id);
+                    self.windows.set_target_rect(id, rect);
+                    tracing::info!(id, "place_new_window: restored saved geometry");
+                    return true;
+                }
             }
         }
         // No saved state: center apps that default to floating. Match on app_id, or
@@ -1204,6 +1303,12 @@ impl MetisState {
         } else {
             record.target_rect
         };
+        // Never persist a degenerate size (e.g. a window torn down before it ever
+        // got a real buffer would save 1x1, which then reopens as an unusable
+        // sliver). Keep the previous good value instead.
+        if rect.width < MIN_SAVED_WINDOW_PX || rect.height < MIN_SAVED_WINDOW_PX {
+            return;
+        }
         self.window_state
             .set(&app_id, crate::window_state::SavedGeometry::from_rect(rect));
     }
@@ -1211,6 +1316,27 @@ impl MetisState {
     /// Handle a pointer press that may land on a server-side decoration (titlebar,
     /// control buttons, or border). Returns true when the press was consumed by the
     /// decoration (so the caller must not forward it to a client surface).
+    /// Give keyboard focus to a window because its server-side chrome was
+    /// clicked, and report it to the shell. No-op when already focused.
+    fn focus_window_chrome(&mut self, id: u32, serial: smithay::utils::Serial) {
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        // Always raise: clicking any chrome must bring the window to the front,
+        // even when it already holds keyboard focus (it can still be stacked
+        // behind another window after a raise of its neighbor).
+        self.space.raise_element(&record.window, true);
+        self.schedule_redraw();
+        if self.focused_window_id() == Some(id) {
+            return;
+        }
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+        }
+        self.event_bus
+            .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+    }
+
     pub fn handle_decoration_press(
         &mut self,
         loc: Point<f64, Logical>,
@@ -1252,6 +1378,11 @@ impl MetisState {
                 // Inside the client body → not a decoration hit; let it pass through.
                 return false;
             }
+            // Clicking any of a window's chrome focuses it, so the taskbar
+            // highlight tracks focus immediately instead of waiting for the
+            // periodic reconcile (decoration presses otherwise bypass the
+            // keyboard-focus path entirely).
+            self.focus_window_chrome(spec.id, serial);
             for (control, rect) in control_hitboxes(frame) {
                 if !point_in_rect(x, y, rect) {
                     continue;
@@ -1490,10 +1621,33 @@ impl MetisState {
         self.clear_tiled_states(id);
         self.clear_auto_hide(id);
         self.windows.set_maximized(id, false);
-        let initial_window_location = self
+        let mut initial_window_location = self
             .space
             .element_location(&window)
             .unwrap_or_default();
+
+        // A top-touching snap (or maximize) maps the body flush under the bar with
+        // no reserved titlebar strip. Floating it restores a persistent titlebar
+        // drawn *above* the body, so the body must drop by the chrome height or
+        // that titlebar renders under the edge bar until the first drag motion
+        // clamps it. Re-map below the bar up front so chrome never overlaps it.
+        if let Some(zone) = self.usable_zone() {
+            let min_y = zone.y + BAR_GAP_PX + metis_grid::APP_TILE_HEADER_PX;
+            if initial_window_location.y < min_y {
+                initial_window_location.y = min_y;
+                self.space
+                    .map_element(window.clone(), initial_window_location, true);
+                self.windows.set_target_rect(
+                    id,
+                    metis_grid::PixelRect {
+                        x: initial_window_location.x,
+                        y: initial_window_location.y,
+                        width: window.geometry().size.w,
+                        height: window.geometry().size.h,
+                    },
+                );
+            }
+        }
 
         // Focus the window so keyboard input follows the titlebar grab.
         if let Some(keyboard) = self.seat.get_keyboard() {
@@ -1674,9 +1828,16 @@ impl MetisState {
                 gutter_px: self.gutter_px,
                 metrics: self.grid_metrics(),
             },
-            CompositorCommand::ListWindows => CompositorEvent::WindowList {
-                windows: self.windows.list(),
-            },
+            CompositorCommand::ListWindows => {
+                let focused = self.focused_window_id();
+                let mut windows = self.windows.list();
+                if let Some(fid) = focused {
+                    for w in &mut windows {
+                        w.focused = w.id == fid;
+                    }
+                }
+                CompositorEvent::WindowList { windows }
+            }
             CompositorCommand::MoveWindow { id, rect } => {
                 self.windows.set_target_rect(id, rect);
                 self.apply_window_rect(id);
@@ -1694,11 +1855,37 @@ impl MetisState {
                         Some(record.window.clone().into()),
                         serial,
                     );
+                    self.event_bus
+                        .emit(&CompositorEvent::WindowFocused { id });
                     CompositorEvent::WindowFocused { id }
                 } else {
                     CompositorEvent::Error {
                         message: format!("window {id} not found"),
                     }
+                }
+            }
+            CompositorCommand::SetMinimized { id, minimized } => {
+                if self.windows.get(id).is_none() {
+                    CompositorEvent::Error {
+                        message: format!("window {id} not found"),
+                    }
+                } else {
+                    if minimized {
+                        self.minimize_by_id(id);
+                    } else {
+                        self.activate_window_by_id(id);
+                    }
+                    CompositorEvent::LayoutApplied
+                }
+            }
+            CompositorCommand::ActivateWindow { id } => {
+                if self.windows.get(id).is_none() {
+                    CompositorEvent::Error {
+                        message: format!("window {id} not found"),
+                    }
+                } else {
+                    self.activate_window_by_id(id);
+                    CompositorEvent::WindowFocused { id }
                 }
             }
             CompositorCommand::SetFullscreen { id, enabled } => {
@@ -1750,6 +1937,37 @@ impl MetisState {
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
         let id = self.windows.register(window, title, app_id);
         self.ensure_app_tile_for_window(id);
+        tracing::info!(id, "loadlat: toplevel registered (awaiting initial configure)");
+    }
+
+    /// Send the initial xdg configure as soon as the client makes its first
+    /// commit, rather than waiting for a later layout/placement pass.
+    ///
+    /// A Wayland client cannot attach its first buffer until it has acked the
+    /// initial configure, so deferring it stalls the window's first paint. With
+    /// the old behavior a toplevel only got configured as a side effect of an
+    /// unrelated layout pass — terminals like foot/alacritty/kitty could hang
+    /// for many seconds, or forever if nothing else happened. Priming the
+    /// configure here decouples client startup from Metis's layout passes.
+    ///
+    /// The configure carries the real placement size (saved geometry / grid
+    /// tile) so the window opens at its final size instead of a placeholder.
+    pub fn ensure_initial_configure(&mut self, id: u32) {
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        if record.toplevel.is_initial_configure_sent() {
+            return;
+        }
+        // Make sure metadata + placement are decided before the configure goes
+        // out, so the size is correct on the very first map.
+        let (title, app_id) = read_toplevel_metadata(&record.toplevel);
+        self.windows.set_metadata(id, title.clone(), app_id.clone());
+        self.set_app_tile_display_name(id, &title, app_id.as_deref());
+        if !self.floating.contains(&id) {
+            self.place_new_window(id, app_id.as_deref());
+        }
+        self.apply_window_rect(id);
     }
 
     pub fn activate_window(&mut self, id: u32) {
@@ -1766,8 +1984,10 @@ impl MetisState {
 
         let already_ready = self.windows.is_ready(id);
         // First activation: choose a placement (restore saved geometry or center
-        // default-floating apps) before the window is mapped.
-        if !already_ready {
+        // default-floating apps) before the window is mapped. Skip it when the
+        // window was already primed (initial configure sent on first commit) so
+        // we don't re-run placement.
+        if !already_ready && !record.toplevel.is_initial_configure_sent() {
             self.place_new_window(id, app_id.as_deref());
         }
         self.apply_window_rect(id);
@@ -1777,6 +1997,11 @@ impl MetisState {
         }
 
         self.windows.set_ready(id, true);
+        tracing::info!(
+            id,
+            total_ms = record.created.elapsed().as_millis() as u64,
+            "loadlat: window READY (first buffer mapped, WindowOpened)"
+        );
 
         let suggested_rect = self
             .rect_for_window_tile(id)
@@ -1796,6 +2021,19 @@ impl MetisState {
             app_id,
             suggested_rect,
         });
+
+        // A freshly mapped window becomes the active one: raise it, give it
+        // keyboard focus, and report the focus to the shell. Without this the
+        // taskbar starts with no focused window, so the first click on a dock
+        // icon only re-focuses the (already visible) app instead of minimizing
+        // it, forcing a wasted first click.
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            self.space.raise_element(&record.window, true);
+            let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+            keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+            self.event_bus
+                .emit(&CompositorEvent::WindowFocused { id });
+        }
     }
 
     pub(crate) fn set_app_tile_display_name(&mut self, window_id: u32, title: &str, app_id: Option<&str>) {
@@ -1820,11 +2058,16 @@ impl MetisState {
         if self.windows.is_ready(id) {
             return;
         }
-        let has_buffer = smithay::wayland::compositor::with_states(surface, |states| {
-            use smithay::wayland::compositor::SurfaceAttributes;
-            let mut attrs = states.cached_state.get::<SurfaceAttributes>();
-            attrs.current().buffer.is_some() || attrs.pending().buffer.is_some()
-        });
+        // Must read the *renderer* surface state, not `SurfaceAttributes.buffer`:
+        // `on_commit_buffer_handler` (run at the top of the commit handler) consumes
+        // the attribute buffer, so `SurfaceAttributes.current().buffer` is `None`
+        // except on the exact frame a buffer was attached. That made activation
+        // (and therefore `WindowOpened` + the `ready` flag) effectively never fire.
+        let has_buffer =
+            smithay::backend::renderer::utils::with_renderer_surface_state(surface, |state| {
+                state.buffer().is_some()
+            })
+            .unwrap_or(false);
         if has_buffer {
             self.activate_window(id);
         }

@@ -46,6 +46,7 @@ impl Default for ClockConfig {
 #[serde(rename_all = "snake_case")]
 pub enum BarWidgetId {
     Workspaces,
+    Tasks,
     Spacer,
     Clock,
     Battery,
@@ -100,6 +101,10 @@ pub struct BarConfig {
     /// Number of workspace indicator dots (1–12).
     #[serde(default = "default_workspace_count")]
     pub workspace_count: u32,
+    /// App ids pinned to the taskbar/dock, in display order. Independent of the
+    /// launcher's `menu.json` pins. Persisted by the tasks widget.
+    #[serde(default)]
+    pub taskbar_pinned: Vec<String>,
 }
 
 fn default_workspace_count() -> u32 {
@@ -149,6 +154,7 @@ fn default_true() -> bool {
 fn default_widgets() -> Vec<BarWidgetId> {
     vec![
         BarWidgetId::Workspaces,
+        BarWidgetId::Tasks,
         BarWidgetId::Spacer,
         BarWidgetId::Weather,
         BarWidgetId::Battery,
@@ -176,6 +182,7 @@ impl Default for BarConfig {
             widgets: default_widgets(),
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),
+            taskbar_pinned: Vec::new(),
         }
     }
 }
@@ -263,6 +270,21 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
             })
             .unwrap_or(cfg.widgets.len());
         cfg.widgets.insert(pos, BarWidgetId::Weather);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    }
+
+    // Insert the taskbar/dock into pre-existing layouts that predate it, just
+    // after the workspaces cluster on the left (or at the front otherwise).
+    if !cfg.widgets.contains(&BarWidgetId::Tasks) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Workspaces))
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        cfg.widgets.insert(pos, BarWidgetId::Tasks);
         if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
             let _ = std::fs::write(bar_config_path(), json);
         }
