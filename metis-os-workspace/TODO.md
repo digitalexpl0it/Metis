@@ -1,9 +1,11 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 (edge bar) complete; Phase 2 (`metis-settings` app +
-server-side window decorations) complete, including decoration polish (rounded
-button glyphs + focus-aware dimming). Next: Phase 3 — broader window management
-(multi-workspace, richer tiling).
+**Current phase:** Phase 1 (edge bar, incl. the ArcMenu-style app launcher)
+complete; Phase 2 (`metis-settings` app + server-side window decorations) complete,
+including decoration polish (rounded button glyphs + focus-aware dimming),
+theme-aware + translucent titlebars with an auto-hide overlay for maximized /
+edge-snapped windows, and XWayland support. Next: Phase 3 — broader window
+management (multi-workspace, richer tiling).
 
 ---
 
@@ -27,6 +29,10 @@ button glyphs + focus-aware dimming). Next: Phase 3 — broader window managemen
 - [x] Themeable token palette — accent + secondary accent, semantic status colors,
       `text_on_accent`, configurable shadows/glows drive the stylesheet
 - [x] Bar transparency (`opacity`) + compositor backdrop blur (`blur`/`blur_radius`)
+- [x] App launcher — ArcMenu-style popover off the brand icon: quick launchers +
+      power actions rail, Frequent/alphabetical app list with apps-only search,
+      and a pinnable apps grid; translucent panel (`menu_opacity`) with in-surface
+      tooltips, dismissed synchronously on launch
 
 ---
 
@@ -72,6 +78,15 @@ decorations so it (and every app) gets a real titlebar.
       translucent preview that drops it into half / quarter / maximize regions
       (`metis-grid::pixel_snap_target`, wired through `MoveSurfaceGrab` + winit
       overlay; computed against the usable area so the top zone clears the bar)
+- [x] Theme-aware + translucent titlebar — palette follows the active light/dark
+      theme (live ~1s poll), background opacity via `titlebar_opacity`, rounded
+      top corners + a border that wraps under the titlebar; text/buttons stay opaque
+- [x] Auto-hide titlebar — maximized and left/right/top-corner snaps hide the
+      titlebar (client fills the footprint) and reveal it as a borderless
+      translucent overlay on top-strip hover; oversized clients are re-anchored so
+      the screen-edge gap survives
+- [x] XWayland — spawn/manage an X11 server (`X11Wm`/`XwmHandler`) so X11-only
+      apps run in the nested session alongside Wayland clients
 
 ### Weather
 Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`
@@ -119,6 +134,8 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   "margin_h": 10,
   "full_width": true,
   "opacity": 0.92,
+  "menu_opacity": 0.92,
+  "titlebar_opacity": 1.0,
   "blur": true,
   "blur_radius": 18.0,
   "widgets": [
@@ -149,6 +166,8 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `margin_h` | Margin along the bar's long axis |
 | `full_width` | Span the entire edge vs. hug content |
 | `opacity` | Pill background opacity (0–1); enables a see-through bar |
+| `menu_opacity` | App launcher panel background opacity (0–1); text/icons stay opaque |
+| `titlebar_opacity` | Server-side titlebar background opacity (0–1); title/buttons stay opaque |
 | `blur` | Enable the compositor Gaussian backdrop blur behind the bar |
 | `blur_radius` | Blur strength in pixels (1–64) when `blur` is on |
 | `widgets` | Ordered list; `spacer` pushes following widgets apart |
@@ -173,6 +192,7 @@ cd metis-os-workspace/metis-shell
 | Flag | Effect |
 |------|--------|
 | `--session` | Start Metis compositor + shell (nested dev session) |
+| `--import-env` | (With `--session`) route D-Bus/systemd-activated apps into the nested session, restored on exit |
 | `--build` | Force a rebuild before running |
 | `--release` | Use optimized binaries |
 | `--foreground` | Run in the foreground instead of backgrounding the shell |

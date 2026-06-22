@@ -5,10 +5,39 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2026-06-21]
 
 ### Added
 
+- **App menu launcher (ArcMenu-style)** — the bar's Metis brand icon now opens a
+  popover app menu anchored to the icon (not a fullscreen overlay): a left rail of
+  quick launchers (Files, Terminal, Settings) and power actions (Suspend, Log Out,
+  Restart, Shut Down via `systemctl`), a center column with a **Frequent Apps** +
+  alphabetical list and an apps-only **search**, and a **Pinned** grid you can add
+  to / remove from. Launching an app (or opening Settings) dismisses the menu
+  synchronously so it never lingers behind the new window, and icon tooltips render
+  as an in-surface overlay label so they always paint on top of the panel.
+- **Start menu & window-titlebar transparency** — both the launcher panel and the
+  server-side window titlebar can be made translucent, with independent **Start
+  menu opacity** and **Titlebar opacity** sliders in Settings · Appearance (and
+  `menu_opacity` / `titlebar_opacity` in `bar.json`). Only the backgrounds go
+  transparent — text, icons, and the control buttons stay fully opaque. The
+  titlebar is a cached, anti-aliased texture with rounded top corners and a border
+  that wraps continuously around the window and under the titlebar.
+- **Theme-aware titlebars + auto-hide for maximized / edge-snapped windows** — the
+  server-side titlebar follows the active light/dark theme palette (live, via the
+  compositor's ~1s theme poll). Maximized windows and left/right/top-corner snaps
+  (whose top meets the bar) hide their titlebar so the client uses the whole
+  footprint; moving the pointer into the top strip reveals it as a translucent,
+  borderless overlay with working minimize / maximize / close, hidden again when
+  the pointer leaves.
+- **XWayland support** — the compositor spawns and manages an XWayland server
+  (`X11Wm` / `XwmHandler`), so X11-only apps run inside a nested Metis session and
+  are placed in the window grid alongside Wayland clients.
+- **`run-metis.sh --import-env`** — an opt-in flag for `--session` that pushes the
+  nested `WAYLAND_DISPLAY` (and `DISPLAY`) into the user D-Bus / systemd activation
+  environment so D-Bus-activated apps open inside the nested session, restoring the
+  previous values on exit.
 - **Decoration polish — rounded buttons + focus-aware dimming** — the server-side
   window controls are no longer flat squares: each is a cached, anti-aliased
   rounded button rendered at 3× supersampling. Focused windows show the
@@ -77,6 +106,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Windows could be dragged "through" the open app launcher** — the bar's
+  popovers don't take a Wayland pointer grab, so a press over the open menu fell
+  through to whatever window resize band / titlebar sat geometrically beneath it,
+  letting you move or resize that window through the menu. Presses over the bar UI
+  (strip + any open popover, popup region included) now skip the window-chrome
+  hit-tests entirely.
+- **Snapped / maximized windows lost their screen-edge gap** — an app that can't
+  shrink to its snapped footprint (minimum size larger than the zone, common on a
+  small nested screen) overflowed past the reserved edge gap. Oversized auto-hide
+  windows are now re-anchored to the snapped edge once they commit, so the
+  screen-edge gap survives (the overflow spills toward screen center instead).
+- **App launcher stayed open after launching an app** — launching from the menu
+  deferred the popdown to an idle callback, which the newly focused window
+  swallowed. App launches now close the menu synchronously before spawning.
+- **Duplicate / mis-stacked launcher tooltips** — the rail showed both a native
+  GTK tooltip and the custom one, and they rendered behind the translucent panel.
+  The native tooltip is gone and the custom tooltip is an in-surface overlay label
+  (accessible name preserved), so a single tooltip always paints on top.
+- **Light-mode launcher search box stayed dark** — the search entry inherited
+  GTK's default dark styling; it now uses theme-aware background/border/text/caret
+  colors so it matches both light and dark themes.
 - **Settings · unreadable text on dark accents** — picking a dark accent (e.g.
   black) left the on-accent text dark and illegible. Changing the primary accent
   now auto-derives a readable on-accent text color (near-black or white) from the
@@ -139,11 +189,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   resolution (and feed the bar's backdrop blur just like a wallpaper image does).
   `resolve_path` honors `wallpaper.json`, and `run-metis.sh` defers to it instead
   of forcing `METIS_WALLPAPER` to a default when a selection exists.
-
-## [2026-06-21]
-
-### Added
-
 - **Settings app (`metis-settings`)** — a standalone GTK4 application with a
   sidebar/stack layout and four pages: **Appearance** (theme mode, accent/
   secondary/semantic color pickers, bar opacity + blur + blur radius),

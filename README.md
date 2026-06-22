@@ -85,21 +85,26 @@ for a compositor Gaussian backdrop blur behind it.
 ## Status
 
 Phase 1 — a configurable edge bar on the Metis compositor — is complete. The bar
-ships a tabbed clock popover (calendar, world clocks, stopwatch, movable timer
-HUD, alarms), a grouped notification popup fed by a freedesktop
-(`org.freedesktop.Notifications`) D-Bus daemon, an interactive Wi-Fi popover, and
-a weather widget with a forecast popover (IP-geolocation auto-detect via
-Open-Meteo). Theming is fully token-driven with live reload, and the bar supports
-transparency plus a compositor backdrop blur.
+ships an **ArcMenu-style app launcher** (quick launchers + power actions, a
+Frequent/alphabetical app list with search, and a pinnable apps grid), a tabbed
+clock popover (calendar, world clocks, stopwatch, movable timer HUD, alarms), a
+grouped notification popup fed by a freedesktop (`org.freedesktop.Notifications`)
+D-Bus daemon, an interactive Wi-Fi popover, and a weather widget with a forecast
+popover (IP-geolocation auto-detect via Open-Meteo). Theming is fully token-driven
+with live reload, and the bar (and launcher panel) support transparency plus a
+compositor backdrop blur.
 
 Phase 2 is landing: a standalone **`metis-settings`** app (Appearance, Weather,
 Network, Calendars pages) backed by the shared `metis-config`/`metis-secrets`
 crates, plus **server-side window decorations** — the compositor forces SSD and
 draws a titlebar (with title text), a border, and close/minimize/maximize
-buttons around each tiled window. The Appearance page includes a Light/Dark style
-chooser and a **background picker** — a picture (bundled + imported images, "Add
-Picture…"), a solid colour, or a two-stop gradient with selectable direction —
-that switches the desktop background live and remembers it across restarts. See
+buttons around each tiled window. Titlebars follow the active light/dark theme,
+can be made translucent, and auto-hide (revealing on top-strip hover) for
+maximized and edge-snapped windows; **XWayland** lets X11-only apps run in the
+session too. The Appearance page includes a Light/Dark style chooser and a
+**background picker** — a picture (bundled + imported images, "Add Picture…"), a
+solid colour, or a two-stop gradient with selectable direction — that switches the
+desktop background live and remembers it across restarts. See
 [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the current roadmap and
 [`CHANGELOG.md`](CHANGELOG.md) for recent changes.
 
