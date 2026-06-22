@@ -32,6 +32,7 @@ impl CompositorHandler for MetisState {
 
     fn commit(&mut self, surface: &WlSurface) {
         on_commit_buffer_handler::<MetisState>(surface);
+        let mut committed_id = None;
         if !is_sync_subsurface(surface) {
             let mut root = surface.clone();
             while let Some(parent) = get_parent(&root) {
@@ -43,7 +44,14 @@ impl CompositorHandler for MetisState {
                 .find(|w| w.wl_surface().is_some_and(|s| *s == root))
             {
                 window.on_commit();
+                committed_id = self.windows.id_for_window(window);
             }
+        }
+        // After the client settles its committed size, re-anchor auto-hide
+        // (maximized / edge-snapped) windows so the screen-edge gap is kept even
+        // when the app refuses to shrink to the snapped footprint.
+        if let Some(id) = committed_id {
+            self.reclamp_auto_hide(id);
         }
 
         xdg_shell::handle_commit(&mut self.popups, &self.space, surface);

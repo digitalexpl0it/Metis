@@ -24,8 +24,19 @@ pub fn install(button: &gtk::Button) {
     panel.add_css_class("metis-bar-dropdown-panel");
     panel.add_css_class("metis-menu-panel");
 
+    // The rail's icon tooltips render as a label inside this overlay (part of the
+    // menu's own surface) rather than a child popup, so they always paint on top of
+    // the panel — a separate popup gets stacked *behind* the translucent menu.
+    let overlay = gtk::Overlay::new();
+    let tip = gtk::Label::new(None);
+    tip.add_css_class("metis-menu-tooltip-label");
+    tip.set_halign(gtk::Align::Start);
+    tip.set_valign(gtk::Align::Start);
+    tip.set_can_target(false);
+    tip.set_visible(false);
+
     // ---- Left rail: quick launchers + power actions ----
-    let rail = build_rail();
+    let rail = build_rail(&overlay, &tip);
     panel.append(&rail);
 
     // ---- Center column: header + scrollable app list + search ----
@@ -110,6 +121,9 @@ pub fn install(button: &gtk::Button) {
     pinned_col.append(&pinned_scroll);
     panel.append(&pinned_col);
 
+    overlay.set_child(Some(&panel));
+    overlay.add_overlay(&tip);
+
     // ---- Rebuild plumbing ----
     // A shared `refresh` handle lets row/tile context actions (pin/unpin) trigger
     // a full repopulate. It dispatches through a slot so it can reference the
@@ -150,7 +164,7 @@ pub fn install(button: &gtk::Button) {
         .autohide(false)
         .has_arrow(true)
         .position(gtk::PositionType::Bottom)
-        .child(&panel)
+        .child(&overlay)
         .build();
     popover.add_css_class("metis-bar-popover");
     popover.add_css_class("metis-menu-popover");
@@ -193,41 +207,41 @@ pub fn install(button: &gtk::Button) {
     });
 }
 
-fn build_rail() -> gtk::Box {
+fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     let rail = gtk::Box::new(gtk::Orientation::Vertical, 6);
     rail.add_css_class("metis-menu-rail");
 
-    rail.append(&rail_button("system-file-manager-symbolic", "Files", || {
+    rail.append(&rail_button(overlay, tip, "system-file-manager-symbolic", "Files", || {
         launch_first(FILE_MANAGERS)
     }));
-    rail.append(&rail_button("utilities-terminal-symbolic", "Terminal", || {
+    rail.append(&rail_button(overlay, tip, "utilities-terminal-symbolic", "Terminal", || {
         launch_first(TERMINALS)
     }));
-    rail.append(&rail_button("preferences-system-symbolic", "Settings", || {
+    rail.append(&rail_button(overlay, tip, "preferences-system-symbolic", "Settings", || {
+        super::super::dropdown::close_all();
         if let Err(err) = crate::compositor::launch_program("metis-settings") {
             tracing::warn!(%err, "failed to launch metis-settings");
         }
-        super::super::dropdown::request_close_all();
     }));
 
     let spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
     spacer.set_vexpand(true);
     rail.append(&spacer);
 
-    rail.append(&rail_button("system-lock-screen-symbolic", "Suspend", || {
+    rail.append(&rail_button(overlay, tip, "system-lock-screen-symbolic", "Suspend", || {
         run_detached("systemctl", &["suspend"]);
         super::super::dropdown::request_close_all();
     }));
-    rail.append(&rail_button("system-log-out-symbolic", "Log Out", || {
+    rail.append(&rail_button(overlay, tip, "system-log-out-symbolic", "Log Out", || {
         if let Err(err) = crate::compositor::end_session() {
             tracing::warn!(%err, "failed to end session");
         }
     }));
-    rail.append(&rail_button("system-reboot-symbolic", "Restart", || {
+    rail.append(&rail_button(overlay, tip, "system-reboot-symbolic", "Restart", || {
         run_detached("systemctl", &["reboot"]);
         super::super::dropdown::request_close_all();
     }));
-    rail.append(&rail_button("system-shutdown-symbolic", "Shut Down", || {
+    rail.append(&rail_button(overlay, tip, "system-shutdown-symbolic", "Shut Down", || {
         run_detached("systemctl", &["poweroff"]);
         super::super::dropdown::request_close_all();
     }));
@@ -235,80 +249,87 @@ fn build_rail() -> gtk::Box {
     rail
 }
 
-fn rail_button(icon: &str, label: &str, on_click: impl Fn() + 'static) -> gtk::Button {
+fn rail_button(
+    overlay: &gtk::Overlay,
+    tip: &gtk::Label,
+    icon: &str,
+    label: &str,
+    on_click: impl Fn() + 'static,
+) -> gtk::Button {
     let btn = gtk::Button::builder().has_frame(false).build();
     btn.add_css_class("metis-menu-rail-btn");
     let image = gtk::Image::from_icon_name(icon);
     image.set_pixel_size(18);
     btn.set_child(Some(&image));
     btn.connect_clicked(move |_| on_click());
-    attach_tooltip(&btn, label, gtk::PositionType::Right);
+    attach_tooltip(&btn, label, overlay, tip);
     btn
 }
 
-/// Floating tooltip for an icon-only control.
+/// Tooltip for an icon-only rail control.
 ///
-/// GTK's built-in tooltips don't present on this non-autohide, grab-less
-/// layer-shell popover, so we drive our own: a small non-autohide child
-/// `Popover` (the same popup mechanism the menu itself uses, which the
-/// compositor renders) popped after a short hover and popped down on leave.
-/// `set_tooltip_text` is kept for accessibility.
-fn attach_tooltip(widget: &impl IsA<gtk::Widget>, text: &str, side: gtk::PositionType) {
-    widget.set_tooltip_text(Some(text));
+/// GTK's built-in tooltips don't behave on this non-autohide, grab-less
+/// layer-shell popover (and in the nested session they now present as a separate
+/// window the compositor stacks *behind* the translucent menu), so we drive our
+/// own using a single shared `Label` living in the menu's `GtkOverlay`. Because it
+/// is part of the menu's own surface it always paints on top of the panel; we just
+/// move it next to the hovered button after a short delay. The accessible label is
+/// set directly so screen readers still get the name.
+fn attach_tooltip(
+    widget: &impl IsA<gtk::Widget>,
+    text: &str,
+    overlay: &gtk::Overlay,
+    tip: &gtk::Label,
+) {
+    widget
+        .as_ref()
+        .update_property(&[gtk::accessible::Property::Label(text)]);
 
-    let tip: Rc<RefCell<Option<gtk::Popover>>> = Rc::new(RefCell::new(None));
     let timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
-
-    let hide = {
-        let tip = tip.clone();
-        let timer = timer.clone();
-        Rc::new(move || {
-            if let Some(id) = timer.borrow_mut().take() {
-                id.remove();
-            }
-            if let Some(pop) = tip.borrow_mut().take() {
-                pop.popdown();
-                pop.unparent();
-            }
-        })
-    };
-
     let motion = gtk::EventControllerMotion::new();
     {
         let widget_weak = widget.clone().upcast::<gtk::Widget>().downgrade();
-        let text = text.to_string();
+        let overlay_weak = overlay.downgrade();
         let tip = tip.clone();
+        let text = text.to_string();
         let timer = timer.clone();
-        let hide = hide.clone();
         motion.connect_enter(move |_, _, _| {
-            hide();
+            if let Some(id) = timer.borrow_mut().take() {
+                id.remove();
+            }
             let widget_weak = widget_weak.clone();
-            let text = text.clone();
+            let overlay_weak = overlay_weak.clone();
             let tip = tip.clone();
+            let text = text.clone();
             let timer_inner = timer.clone();
             let id = glib::timeout_add_local_once(std::time::Duration::from_millis(450), move || {
                 *timer_inner.borrow_mut() = None;
-                let Some(w) = widget_weak.upgrade() else {
+                let (Some(w), Some(ov)) = (widget_weak.upgrade(), overlay_weak.upgrade()) else {
                     return;
                 };
-                let pop = gtk::Popover::builder()
-                    .autohide(false)
-                    .has_arrow(false)
-                    .position(side)
-                    .can_focus(false)
-                    .build();
-                pop.add_css_class("metis-menu-tooltip");
-                pop.set_child(Some(&gtk::Label::new(Some(&text))));
-                pop.set_parent(&w);
-                pop.popup();
-                *tip.borrow_mut() = Some(pop);
+                tip.set_label(&text);
+                // Position the tooltip just to the right of the button, vertically
+                // centered, in the overlay's coordinate space.
+                if let Some((x, y)) =
+                    w.translate_coordinates(&ov, w.width() as f64, w.height() as f64 / 2.0)
+                {
+                    tip.set_margin_start((x as i32 + 8).max(0));
+                    tip.set_margin_top((y as i32 - 14).max(0));
+                }
+                tip.set_visible(true);
             });
             *timer.borrow_mut() = Some(id);
         });
     }
     {
-        let hide = hide.clone();
-        motion.connect_leave(move |_| hide());
+        let tip = tip.clone();
+        let timer = timer.clone();
+        motion.connect_leave(move |_| {
+            if let Some(id) = timer.borrow_mut().take() {
+                id.remove();
+            }
+            tip.set_visible(false);
+        });
     }
     widget.add_controller(motion);
 }
@@ -390,8 +411,11 @@ fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
     {
         let entry = entry.clone();
         row.connect_clicked(move |_| {
+            // Close synchronously *before* launching: the new window grabs focus,
+            // which otherwise swallows the deferred (idle) popdown and leaves the
+            // menu hanging open over the app.
+            super::super::dropdown::close_all();
             applications::launch(&entry);
-            super::super::dropdown::request_close_all();
         });
     }
     attach_pin_gesture(&row, &entry.id, refresh);
@@ -419,8 +443,9 @@ fn pinned_tile(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
     {
         let entry = entry.clone();
         tile.connect_clicked(move |_| {
+            // See `app_row`: pop down before the launched window steals focus.
+            super::super::dropdown::close_all();
             applications::launch(&entry);
-            super::super::dropdown::request_close_all();
         });
     }
     attach_pin_gesture(&tile, &entry.id, refresh);
@@ -475,10 +500,11 @@ const TERMINALS: &str =
     r#"for t in "$TERMINAL" x-terminal-emulator kgx gnome-terminal konsole foot alacritty kitty xterm; do command -v "$t" >/dev/null 2>&1 && exec "$t"; done"#;
 
 fn launch_first(snippet: &str) {
+    // Close before the launched window grabs focus (see `app_row`).
+    super::super::dropdown::close_all();
     if let Err(err) = crate::compositor::launch_program(snippet) {
         tracing::warn!(%err, "failed to launch quick action");
     }
-    super::super::dropdown::request_close_all();
 }
 
 fn run_detached(cmd: &str, args: &[&str]) {

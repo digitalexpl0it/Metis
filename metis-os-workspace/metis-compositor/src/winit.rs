@@ -292,6 +292,10 @@ pub fn init_winit(
                                 let specs = state.decoration_specs();
                                 state.decorations.elements(renderer, &specs)
                             };
+                            let crate::decoration::DecoElements {
+                                below: deco_below,
+                                overlay: deco_overlay,
+                            } = deco_elements;
 
                             let space_render_elements = match space_render_elements::<
                                 GlesRenderer,
@@ -319,16 +323,22 @@ pub fn init_winit(
                             if let Some(snap) = snap_element {
                                 render_elements.push(OutputStack::Snap(snap));
                             }
+                            // Auto-hide titlebar reveal: drawn ABOVE the client so it
+                            // overlays the top of a maximized/snapped window.
+                            render_elements.extend(
+                                deco_overlay.into_iter().map(OutputStack::Deco),
+                            );
                             render_elements.extend(
                                 space_render_elements
                                     .into_iter()
                                     .map(OutputStack::Space),
                             );
-                            // Decorations sit just below the client surfaces (they
-                            // only fill the titlebar/border gap, never overlapping
-                            // the client buffer) and above the wallpaper/blur.
+                            // Normal decorations sit just below the client surfaces
+                            // (they only fill the titlebar/border gap, never
+                            // overlapping the client buffer) and above the
+                            // wallpaper/blur.
                             render_elements.extend(
-                                deco_elements.into_iter().map(OutputStack::Deco),
+                                deco_below.into_iter().map(OutputStack::Deco),
                             );
                             // Below the bar (and windows), above the wallpaper.
                             if let Some(blur) = blur_element {

@@ -1311,21 +1311,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 14px;
     }}
 
-    /* Floating tooltip for the icon-only rail (custom, since native GTK
-       tooltips do not present on this layer-shell popover). */
-    .metis-menu-tooltip > contents {{
+    /* Tooltip for the icon-only rail: a label inside the menu's GtkOverlay (drawn
+       on the menu's own surface, so it can't stack behind the translucent panel
+       like a separate popup would). */
+    .metis-menu-tooltip-label {{
         padding: 4px 9px;
-        min-height: 0;
-        min-width: 0;
         border-radius: {rs}px;
         border: 1px solid {border};
         background-color: {raised};
         color: {text};
         font-size: 12px;
-    }}
-    .metis-menu-tooltip > arrow {{
-        background: none;
-        border: none;
     }}
 
     .metis-menu-rail {{
@@ -1417,6 +1412,24 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-menu-search {{
         margin-top: 4px;
         border-radius: {rs}px;
+        background-color: {raised};
+        border: 1px solid {border};
+        color: {text};
+        caret-color: {text};
+        box-shadow: none;
+    }}
+    .metis-menu-search > text {{
+        background-color: transparent;
+        color: {text};
+    }}
+    .metis-menu-search > text > placeholder {{
+        color: {muted};
+    }}
+    .metis-menu-search image {{
+        color: {muted};
+    }}
+    .metis-menu-search:focus-within {{
+        border-color: {accent};
     }}
 
     .metis-menu-pinned-flow {{

@@ -107,6 +107,13 @@ pub struct MetisState {
     /// Windows the user has manually dragged out of the grid by their titlebar.
     /// They keep their free position (no grid snap-back) until closed.
     pub floating: std::collections::HashSet<u32>,
+    /// Windows whose top edge meets the edge bar (maximized, or snapped left /
+    /// right / top-corner): their titlebar auto-hides and only re-appears as a
+    /// translucent overlay while the pointer is in the window's top strip.
+    pub auto_hide_titlebar: std::collections::HashSet<u32>,
+    /// The auto-hide window whose overlay titlebar is currently revealed (pointer
+    /// in its top strip), or `None`. Drives both rendering and decoration clicks.
+    pub revealed_titlebar: Option<u32>,
     /// Persisted per-app floating geometry, so apps reopen where they were left.
     pub window_state: crate::window_state::WindowStateStore,
 
@@ -204,6 +211,8 @@ impl MetisState {
             xdisplay: None,
             windows: WindowRegistry::new(),
             floating: std::collections::HashSet::new(),
+            auto_hide_titlebar: std::collections::HashSet::new(),
+            revealed_titlebar: None,
             window_state: crate::window_state::WindowStateStore::load(),
             grid_layout,
             gutter_px: 14,
@@ -368,9 +377,16 @@ impl MetisState {
         self.floating.insert(id);
         self.windows.set_maximized(id, false);
 
-        // `rect` is the snap *footprint*; inset to the body so Metis can draw the
-        // titlebar + border in the reserved strip around the client.
-        let body = app_tile_body_rect(rect);
+        // Snaps whose top edge meets the bar (left/right halves, top corners)
+        // auto-hide the titlebar like a maximized window, so the client fills the
+        // whole snap footprint. Bottom snaps keep a persistent titlebar, so their
+        // client is inset to the body to leave the reserved chrome strip.
+        let top_touching = matches!(label, "Left half" | "Right half" | "Top-left" | "Top-right");
+        let body = if top_touching {
+            rect
+        } else {
+            app_tile_body_rect(rect)
+        };
         let size = Size::from((body.width.max(1), body.height.max(1)));
         record.toplevel.with_pending_state(|state| {
             state.states.unset(xdg_toplevel::State::Maximized);
@@ -385,6 +401,11 @@ impl MetisState {
             .map_element(record.window.clone(), Point::from((body.x, body.y)), true);
         record.toplevel.send_pending_configure();
         self.windows.set_target_rect(id, body);
+        if top_touching {
+            self.auto_hide_titlebar.insert(id);
+        } else {
+            self.clear_auto_hide(id);
+        }
         self.save_window_geometry(id);
         tracing::info!(id, ?rect, label, "snap: window snapped to zone");
     }
@@ -404,6 +425,15 @@ impl MetisState {
             state.states.unset(State::TiledBottom);
         });
         record.toplevel.send_pending_configure();
+    }
+
+    /// Drop a window's auto-hide-titlebar state (e.g. on unmaximize, unsnap,
+    /// minimize, fullscreen, or close), clearing the reveal if it was showing.
+    pub fn clear_auto_hide(&mut self, id: u32) {
+        self.auto_hide_titlebar.remove(&id);
+        if self.revealed_titlebar == Some(id) {
+            self.revealed_titlebar = None;
+        }
     }
 
     pub fn queue_startup(&mut self, shell: Option<String>, client: Option<String>) {
@@ -716,6 +746,7 @@ impl MetisState {
         self.windows.set_fullscreen(id, enabled);
         if enabled {
             self.windows.set_maximized(id, false);
+            self.clear_auto_hide(id);
         }
     }
 
@@ -754,15 +785,17 @@ impl MetisState {
                 PixelRect { x: g.loc.x, y: g.loc.y, width: g.size.w, height: g.size.h }
             });
             // Tight gap under the bar (matching a dragged window), larger
-            // Hyprland-style gaps against the screen edges.
+            // Hyprland-style gaps against the screen edges. The client fills the
+            // whole footprint (no reserved titlebar strip): a maximized window
+            // auto-hides its titlebar and only shows it as a hover overlay, so it
+            // should use every pixel below the bar.
             let g = WINDOW_GAP_PX;
-            let footprint = PixelRect {
+            let client = PixelRect {
                 x: zone.x + g,
                 y: zone.y + BAR_GAP_PX,
                 width: (zone.width - g * 2).max(1),
                 height: (zone.height - BAR_GAP_PX - g).max(1),
             };
-            let client = app_tile_body_rect(footprint);
             let client_size = Size::from((client.width.max(1), client.height.max(1)));
 
             record.toplevel.with_pending_state(|state| {
@@ -774,6 +807,7 @@ impl MetisState {
             self.space
                 .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
             self.windows.set_rect(id, client);
+            self.auto_hide_titlebar.insert(id);
         } else {
             record.toplevel.with_pending_state(|state| {
                 state.states.unset(xdg_toplevel::State::Maximized);
@@ -782,6 +816,7 @@ impl MetisState {
             if let Some(restore) = self.windows.take_restore_rect(id) {
                 self.windows.set_target_rect(id, restore);
             }
+            self.clear_auto_hide(id);
             self.apply_window_rect(id);
         }
 
@@ -808,6 +843,7 @@ impl MetisState {
         self.windows.set_minimized(id, true);
         self.windows.set_maximized(id, false);
         self.windows.set_fullscreen(id, false);
+        self.clear_auto_hide(id);
 
         if self.focused_window_id() == Some(id) {
             let serial = smithay::utils::SERIAL_COUNTER.next_serial();
@@ -871,6 +907,44 @@ impl MetisState {
         });
         record.toplevel.send_pending_configure();
         self.windows.set_target_rect(id, rect);
+        // An auto-hide (maximized / edge-snapped) window may refuse to shrink to
+        // its footprint; re-anchor it so the screen-edge gap survives.
+        self.reclamp_auto_hide(id);
+    }
+
+    /// Keep an auto-hide (maximized / edge-snapped) window pinned to its snapped
+    /// edge so the screen-edge gap survives even when the client refuses to
+    /// shrink to its footprint (e.g. an app whose minimum width is wider than the
+    /// snap zone on a small display). The footprint (`target_rect`) encodes the
+    /// desired gaps; if the committed size is larger we re-anchor the window to
+    /// the edge the footprint hugs so the overflow spills toward screen center
+    /// instead of off the screen edge.
+    pub fn reclamp_auto_hide(&mut self, id: u32) {
+        if !self.auto_hide_titlebar.contains(&id) {
+            return;
+        }
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        let Some(foot) = self.windows.target_rect(id) else {
+            return;
+        };
+        let Some(loc) = self.space.element_location(&record.window) else {
+            return;
+        };
+        let size = record.window.geometry().size;
+        if size.w <= 0 || size.h <= 0 {
+            return;
+        }
+        let zone = self.placement_zone();
+        let g = WINDOW_GAP_PX;
+        let new_x = anchor_axis(foot.x, foot.width, zone.x, zone.width, size.w, g);
+        let new_y = anchor_axis(foot.y, foot.height, zone.y, zone.height, size.h, g);
+        if new_x != loc.x || new_y != loc.y {
+            self.space
+                .map_element(record.window.clone(), Point::from((new_x, new_y)), true);
+            self.schedule_redraw();
+        }
     }
 
     /// Collect decoration specs (frame, title, focus) for every mapped, ready
@@ -906,17 +980,37 @@ impl MetisState {
             if size.w <= 0 || size.h <= 0 {
                 continue;
             }
-            let frame = PixelRect {
-                x: loc.x - metis_grid::APP_TILE_BORDER_PX,
-                y: loc.y - metis_grid::APP_TILE_HEADER_PX,
-                width: size.w + metis_grid::APP_TILE_BORDER_PX * 2,
-                height: size.h + metis_grid::APP_TILE_HEADER_PX + metis_grid::APP_TILE_BORDER_PX,
+            // Auto-hide windows (maximized / edge-snapped to the bar) draw no
+            // persistent chrome. While the pointer is in the window's top strip the
+            // titlebar is revealed as a translucent overlay *on top of* the client,
+            // so its frame is the client rect (the titlebar sits over the top
+            // `header` px) rather than the client grown by the reserved chrome.
+            let auto_hide = self.auto_hide_titlebar.contains(&id);
+            if auto_hide && self.revealed_titlebar != Some(id) {
+                continue;
+            }
+            let (frame, overlay) = if auto_hide {
+                (
+                    PixelRect { x: loc.x, y: loc.y, width: size.w, height: size.h },
+                    true,
+                )
+            } else {
+                (
+                    PixelRect {
+                        x: loc.x - metis_grid::APP_TILE_BORDER_PX,
+                        y: loc.y - metis_grid::APP_TILE_HEADER_PX,
+                        width: size.w + metis_grid::APP_TILE_BORDER_PX * 2,
+                        height: size.h + metis_grid::APP_TILE_HEADER_PX + metis_grid::APP_TILE_BORDER_PX,
+                    },
+                    false,
+                )
             };
             specs.push(crate::decoration::WindowDeco {
                 id,
                 frame,
                 title: record.title.clone(),
                 focused: focused == Some(id),
+                overlay,
             });
         }
         specs
@@ -1135,13 +1229,27 @@ impl MetisState {
         }
 
         let (x, y) = (loc.x as i32, loc.y as i32);
-        for spec in self.decoration_specs() {
+        // Check revealed overlay titlebars first: an auto-hide window is topmost and
+        // its overlay covers the screen, so its strip must win over any chrome of a
+        // window hidden beneath it.
+        let specs = self.decoration_specs();
+        let ordered = specs
+            .iter()
+            .filter(|s| s.overlay)
+            .chain(specs.iter().filter(|s| !s.overlay));
+        for spec in ordered {
             let frame = spec.frame;
             if !point_in_rect(x, y, frame) {
                 continue;
             }
-            // Inside the client body → not a decoration hit; let it pass through.
-            if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
+            if spec.overlay {
+                // Overlay reveal: only the top titlebar strip is interactive; the
+                // rest of the frame is live client content.
+                if !point_in_rect(x, y, metis_grid::app_tile_chrome_rect(frame)) {
+                    return false;
+                }
+            } else if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
+                // Inside the client body → not a decoration hit; let it pass through.
                 return false;
             }
             for (control, rect) in control_hitboxes(frame) {
@@ -1260,6 +1368,43 @@ impl MetisState {
             self.hover_cursor = edge;
             self.schedule_redraw();
         }
+        self.update_titlebar_reveal(loc);
+    }
+
+    /// Reveal the auto-hide titlebar overlay for the topmost auto-hide window whose
+    /// top strip (the first `APP_TILE_HEADER_PX` of its client) the pointer is in,
+    /// hiding it again once the pointer drops below that strip or onto another
+    /// window. Flags a redraw on change.
+    fn update_titlebar_reveal(&mut self, loc: Point<f64, Logical>) {
+        let (x, y) = (loc.x as i32, loc.y as i32);
+        let header = metis_grid::APP_TILE_HEADER_PX;
+        let mut revealed = None;
+        // Topmost first: `Space::elements()` is bottom-to-top, so reverse.
+        for window in self.space.elements().rev() {
+            let Some(geo) = self.space.element_geometry(window) else {
+                continue;
+            };
+            let in_x = x >= geo.loc.x && x < geo.loc.x + geo.size.w;
+            let in_window = in_x && y >= geo.loc.y && y < geo.loc.y + geo.size.h;
+            let Some(id) = self.windows.id_for_window(window) else {
+                continue;
+            };
+            if self.auto_hide_titlebar.contains(&id) {
+                if in_x && y >= geo.loc.y && y < geo.loc.y + header {
+                    revealed = Some(id);
+                }
+                if in_window {
+                    break;
+                }
+            } else if in_window {
+                // A normal window occludes anything beneath it at this point.
+                break;
+            }
+        }
+        if revealed != self.revealed_titlebar {
+            self.revealed_titlebar = revealed;
+            self.schedule_redraw();
+        }
     }
 
     /// Handle a pointer press that may land on a window's resize band. On a hit,
@@ -1340,8 +1485,11 @@ impl MetisState {
         self.space.raise_element(&window, true);
         // Manual titlebar drag floats the window out of the grid (no snap-back).
         self.floating.insert(id);
-        // Dragging off a snapped position restores the normal floating chrome.
+        // Dragging off a snapped/maximized position restores the normal floating
+        // chrome (persistent titlebar), so drop its auto-hide + maximized state.
         self.clear_tiled_states(id);
+        self.clear_auto_hide(id);
+        self.windows.set_maximized(id, false);
         let initial_window_location = self
             .space
             .element_location(&window)
@@ -1741,6 +1889,7 @@ impl MetisState {
         use metis_protocol::CompositorEvent;
 
         self.floating.remove(&id);
+        self.clear_auto_hide(id);
         self.grid_layout.tiles.retain(|t| {
             !matches!(
                 &t.kind,
@@ -1799,6 +1948,35 @@ fn default_app_tile_rect(layout: &GridLayout) -> metis_grid::TileRect {
 /// half that, so the gap *between* two snapped windows equals the gap around
 /// them. The result matches the geometry `set_maximized` produces for a window
 /// that fills the whole zone.
+/// Pick a window origin on one axis that preserves the footprint's screen-edge
+/// gap when the client is larger than the footprint. Honors the footprint origin
+/// when the client fits; otherwise anchors to whichever screen edge the footprint
+/// hugs (so the overflow grows toward the opposite, interior side).
+fn anchor_axis(
+    foot_min: i32,
+    foot_size: i32,
+    zone_min: i32,
+    zone_size: i32,
+    actual: i32,
+    gap: i32,
+) -> i32 {
+    if actual <= foot_size {
+        return foot_min;
+    }
+    let foot_max = foot_min + foot_size;
+    let zone_max = zone_min + zone_size;
+    let touches_min = foot_min - zone_min <= gap;
+    let touches_max = zone_max - foot_max <= gap;
+    if touches_max && !touches_min {
+        // Hugs only the far edge (right / bottom snap): keep that gap.
+        foot_max - actual
+    } else {
+        // Hugs the near edge, both edges (maximize), or neither: keep the
+        // near-edge gap and let any overflow spill toward the far edge.
+        foot_min
+    }
+}
+
 fn snap_client_rect(raw: PixelRect, zone: PixelRect) -> PixelRect {
     let g = WINDOW_GAP_PX;
     let half = WINDOW_GAP_PX / 2;
