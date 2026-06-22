@@ -966,13 +966,6 @@ impl MetisState {
             self.space.unmap_elem(&record.window);
         }
         self.space.map_element(record.window.clone(), loc, true);
-        if !record.toplevel.is_initial_configure_sent() {
-            tracing::info!(
-                id,
-                waited_ms = record.created.elapsed().as_millis() as u64,
-                "loadlat: sending INITIAL configure (first map via apply_window_rect)"
-            );
-        }
         record.toplevel.with_pending_state(|state| {
             state.size = Some(size);
         });
@@ -1937,7 +1930,6 @@ impl MetisState {
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
         let id = self.windows.register(window, title, app_id);
         self.ensure_app_tile_for_window(id);
-        tracing::info!(id, "loadlat: toplevel registered (awaiting initial configure)");
     }
 
     /// Send the initial xdg configure as soon as the client makes its first
@@ -1997,11 +1989,6 @@ impl MetisState {
         }
 
         self.windows.set_ready(id, true);
-        tracing::info!(
-            id,
-            total_ms = record.created.elapsed().as_millis() as u64,
-            "loadlat: window READY (first buffer mapped, WindowOpened)"
-        );
 
         let suggested_rect = self
             .rect_for_window_tile(id)

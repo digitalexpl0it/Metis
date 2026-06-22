@@ -22,9 +22,6 @@ pub struct WindowRecord {
     pub minimized: bool,
     /// True after the first buffer commit; probe toplevels that never commit are dropped quietly.
     pub ready: bool,
-    /// When the toplevel was registered — used to measure how long it waits for
-    /// its initial configure / first map (client load latency).
-    pub created: std::time::Instant,
 }
 
 pub struct WindowRegistry {
@@ -68,7 +65,6 @@ impl WindowRegistry {
                 maximized: false,
                 minimized: false,
                 ready: false,
-                created: std::time::Instant::now(),
             },
         );
         id
