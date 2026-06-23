@@ -30,6 +30,10 @@ thread_local! {
     /// dock rebuild — so we must pop it down and unparent it *before* the rebuild,
     /// or GTK finalizes a button that still owns the popover and crashes the shell.
     static TASK_POPOVER: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
+    /// A small per-window menu nested *inside* the open picker (a child popup of
+    /// `TASK_POPOVER`). Tracked separately so it can always be torn down before its
+    /// parent picker is, otherwise GTK finalizes a row that still owns this popover.
+    static ROW_MENU: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
     /// Signature of the last-rendered dock. The 5-second `ListWindows` reconcile
     /// fires a refresh unconditionally; without this guard every reconcile would
     /// tear the dock down (and dismiss an open picker/right-click menu) even when
@@ -58,8 +62,23 @@ fn dock_signature(snap: &WindowsSnapshot, pinned: &[String]) -> String {
     sig
 }
 
+/// Close + unparent the nested per-window menu, if any. Safe to call repeatedly.
+fn dismiss_row_menu() {
+    ROW_MENU.with(|cell| {
+        if let Some(p) = cell.borrow_mut().take() {
+            p.popdown();
+            if p.parent().is_some() {
+                p.unparent();
+            }
+        }
+    });
+}
+
 /// Close + unparent the current transient popover, if any. Safe to call repeatedly.
 fn dismiss_task_popover() {
+    // The nested row menu is a child of the picker; tear it down first so it never
+    // outlives the row it is parented to.
+    dismiss_row_menu();
     TASK_POPOVER.with(|cell| {
         if let Some(p) = cell.borrow_mut().take() {
             p.popdown();
@@ -100,6 +119,13 @@ impl TasksWidget {
                 rebuild(&row, &snap, &pinned);
             })
         };
+
+        // This is a brand-new (empty) dock — e.g. the whole bar was rebuilt after a
+        // bar.json change like an opacity tweak. `LAST_SIG` is a thread-local that
+        // outlives the widget, so clear it; otherwise the first populate below sees
+        // an unchanged signature, early-returns, and the dock stays empty until some
+        // window event finally changes the signature.
+        LAST_SIG.with(|c| *c.borrow_mut() = None);
 
         windows::register_refresh(refresh.clone());
         refresh();
@@ -471,20 +497,23 @@ fn show_picker(parent: &gtk::Button, windows: &[WindowInfo], name: &str, focused
         }
         hbox.append(&label);
         row.set_child(Some(&hbox));
-        row.set_tooltip_text(Some("Click to focus · Right-click to close"));
 
-        // Right-click a row to close just that window.
+        // Right-click a row to open a small menu nested over this picker (a child
+        // popup of the row) so closing a single window is a deliberate menu choice
+        // rather than a stray click — and the picker stays put behind it.
         {
             let gesture = gtk::GestureClick::builder()
                 .button(gdk::BUTTON_SECONDARY)
                 .build();
+            let row_w = row.clone();
             let id = w.id;
-            let popover = popover.clone();
+            let menu_title = if multi {
+                format!("{} ({})", window_label(w), i + 1)
+            } else {
+                window_label(w)
+            };
             gesture.connect_pressed(move |_, _, _, _| {
-                popover.popdown();
-                if let Err(err) = crate::compositor::close_window(id) {
-                    tracing::warn!(%err, id, "failed to close window from picker");
-                }
+                show_window_menu(&row_w, id, &menu_title);
             });
             row.add_controller(gesture);
         }
@@ -497,6 +526,61 @@ fn show_picker(parent: &gtk::Button, windows: &[WindowInfo], name: &str, focused
         });
         panel.append(&row);
     }
+
+    glib::idle_add_local_once(move || popover.popup());
+}
+
+/// Per-window action menu opened by right-clicking a picker row. It is a child
+/// popup of the row, so it appears nested over the still-open picker rather than
+/// tearing it down — and input stays on the live picker surface chain.
+fn show_window_menu(row: &gtk::Button, id: u32, title: &str) {
+    // Only one nested menu at a time.
+    dismiss_row_menu();
+
+    let panel = super::super::dropdown::build_panel();
+    panel.add_css_class("metis-bar-tasks-menu");
+    panel.set_spacing(2);
+    panel.set_width_request(180);
+
+    let header = gtk::Label::builder()
+        .label(title)
+        .halign(gtk::Align::Start)
+        .build();
+    header.add_css_class("metis-bar-section-title");
+    panel.append(&header);
+
+    let popover = gtk::Popover::builder()
+        .autohide(false)
+        .has_arrow(true)
+        .position(gtk::PositionType::Right)
+        .child(&panel)
+        .build();
+    popover.add_css_class("metis-bar-popover");
+    popover.set_parent(row);
+    super::super::dropdown::register(&popover);
+    ROW_MENU.with(|cell| *cell.borrow_mut() = Some(popover.clone()));
+
+    let weak = popover.downgrade();
+    popover.connect_closed(move |_| {
+        let weak = weak.clone();
+        glib::idle_add_local_once(move || {
+            if let Some(p) = weak.upgrade() {
+                if p.parent().is_some() {
+                    p.unparent();
+                }
+            }
+        });
+    });
+
+    let item = menu_item("Close window");
+    item.connect_clicked(move |_| {
+        // Close the menu and the picker behind it, then close the window.
+        dismiss_task_popover();
+        if let Err(err) = crate::compositor::close_window(id) {
+            tracing::warn!(%err, id, "failed to close window from picker menu");
+        }
+    });
+    panel.append(&item);
 
     glib::idle_add_local_once(move || popover.popup());
 }
@@ -545,9 +629,14 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
                 "Pin to taskbar"
             };
             let item = menu_item(label);
-            let popover_c = popover.clone();
             item.connect_clicked(move |_| {
-                popover_c.popdown();
+                // Toggling the pin rewrites bar.json, whose file monitor fires a
+                // higher-priority 250ms timeout that rebuilds the whole bar. Pop the
+                // popover down *and unparent it synchronously* now, otherwise that
+                // rebuild finalizes this menu's button while the popover is still
+                // parented to it (a GTK GDK_IS_SURFACE crash). connect_closed's idle
+                // unparent runs too late (lower priority than the timeout).
+                dismiss_task_popover();
                 toggle_taskbar_pin(&id);
             });
             panel.append(&item);

@@ -471,7 +471,17 @@ pub fn build() -> gtk::Widget {
 }
 
 fn save_bar(cfg: &metis_config::BarConfig) {
-    if let Err(err) = metis_config::save_bar_config(cfg) {
+    // This page holds an in-memory copy of bar.json taken when it opened. Other
+    // components (e.g. the dock's pin/unpin, which writes `taskbar_pinned`
+    // directly) may have changed the file since. Re-read the on-disk config and
+    // overwrite only the fields this page manages so we don't clobber theirs.
+    let mut on_disk = metis_config::load_bar_config();
+    on_disk.opacity = cfg.opacity;
+    on_disk.menu_opacity = cfg.menu_opacity;
+    on_disk.titlebar_opacity = cfg.titlebar_opacity;
+    on_disk.blur = cfg.blur;
+    on_disk.blur_radius = cfg.blur_radius;
+    if let Err(err) = metis_config::save_bar_config(&on_disk) {
         tracing::warn!(%err, "failed to save bar.json");
     }
     // bar.json is watched by the shell (and re-read by the compositor for blur),

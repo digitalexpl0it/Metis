@@ -1019,8 +1019,12 @@ fn rasterize_shadow_corner(mirror_x: bool) -> Option<(Vec<u8>, i32, i32)> {
             } else {
                 (mf - px).max(mf - py).max(0.0)
             };
+            // Inside the silhouette (outward < 0) draw NOTHING: that area sits under
+            // the window's rounded corner, and painting shadow there shows through a
+            // translucent titlebar as a wedge. The straight edges already keep all
+            // shadow outside the frame; match that so the corner is consistent.
             let a = if outward <= 0.0 {
-                SHADOW_ALPHA
+                0.0
             } else {
                 let t = (outward / mf).clamp(0.0, 1.0);
                 let f = 1.0 - t;
