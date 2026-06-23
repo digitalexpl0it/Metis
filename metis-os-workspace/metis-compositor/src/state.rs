@@ -1072,12 +1072,40 @@ impl MetisState {
             specs.push(crate::decoration::WindowDeco {
                 id,
                 frame,
-                title: record.title.clone(),
+                title: self.titlebar_title(id, record.app_id.as_deref(), &record.title),
                 focused: focused == Some(id),
                 overlay,
             });
         }
         specs
+    }
+
+    /// Title to draw in a window's titlebar. When more than one window of the same
+    /// app is open, a 1-based ordinal (by ascending window id) is appended — e.g.
+    /// "Alacritty (2)" — matching the number the dock's window picker shows, so the
+    /// two can be visually correlated.
+    fn titlebar_title(&self, id: u32, app_id: Option<&str>, title: &str) -> String {
+        let Some(app_id) = app_id else {
+            return title.to_string();
+        };
+        let mut same: Vec<u32> = self
+            .windows
+            .ids()
+            .into_iter()
+            .filter(|&oid| {
+                self.windows
+                    .get(oid)
+                    .is_some_and(|r| r.app_id.as_deref() == Some(app_id))
+            })
+            .collect();
+        if same.len() <= 1 {
+            return title.to_string();
+        }
+        same.sort_unstable();
+        match same.iter().position(|&x| x == id) {
+            Some(p) => format!("{} ({})", title, p + 1),
+            None => title.to_string(),
+        }
     }
 
     /// The output area not covered by exclusive layer-shell zones (i.e. below the

@@ -8,6 +8,7 @@
 //! apps, and launches pinned-but-not-running apps. Right-click pins/unpins or
 //! closes. Overflow scrolls horizontally.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -22,6 +23,52 @@ use crate::services::{applications, AppEntry};
 use metis_protocol::WindowInfo;
 
 const TASK_ICON_SIZE: i32 = 20;
+
+thread_local! {
+    /// The single live transient popover (window picker or right-click menu). It is
+    /// parented to a task button, but those buttons are destroyed wholesale on every
+    /// dock rebuild — so we must pop it down and unparent it *before* the rebuild,
+    /// or GTK finalizes a button that still owns the popover and crashes the shell.
+    static TASK_POPOVER: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
+    /// Signature of the last-rendered dock. The 5-second `ListWindows` reconcile
+    /// fires a refresh unconditionally; without this guard every reconcile would
+    /// tear the dock down (and dismiss an open picker/right-click menu) even when
+    /// nothing changed.
+    static LAST_SIG: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+/// Content fingerprint of the dock: everything that affects what's drawn. Windows
+/// are sorted by id so a reconcile that merely reorders the list doesn't count as a
+/// change (which would needlessly rebuild and close any open popover).
+fn dock_signature(snap: &WindowsSnapshot, pinned: &[String]) -> String {
+    let mut wins: Vec<&WindowInfo> = snap.windows.iter().collect();
+    wins.sort_by_key(|w| w.id);
+    let mut sig = format!("f:{:?}|", snap.focused);
+    for w in wins {
+        sig.push_str(&format!(
+            "{}:{}:{}:{};",
+            w.id,
+            w.minimized as u8,
+            w.app_id.as_deref().unwrap_or(""),
+            w.title,
+        ));
+    }
+    sig.push('|');
+    sig.push_str(&pinned.join(","));
+    sig
+}
+
+/// Close + unparent the current transient popover, if any. Safe to call repeatedly.
+fn dismiss_task_popover() {
+    TASK_POPOVER.with(|cell| {
+        if let Some(p) = cell.borrow_mut().take() {
+            p.popdown();
+            if p.parent().is_some() {
+                p.unparent();
+            }
+        }
+    });
+}
 
 pub struct TasksWidget {
     root: gtk::ScrolledWindow,
@@ -133,6 +180,17 @@ fn matches_app_id(entry: &AppEntry, needle: &str) -> bool {
 }
 
 fn rebuild(row: &gtk::Box, snap: &WindowsSnapshot, pinned: &[String]) {
+    // Skip no-op rebuilds (e.g. the idle 5-second reconcile) so an open picker /
+    // right-click menu isn't dismissed when nothing actually changed.
+    let sig = dock_signature(snap, pinned);
+    if LAST_SIG.with(|c| c.borrow().as_deref() == Some(sig.as_str())) {
+        return;
+    }
+    LAST_SIG.with(|c| *c.borrow_mut() = Some(sig));
+
+    // Tear down any open picker/menu first: its button is about to be destroyed and
+    // a popover still parented to a finalized button crashes GTK.
+    dismiss_task_popover();
     while let Some(child) = row.first_child() {
         row.remove(&child);
     }
@@ -383,10 +441,22 @@ fn show_picker(parent: &gtk::Button, windows: &[WindowInfo], name: &str, focused
 
     let popover = transient_popover(parent, &panel);
 
-    for w in windows {
+    // Number windows 1..n by ascending id so the pill matches the "(n)" the
+    // compositor appends to that window's titlebar.
+    let mut ordered: Vec<&WindowInfo> = windows.iter().collect();
+    ordered.sort_by_key(|w| w.id);
+    let multi = ordered.len() > 1;
+
+    for (i, w) in ordered.iter().enumerate() {
         let row = gtk::Button::builder().has_frame(false).build();
         row.add_css_class("metis-bar-task-pick");
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        if multi {
+            let num = gtk::Label::new(Some(&(i + 1).to_string()));
+            num.add_css_class("metis-bar-task-pick-num");
+            num.set_valign(gtk::Align::Center);
+            hbox.append(&num);
+        }
         let label = gtk::Label::new(Some(&window_label(w)));
         label.set_halign(gtk::Align::Start);
         label.set_xalign(0.0);
@@ -401,8 +471,25 @@ fn show_picker(parent: &gtk::Button, windows: &[WindowInfo], name: &str, focused
         }
         hbox.append(&label);
         row.set_child(Some(&hbox));
+        row.set_tooltip_text(Some("Click to focus · Right-click to close"));
 
-        let w = w.clone();
+        // Right-click a row to close just that window.
+        {
+            let gesture = gtk::GestureClick::builder()
+                .button(gdk::BUTTON_SECONDARY)
+                .build();
+            let id = w.id;
+            let popover = popover.clone();
+            gesture.connect_pressed(move |_, _, _, _| {
+                popover.popdown();
+                if let Err(err) = crate::compositor::close_window(id) {
+                    tracing::warn!(%err, id, "failed to close window from picker");
+                }
+            });
+            row.add_controller(gesture);
+        }
+
+        let w = (*w).clone();
         let popover = popover.clone();
         row.connect_clicked(move |_| {
             popover.popdown();
@@ -422,6 +509,7 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
 
     let pin_id = group.pin_id.clone();
     let pinned = group.pinned;
+    let exec = group.exec.clone();
     let window_ids: Vec<u32> = group.windows.iter().map(|w| w.id).collect();
     let btn_weak = btn.downgrade();
 
@@ -435,6 +523,20 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
         panel.set_width_request(180);
 
         let popover = transient_popover(&btn, &panel);
+
+        // Launch another instance. Only offered when we know how to start the app
+        // (a resolved `.desktop` exec); unresolved windows have no exec to run.
+        if let Some(exec) = exec.clone() {
+            let item = menu_item("New window");
+            let popover_c = popover.clone();
+            item.connect_clicked(move |_| {
+                popover_c.popdown();
+                if let Err(err) = crate::compositor::launch_program(&exec) {
+                    tracing::warn!(%err, "failed to launch new app window");
+                }
+            });
+            panel.append(&item);
+        }
 
         if let Some(id) = pin_id.clone() {
             let label = if pinned {
@@ -497,6 +599,9 @@ fn menu_item(label: &str) -> gtk::Button {
 /// outlive their button). Registered with the dropdown manager so the
 /// compositor "close-popovers" signal and single-open behavior still apply.
 fn transient_popover(parent: &impl IsA<gtk::Widget>, panel: &gtk::Box) -> gtk::Popover {
+    // Only one transient popover at a time; tear the previous one down cleanly
+    // (it may be parented to a button that's about to be replaced).
+    dismiss_task_popover();
     super::super::dropdown::close_all();
     let popover = gtk::Popover::builder()
         .autohide(false)
@@ -507,13 +612,16 @@ fn transient_popover(parent: &impl IsA<gtk::Widget>, panel: &gtk::Box) -> gtk::P
     popover.add_css_class("metis-bar-popover");
     popover.set_parent(parent);
     super::super::dropdown::register(&popover);
+    TASK_POPOVER.with(|cell| *cell.borrow_mut() = Some(popover.clone()));
 
     let weak = popover.downgrade();
     popover.connect_closed(move |_| {
         let weak = weak.clone();
         glib::idle_add_local_once(move || {
             if let Some(p) = weak.upgrade() {
-                p.unparent();
+                if p.parent().is_some() {
+                    p.unparent();
+                }
             }
         });
     });

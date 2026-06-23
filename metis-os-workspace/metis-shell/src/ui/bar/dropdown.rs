@@ -89,7 +89,12 @@ pub fn register(popover: &gtk::Popover) {
 
 pub fn close_all() {
     POPOVERS.with(|list| {
-        for popover in list.borrow().iter() {
+        let mut list = list.borrow_mut();
+        // Drop transient popovers that have already been unparented (e.g. task-dock
+        // pickers whose button was rebuilt) so the registry can't grow unbounded or
+        // hold dangling references.
+        list.retain(|p| p.parent().is_some());
+        for popover in list.iter() {
             popover.popdown();
         }
     });

@@ -330,6 +330,18 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         opacity: 0.6;
     }}
 
+    /* Per-window number pill, shown when an app has multiple windows so the
+       picker row correlates with the matching "(n)" in the window's titlebar. */
+    .metis-bar-task-pick-num {{
+        min-width: 18px;
+        padding: 0 5px;
+        border-radius: 9px;
+        background-color: rgba({accent_rgb}, 0.85);
+        color: {on_accent};
+        font-size: 11px;
+        font-weight: 700;
+    }}
+
     .metis-bar-icon {{
         -gtk-icon-style: regular;
         background-color: transparent;
