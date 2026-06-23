@@ -43,6 +43,14 @@ const BTN_GAP: i32 = 9;
 const BTN_RIGHT_PAD: i32 = 12;
 const TITLE_LEFT_PAD: i32 = 12;
 const TITLE_FONT_PX: f32 = 14.0;
+/// Padding baked around the title text to form its opaque rounded "pill". The pill
+/// is part of the (always-opaque) title texture, so the window name stays solid and
+/// legible even when the titlebar background opacity is turned down.
+const TITLE_PILL_PAD_X: i32 = 9;
+const TITLE_PILL_PAD_Y: i32 = 3;
+/// Thickness (px) of the thin accent stroke ringing the title pill. The pill itself
+/// is a flat solid plate; this border is the only chrome accent on it.
+const TITLE_PILL_BORDER_PX: f32 = 1.0;
 
 /// Radius of the rounded top corners on the server-side titlebar.
 const CORNER_RADIUS_PX: i32 = 10;
@@ -69,6 +77,8 @@ struct Palette {
     border_inactive: [f32; 4],
     text_active: [f32; 4],
     text_inactive: [f32; 4],
+    /// Theme accent (primary) used for the focused window's title-pill border.
+    accent: [f32; 3],
 }
 
 impl Default for Palette {
@@ -104,6 +114,7 @@ fn load_palette() -> Palette {
     ];
     let text = hex_rgb(&t.text);
     let muted = hex_rgb(&t.text_muted);
+    let accent = hex_rgb(t.accent_primary());
     Palette {
         titlebar_active: tb_active,
         titlebar_inactive: tb_inactive,
@@ -111,6 +122,7 @@ fn load_palette() -> Palette {
         border_inactive,
         text_active: [text[0], text[1], text[2], 1.0],
         text_inactive: [muted[0], muted[1], muted[2], 1.0],
+        accent,
     }
 }
 
@@ -177,6 +189,8 @@ pub enum DecoControl {
 struct CachedTitle {
     text: String,
     color: [f32; 4],
+    pill: [f32; 4],
+    border: [f32; 3],
     width: i32,
     height: i32,
     buffer: TextureBuffer<GlesTexture>,
@@ -401,10 +415,13 @@ impl DecorationRuntime {
                 }
             }
 
-            // Title text (cached texture), clipped to the space before the buttons.
-            let max_text_w = (min_x - (frame.x + TITLE_LEFT_PAD) - BTN_GAP).max(0);
+            // Title text + opaque pill (cached texture), clipped to the space before
+            // the buttons. `TITLE_LEFT_PAD` is the gap from the frame edge to the
+            // pill's left cap.
+            let tx = frame.x + TITLE_LEFT_PAD;
+            let max_text_w = (min_x - BTN_GAP - tx).max(0);
             if max_text_w > 8 {
-                if let Some(elem) = self.title_element(renderer, w, max_text_w, header) {
+                if let Some(elem) = self.title_element(renderer, w, tx, max_text_w, header) {
                     out.push(elem);
                 }
             }
@@ -591,6 +608,7 @@ impl DecorationRuntime {
         &mut self,
         renderer: &mut GlesRenderer,
         w: &WindowDeco,
+        x: i32,
         max_w: i32,
         header: i32,
     ) -> Option<DecorationElement> {
@@ -600,15 +618,39 @@ impl DecorationRuntime {
         } else {
             self.palette.text_inactive
         };
+        // Opaque pill behind the title. Derive it from this window's titlebar shade
+        // but nudge it toward white-on-dark / black-on-light so the chip is clearly
+        // visible against the titlebar (and solid over the wallpaper when the
+        // titlebar opacity is turned down). Always alpha 1.0.
+        let tb = if w.focused {
+            self.palette.titlebar_active
+        } else {
+            self.palette.titlebar_inactive
+        };
+        let pill = pill_base(tb);
+        // Thin border ringing the pill: the theme accent on the focused window (a
+        // crisp pop tying the chrome to the active palette), a muted slate border on
+        // unfocused windows so background titles stay quiet.
+        let border = if w.focused {
+            self.palette.accent
+        } else {
+            [
+                self.palette.border_inactive[0],
+                self.palette.border_inactive[1],
+                self.palette.border_inactive[2],
+            ]
+        };
 
         let needs_render = self
             .titles
             .get(&w.id)
-            .map(|c| c.text != w.title || c.color != color)
+            .map(|c| c.text != w.title || c.color != color || c.pill != pill || c.border != border)
             .unwrap_or(true);
 
         if needs_render {
-            if let Some((pixels, tw, th)) = rasterize(font, &w.title, TITLE_FONT_PX, color) {
+            if let Some((pixels, tw, th)) =
+                rasterize(font, &w.title, TITLE_FONT_PX, color, pill, border)
+            {
                 if let Ok(texture) = renderer.import_memory(
                     &pixels,
                     Fourcc::Abgr8888,
@@ -622,6 +664,8 @@ impl DecorationRuntime {
                         CachedTitle {
                             text: w.title.clone(),
                             color,
+                            pill,
+                            border,
                             width: tw,
                             height: th,
                             buffer,
@@ -639,7 +683,6 @@ impl DecorationRuntime {
         let cached = self.titles.get(&w.id)?;
         let (tw, th) = (cached.width, cached.height);
         let draw_w = tw.min(max_w);
-        let x = w.frame.x + TITLE_LEFT_PAD;
         let y = w.frame.y + (header - th) / 2;
         let src = Rectangle::<f64, Logical>::new(
             Point::from((0.0, 0.0)),
@@ -807,17 +850,29 @@ fn phys(r: PixelRect) -> Rectangle<i32, Physical> {
     .to_physical(1)
 }
 
-/// Rasterize `text` to a premultiplied RGBA buffer at `font_px`. Returns
-/// `(pixels, width, height)` or `None` when the string is empty/too small.
-fn rasterize(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(Vec<u8>, i32, i32)> {
+/// Rasterize `text` onto an opaque rounded "pill": a flat solid plate of `pill`
+/// color ringed by a thin `border`-colored stroke (`TITLE_PILL_BORDER_PX` wide). The
+/// pill keeps the window name solid/legible no matter how translucent the titlebar
+/// background is. Returns premultiplied RGBA `(pixels, width, height)`, or `None`
+/// when the string is empty/too small.
+fn rasterize(
+    font: &Font,
+    text: &str,
+    font_px: f32,
+    color: [f32; 4],
+    pill: [f32; 4],
+    border: [f32; 3],
+) -> Option<(Vec<u8>, i32, i32)> {
     let text = text.trim();
     if text.is_empty() {
         return None;
     }
-    // Two-pass: measure, then draw. Canvas is sized to the glyph extents with a
-    // little vertical padding; baseline sits at ~80% of the font size.
-    let canvas_h = (font_px * 1.4).ceil() as i32;
-    let baseline = (font_px).round() as i32;
+    let pad_x = TITLE_PILL_PAD_X.max(0);
+    let pad_y = TITLE_PILL_PAD_Y.max(0);
+    // Two-pass: measure, then draw. The text band is sized to the glyph extents; the
+    // baseline sits at ~font size, and the whole thing is inset by the pill padding.
+    let text_h = (font_px * 1.4).ceil() as i32;
+    let baseline = pad_y + font_px.round() as i32;
 
     let mut pen_x = 0f32;
     let mut placements: Vec<(fontdue::Metrics, Vec<u8>, i32)> = Vec::new();
@@ -826,20 +881,58 @@ fn rasterize(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(
         placements.push((metrics, bitmap, pen_x.round() as i32));
         pen_x += metrics.advance_width;
     }
-    let width = pen_x.ceil() as i32;
-    if width <= 0 || canvas_h <= 0 {
+    let text_w = pen_x.ceil() as i32;
+    if text_w <= 0 || text_h <= 0 {
         return None;
     }
-    let (width, canvas_h) = (width.min(4096), canvas_h.min(256));
-    let mut pixels = vec![0u8; (width * canvas_h * 4) as usize];
+    let width = (text_w + 2 * pad_x).min(4096);
+    let height = (text_h + 2 * pad_y).min(256);
+    let mut pixels = vec![0u8; (width * height * 4) as usize];
 
-    let (cr, cg, cb, _) = (color[0], color[1], color[2], color[3]);
+    // 1) Flat solid pill plate ringed by a thin border (premultiplied). Radius =
+    //    half-height for a full capsule, capped so narrow pills stay sane. The outer
+    //    edge is anti-aliased via the signed-distance coverage; pixels within
+    //    `TITLE_PILL_BORDER_PX` of that edge take the border color, the interior the
+    //    flat fill.
+    let r = (height as f32 * 0.5).min(width as f32 * 0.5);
+    let (pr, pg, pb, pa) = (pill[0], pill[1], pill[2], pill[3].clamp(0.0, 1.0));
+    let (br, bg, bb) = (border[0], border[1], border[2]);
+    let bw = TITLE_PILL_BORDER_PX.max(0.0);
+    let wf = width as f32;
+    let hf = height as f32;
+    for y in 0..height {
+        let py = y as f32 + 0.5;
+        for x in 0..width {
+            let px = x as f32 + 0.5;
+            // Depth inside the rounded shape (>= 0 inside, used for both the outer
+            // anti-aliased coverage and the inner border ring).
+            let depth = pill_depth(px, py, wf, hf, r);
+            let cov = aa(depth);
+            if cov <= 0.0 {
+                continue;
+            }
+            // 1 within `bw` of the edge (the border ring), fading to 0 in the fill.
+            let bf = aa(bw - depth);
+            let rr = br * bf + pr * (1.0 - bf);
+            let rg = bg * bf + pg * (1.0 - bf);
+            let rb = bb * bf + pb * (1.0 - bf);
+            let a = pa * cov;
+            let idx = ((y * width + x) * 4) as usize;
+            pixels[idx] = (rr.clamp(0.0, 1.0) * a * 255.0) as u8;
+            pixels[idx + 1] = (rg.clamp(0.0, 1.0) * a * 255.0) as u8;
+            pixels[idx + 2] = (rb.clamp(0.0, 1.0) * a * 255.0) as u8;
+            pixels[idx + 3] = (a * 255.0) as u8;
+        }
+    }
+
+    // 2) Text composited over the pill with source-over (premultiplied) blending.
+    let (cr, cg, cb, ca) = (color[0], color[1], color[2], color[3]);
     for (metrics, bitmap, pen) in &placements {
-        let gx = pen + metrics.xmin;
+        let gx = pad_x + pen + metrics.xmin;
         let gy = baseline - metrics.ymin - metrics.height as i32;
         for row in 0..metrics.height as i32 {
             let py = gy + row;
-            if py < 0 || py >= canvas_h {
+            if py < 0 || py >= height {
                 continue;
             }
             for col in 0..metrics.width as i32 {
@@ -847,20 +940,50 @@ fn rasterize(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(
                 if px < 0 || px >= width {
                     continue;
                 }
-                let cov = bitmap[(row * metrics.width as i32 + col) as usize] as f32 / 255.0;
-                if cov <= 0.0 {
+                let sa = bitmap[(row * metrics.width as i32 + col) as usize] as f32 / 255.0 * ca;
+                if sa <= 0.0 {
                     continue;
                 }
                 let idx = ((py * width + px) * 4) as usize;
-                // Premultiplied alpha (matches the GL pipeline's blend setup).
-                pixels[idx] = (cr * cov * 255.0) as u8;
-                pixels[idx + 1] = (cg * cov * 255.0) as u8;
-                pixels[idx + 2] = (cb * cov * 255.0) as u8;
-                pixels[idx + 3] = (cov * 255.0) as u8;
+                let inv = 1.0 - sa;
+                let dr = pixels[idx] as f32 / 255.0;
+                let dg = pixels[idx + 1] as f32 / 255.0;
+                let db = pixels[idx + 2] as f32 / 255.0;
+                let da = pixels[idx + 3] as f32 / 255.0;
+                pixels[idx] = (((cr * sa + dr * inv).clamp(0.0, 1.0)) * 255.0) as u8;
+                pixels[idx + 1] = (((cg * sa + dg * inv).clamp(0.0, 1.0)) * 255.0) as u8;
+                pixels[idx + 2] = (((cb * sa + db * inv).clamp(0.0, 1.0)) * 255.0) as u8;
+                pixels[idx + 3] = (((sa + da * inv).clamp(0.0, 1.0)) * 255.0) as u8;
             }
         }
     }
-    Some((pixels, width, canvas_h))
+    Some((pixels, width, height))
+}
+
+/// Opaque flat-plate color for the title pill: a dark well on dark titlebars, a
+/// light-grey one on light titlebars, so the window name sits in a solid chip that
+/// stays legible over a translucent titlebar. Returns alpha 1.0.
+fn pill_base(rgb: [f32; 3]) -> [f32; 4] {
+    let lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    if lum < 0.5 {
+        [0.11, 0.11, 0.13, 1.0]
+    } else {
+        [0.82, 0.82, 0.84, 1.0]
+    }
+}
+
+/// Depth (px) inside a rounded rectangle (corner radius `r`) at pixel center
+/// `(px, py)` within a `w`×`h` box: positive inside (distance from the nearest edge),
+/// negative outside. Standard rounded-box SDF, sign-flipped so larger = deeper in.
+/// `aa(pill_depth(..))` gives the anti-aliased outer coverage.
+fn pill_depth(px: f32, py: f32, w: f32, h: f32, r: f32) -> f32 {
+    let dx = (px - w * 0.5).abs() - (w * 0.5 - r);
+    let dy = (py - h * 0.5).abs() - (h * 0.5 - r);
+    let ax = dx.max(0.0);
+    let ay = dy.max(0.0);
+    let outside = (ax * ax + ay * ay).sqrt();
+    let inside = dx.max(dy).min(0.0);
+    r - (outside + inside)
 }
 
 /// Rasterize the titlebar background. A normal titlebar gets rounded TOP corners

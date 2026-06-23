@@ -15,12 +15,13 @@ use gtk::{Application, ApplicationWindow};
 
 const APP_ID: &str = "com.metis.Settings";
 
-/// Sidebar pages, in display order. The `--page <name>` flag preselects one.
-const PAGES: &[(&str, &str)] = &[
-    ("appearance", "Appearance"),
-    ("weather", "Weather"),
-    ("network", "Network"),
-    ("calendars", "Calendars"),
+/// Sidebar pages, in display order: `(id, title, symbolic icon)`. The
+/// `--page <name>` flag preselects one.
+const PAGES: &[(&str, &str, &str)] = &[
+    ("appearance", "Appearance", "preferences-desktop-appearance-symbolic"),
+    ("weather", "Weather", "weather-few-clouds-symbolic"),
+    ("network", "Network", "network-wireless-symbolic"),
+    ("calendars", "Calendars", "x-office-calendar-symbolic"),
 ];
 
 fn main() {
@@ -60,8 +61,8 @@ fn normalize_page(name: &str) -> Option<String> {
     let name = name.trim().to_lowercase();
     PAGES
         .iter()
-        .find(|(id, _)| *id == name)
-        .map(|(id, _)| id.to_string())
+        .find(|(id, _, _)| *id == name)
+        .map(|(id, _, _)| id.to_string())
 }
 
 fn build_ui(app: &Application, page: Option<String>) {
@@ -77,10 +78,36 @@ fn build_ui(app: &Application, page: Option<String>) {
     stack.add_titled(&pages::network::build(), Some("network"), "Network");
     stack.add_titled(&pages::calendars::build(), Some("calendars"), "Calendars");
 
-    let sidebar = gtk::StackSidebar::new();
-    sidebar.set_stack(&stack);
-    sidebar.set_width_request(180);
+    // Custom icon + label sidebar (GtkStackSidebar is title-only). A GtkListBox
+    // drives the stack; row index maps 1:1 to `PAGES`.
+    let nav = gtk::ListBox::new();
+    nav.set_selection_mode(gtk::SelectionMode::Single);
+    for (_, title, icon) in PAGES {
+        let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        let img = gtk::Image::from_icon_name(icon);
+        let label = gtk::Label::new(Some(title));
+        label.set_xalign(0.0);
+        row_box.append(&img);
+        row_box.append(&label);
+        let row = gtk::ListBoxRow::new();
+        row.set_child(Some(&row_box));
+        nav.append(&row);
+    }
+    {
+        let stack = stack.clone();
+        nav.connect_row_selected(move |_, row| {
+            if let Some(row) = row {
+                if let Some((id, _, _)) = PAGES.get(row.index() as usize) {
+                    stack.set_visible_child_name(id);
+                }
+            }
+        });
+    }
+
+    let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     sidebar.add_css_class("metis-settings-sidebar");
+    sidebar.set_width_request(180);
+    sidebar.append(&nav);
 
     let layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     layout.append(&sidebar);
@@ -88,8 +115,13 @@ fn build_ui(app: &Application, page: Option<String>) {
     layout.append(&stack);
     layout.add_css_class("metis-settings-root");
 
-    if let Some(page) = page {
-        stack.set_visible_child_name(&page);
+    // Preselect the requested (or first) page; selecting the row switches the stack.
+    let initial = page
+        .as_deref()
+        .and_then(|p| PAGES.iter().position(|(id, _, _)| *id == p))
+        .unwrap_or(0);
+    if let Some(row) = nav.row_at_index(initial as i32) {
+        nav.select_row(Some(&row));
     }
 
     // Inside a Metis session the compositor draws the server-side titlebar +

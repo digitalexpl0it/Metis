@@ -161,9 +161,11 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-sidebar list {{ background-color: transparent; padding: 8px; }}
         .metis-settings-sidebar row {{ border-radius: {rl}px; padding: 8px 12px; }}
         .metis-settings-sidebar row label {{ color: {text}; }}
+        .metis-settings-sidebar row image {{ color: {muted}; -gtk-icon-size: 16px; }}
         .metis-settings-sidebar row:hover {{ background-color: {raised}; }}
         .metis-settings-sidebar row:selected {{ background-color: {accent}; }}
         .metis-settings-sidebar row:selected label {{ color: {on_accent}; font-weight: 700; }}
+        .metis-settings-sidebar row:selected image {{ color: {on_accent}; }}
 
         .metis-settings-page {{ background-color: {bg}; }}
         .metis-settings-title {{ font-size: 26px; font-weight: 800; color: {text}; }}
