@@ -5,6 +5,34 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-22]
+
+### Added
+
+- **Configurable title-pill border** — the window title now sits on a flat, solid
+  plate (dark on dark themes, light on light) ringed by a thin accent stroke on the
+  focused window; unfocused windows use a muted slate. The stroke is configurable
+  via `bar.json` → `titlebar_pill_border` and **Settings · Appearance · Windows**:
+  `mode` (`accent` follows the theme accent gradient, `solid` a single color, or a
+  custom `gradient`), per-stop colors, and `width_px`. The accent gradient flows
+  left→right across the pill. Picked up live (~1s) — no restart.
+- **Configurable window-frame border (independent of the pill)** — the whole window
+  frame (titlebar ring + left/right/bottom edges) draws the same style options as a
+  **top→bottom** gradient, configured separately via `bar.json` → `window_border`
+  and its own controls in **Settings · Appearance · Windows**. The frame
+  **thickness** is now adjustable (`width_px`, 0–16px): it both strokes the border
+  and insets the client body to match, applied live via a runtime grid border width
+  (`metis_grid::set_app_tile_border_px`) plus a relayout so existing windows resize.
+
+### Fixed
+
+- **Titlebar click-through raising the wrong window** — clicking a foreground
+  window over a spot where a window *behind* it had its titlebar/border could raise
+  the background window. Server-side decoration presses are now hit-tested in
+  stacking order (topmost first), so the window in front owns the click and a
+  covered window's chrome can no longer intercept it. Genuinely exposed background
+  titlebars still raise as expected.
+
 ## [2026-06-21]
 
 ### Added
