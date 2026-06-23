@@ -157,7 +157,7 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
 
 pub use bar::{
     bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarConfig,
-    BarPosition, BarWidgetId, ClockConfig,
+    BarPosition, BarWidgetId, BorderMode, ClockConfig, TitlebarPillBorder, WindowBorder,
 };
 pub use calendars::{
     calendars_config_path, default_local_dir, load_calendars_config, save_calendars_config,

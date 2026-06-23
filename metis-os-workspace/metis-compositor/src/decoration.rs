@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use fontdue::Font;
-use metis_grid::{PixelRect, APP_TILE_BORDER_PX, APP_TILE_HEADER_PX};
+use metis_grid::{PixelRect, APP_TILE_HEADER_PX};
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::solid::SolidColorRenderElement;
 use smithay::backend::renderer::element::texture::{TextureBuffer, TextureRenderElement};
@@ -48,9 +48,6 @@ const TITLE_FONT_PX: f32 = 14.0;
 /// legible even when the titlebar background opacity is turned down.
 const TITLE_PILL_PAD_X: i32 = 9;
 const TITLE_PILL_PAD_Y: i32 = 3;
-/// Thickness (px) of the thin accent stroke ringing the title pill. The pill itself
-/// is a flat solid plate; this border is the only chrome accent on it.
-const TITLE_PILL_BORDER_PX: f32 = 1.0;
 
 /// Radius of the rounded top corners on the server-side titlebar.
 const CORNER_RADIUS_PX: i32 = 10;
@@ -77,8 +74,9 @@ struct Palette {
     border_inactive: [f32; 4],
     text_active: [f32; 4],
     text_inactive: [f32; 4],
-    /// Theme accent (primary) used for the focused window's title-pill border.
-    accent: [f32; 3],
+    /// Theme accent stops (the full `accent` array) used for the focused window's
+    /// title-pill border when the pill-border mode is `accent`.
+    accent: Vec<[f32; 3]>,
 }
 
 impl Default for Palette {
@@ -114,7 +112,7 @@ fn load_palette() -> Palette {
     ];
     let text = hex_rgb(&t.text);
     let muted = hex_rgb(&t.text_muted);
-    let accent = hex_rgb(t.accent_primary());
+    let accent: Vec<[f32; 3]> = t.accent.iter().map(|h| hex_rgb(h)).collect();
     Palette {
         titlebar_active: tb_active,
         titlebar_inactive: tb_inactive,
@@ -190,7 +188,10 @@ struct CachedTitle {
     text: String,
     color: [f32; 4],
     pill: [f32; 4],
-    border: [f32; 3],
+    /// Pill-border stops (1 = flat, >1 = left→right gradient) and stroke width, so
+    /// the texture re-rasterizes when the configured border changes.
+    border: Vec<[f32; 3]>,
+    border_px: f32,
     width: i32,
     height: i32,
     buffer: TextureBuffer<GlesTexture>,
@@ -213,10 +214,41 @@ struct CachedButton {
 struct CachedTitlebar {
     width: i32,
     header: i32,
+    /// Total frame height — the denominator for the vertical border gradient, so the
+    /// titlebar ring samples the same top→bottom ramp as the side edges.
+    frame_height: i32,
+    /// Border thickness baked into the ring (runtime-configurable).
+    border_px: i32,
     alpha: f32,
     focused: bool,
     overlay: bool,
+    /// Border gradient stops baked into the ring (1 = flat, >1 = top→bottom ramp).
+    border: Vec<[f32; 3]>,
     buffer: TextureBuffer<GlesTexture>,
+}
+
+/// Cached vertical-gradient side-border edge texture (left + right share it). The
+/// frame's left/right edges below the titlebar are colored by a top→bottom gradient
+/// matching the titlebar ring and bottom edge. Re-rasterized when the window height,
+/// focus, or border stops change.
+#[derive(Clone)]
+struct CachedBorder {
+    height: i32,
+    frame_height: i32,
+    focused: bool,
+    stops: Vec<[f32; 3]>,
+    /// One buffer per side (`[left, right]`) so each quad has a distinct element id.
+    bufs: Vec<TextureBuffer<GlesTexture>>,
+}
+
+/// Outcome of a throttled config refresh: whether to re-damage and/or relayout.
+#[derive(Default, Clone, Copy)]
+pub struct DecoRefresh {
+    /// Chrome appearance changed — caller should flag damage / redraw.
+    pub damage: bool,
+    /// Border thickness changed — caller should re-apply window rects so the client
+    /// body inset tracks the new frame width.
+    pub relayout: bool,
 }
 
 /// Persistent decoration resources owned by `MetisState`.
@@ -226,6 +258,7 @@ pub struct DecorationRuntime {
     titles: HashMap<u32, CachedTitle>,
     buttons: HashMap<(u32, u8), CachedButton>,
     titlebars: HashMap<u32, CachedTitlebar>,
+    borders: HashMap<u32, CachedBorder>,
     /// Single shared drop-shadow texture (black, premultiplied), rasterized once
     /// and 9-sliced for every window. `None` until the first frame imports it.
     /// Used for the straight edges and the (square) bottom corners.
@@ -245,6 +278,12 @@ pub struct DecorationRuntime {
     titlebar_alpha: f32,
     /// Theme-derived chrome colors, refreshed live so light/dark switches apply.
     palette: Palette,
+    /// Title-pill border appearance (mode/color/gradient/width) from `bar.json`,
+    /// refreshed live alongside the titlebar opacity.
+    pill_border: metis_config::TitlebarPillBorder,
+    /// Window frame border appearance + thickness from `bar.json`, refreshed live.
+    /// The thickness is mirrored into `metis_grid`'s client inset.
+    window_border: metis_config::WindowBorder,
     last_config_check: Instant,
 }
 
@@ -256,6 +295,7 @@ impl Default for DecorationRuntime {
             titles: HashMap::new(),
             buttons: HashMap::new(),
             titlebars: HashMap::new(),
+            borders: HashMap::new(),
             shadow_tex: None,
             shadow_corner_tl: None,
             shadow_corner_tr: None,
@@ -264,6 +304,8 @@ impl Default for DecorationRuntime {
             last_sig: 0,
             titlebar_alpha: read_titlebar_opacity(),
             palette: load_palette(),
+            pill_border: read_pill_border(),
+            window_border: read_window_border(),
             last_config_check: Instant::now(),
         }
     }
@@ -277,34 +319,71 @@ fn read_titlebar_opacity() -> f32 {
         .clamp(0.0, 1.0)
 }
 
+/// Read the title-pill border appearance from `~/.config/metis/bar.json`. Defaults
+/// are supplied by `metis-config`.
+fn read_pill_border() -> metis_config::TitlebarPillBorder {
+    metis_config::load_bar_config().titlebar_pill_border
+}
+
+/// Read the window frame border appearance + thickness from `~/.config/metis/bar.json`,
+/// mirroring the thickness into `metis_grid` so the client body inset matches the
+/// drawn border. Defaults are supplied by `metis-config`.
+fn read_window_border() -> metis_config::WindowBorder {
+    let wb = metis_config::load_bar_config().window_border;
+    metis_grid::set_app_tile_border_px(wb.width_px.round() as i32);
+    wb
+}
+
 impl DecorationRuntime {
     /// Throttled re-read of `bar.json` + the active theme (~1s) so a Settings app
-    /// changing the titlebar opacity or the light/dark theme is picked up live.
-    /// Returns true when anything changed (caller flags damage).
-    pub fn maybe_refresh(&mut self) -> bool {
+    /// changing the titlebar opacity / borders / light-dark theme is picked up live.
+    /// Returns whether the caller should re-damage and/or relayout windows.
+    pub fn maybe_refresh(&mut self) -> DecoRefresh {
         if self.last_config_check.elapsed() < Duration::from_secs(1) {
-            return false;
+            return DecoRefresh::default();
         }
         self.last_config_check = Instant::now();
-        let mut changed = false;
+        let mut out = DecoRefresh::default();
         let alpha = read_titlebar_opacity();
         if (alpha - self.titlebar_alpha).abs() > f32::EPSILON {
             self.titlebar_alpha = alpha;
-            changed = true;
+            out.damage = true;
+        }
+        let pill_border = read_pill_border();
+        if pill_border != self.pill_border {
+            self.pill_border = pill_border;
+            // The cached title textures bake in the old pill stroke; drop them.
+            self.titles.clear();
+            self.commit.increment();
+            out.damage = true;
+        }
+        let window_border = read_window_border();
+        if window_border != self.window_border {
+            // A thickness change must also relayout (the client body inset changed);
+            // `read_window_border` already pushed the new width into `metis_grid`.
+            let width_changed =
+                (window_border.width_px - self.window_border.width_px).abs() > f32::EPSILON;
+            self.window_border = window_border;
+            // The titlebar ring + side edges bake the frame stroke/width; drop them.
+            self.titlebars.clear();
+            self.borders.clear();
+            self.commit.increment();
+            out.damage = true;
+            out.relayout |= width_changed;
         }
         let palette = load_palette();
         if palette != self.palette {
             self.palette = palette;
-            // The cached textures (titlebar / title / buttons) bake in the old
-            // colors, so drop them; bump the commit so the solid border elements
-            // re-damage with the new color too.
+            // The cached textures (titlebar / title / buttons / borders) bake in the
+            // old colors, so drop them; bump the commit so solid elements re-damage.
             self.titles.clear();
             self.buttons.clear();
             self.titlebars.clear();
+            self.borders.clear();
             self.commit.increment();
-            changed = true;
+            out.damage = true;
         }
-        changed
+        out
     }
 
     /// Build the render elements for every decorated window. Front-to-back order
@@ -320,6 +399,7 @@ impl DecorationRuntime {
         self.ids.retain(|(id, _), _| live.contains(id));
         self.buttons.retain(|(id, _), _| live.contains(id));
         self.titlebars.retain(|id, _| live.contains(id));
+        self.borders.retain(|id, _| live.contains(id));
         self.shadow_bufs.retain(|id, _| live.contains(id));
 
         // Fold the titlebar alpha into the signature so a live opacity change
@@ -354,37 +434,45 @@ impl DecorationRuntime {
                 self.palette.titlebar_inactive
             };
             let titlebar_alpha = self.titlebar_alpha;
-            let border = if w.focused {
-                self.palette.border_active
+            // Frame border stroke: the focused window uses the configured window
+            // border (accent gradient / solid / custom gradient), independent of the
+            // title pill; unfocused windows use a muted slate. Drawn as a vertical
+            // top→bottom gradient across the whole frame so the titlebar ring, side
+            // edges and bottom edge line up.
+            let border_stops: Vec<[f32; 3]> = if w.focused {
+                resolve_border_stops(
+                    self.window_border.mode,
+                    &self.window_border.color,
+                    &self.window_border.gradient,
+                    &self.palette,
+                )
             } else {
-                self.palette.border_inactive
+                vec![[
+                    self.palette.border_inactive[0],
+                    self.palette.border_inactive[1],
+                    self.palette.border_inactive[2],
+                ]]
             };
             let header = APP_TILE_HEADER_PX.min(frame.height);
-            let b = APP_TILE_BORDER_PX;
+            // Runtime-configurable thickness (kept in sync with the grid's client
+            // inset via `set_app_tile_border_px` in `maybe_refresh`).
+            let b = metis_grid::app_tile_border_px();
 
             // Left / right / bottom borders around the client area. Skipped for the
             // overlay reveal — it floats only the titlebar over the client, with no
-            // surrounding frame.
-            if !w.overlay {
-                out.push(self.solid(
-                    w.id,
-                    1,
-                    PixelRect { x: frame.x, y: frame.y + header, width: b, height: frame.height - header },
-                    border,
-                    commit,
-                ));
-                out.push(self.solid(
-                    w.id,
-                    2,
-                    PixelRect {
-                        x: frame.x + frame.width - b,
-                        y: frame.y + header,
-                        width: b,
-                        height: frame.height - header,
-                    },
-                    border,
-                    commit,
-                ));
+            // surrounding frame. The two side edges are a shared vertical-gradient
+            // texture; the bottom edge sits at the gradient's tail so a flat solid
+            // (sampled near t=1) suffices.
+            if !w.overlay && b > 0 {
+                for elem in self.border_edge_elements(renderer, w, b, header, &border_stops) {
+                    out.push(elem);
+                }
+                let t_bottom = if frame.height > 0 {
+                    (frame.height - b) as f32 / frame.height as f32
+                } else {
+                    1.0
+                };
+                let bc = sample_gradient(&border_stops, t_bottom);
                 out.push(self.solid(
                     w.id,
                     3,
@@ -394,7 +482,7 @@ impl DecorationRuntime {
                         width: frame.width,
                         height: b,
                     },
-                    border,
+                    [bc[0], bc[1], bc[2], 1.0],
                     commit,
                 ));
             }
@@ -438,9 +526,11 @@ impl DecorationRuntime {
                 w,
                 frame.width,
                 header,
+                frame.height,
+                b,
                 titlebar_rgb,
                 titlebar_alpha,
-                border,
+                &border_stops,
                 w.overlay,
             ) {
                 out.push(elem);
@@ -533,15 +623,18 @@ impl DecorationRuntime {
     /// Build (or reuse) the titlebar-background texture (rounded top corners) and
     /// place it across the top of the frame. Re-rasterized only when the window's
     /// width, opacity, or focus changes.
+    #[allow(clippy::too_many_arguments)]
     fn titlebar_element(
         &mut self,
         renderer: &mut GlesRenderer,
         w: &WindowDeco,
         width: i32,
         header: i32,
+        frame_height: i32,
+        border_px: i32,
         color: [f32; 3],
         alpha: f32,
-        border: [f32; 4],
+        border: &[[f32; 3]],
         overlay: bool,
     ) -> Option<DecorationElement> {
         if width <= 0 || header <= 0 {
@@ -553,8 +646,11 @@ impl DecorationRuntime {
             .map(|c| {
                 c.width != width
                     || c.header != header
+                    || c.frame_height != frame_height
+                    || c.border_px != border_px
                     || c.focused != w.focused
                     || c.overlay != overlay
+                    || c.border.as_slice() != border
                     || (c.alpha - alpha).abs() > f32::EPSILON
             })
             .unwrap_or(true);
@@ -563,9 +659,11 @@ impl DecorationRuntime {
             let (pixels, pw, ph) = rasterize_titlebar(
                 color,
                 alpha,
-                [border[0], border[1], border[2]],
+                border,
                 width,
                 header,
+                frame_height,
+                border_px,
                 overlay,
             )?;
             let texture = renderer
@@ -578,9 +676,12 @@ impl DecorationRuntime {
                 CachedTitlebar {
                     width,
                     header,
+                    frame_height,
+                    border_px,
                     alpha,
                     focused: w.focused,
                     overlay,
+                    border: border.to_vec(),
                     buffer,
                 },
             );
@@ -602,6 +703,96 @@ impl DecorationRuntime {
                 Kind::Unspecified,
             ),
         ))
+    }
+
+    /// Build (or reuse) the shared vertical-gradient side-border texture and place it
+    /// as the window's left and right edges (below the titlebar). Re-rasterized only
+    /// when the window height, focus, or border stops change.
+    fn border_edge_elements(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        w: &WindowDeco,
+        b: i32,
+        header: i32,
+        stops: &[[f32; 3]],
+    ) -> Vec<DecorationElement> {
+        let frame = w.frame;
+        let height = frame.height - header;
+        if b <= 0 || height <= 0 {
+            return Vec::new();
+        }
+        let needs_render = self
+            .borders
+            .get(&w.id)
+            .map(|c| {
+                c.height != height
+                    || c.frame_height != frame.height
+                    || c.focused != w.focused
+                    || c.stops.as_slice() != stops
+            })
+            .unwrap_or(true);
+
+        if needs_render {
+            let Some((pixels, pw, ph)) =
+                rasterize_border_edge(stops, b, height, header, frame.height)
+            else {
+                return Vec::new();
+            };
+            let texture = match renderer.import_memory(
+                &pixels,
+                Fourcc::Abgr8888,
+                Size::from((pw, ph)),
+                false,
+            ) {
+                Ok(t) => t,
+                Err(_) => return Vec::new(),
+            };
+            let bufs = (0..2)
+                .map(|_| {
+                    TextureBuffer::from_texture(renderer, texture.clone(), 1, Transform::Normal, None)
+                })
+                .collect::<Vec<_>>();
+            self.borders.insert(
+                w.id,
+                CachedBorder {
+                    height,
+                    frame_height: frame.height,
+                    focused: w.focused,
+                    stops: stops.to_vec(),
+                    bufs,
+                },
+            );
+        }
+
+        let Some(cached) = self.borders.get(&w.id) else {
+            return Vec::new();
+        };
+        let src = Rectangle::<f64, Logical>::new(
+            Point::from((0.0, 0.0)),
+            Size::from((b as f64, height as f64)),
+        );
+        let positions = [
+            (frame.x, frame.y + header),
+            (frame.x + frame.width - b, frame.y + header),
+        ];
+        let mut out = Vec::with_capacity(2);
+        for (i, (x, y)) in positions.iter().enumerate() {
+            let Some(buf) = cached.bufs.get(i) else {
+                continue;
+            };
+            let loc = Point::<i32, Logical>::from((*x, *y)).to_physical(1);
+            out.push(DecorationElement::Text(
+                TextureRenderElement::from_texture_buffer(
+                    loc.to_f64(),
+                    buf,
+                    None,
+                    Some(src),
+                    Some(Size::from((b, height))),
+                    Kind::Unspecified,
+                ),
+            ));
+        }
+        out
     }
 
     fn title_element(
@@ -628,28 +819,41 @@ impl DecorationRuntime {
             self.palette.titlebar_inactive
         };
         let pill = pill_base(tb);
-        // Thin border ringing the pill: the theme accent on the focused window (a
-        // crisp pop tying the chrome to the active palette), a muted slate border on
-        // unfocused windows so background titles stay quiet.
+        // Thin border ringing the pill. The focused window draws the configured
+        // pill-border (accent gradient / solid / custom gradient) as a crisp pop;
+        // unfocused windows always fall back to a muted slate stroke so background
+        // titles stay quiet.
         let border = if w.focused {
-            self.palette.accent
+            resolve_border_stops(
+                self.pill_border.mode,
+                &self.pill_border.color,
+                &self.pill_border.gradient,
+                &self.palette,
+            )
         } else {
-            [
+            vec![[
                 self.palette.border_inactive[0],
                 self.palette.border_inactive[1],
                 self.palette.border_inactive[2],
-            ]
+            ]]
         };
+        let border_px = self.pill_border.width_px.clamp(0.0, 8.0);
 
         let needs_render = self
             .titles
             .get(&w.id)
-            .map(|c| c.text != w.title || c.color != color || c.pill != pill || c.border != border)
+            .map(|c| {
+                c.text != w.title
+                    || c.color != color
+                    || c.pill != pill
+                    || c.border != border
+                    || (c.border_px - border_px).abs() > f32::EPSILON
+            })
             .unwrap_or(true);
 
         if needs_render {
             if let Some((pixels, tw, th)) =
-                rasterize(font, &w.title, TITLE_FONT_PX, color, pill, border)
+                rasterize(font, &w.title, TITLE_FONT_PX, color, pill, &border, border_px)
             {
                 if let Ok(texture) = renderer.import_memory(
                     &pixels,
@@ -666,6 +870,7 @@ impl DecorationRuntime {
                             color,
                             pill,
                             border,
+                            border_px,
                             width: tw,
                             height: th,
                             buffer,
@@ -851,17 +1056,19 @@ fn phys(r: PixelRect) -> Rectangle<i32, Physical> {
 }
 
 /// Rasterize `text` onto an opaque rounded "pill": a flat solid plate of `pill`
-/// color ringed by a thin `border`-colored stroke (`TITLE_PILL_BORDER_PX` wide). The
-/// pill keeps the window name solid/legible no matter how translucent the titlebar
-/// background is. Returns premultiplied RGBA `(pixels, width, height)`, or `None`
-/// when the string is empty/too small.
+/// color ringed by a thin stroke `border_px` wide. The stroke is a flat color when
+/// `border` has one stop, or a left→right gradient across its stops. The pill keeps
+/// the window name solid/legible no matter how translucent the titlebar background
+/// is. Returns premultiplied RGBA `(pixels, width, height)`, or `None` when the
+/// string is empty/too small.
 fn rasterize(
     font: &Font,
     text: &str,
     font_px: f32,
     color: [f32; 4],
     pill: [f32; 4],
-    border: [f32; 3],
+    border: &[[f32; 3]],
+    border_px: f32,
 ) -> Option<(Vec<u8>, i32, i32)> {
     let text = text.trim();
     if text.is_empty() {
@@ -896,10 +1103,21 @@ fn rasterize(
     //    flat fill.
     let r = (height as f32 * 0.5).min(width as f32 * 0.5);
     let (pr, pg, pb, pa) = (pill[0], pill[1], pill[2], pill[3].clamp(0.0, 1.0));
-    let (br, bg, bb) = (border[0], border[1], border[2]);
-    let bw = TITLE_PILL_BORDER_PX.max(0.0);
+    let bw = border_px.max(0.0);
     let wf = width as f32;
     let hf = height as f32;
+    // Precompute the per-column border color so a horizontal gradient stroke costs a
+    // single lerp per column rather than per pixel.
+    let grad: Vec<[f32; 3]> = (0..width)
+        .map(|x| {
+            let t = if width > 1 {
+                x as f32 / (width as f32 - 1.0)
+            } else {
+                0.0
+            };
+            sample_gradient(border, t)
+        })
+        .collect();
     for y in 0..height {
         let py = y as f32 + 0.5;
         for x in 0..width {
@@ -913,9 +1131,10 @@ fn rasterize(
             }
             // 1 within `bw` of the edge (the border ring), fading to 0 in the fill.
             let bf = aa(bw - depth);
-            let rr = br * bf + pr * (1.0 - bf);
-            let rg = bg * bf + pg * (1.0 - bf);
-            let rb = bb * bf + pb * (1.0 - bf);
+            let bc = grad[x as usize];
+            let rr = bc[0] * bf + pr * (1.0 - bf);
+            let rg = bc[1] * bf + pg * (1.0 - bf);
+            let rb = bc[2] * bf + pb * (1.0 - bf);
             let a = pa * cov;
             let idx = ((y * width + x) * 4) as usize;
             pixels[idx] = (rr.clamp(0.0, 1.0) * a * 255.0) as u8;
@@ -960,6 +1179,60 @@ fn rasterize(
     Some((pixels, width, height))
 }
 
+/// Resolve focused-window border stops from a configured mode: `Accent` follows the
+/// theme accent gradient, `Solid` is a single parsed color, and `Gradient` parses the
+/// configured stops. Always returns at least one stop (falling back to the theme
+/// accent / a primary cyan when a list is empty). Shared by the title pill and the
+/// window frame border.
+fn resolve_border_stops(
+    mode: metis_config::BorderMode,
+    color: &str,
+    gradient: &[String],
+    palette: &Palette,
+) -> Vec<[f32; 3]> {
+    let accent_fallback = || {
+        if palette.accent.is_empty() {
+            vec![[0.0, 0.95, 1.0]]
+        } else {
+            palette.accent.clone()
+        }
+    };
+    match mode {
+        metis_config::BorderMode::Accent => accent_fallback(),
+        metis_config::BorderMode::Solid => vec![hex_rgb(color)],
+        metis_config::BorderMode::Gradient => {
+            let stops: Vec<[f32; 3]> = gradient.iter().map(|h| hex_rgb(h)).collect();
+            if stops.is_empty() {
+                accent_fallback()
+            } else {
+                stops
+            }
+        }
+    }
+}
+
+/// Sample a gradient (`stops`) at parameter `t` in `[0, 1]`, linearly interpolating
+/// between the two bracketing stops. A single stop yields a flat color.
+fn sample_gradient(stops: &[[f32; 3]], t: f32) -> [f32; 3] {
+    match stops.len() {
+        0 => [0.0, 0.0, 0.0],
+        1 => stops[0],
+        n => {
+            let scaled = t.clamp(0.0, 1.0) * (n as f32 - 1.0);
+            let i = scaled.floor() as usize;
+            if i >= n - 1 {
+                return stops[n - 1];
+            }
+            let f = scaled - i as f32;
+            [
+                lerp(stops[i][0], stops[i + 1][0], f),
+                lerp(stops[i][1], stops[i + 1][1], f),
+                lerp(stops[i][2], stops[i + 1][2], f),
+            ]
+        }
+    }
+}
+
 /// Opaque flat-plate color for the title pill: a dark well on dark titlebars, a
 /// light-grey one on light titlebars, so the window name sits in a solid chip that
 /// stays legible over a translucent titlebar. Returns alpha 1.0.
@@ -992,15 +1265,19 @@ fn pill_depth(px: f32, py: f32, w: f32, h: f32, r: f32) -> f32 {
 /// around and continues *under* the titlebar instead of stopping at it. The
 /// auto-hide reveal `overlay` is a plain square strip — no corners and no border —
 /// since it floats over the client rather than framing it. `color` is the straight
-/// titlebar RGB dimmed by `alpha`; `border` is the (opaque) frame color. Pixels
-/// outside the rounded corners are fully transparent. Returns premultiplied RGBA
-/// at `TITLEBAR_SS`× scale.
+/// titlebar RGB dimmed by `alpha`; `border` is the (opaque) frame stroke, sampled as
+/// a top→bottom gradient over the full `frame_height` (one stop = flat) so the ring
+/// lines up with the side/bottom border gradient. Pixels outside the rounded corners
+/// are fully transparent. Returns premultiplied RGBA at `TITLEBAR_SS`× scale.
+#[allow(clippy::too_many_arguments)]
 fn rasterize_titlebar(
     color: [f32; 3],
     alpha: f32,
-    border: [f32; 3],
+    border: &[[f32; 3]],
     width: i32,
     header: i32,
+    frame_height: i32,
+    border_px: i32,
     overlay: bool,
 ) -> Option<(Vec<u8>, i32, i32)> {
     let ss = TITLEBAR_SS.max(1);
@@ -1030,8 +1307,12 @@ fn rasterize_titlebar(
     }
 
     let r = (CORNER_RADIUS_PX * ss) as f32;
-    let bw = (APP_TILE_BORDER_PX * ss) as f32;
+    let bw = (border_px.max(0) * ss) as f32;
+    let denom = (frame_height.max(1) * ss) as f32;
     for y in 0..h {
+        // Border color at this row: sample the frame's top→bottom gradient. The
+        // titlebar occupies the top `header` px of the frame, so t = y / frame_height.
+        let bc = sample_gradient(border, y as f32 / denom);
         for x in 0..w {
             // Distance to the nearest bordered edge (top/left/right), following the
             // rounded top corners; bottom edge is open (meets the client body).
@@ -1046,13 +1327,47 @@ fn rasterize_titlebar(
             let pa = (bf + fill_a * (1.0 - bf)) * outer;
             let blend = |fg: f32, bg: f32| (fg * bf + bg * fill_a * (1.0 - bf)) * outer;
             let idx = ((y * w + x) * 4) as usize;
-            pixels[idx] = (blend(border[0], color[0]) * 255.0) as u8;
-            pixels[idx + 1] = (blend(border[1], color[1]) * 255.0) as u8;
-            pixels[idx + 2] = (blend(border[2], color[2]) * 255.0) as u8;
+            pixels[idx] = (blend(bc[0], color[0]) * 255.0) as u8;
+            pixels[idx + 1] = (blend(bc[1], color[1]) * 255.0) as u8;
+            pixels[idx + 2] = (blend(bc[2], color[2]) * 255.0) as u8;
             pixels[idx + 3] = (pa * 255.0) as u8;
         }
     }
     Some((pixels, w, h))
+}
+
+/// Rasterize the shared vertical-gradient side-border edge: a `b`×`height` opaque
+/// premultiplied RGBA strip whose rows are colored by sampling `stops` at
+/// `t = (header + row) / frame_height`, so the left/right edges continue the frame's
+/// top→bottom gradient below the titlebar. A single stop yields a flat color.
+fn rasterize_border_edge(
+    stops: &[[f32; 3]],
+    b: i32,
+    height: i32,
+    header: i32,
+    frame_height: i32,
+) -> Option<(Vec<u8>, i32, i32)> {
+    if b <= 0 || height <= 0 || frame_height <= 0 {
+        return None;
+    }
+    let mut pixels = vec![0u8; (b * height * 4) as usize];
+    for row in 0..height {
+        let t = (header + row) as f32 / frame_height as f32;
+        let c = sample_gradient(stops, t);
+        let (cr, cg, cb) = (
+            (c[0].clamp(0.0, 1.0) * 255.0) as u8,
+            (c[1].clamp(0.0, 1.0) * 255.0) as u8,
+            (c[2].clamp(0.0, 1.0) * 255.0) as u8,
+        );
+        for col in 0..b {
+            let idx = ((row * b + col) * 4) as usize;
+            pixels[idx] = cr;
+            pixels[idx + 1] = cg;
+            pixels[idx + 2] = cb;
+            pixels[idx + 3] = 255;
+        }
+    }
+    Some((pixels, b, height))
 }
 
 /// Signed distance (px, positive = inside) from the nearest *bordered* edge of the

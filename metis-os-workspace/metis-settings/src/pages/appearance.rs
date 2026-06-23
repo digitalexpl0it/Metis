@@ -429,7 +429,155 @@ pub fn build() -> gtk::Widget {
     win_hint.set_wrap(true);
     win_hint.add_css_class("metis-settings-hint");
     win_body.append(&win_hint);
+
+    // -- Title pill border (mode / width / colors) --
+    let pill = bar.borrow().titlebar_pill_border.clone();
+
+    let pill_mode = gtk::DropDown::from_strings(&["Theme accent", "Solid color", "Custom gradient"]);
+    pill_mode.set_selected(match pill.mode {
+        metis_config::BorderMode::Accent => 0,
+        metis_config::BorderMode::Solid => 1,
+        metis_config::BorderMode::Gradient => 2,
+    });
+    win_body.append(&ui::row_with_icon(
+        "view-paged-symbolic",
+        "Title pill border",
+        &pill_mode,
+    ));
+
+    let pill_width = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 4.0, 0.25);
+    pill_width.set_value(pill.width_px as f64);
+    pill_width.set_size_request(200, -1);
+    pill_width.set_draw_value(true);
+    win_body.append(&ui::row_with_icon(
+        "display-brightness-symbolic",
+        "Pill border width",
+        &pill_width,
+    ));
+
+    // Solid-color control (shown only in Solid mode).
+    let pill_solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let pill_solid = color_dialog_button();
+    pill_solid.set_rgba(&hex_to_rgba(&pill.color));
+    pill_solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Border color",
+        &pill_solid,
+    ));
+    win_body.append(&pill_solid_box);
+
+    // Custom-gradient controls (shown only in Gradient mode): a fixed 3-stop ramp.
+    let pill_grad_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let pill_stop = |idx: usize, fallback: &str| {
+        let b = color_dialog_button();
+        let hex = pill
+            .gradient
+            .get(idx)
+            .map(String::as_str)
+            .unwrap_or(fallback);
+        b.set_rgba(&hex_to_rgba(hex));
+        b
+    };
+    let pill_g1 = pill_stop(0, "#00F2FE");
+    let pill_g2 = pill_stop(1, "#4FACFE");
+    let pill_g3 = pill_stop(2, "#A24BFF");
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient start", &pill_g1));
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient middle", &pill_g2));
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient end", &pill_g3));
+    win_body.append(&pill_grad_box);
+
+    let pill_hint = gtk::Label::new(Some(
+        "The thin accent border around the focused window's title pill. \"Theme \
+         accent\" tracks your accent colors; or set a solid color / custom gradient. \
+         Unfocused windows use a muted border.",
+    ));
+    pill_hint.set_xalign(0.0);
+    pill_hint.set_wrap(true);
+    pill_hint.add_css_class("metis-settings-hint");
+    win_body.append(&pill_hint);
+
+    // -- Window frame border (independent of the pill: mode / thickness / colors) --
+    let wb = bar.borrow().window_border.clone();
+
+    let wb_mode = gtk::DropDown::from_strings(&["Theme accent", "Solid color", "Custom gradient"]);
+    wb_mode.set_selected(match wb.mode {
+        metis_config::BorderMode::Accent => 0,
+        metis_config::BorderMode::Solid => 1,
+        metis_config::BorderMode::Gradient => 2,
+    });
+    win_body.append(&ui::row_with_icon(
+        "window-new-symbolic",
+        "Window border",
+        &wb_mode,
+    ));
+
+    let wb_width = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 12.0, 1.0);
+    wb_width.set_value(wb.width_px as f64);
+    wb_width.set_size_request(200, -1);
+    wb_width.set_draw_value(true);
+    win_body.append(&ui::row_with_icon(
+        "view-fullscreen-symbolic",
+        "Window border thickness",
+        &wb_width,
+    ));
+
+    let wb_solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let wb_solid = color_dialog_button();
+    wb_solid.set_rgba(&hex_to_rgba(&wb.color));
+    wb_solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Border color",
+        &wb_solid,
+    ));
+    win_body.append(&wb_solid_box);
+
+    let wb_grad_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let wb_stop = |idx: usize, fallback: &str| {
+        let b = color_dialog_button();
+        let hex = wb.gradient.get(idx).map(String::as_str).unwrap_or(fallback);
+        b.set_rgba(&hex_to_rgba(hex));
+        b
+    };
+    let wb_g1 = wb_stop(0, "#00F2FE");
+    let wb_g2 = wb_stop(1, "#4FACFE");
+    let wb_g3 = wb_stop(2, "#A24BFF");
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient top", &wb_g1));
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient middle", &wb_g2));
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient bottom", &wb_g3));
+    win_body.append(&wb_grad_box);
+
+    let wb_hint = gtk::Label::new(Some(
+        "The border around the whole window frame, independent of the title pill. The \
+         gradient flows top→bottom; thickness also insets the window contents. \
+         Changes apply within ~1s.",
+    ));
+    wb_hint.set_xalign(0.0);
+    wb_hint.set_wrap(true);
+    wb_hint.add_css_class("metis-settings-hint");
+    win_body.append(&wb_hint);
+
     content.append(&win_card);
+
+    // Show only the color controls relevant to the active pill-border mode.
+    let pill_update_vis = {
+        let pill_solid_box = pill_solid_box.clone();
+        let pill_grad_box = pill_grad_box.clone();
+        Rc::new(move |mode: metis_config::BorderMode| {
+            pill_solid_box.set_visible(mode == metis_config::BorderMode::Solid);
+            pill_grad_box.set_visible(mode == metis_config::BorderMode::Gradient);
+        })
+    };
+    pill_update_vis(pill.mode);
+
+    let wb_update_vis = {
+        let wb_solid_box = wb_solid_box.clone();
+        let wb_grad_box = wb_grad_box.clone();
+        Rc::new(move |mode: metis_config::BorderMode| {
+            wb_solid_box.set_visible(mode == metis_config::BorderMode::Solid);
+            wb_grad_box.set_visible(mode == metis_config::BorderMode::Gradient);
+        })
+    };
+    wb_update_vis(wb.mode);
 
     {
         let bar = bar.clone();
@@ -466,8 +614,89 @@ pub fn build() -> gtk::Widget {
             save_bar(&bar.borrow());
         });
     }
+    {
+        let bar = bar.clone();
+        let pill_update_vis = pill_update_vis.clone();
+        pill_mode.connect_selected_notify(move |dd| {
+            let mode = match dd.selected() {
+                1 => metis_config::BorderMode::Solid,
+                2 => metis_config::BorderMode::Gradient,
+                _ => metis_config::BorderMode::Accent,
+            };
+            bar.borrow_mut().titlebar_pill_border.mode = mode;
+            pill_update_vis(mode);
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        pill_width.connect_value_changed(move |s| {
+            bar.borrow_mut().titlebar_pill_border.width_px = s.value() as f32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        pill_solid.connect_rgba_notify(move |b| {
+            bar.borrow_mut().titlebar_pill_border.color = rgba_to_hex(&b.rgba());
+            save_bar(&bar.borrow());
+        });
+    }
+    for (idx, btn) in [(0usize, &pill_g1), (1, &pill_g2), (2, &pill_g3)] {
+        let bar = bar.clone();
+        btn.connect_rgba_notify(move |b| {
+            let hex = rgba_to_hex(&b.rgba());
+            set_stops(&mut bar.borrow_mut().titlebar_pill_border.gradient, idx, hex);
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        let wb_update_vis = wb_update_vis.clone();
+        wb_mode.connect_selected_notify(move |dd| {
+            let mode = match dd.selected() {
+                1 => metis_config::BorderMode::Solid,
+                2 => metis_config::BorderMode::Gradient,
+                _ => metis_config::BorderMode::Accent,
+            };
+            bar.borrow_mut().window_border.mode = mode;
+            wb_update_vis(mode);
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        wb_width.connect_value_changed(move |s| {
+            bar.borrow_mut().window_border.width_px = s.value() as f32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        wb_solid.connect_rgba_notify(move |b| {
+            bar.borrow_mut().window_border.color = rgba_to_hex(&b.rgba());
+            save_bar(&bar.borrow());
+        });
+    }
+    for (idx, btn) in [(0usize, &wb_g1), (1, &wb_g2), (2, &wb_g3)] {
+        let bar = bar.clone();
+        btn.connect_rgba_notify(move |b| {
+            let hex = rgba_to_hex(&b.rgba());
+            set_stops(&mut bar.borrow_mut().window_border.gradient, idx, hex);
+            save_bar(&bar.borrow());
+        });
+    }
 
     scroller.upcast()
+}
+
+/// Set the `idx`-th gradient stop in a stop list, growing it if needed so a sparse
+/// config still accepts edits to later stops.
+fn set_stops(stops: &mut Vec<String>, idx: usize, hex: String) {
+    while stops.len() <= idx {
+        stops.push(hex.clone());
+    }
+    stops[idx] = hex;
 }
 
 fn save_bar(cfg: &metis_config::BarConfig) {
@@ -479,6 +708,8 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     on_disk.opacity = cfg.opacity;
     on_disk.menu_opacity = cfg.menu_opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
+    on_disk.titlebar_pill_border = cfg.titlebar_pill_border.clone();
+    on_disk.window_border = cfg.window_border.clone();
     on_disk.blur = cfg.blur;
     on_disk.blur_radius = cfg.blur_radius;
     if let Err(err) = metis_config::save_bar_config(&on_disk) {

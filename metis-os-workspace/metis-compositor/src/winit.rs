@@ -165,8 +165,19 @@ pub fn init_winit(
                 state.damaged = true;
             }
 
-            // Same for the configurable titlebar background opacity.
-            if state.decorations.maybe_refresh() {
+            // Same for the configurable titlebar opacity + window border. A border
+            // thickness change also resizes clients (the body inset changed), so
+            // re-apply every window's rect before redrawing.
+            let deco = state.decorations.maybe_refresh();
+            if deco.damage {
+                state.damaged = true;
+            }
+            if deco.relayout {
+                let ids: Vec<u32> = state.windows.ids();
+                for id in ids {
+                    state.apply_window_rect(id);
+                }
+                state.sync_all_app_windows();
                 state.damaged = true;
             }
 

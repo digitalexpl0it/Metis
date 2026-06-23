@@ -82,6 +82,13 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Theme-aware + translucent titlebar — palette follows the active light/dark
       theme (live ~1s poll), background opacity via `titlebar_opacity`, rounded
       top corners + a border that wraps under the titlebar; text/buttons stay opaque
+- [x] Title pill border — flat solid pill plate ringed by a thin stroke on the
+      focused window; configurable via `titlebar_pill_border` (accent gradient /
+      solid / custom gradient + width) from Settings → Appearance → Windows
+- [x] Window frame border — independent of the pill (`window_border`): accent
+      gradient / solid / custom gradient, vertical top→bottom ramp, with a
+      configurable thickness that also insets the client body (live-applied via a
+      runtime `metis_grid::set_app_tile_border_px` + relayout)
 - [x] Auto-hide titlebar — maximized and left/right/top-corner snaps hide the
       titlebar (client fills the footprint) and reveal it as a borderless
       translucent overlay on top-strip hover; oversized clients are re-anchored so
@@ -189,6 +196,18 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   "opacity": 0.92,
   "menu_opacity": 0.92,
   "titlebar_opacity": 1.0,
+  "titlebar_pill_border": {
+    "mode": "accent",
+    "color": "#00F2FE",
+    "gradient": ["#00F2FE", "#4FACFE", "#A24BFF"],
+    "width_px": 1.0
+  },
+  "window_border": {
+    "mode": "accent",
+    "color": "#00F2FE",
+    "gradient": ["#00F2FE", "#4FACFE", "#A24BFF"],
+    "width_px": 1.0
+  },
   "blur": true,
   "blur_radius": 18.0,
   "widgets": [
@@ -223,6 +242,14 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `opacity` | Pill background opacity (0–1); enables a see-through bar |
 | `menu_opacity` | App launcher panel background opacity (0–1); text/icons stay opaque |
 | `titlebar_opacity` | Server-side titlebar background opacity (0–1); title/buttons stay opaque |
+| `titlebar_pill_border.mode` | Focused title-pill border: `accent` (theme accent gradient), `solid`, or `gradient` |
+| `titlebar_pill_border.color` | Stroke color (`#rrggbb`) when `mode: solid` |
+| `titlebar_pill_border.gradient` | Stops (`#rrggbb`), left→right, when `mode: gradient` |
+| `titlebar_pill_border.width_px` | Stroke thickness in pixels (0–8) |
+| `window_border.mode` | Focused window frame border: `accent`, `solid`, or `gradient` (independent of the pill) |
+| `window_border.color` | Frame stroke color (`#rrggbb`) when `mode: solid` |
+| `window_border.gradient` | Stops (`#rrggbb`), top→bottom, when `mode: gradient` |
+| `window_border.width_px` | Frame thickness in pixels (0–16); also insets the client body |
 | `blur` | Enable the compositor Gaussian backdrop blur behind the bar |
 | `blur_radius` | Blur strength in pixels (1–64) when `blur` is on |
 | `widgets` | Ordered list; `spacer` pushes following widgets apart. Includes `tasks` (the running-apps dock) |

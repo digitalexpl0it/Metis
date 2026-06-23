@@ -1059,12 +1059,13 @@ impl MetisState {
                     true,
                 )
             } else {
+                let border = metis_grid::app_tile_border_px();
                 (
                     PixelRect {
-                        x: loc.x - metis_grid::APP_TILE_BORDER_PX,
+                        x: loc.x - border,
                         y: loc.y - metis_grid::APP_TILE_HEADER_PX,
-                        width: size.w + metis_grid::APP_TILE_BORDER_PX * 2,
-                        height: size.h + metis_grid::APP_TILE_HEADER_PX + metis_grid::APP_TILE_BORDER_PX,
+                        width: size.w + border * 2,
+                        height: size.h + metis_grid::APP_TILE_HEADER_PX + border,
                     },
                     false,
                 )
@@ -1376,14 +1377,22 @@ impl MetisState {
         }
 
         let (x, y) = (loc.x as i32, loc.y as i32);
-        // Check revealed overlay titlebars first: an auto-hide window is topmost and
-        // its overlay covers the screen, so its strip must win over any chrome of a
-        // window hidden beneath it.
+        // Hit-test chrome in stacking order, topmost first, so a covered window's
+        // titlebar/border can never catch a press that lands within the frame of a
+        // window stacked in front of it (the front window owns that point). Revealed
+        // overlay titlebars (auto-hide) always win — they float above all clients.
+        let mut z: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+        for (i, window) in self.space.elements().enumerate() {
+            if let Some(id) = self.windows.id_for_window(window) {
+                z.insert(id, i);
+            }
+        }
         let specs = self.decoration_specs();
-        let ordered = specs
-            .iter()
-            .filter(|s| s.overlay)
-            .chain(specs.iter().filter(|s| !s.overlay));
+        let mut ordered: Vec<&crate::decoration::WindowDeco> = specs.iter().collect();
+        ordered.sort_by_key(|s| {
+            // overlay first (false < true); then highest stacking index (topmost).
+            (!s.overlay, std::cmp::Reverse(z.get(&s.id).copied().unwrap_or(0)))
+        });
         for spec in ordered {
             let frame = spec.frame;
             if !point_in_rect(x, y, frame) {
@@ -1469,7 +1478,7 @@ impl MetisState {
             // server-side titlebar on top and border on the sides/bottom), not the
             // inset client body — otherwise the top resize band lands at the
             // titlebar/client seam instead of the true top edge of the window.
-            let border = metis_grid::APP_TILE_BORDER_PX as f64;
+            let border = metis_grid::app_tile_border_px() as f64;
             let header = metis_grid::APP_TILE_HEADER_PX as f64;
             let (gx, gy) = (geo.loc.x as f64 - border, geo.loc.y as f64 - header);
             let (gw, gh) = (

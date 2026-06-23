@@ -64,6 +64,109 @@ pub enum BarWidgetId {
 pub const SHADOW_PAD: i32 = 16;
 pub const PILL_SIDE_INSET: i32 = SHADOW_PAD - 4;
 
+/// How the compositor strokes an accent border (title pill or window frame).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BorderMode {
+    /// Follow the active theme's accent gradient (auto-tracks light/dark).
+    Accent,
+    /// A single flat color (`color`).
+    Solid,
+    /// A custom gradient across `gradient`'s stops.
+    Gradient,
+}
+
+impl Default for BorderMode {
+    fn default() -> Self {
+        Self::Accent
+    }
+}
+
+/// Appearance of the thin accent border around the compositor-drawn title pill.
+/// Consumed by the compositor (via `bar.json`) and edited by the settings app's
+/// Appearance page. The border only paints on the *focused* window; unfocused
+/// windows always use a muted slate stroke. The pill gradient flows left→right.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TitlebarPillBorder {
+    #[serde(default)]
+    pub mode: BorderMode,
+    /// Flat stroke color (`#rrggbb`) used when `mode = solid`.
+    #[serde(default = "default_pill_color")]
+    pub color: String,
+    /// Gradient stops (`#rrggbb`), used when `mode = gradient`. Two or more
+    /// stops recommended.
+    #[serde(default = "default_pill_gradient")]
+    pub gradient: Vec<String>,
+    /// Stroke thickness in pixels.
+    #[serde(default = "default_pill_border_width")]
+    pub width_px: f32,
+}
+
+/// Appearance of the compositor-drawn window frame border (the left/right/bottom
+/// edges + the titlebar ring). Independent of the title pill. The frame gradient
+/// flows top→bottom; `width_px` sets the frame thickness and insets the client body
+/// to match. Focused windows draw this stroke; unfocused use a muted slate.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WindowBorder {
+    #[serde(default)]
+    pub mode: BorderMode,
+    /// Flat stroke color (`#rrggbb`) used when `mode = solid`.
+    #[serde(default = "default_window_border_color")]
+    pub color: String,
+    /// Gradient stops (`#rrggbb`), used when `mode = gradient`.
+    #[serde(default = "default_window_border_gradient")]
+    pub gradient: Vec<String>,
+    /// Frame thickness in pixels (0–16). Insets the client body to match.
+    #[serde(default = "default_window_border_width")]
+    pub width_px: f32,
+}
+
+fn default_pill_color() -> String {
+    "#00F2FE".into()
+}
+
+fn default_pill_gradient() -> Vec<String> {
+    vec!["#00F2FE".into(), "#4FACFE".into(), "#A24BFF".into()]
+}
+
+fn default_pill_border_width() -> f32 {
+    1.0
+}
+
+fn default_window_border_color() -> String {
+    "#00F2FE".into()
+}
+
+fn default_window_border_gradient() -> Vec<String> {
+    vec!["#00F2FE".into(), "#4FACFE".into(), "#A24BFF".into()]
+}
+
+fn default_window_border_width() -> f32 {
+    1.0
+}
+
+impl Default for TitlebarPillBorder {
+    fn default() -> Self {
+        Self {
+            mode: BorderMode::default(),
+            color: default_pill_color(),
+            gradient: default_pill_gradient(),
+            width_px: default_pill_border_width(),
+        }
+    }
+}
+
+impl Default for WindowBorder {
+    fn default() -> Self {
+        Self {
+            mode: BorderMode::default(),
+            color: default_window_border_color(),
+            gradient: default_window_border_gradient(),
+            width_px: default_window_border_width(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BarConfig {
     #[serde(default)]
@@ -88,6 +191,14 @@ pub struct BarConfig {
     /// the traffic-light buttons stay opaque). Consumed by the compositor.
     #[serde(default = "default_titlebar_opacity")]
     pub titlebar_opacity: f32,
+    /// Appearance of the thin accent border around window title pills. Consumed by
+    /// the compositor.
+    #[serde(default)]
+    pub titlebar_pill_border: TitlebarPillBorder,
+    /// Appearance + thickness of the window frame border. Consumed by the compositor;
+    /// `width_px` also insets the client body.
+    #[serde(default)]
+    pub window_border: WindowBorder,
     #[serde(default = "default_true")]
     pub blur: bool,
     /// Gaussian backdrop-blur radius (in pixels) applied by the compositor behind
@@ -177,6 +288,8 @@ impl Default for BarConfig {
             opacity: default_opacity(),
             menu_opacity: default_menu_opacity(),
             titlebar_opacity: default_titlebar_opacity(),
+            titlebar_pill_border: TitlebarPillBorder::default(),
+            window_border: WindowBorder::default(),
             blur: default_true(),
             blur_radius: default_blur_radius(),
             widgets: default_widgets(),

@@ -1,11 +1,34 @@
+use std::sync::atomic::{AtomicI32, Ordering};
+
 use crate::model::TileRect;
 
 /// Header strip rendered by the shell for app tiles; body is the live app window.
 /// Height of the compositor-drawn server-side titlebar above each app window.
 pub const APP_TILE_HEADER_PX: i32 = 36;
 
-/// Thickness of the compositor-drawn border on the left/right/bottom of each app window.
-pub const APP_TILE_BORDER_PX: i32 = 2;
+/// Default thickness of the compositor-drawn border on the left/right/bottom of each
+/// app window. The live value is configurable at runtime — see [`app_tile_border_px`]
+/// / [`set_app_tile_border_px`] — so the client body inset tracks the user's choice.
+pub const APP_TILE_BORDER_PX: i32 = 1;
+
+/// Largest border thickness we allow (keeps the client body from collapsing).
+pub const MAX_APP_TILE_BORDER_PX: i32 = 16;
+
+/// Runtime border thickness, shared by the layout (client inset) and the compositor's
+/// decoration drawing so they always agree. Defaults to [`APP_TILE_BORDER_PX`].
+static APP_TILE_BORDER: AtomicI32 = AtomicI32::new(APP_TILE_BORDER_PX);
+
+/// Current compositor-drawn window border thickness (px).
+pub fn app_tile_border_px() -> i32 {
+    APP_TILE_BORDER.load(Ordering::Relaxed)
+}
+
+/// Set the window border thickness (px), clamped to `0..=MAX_APP_TILE_BORDER_PX`.
+/// Returns true when the value actually changed (caller may relayout/redamage).
+pub fn set_app_tile_border_px(px: i32) -> bool {
+    let px = px.clamp(0, MAX_APP_TILE_BORDER_PX);
+    APP_TILE_BORDER.swap(px, Ordering::Relaxed) != px
+}
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct MonitorRect {
@@ -68,9 +91,10 @@ pub fn app_tile_chrome_rect(full: PixelRect) -> PixelRect {
 /// Inner client region where the compositor maps the app window: the full tile
 /// frame minus the server-side titlebar (top) and border (left/right/bottom).
 pub fn app_tile_body_rect(full: PixelRect) -> PixelRect {
+    let b = app_tile_border_px();
     let header = APP_TILE_HEADER_PX.min(full.height);
-    let border = APP_TILE_BORDER_PX.min((full.width / 2).max(0));
-    let bottom_border = APP_TILE_BORDER_PX.min((full.height - header).max(0));
+    let border = b.min((full.width / 2).max(0));
+    let bottom_border = b.min((full.height - header).max(0));
     PixelRect {
         x: full.x + border,
         y: full.y + header,
