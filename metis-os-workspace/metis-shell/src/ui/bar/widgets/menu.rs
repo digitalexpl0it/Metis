@@ -52,13 +52,18 @@ pub fn install(button: &gtk::Button) {
 
     let apps_container = gtk::Box::new(gtk::Orientation::Vertical, 2);
     apps_container.add_css_class("metis-menu-list");
+    apps_container.set_hexpand(true);
+    apps_container.set_halign(gtk::Align::Fill);
     let apps_scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .vexpand(true)
+        .hexpand(true)
         .child(&apps_container)
         .build();
     apps_scroll.add_css_class("metis-menu-scroll");
+    wire_vertical_scroll(&apps_scroll, &apps_scroll);
+    wire_vertical_scroll(&center, &apps_scroll);
     center.append(&apps_scroll);
 
     let search = gtk::SearchEntry::builder()
@@ -118,6 +123,8 @@ pub fn install(button: &gtk::Button) {
         .child(&pinned_wrap)
         .build();
     pinned_scroll.add_css_class("metis-menu-scroll");
+    wire_vertical_scroll(&pinned_scroll, &pinned_scroll);
+    wire_vertical_scroll(&pinned_col, &pinned_scroll);
     pinned_col.append(&pinned_scroll);
     panel.append(&pinned_col);
 
@@ -163,7 +170,7 @@ pub fn install(button: &gtk::Button) {
     let popover = gtk::Popover::builder()
         .autohide(false)
         .has_arrow(true)
-        .position(gtk::PositionType::Bottom)
+        .position(super::super::popover_position())
         .child(&overlay)
         .build();
     popover.add_css_class("metis-bar-popover");
@@ -393,11 +400,38 @@ fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, refresh: &Rc<dyn Fn()
     }
 }
 
+/// Wheel events on GtkButton rows are swallowed before they reach the scrolled
+/// window. Capture phase on the scroll viewport forwards scroll everywhere in
+/// the list (including the blank gutter beside row labels).
+fn wire_vertical_scroll(widget: &impl IsA<gtk::Widget>, scroll: &gtk::ScrolledWindow) {
+    let ctrl = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+    ctrl.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let vadj = scroll.vadjustment();
+    ctrl.connect_scroll(move |_, _, dy| {
+        let page = vadj.page_size();
+        let upper = vadj.upper();
+        let lower = vadj.lower();
+        if upper - lower <= page {
+            return glib::Propagation::Proceed;
+        }
+        let max = (upper - page).max(lower);
+        let new_val = (vadj.value() + dy).clamp(lower, max);
+        if (new_val - vadj.value()).abs() > f64::EPSILON {
+            vadj.set_value(new_val);
+        }
+        glib::Propagation::Stop
+    });
+    widget.add_controller(ctrl);
+}
+
 fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
     let row = gtk::Button::builder().has_frame(false).build();
     row.add_css_class("metis-menu-row");
+    row.set_hexpand(true);
+    row.set_halign(gtk::Align::Fill);
 
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    hbox.set_hexpand(true);
     hbox.append(&app_image(entry, APP_ICON_SIZE));
 
     let label = gtk::Label::new(Some(&entry.name));
@@ -482,6 +516,7 @@ fn letter_header(letter: char) -> gtk::Label {
     label.add_css_class("metis-menu-letter");
     label.set_halign(gtk::Align::Start);
     label.set_xalign(0.0);
+    label.set_hexpand(true);
     label
 }
 

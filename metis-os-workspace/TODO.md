@@ -12,8 +12,13 @@ window management (multi-monitor, workspaces, richer tiling).
 
 ## Phase 1 — Edge bar
 
-- [x] `bar.json` config — position (top/left/right), height/width, opacity, widget order
+- [x] `bar.json` config — position (top/bottom/left/right), height/width, opacity, widget order
 - [x] Live reload when `bar.json` changes
+- [x] Bar position — top/bottom/left/right dropdown (Settings → Appearance → Edge bar);
+      exclusive zone, pill flush-to-edge, and popover/menu open direction adapt per side
+- [x] Distance from edge — slider for the gap between the bar and its anchored screen edge
+- [x] Edge-bar border — `bar_border` (accent gradient / solid / custom gradient + width,
+      0 disables); rounded gradient via layered `background-clip`, flows along the long axis
 - [x] Workspace indicator (single Metis desktop for now)
 - [x] Clock popover — tabbed: calendar, world clocks, stopwatch, timer, alarms
 - [x] World Clocks — inline searchable timezone picker (up to 3 zones)
@@ -208,6 +213,12 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
     "gradient": ["#00F2FE", "#4FACFE", "#A24BFF"],
     "width_px": 1.0
   },
+  "bar_border": {
+    "mode": "accent",
+    "color": "#00F2FE",
+    "gradient": ["#00F2FE", "#4FACFE", "#A24BFF"],
+    "width_px": 1.0
+  },
   "blur": true,
   "blur_radius": 18.0,
   "widgets": [
@@ -233,10 +244,10 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 
 | Field | Meaning |
 |-------|---------|
-| `position` | `top`, `left`, or `right` edge |
-| `height` | Bar thickness when `position: top` |
+| `position` | `top`, `bottom`, `left`, or `right` edge (Settings → Appearance → Edge bar) |
+| `height` | Bar thickness when `position: top`/`bottom` |
 | `width` | Bar thickness when `position: left`/`right` |
-| `margin_top` | Gap between the bar and the screen edge |
+| `margin_top` | Distance from the anchored screen edge (all positions) |
 | `margin_h` | Margin along the bar's long axis |
 | `full_width` | Span the entire edge vs. hug content |
 | `opacity` | Pill background opacity (0–1); enables a see-through bar |
@@ -250,6 +261,10 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `window_border.color` | Frame stroke color (`#rrggbb`) when `mode: solid` |
 | `window_border.gradient` | Stops (`#rrggbb`), top→bottom, when `mode: gradient` |
 | `window_border.width_px` | Frame thickness in pixels (0–16); also insets the client body |
+| `bar_border.mode` | Edge-bar pill border: `accent` (theme accent gradient), `solid`, or `gradient` |
+| `bar_border.color` | Stroke color (`#rrggbb`) when `mode: solid` |
+| `bar_border.gradient` | Stops (`#rrggbb`), along the bar's long axis, when `mode: gradient` |
+| `bar_border.width_px` | Stroke thickness in pixels (0 disables the border) |
 | `blur` | Enable the compositor Gaussian backdrop blur behind the bar |
 | `blur_radius` | Blur strength in pixels (1–64) when `blur` is on |
 | `widgets` | Ordered list; `spacer` pushes following widgets apart. Includes `tasks` (the running-apps dock) |

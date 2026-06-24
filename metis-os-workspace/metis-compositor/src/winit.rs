@@ -159,10 +159,16 @@ pub fn init_winit(
                 state.damaged = true;
             }
 
-            // Pick up live blur on/off + radius changes written to bar.json
-            // (e.g. by a future Settings app), throttled to ~1s.
-            if state.blur.maybe_refresh() {
+            // Pick up live blur on/off + radius / bar-position changes from bar.json
+            // (throttled to ~1s). A position change alters whether the bar reserves
+            // screen space (top/bottom) or overlays it (left/right).
+            let (blur_changed, bar_position_changed) = state.blur.maybe_refresh();
+            if blur_changed {
                 state.damaged = true;
+            }
+            if bar_position_changed {
+                state.last_bar_position = state.blur.position;
+                state.reflow_for_bar_geometry_change();
             }
 
             // Same for the configurable titlebar opacity + window border. A border

@@ -88,8 +88,14 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
     };
 
     let cfg = config.borrow().clone();
+    let compact = matches!(
+        cfg.position,
+        crate::config::BarPosition::Left | crate::config::BarPosition::Right
+    );
     let bar_orientation = match cfg.position {
-        crate::config::BarPosition::Top => gtk::Orientation::Horizontal,
+        crate::config::BarPosition::Top | crate::config::BarPosition::Bottom => {
+            gtk::Orientation::Horizontal
+        }
         crate::config::BarPosition::Left | crate::config::BarPosition::Right => {
             gtk::Orientation::Vertical
         }
@@ -116,12 +122,12 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
                 *refs.workspaces.borrow_mut() = Some(w);
             }
             BarWidgetId::Tasks => {
-                let w = TasksWidget::new();
+                let w = TasksWidget::new(compact);
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.tasks.borrow_mut() = Some(w);
             }
             BarWidgetId::Clock => {
-                let w = ClockWidget::new(&cfg.clock);
+                let w = ClockWidget::new(&cfg.clock, compact);
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.clock.borrow_mut() = Some(w);
             }
@@ -146,7 +152,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
                 *refs.notifications.borrow_mut() = Some(w);
             }
             BarWidgetId::Weather => {
-                let w = WeatherWidget::new();
+                let w = WeatherWidget::new(compact);
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.weather.borrow_mut() = Some(w);
             }
@@ -167,9 +173,15 @@ fn append_bar_widget(
     if orientation == gtk::Orientation::Horizontal {
         w.set_valign(gtk::Align::Fill);
         w.set_vexpand(true);
-    } else {
         w.set_halign(gtk::Align::Fill);
-        w.set_hexpand(true);
+        w.set_hexpand(false);
+    } else {
+        // Vertical bar: keep icons centered in the narrow strip; stretching
+        // horizontally leaves a dead gap and breaks hover highlights.
+        w.set_halign(gtk::Align::Center);
+        w.set_hexpand(false);
+        w.set_valign(gtk::Align::Center);
+        w.set_vexpand(false);
     }
     root.append(w);
 }

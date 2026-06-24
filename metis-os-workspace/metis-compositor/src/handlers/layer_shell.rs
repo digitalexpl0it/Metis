@@ -84,23 +84,18 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
     let namespace = layer.namespace().to_string();
     let layer_surface = layer.layer_surface().clone();
 
-    // Smithay/anvil: arrange + initial configure on first commit.
-    // Metis bar: skip per-commit arrange (output.enter storm) but seed geometry once
-    // after the client commits its first real buffer at the final 44px height.
+    // Always arrange the Metis bar on commit so anchor/margin changes (e.g. switching
+    // between top/bottom/left/right in settings) update layer geometry. Skipping
+    // arrange left the surface stuck at its initial top-strip size/position.
     if namespace.starts_with("metis-bar") {
-        let seed_geometry = !state.metis_bar_geometry_seeded && initial_configure_sent;
+        map.arrange();
         if !initial_configure_sent {
-            map.arrange();
             tracing::debug!(namespace, "layer surface initial configure");
             layer_surface.send_configure();
-        } else if seed_geometry {
-            map.arrange();
-            state.metis_bar_geometry_seeded = true;
         }
         drop(map);
-        if seed_geometry {
-            state.schedule_redraw();
-        }
+        state.on_bar_layer_committed();
+        state.schedule_redraw();
         return;
     }
 

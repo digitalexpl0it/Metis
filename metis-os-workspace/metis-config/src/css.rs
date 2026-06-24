@@ -55,7 +55,6 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-pill {{
         background-color: {surface};
-        border: 1px solid {border};
         padding: 0 14px;
         color: {text};
     }}
@@ -213,6 +212,15 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 0;
     }}
 
+    .metis-bar-clock-compact {{
+        margin-left: 0;
+        padding: 0 4px;
+    }}
+
+    .metis-bar-weather-compact {{
+        padding: 0 4px;
+    }}
+
     .metis-bar-clock-time {{
         font-size: 13px;
         font-weight: 600;
@@ -227,11 +235,83 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-pill-vertical {{
         border-radius: {rm}px;
-        padding: 10px 6px;
+        /* Cross-axis padding must stay minimal or the strip blows out wider than
+           the horizontal bar's height. Overrides .metis-bar-pill / .metis-bar-full. */
+        padding: 10px 0;
+    }}
+
+    .metis-bar-pill-vertical.metis-bar-full {{
+        padding: 12px 0;
     }}
 
     .metis-bar-outer-vertical {{
         min-width: 0;
+    }}
+
+    /* Vertical strip: center icons, tight horizontal insets, inner-edge hover. */
+    .metis-bar-pill-vertical .metis-bar-widget,
+    .metis-bar-pill-vertical button.metis-bar-widget,
+    .metis-bar-pill-vertical menubutton.metis-bar-widget,
+    .metis-bar-pill-vertical menubutton.metis-bar-widget > button {{
+        padding: 4px 0;
+    }}
+
+    .metis-bar-pill-vertical .metis-bar-launcher {{
+        margin-right: 0;
+        padding: 4px 0;
+    }}
+
+    .metis-bar-pill-vertical .metis-bar-workspaces {{
+        padding: 2px 0;
+    }}
+
+    .metis-bar-pill-vertical .metis-bar-sys-icon {{
+        padding: 4px 0;
+    }}
+
+    .metis-bar-pill-vertical button.metis-bar-widget:hover,
+    .metis-bar-pill-vertical menubutton.metis-bar-widget:hover > button {{
+        background-image: linear-gradient(to right,
+            rgba({accent_rgb}, 0.34) 0%,
+            rgba({accent2_rgb}, 0.12) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset -1px 0 0 0 rgba({accent_rgb}, 0.95);
+        border-radius: {rs}px 0 0 {rs}px;
+    }}
+
+    .metis-bar-pill-vertical button.metis-bar-widget.metis-bar-dropdown-active,
+    .metis-bar-pill-vertical button.metis-bar-widget.metis-bar-dropdown-active:hover,
+    .metis-bar-pill-vertical menubutton.metis-bar-widget.metis-bar-dropdown-active > button,
+    .metis-bar-pill-vertical menubutton.metis-bar-widget.metis-bar-dropdown-active:hover > button {{
+        background-image: linear-gradient(to right,
+            rgba({accent_rgb}, 0.34) 0%,
+            rgba({accent2_rgb}, 0.12) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset -1px 0 0 0 rgba({accent_rgb}, 0.95);
+        border-radius: {rs}px 0 0 {rs}px;
+    }}
+
+    /* Right-edge bar: mirror hover onto the screen-inner side. */
+    .metis-bar-pill-vertical-right button.metis-bar-widget:hover,
+    .metis-bar-pill-vertical-right menubutton.metis-bar-widget:hover > button {{
+        background-image: linear-gradient(to left,
+            rgba({accent_rgb}, 0.34) 0%,
+            rgba({accent2_rgb}, 0.12) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset 1px 0 0 0 rgba({accent_rgb}, 0.95);
+        border-radius: 0 {rs}px {rs}px 0;
+    }}
+
+    .metis-bar-pill-vertical-right button.metis-bar-widget.metis-bar-dropdown-active,
+    .metis-bar-pill-vertical-right button.metis-bar-widget.metis-bar-dropdown-active:hover,
+    .metis-bar-pill-vertical-right menubutton.metis-bar-widget.metis-bar-dropdown-active > button,
+    .metis-bar-pill-vertical-right menubutton.metis-bar-widget.metis-bar-dropdown-active:hover > button {{
+        background-image: linear-gradient(to left,
+            rgba({accent_rgb}, 0.34) 0%,
+            rgba({accent2_rgb}, 0.12) 45%,
+            rgba(255, 255, 255, 0.06) 100%);
+        box-shadow: inset 1px 0 0 0 rgba({accent_rgb}, 0.95);
+        border-radius: 0 {rs}px {rs}px 0;
     }}
 
     .metis-bar-workspaces {{
@@ -264,9 +344,20 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         opacity: 0;
     }}
 
+    .metis-bar-tasks-vertical scrollbar.vertical {{
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        opacity: 0;
+    }}
+
     .metis-bar-tasks-row {{
         background-color: transparent;
         padding: 0 2px;
+    }}
+
+    .metis-bar-tasks-row-vertical {{
+        padding: 2px 0;
     }}
 
     /* Each app entry reuses the shared bar-widget geometry; the indicator dot and
@@ -274,6 +365,10 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-task {{
         padding: 0 6px;
         background-color: transparent;
+    }}
+
+    .metis-bar-pill-vertical .metis-bar-task {{
+        padding: 6px 0;
     }}
 
     /* Running-app underline dot, centered under the icon. */
@@ -301,6 +396,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
             rgba({accent2_rgb}, 0.10) 45%,
             rgba(255, 255, 255, 0.05) 100%);
         border-radius: {rs}px {rs}px 0 0;
+    }}
+
+    .metis-bar-pill-vertical .metis-bar-task.focused {{
+        background-image: linear-gradient(to right,
+            rgba({accent_rgb}, 0.28) 0%,
+            rgba({accent2_rgb}, 0.10) 45%,
+            rgba(255, 255, 255, 0.05) 100%);
+        border-radius: {rs}px 0 0 {rs}px;
+    }}
+
+    .metis-bar-pill-vertical-right .metis-bar-task.focused {{
+        background-image: linear-gradient(to left,
+            rgba({accent_rgb}, 0.28) 0%,
+            rgba({accent2_rgb}, 0.10) 45%,
+            rgba(255, 255, 255, 0.05) 100%);
+        border-radius: 0 {rs}px {rs}px 0;
     }}
 
     /* A fully-minimized app reads as dimmed until restored. */
@@ -1461,8 +1572,30 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-menu-scroll {{
         min-height: 420px;
     }}
+    /* Dark Adwaita draws visible undershoot/overshoot edges and opaque troughs
+       on GtkScrolledWindow — kill them so the gutter stays scrollable and flat. */
+    .metis-menu-scroll undershoot.top,
+    .metis-menu-scroll undershoot.bottom,
+    .metis-menu-scroll undershoot.left,
+    .metis-menu-scroll undershoot.right,
+    .metis-menu-scroll overshoot.top,
+    .metis-menu-scroll overshoot.bottom,
+    .metis-menu-scroll overshoot.left,
+    .metis-menu-scroll overshoot.right {{
+        background-color: transparent;
+        background-image: none;
+        box-shadow: none;
+        border: none;
+    }}
     .metis-menu-scroll scrollbar {{
         background-color: transparent;
+        border: none;
+        box-shadow: none;
+    }}
+    .metis-menu-scroll scrollbar trough {{
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
     }}
     .metis-menu-scroll scrollbar slider {{
         min-width: 7px;
@@ -1527,8 +1660,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-menu-pinned-flow {{
-        /* Extra right pad keeps the tiles clear of the overlay scrollbar. */
-        padding: 2px 12px 2px 2px;
+        padding: 2px 2px 2px 2px;
     }}
 
     .metis-menu-tile {{

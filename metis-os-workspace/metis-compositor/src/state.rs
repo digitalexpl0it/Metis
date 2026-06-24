@@ -47,6 +47,17 @@ pub const BAR_GAP_PX: i32 = 2;
 /// against them.
 pub const WINDOW_GAP_PX: i32 = 8;
 
+/// Per-edge gaps for placing/snapping windows inside the usable zone. Edges that
+/// border the edge bar use `BAR_GAP_PX`; edges that border the bare screen use
+/// `WINDOW_GAP_PX`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ZoneGaps {
+    pub(crate) top: i32,
+    pub(crate) bottom: i32,
+    pub(crate) left: i32,
+    pub(crate) right: i32,
+}
+
 /// Minimum slice of a window that must remain on-screen. Used both to clamp
 /// dragging (a window may slide off the left/right/bottom edges, but this much
 /// stays reachable) and to decide when an off-screen window needs rescuing.
@@ -157,8 +168,10 @@ pub struct MetisState {
     /// Defer `flush_clients` until after the winit redraw handler returns (avoids reentrancy).
     pub defer_client_flush: bool,
     /// One post-configure arrange after the bar commits its first real buffer.
-    pub metis_bar_geometry_seeded: bool,
     last_pointer_forward: Option<(std::time::Instant, Point<f64, Logical>)>,
+    /// Last known edge-bar position; used to reflow windows immediately when the
+    /// bar layer commits after a settings change (not only on the blur poll).
+    pub(crate) last_bar_position: metis_config::BarPosition,
 }
 
 impl MetisState {
@@ -245,8 +258,8 @@ impl MetisState {
             redraw_trigger: None,
             damaged: true,
             defer_client_flush: false,
-            metis_bar_geometry_seeded: false,
             last_pointer_forward: None,
+            last_bar_position: metis_config::load_bar_config().position,
         }
     }
 
@@ -355,9 +368,28 @@ impl MetisState {
     /// the bar). Returns the final *client* rect (gaps already applied to match
     /// the maximize look) + label, or `None` when the pointer isn't near an edge.
     pub fn snap_target_at(&self, x: i32, y: i32) -> Option<(PixelRect, &'static str)> {
-        let zone = self.usable_zone()?;
-        let (raw, label) = metis_grid::pixel_snap_target(x, y, zone)?;
-        Some((snap_client_rect(raw, zone), label))
+        let place = self.window_placement_zone();
+        let pos = metis_config::load_bar_config().position;
+
+        // Snap geometry is computed in `place` (beside the bar). When the pointer
+        // hugs the physical monitor edge over an overlay bar, project it onto the
+        // nearest `place` edge so left/right/bottom snaps still fire.
+        let mut sx = x;
+        let mut sy = y;
+        match pos {
+            metis_config::BarPosition::Left if x < place.x => sx = place.x,
+            metis_config::BarPosition::Right if x > place.x + place.width => {
+                sx = place.x + place.width;
+            }
+            metis_config::BarPosition::Bottom if y > place.y + place.height => {
+                sy = place.y + place.height;
+            }
+            _ => {}
+        }
+
+        let (raw, label) = metis_grid::pixel_snap_target(sx, sy, place)?;
+        let gaps = self.zone_edge_gaps();
+        Some((snap_client_rect(raw, place, gaps), label))
     }
 
     /// Drop a window into a snap zone. The "Maximize" zone routes through the real
@@ -373,6 +405,8 @@ impl MetisState {
             self.set_maximized(id, true);
             return;
         }
+
+        self.capture_pre_snap_geometry(id);
 
         let Some(record) = self.windows.get(id).cloned() else {
             return;
@@ -410,6 +444,8 @@ impl MetisState {
         } else {
             self.clear_auto_hide(id);
         }
+        self.reclamp_auto_hide(id);
+        self.windows.set_snapped(id, true);
         self.save_window_geometry(id);
         tracing::info!(id, ?rect, label, "snap: window snapped to zone");
     }
@@ -438,6 +474,96 @@ impl MetisState {
         if self.revealed_titlebar == Some(id) {
             self.revealed_titlebar = None;
         }
+    }
+
+    /// Live client-surface (body) geometry for a mapped window.
+    fn window_body_rect(&self, id: u32) -> Option<PixelRect> {
+        let record = self.windows.get(id)?;
+        let loc = self.space.element_location(&record.window)?;
+        let size = record.window.geometry().size;
+        Some(PixelRect {
+            x: loc.x,
+            y: loc.y,
+            width: size.w.max(1),
+            height: size.h.max(1),
+        })
+    }
+
+    /// Remember a floating window's size/position before the first snap in a chain.
+    fn capture_pre_snap_geometry(&mut self, id: u32) {
+        if self.windows.is_snapped(id) {
+            return;
+        }
+        let Some(body) = self.window_body_rect(id) else {
+            return;
+        };
+        self.windows.set_restore_rect(id, body);
+    }
+
+    /// Pull a snapped/maximized window back to its pre-snap floating size when the
+    /// user starts dragging it by the titlebar. Keeps the grab point under the
+    /// pointer so the window doesn't jump.
+    fn restore_floating_from_snap(
+        &mut self,
+        id: u32,
+        pointer: Point<f64, Logical>,
+    ) -> Point<i32, Logical> {
+        use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
+
+        let Some(record) = self.windows.get(id).cloned() else {
+            return Point::default();
+        };
+
+        let current = self
+            .window_body_rect(id)
+            .unwrap_or(record.target_rect);
+        let restore = self
+            .windows
+            .take_restore_rect(id)
+            .unwrap_or(current);
+
+        self.clear_auto_hide(id);
+        self.windows.set_maximized(id, false);
+        self.windows.set_snapped(id, false);
+
+        let rel_x = if current.width > 0 {
+            (pointer.x - current.x as f64) / current.width as f64
+        } else {
+            0.5
+        };
+        let rel_y = if current.height > 0 {
+            (pointer.y - current.y as f64) / current.height as f64
+        } else {
+            0.0
+        };
+        let rel_x = rel_x.clamp(0.0, 1.0);
+        let rel_y = rel_y.clamp(0.0, 1.0);
+
+        let mut body = PixelRect {
+            x: (pointer.x - rel_x * restore.width as f64).round() as i32,
+            y: (pointer.y - rel_y * restore.height as f64).round() as i32,
+            width: restore.width.max(1),
+            height: restore.height.max(1),
+        };
+        body = self.clamp_floating_rect(body);
+
+        record.toplevel.with_pending_state(|state| {
+            state.states.unset(xdg_toplevel::State::Maximized);
+            state.states.unset(xdg_toplevel::State::Fullscreen);
+            state.states.unset(xdg_toplevel::State::TiledLeft);
+            state.states.unset(xdg_toplevel::State::TiledRight);
+            state.states.unset(xdg_toplevel::State::TiledTop);
+            state.states.unset(xdg_toplevel::State::TiledBottom);
+            state.size = Some(Size::from((body.width, body.height)));
+            state.fullscreen_output = None;
+        });
+        let loc = Point::from((body.x, body.y));
+        self.space
+            .map_element(record.window.clone(), loc, true);
+        record.toplevel.send_pending_configure();
+        self.windows.set_target_rect(id, body);
+        self.schedule_redraw();
+        loc
     }
 
     pub fn queue_startup(&mut self, shell: Option<String>, client: Option<String>) {
@@ -687,6 +813,51 @@ impl MetisState {
         }
     }
 
+    /// Re-apply window geometry after the edge bar moves between reserved
+    /// (top) and overlay (bottom/left/right) modes.
+    pub fn reflow_for_bar_geometry_change(&mut self) {
+        let ids: Vec<u32> = self.windows.ids();
+        for id in ids {
+            if self.windows.is_minimized(id) {
+                continue;
+            }
+            if self.windows.get(id).is_some_and(|r| r.maximized) {
+                self.set_maximized(id, true);
+            } else if self.windows.is_snapped(id) {
+                self.reflow_snapped_window(id);
+            } else {
+                self.apply_window_rect(id);
+            }
+        }
+        self.sync_all_app_windows();
+        self.arrange_layers();
+        self.schedule_redraw();
+    }
+
+    /// Re-clamp a snapped (non-maximized) window into the new placement zone after
+    /// the edge bar moves.
+    fn reflow_snapped_window(&mut self, id: u32) {
+        let Some(mut rect) = self.windows.target_rect(id) else {
+            return;
+        };
+        rect = self.clamp_rect_on_screen(rect);
+        self.windows.set_target_rect(id, rect);
+        self.apply_window_rect(id);
+        self.reclamp_auto_hide(id);
+    }
+
+    /// Called when the bar layer commits; reflows windows if `bar.json` position changed.
+    pub(crate) fn on_bar_layer_committed(&mut self) {
+        let pos = metis_config::load_bar_config().position;
+        if pos == self.last_bar_position {
+            return;
+        }
+        tracing::info!(?pos, "edge bar position changed — reflowing windows");
+        self.last_bar_position = pos;
+        self.blur.position = pos;
+        self.reflow_for_bar_geometry_change();
+    }
+
     pub fn grid_metrics(&self) -> GridMetrics {
         GridMetrics {
             columns: self.grid_layout.columns,
@@ -766,39 +937,27 @@ impl MetisState {
         }
 
         if enabled {
-            let current = self
-                .space
-                .element_geometry(&record.window)
-                .map(|g| PixelRect {
-                    x: g.loc.x,
-                    y: g.loc.y,
-                    width: g.size.w,
-                    height: g.size.h,
-                })
-                .unwrap_or(record.target_rect);
-            self.windows.set_restore_rect(id, current);
+            if !self.windows.is_snapped(id) {
+                let current = self
+                    .window_body_rect(id)
+                    .unwrap_or(record.target_rect);
+                self.windows.set_restore_rect(id, current);
+            }
 
             // Maximize fills the usable area (below the edge bar) with a uniform
             // Hyprland-style gap on every side, so the window floats inside the
             // screen rather than butting up against the edges. Metis draws the
             // server-side titlebar + border, so the client is inset to the body
             // of that footprint (`app_tile_body_rect`).
-            let zone = self.usable_zone().unwrap_or_else(|| {
-                let output = self.space.outputs().next().unwrap();
-                let g = self.space.output_geometry(output).unwrap();
-                PixelRect { x: g.loc.x, y: g.loc.y, width: g.size.w, height: g.size.h }
-            });
-            // Tight gap under the bar (matching a dragged window), larger
-            // Hyprland-style gaps against the screen edges. The client fills the
-            // whole footprint (no reserved titlebar strip): a maximized window
-            // auto-hides its titlebar and only shows it as a hover overlay, so it
-            // should use every pixel below the bar.
-            let g = WINDOW_GAP_PX;
+            let zone = self.window_placement_zone();
+            // Tight gap against the edge bar on whichever screen edge it occupies,
+            // Hyprland-style gaps against the bare screen edges elsewhere.
+            let gaps = self.zone_edge_gaps();
             let client = PixelRect {
-                x: zone.x + g,
-                y: zone.y + BAR_GAP_PX,
-                width: (zone.width - g * 2).max(1),
-                height: (zone.height - BAR_GAP_PX - g).max(1),
+                x: zone.x + gaps.left,
+                y: zone.y + gaps.top,
+                width: (zone.width - gaps.left - gaps.right).max(1),
+                height: (zone.height - gaps.top - gaps.bottom).max(1),
             };
             let client_size = Size::from((client.width.max(1), client.height.max(1)));
 
@@ -812,6 +971,8 @@ impl MetisState {
                 .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
             self.windows.set_rect(id, client);
             self.auto_hide_titlebar.insert(id);
+            self.windows.set_snapped(id, true);
+            self.reclamp_auto_hide(id);
         } else {
             record.toplevel.with_pending_state(|state| {
                 state.states.unset(xdg_toplevel::State::Maximized);
@@ -821,6 +982,7 @@ impl MetisState {
                 self.windows.set_target_rect(id, restore);
             }
             self.clear_auto_hide(id);
+            self.windows.set_snapped(id, false);
             self.apply_window_rect(id);
         }
 
@@ -1000,10 +1162,39 @@ impl MetisState {
         if size.w <= 0 || size.h <= 0 {
             return;
         }
-        let zone = self.placement_zone();
-        let g = WINDOW_GAP_PX;
-        let new_x = anchor_axis(foot.x, foot.width, zone.x, zone.width, size.w, g);
-        let new_y = anchor_axis(foot.y, foot.height, zone.y, zone.height, size.h, g);
+        let zone = self.window_placement_zone();
+        let gaps = self.zone_edge_gaps();
+        let pos = metis_config::load_bar_config().position;
+        let y_anchor = match pos {
+            metis_config::BarPosition::Bottom => Some(BarEdgeAnchor::Max),
+            metis_config::BarPosition::Top => Some(BarEdgeAnchor::Min),
+            _ => None,
+        };
+        let x_anchor = match pos {
+            metis_config::BarPosition::Left => Some(BarEdgeAnchor::Min),
+            metis_config::BarPosition::Right => Some(BarEdgeAnchor::Max),
+            _ => None,
+        };
+        let new_x = anchor_axis(
+            foot.x,
+            foot.width,
+            zone.x,
+            zone.width,
+            size.w,
+            gaps.left,
+            gaps.right,
+            x_anchor,
+        );
+        let new_y = anchor_axis(
+            foot.y,
+            foot.height,
+            zone.y,
+            zone.height,
+            size.h,
+            gaps.top,
+            gaps.bottom,
+            y_anchor,
+        );
         if new_x != loc.x || new_y != loc.y {
             self.space
                 .map_element(record.window.clone(), Point::from((new_x, new_y)), true);
@@ -1109,8 +1300,97 @@ impl MetisState {
         }
     }
 
-    /// The output area not covered by exclusive layer-shell zones (i.e. below the
-    /// edge bar), in global logical coordinates.
+    /// Full output geometry in global logical coordinates.
+    fn output_pixel_rect(&self) -> PixelRect {
+        if let Some(output) = self.space.outputs().next() {
+            if let Some(g) = self.space.output_geometry(output) {
+                return PixelRect {
+                    x: g.loc.x,
+                    y: g.loc.y,
+                    width: g.size.w,
+                    height: g.size.h,
+                };
+            }
+        }
+        PixelRect {
+            x: self.monitor.x,
+            y: self.monitor.y,
+            width: self.monitor.width as i32,
+            height: self.monitor.height as i32,
+        }
+    }
+
+    /// Gaps for maximize/snap/clamp: `BAR_GAP_PX` on the edge where the bar sits,
+    /// `WINDOW_GAP_PX` everywhere else.
+    pub(crate) fn zone_edge_gaps(&self) -> ZoneGaps {
+        let pos = metis_config::load_bar_config().position;
+        let g = WINDOW_GAP_PX;
+        let bar = BAR_GAP_PX;
+        ZoneGaps {
+            top: if matches!(pos, metis_config::BarPosition::Top) {
+                bar
+            } else {
+                g
+            },
+            bottom: if matches!(pos, metis_config::BarPosition::Bottom) {
+                bar
+            } else {
+                g
+            },
+            left: if matches!(pos, metis_config::BarPosition::Left) {
+                bar
+            } else {
+                g
+            },
+            right: if matches!(pos, metis_config::BarPosition::Right) {
+                bar
+            } else {
+                g
+            },
+        }
+    }
+
+    /// Pixels the bar occupies along its anchored edge (margin + visible body, plus
+    /// shadow inset for overlay bars). Bottom keeps the full shadow pad so
+    /// translucent bars don't show maximized clients through them; left/right use
+    /// half the pad so snapped windows sit closer to the visible pill.
+    fn bar_reserved_px() -> i32 {
+        let cfg = metis_config::load_bar_config();
+        let margin = cfg.margin_top as i32;
+        let body = cfg.height as i32;
+        let pad = metis_config::bar::SHADOW_PAD;
+        let shadow = match cfg.position {
+            metis_config::BarPosition::Top => 0,
+            metis_config::BarPosition::Bottom => pad,
+            metis_config::BarPosition::Left | metis_config::BarPosition::Right => pad / 2,
+        };
+        margin + body + shadow
+    }
+
+    /// Region for maximize, snap, and clamp. Top bar shrinks via layer-shell
+    /// exclusive zone; other edges overlay but this zone excludes the bar strip
+    /// so snapped/tiled windows sit beside/above it (floating windows may still
+    /// slide underneath).
+    pub(crate) fn window_placement_zone(&self) -> PixelRect {
+        let mut zone = self.placement_zone();
+        let reserve = Self::bar_reserved_px();
+        match metis_config::load_bar_config().position {
+            metis_config::BarPosition::Bottom => {
+                zone.height = (zone.height - reserve).max(1);
+            }
+            metis_config::BarPosition::Left => {
+                zone.x += reserve;
+                zone.width = (zone.width - reserve).max(1);
+            }
+            metis_config::BarPosition::Right => {
+                zone.width = (zone.width - reserve).max(1);
+            }
+            metis_config::BarPosition::Top => {}
+        }
+        zone
+    }
+
+    /// The output area not covered by exclusive layer-shell zones, in global logical coordinates.
     ///
     /// `BAR_GAP_PX` is the thin padding kept between the edge bar and any window so
     /// the bar's drop shadow has breathing room and nothing visually touches it.
@@ -1203,13 +1483,14 @@ impl MetisState {
     /// usable area and shift its origin so the whole window is on-screen (under
     /// the bar). Used to recover a window that's off every active output.
     pub fn clamp_rect_on_screen(&self, rect: PixelRect) -> PixelRect {
-        let zone = self.placement_zone();
+        let zone = self.window_placement_zone();
+        let gaps = self.zone_edge_gaps();
         let width = rect.width.clamp(1, zone.width.max(1));
         let height = rect.height.clamp(1, zone.height.max(1));
-        let min_x = zone.x;
-        let min_y = zone.y + BAR_GAP_PX;
-        let max_x = (zone.x + zone.width - width).max(min_x);
-        let max_y = (zone.y + zone.height - height).max(min_y);
+        let min_x = zone.x + gaps.left;
+        let min_y = zone.y + gaps.top;
+        let max_x = (zone.x + zone.width - width - gaps.right).max(min_x);
+        let max_y = (zone.y + zone.height - height - gaps.bottom).max(min_y);
         PixelRect {
             x: rect.x.clamp(min_x, max_x),
             y: rect.y.clamp(min_y, max_y),
@@ -1218,18 +1499,45 @@ impl MetisState {
         }
     }
 
-    /// Keep a floating window's *body* low enough that its server-side titlebar
-    /// (drawn `APP_TILE_HEADER_PX` above the body) stays below the edge bar. The
-    /// move grab enforces this live; this covers the other entry points (restored
-    /// saved geometry, re-applied floating rects) so chrome never tucks under the
-    /// bar. Auto-hide windows are mapped flush by design and must skip this.
+    /// Keep a floating window's body clear of the top edge bar (exclusive zone).
+    /// Bottom/left/right bars overlay the desktop — floating windows may pass under them.
     pub fn clamp_body_below_bar(&self, mut rect: PixelRect) -> PixelRect {
+        let pos = metis_config::load_bar_config().position;
+        if !matches!(pos, metis_config::BarPosition::Top) {
+            return rect;
+        }
+        let gaps = self.zone_edge_gaps();
+        let header = metis_grid::APP_TILE_HEADER_PX;
         let zone = self.placement_zone();
-        let min_y = zone.y + BAR_GAP_PX + metis_grid::APP_TILE_HEADER_PX;
+        let min_y = zone.y + gaps.top + header;
         if rect.y < min_y {
             rect.y = min_y;
         }
         rect
+    }
+
+    /// Keep a floating window on-screen. Overlay edge bars do not inset the bounds
+    /// (windows may slide underneath); only the top bar reserves space.
+    fn clamp_floating_rect(&self, rect: PixelRect) -> PixelRect {
+        let zone = self.placement_zone();
+        let g = WINDOW_GAP_PX;
+        let pos = metis_config::load_bar_config().position;
+        let gaps = self.zone_edge_gaps();
+        let width = rect.width.clamp(1, (zone.width - g * 2).max(1));
+        let height = rect.height.clamp(1, (zone.height - g * 2).max(1));
+        let min_x = zone.x + g;
+        let min_y = match pos {
+            metis_config::BarPosition::Top => zone.y + gaps.top + metis_grid::APP_TILE_HEADER_PX,
+            _ => zone.y + g,
+        };
+        let max_x = (zone.x + zone.width - width - g).max(min_x);
+        let max_y = (zone.y + zone.height - height - g).max(min_y);
+        PixelRect {
+            x: rect.x.clamp(min_x, max_x),
+            y: rect.y.clamp(min_y, max_y),
+            width,
+            height,
+        }
     }
 
     /// Auto-place a window if it hasn't been positioned yet. Safe to call again
@@ -1311,8 +1619,8 @@ impl MetisState {
             return;
         };
         // Prefer the live mapped geometry (captures user resizes); for a maximized
-        // window save its pre-maximize rect so it reopens at a sane floating size.
-        let rect = if record.maximized {
+        // or snapped window save its pre-snap rect so it reopens at a sane float size.
+        let rect = if record.maximized || record.snapped {
             record.restore_rect.unwrap_or(record.target_rect)
         } else if let Some(loc) = self.space.element_location(&record.window) {
             let size = record.window.geometry().size;
@@ -1646,38 +1954,38 @@ impl MetisState {
         self.space.raise_element(&window, true);
         // Manual titlebar drag floats the window out of the grid (no snap-back).
         self.floating.insert(id);
-        // Dragging off a snapped/maximized position restores the normal floating
-        // chrome (persistent titlebar), so drop its auto-hide + maximized state.
         self.clear_tiled_states(id);
-        self.clear_auto_hide(id);
-        self.windows.set_maximized(id, false);
-        let mut initial_window_location = self
-            .space
-            .element_location(&window)
-            .unwrap_or_default();
 
-        // A top-touching snap (or maximize) maps the body flush under the bar with
-        // no reserved titlebar strip. Floating it restores a persistent titlebar
-        // drawn *above* the body, so the body must drop by the chrome height or
-        // that titlebar renders under the edge bar until the first drag motion
-        // clamps it. Re-map below the bar up front so chrome never overlaps it.
-        if let Some(zone) = self.usable_zone() {
-            let min_y = zone.y + BAR_GAP_PX + metis_grid::APP_TILE_HEADER_PX;
-            if initial_window_location.y < min_y {
-                initial_window_location.y = min_y;
-                self.space
-                    .map_element(window.clone(), initial_window_location, true);
-                self.windows.set_target_rect(
-                    id,
-                    metis_grid::PixelRect {
-                        x: initial_window_location.x,
-                        y: initial_window_location.y,
-                        width: window.geometry().size.w,
-                        height: window.geometry().size.h,
-                    },
-                );
+        let initial_window_location = if self.windows.is_snapped(id) {
+            self.restore_floating_from_snap(id, loc)
+        } else {
+            self.windows.set_maximized(id, false);
+            let mut initial_window_location = self
+                .space
+                .element_location(&window)
+                .unwrap_or_default();
+
+            // A snap/maximize maps the body flush against the bar edge with no
+            // reserved titlebar strip. Floating it restores a persistent titlebar
+            // drawn *above* the body, so re-map clear of the bar up front.
+            if self.usable_zone().is_some() {
+                let rect = metis_grid::PixelRect {
+                    x: initial_window_location.x,
+                    y: initial_window_location.y,
+                    width: window.geometry().size.w,
+                    height: window.geometry().size.h,
+                };
+                let clamped = self.clamp_body_below_bar(rect);
+                if clamped.y != initial_window_location.y || clamped.x != initial_window_location.x {
+                    initial_window_location.x = clamped.x;
+                    initial_window_location.y = clamped.y;
+                    self.space
+                        .map_element(window.clone(), initial_window_location, true);
+                    self.windows.set_target_rect(id, clamped);
+                }
             }
-        }
+            initial_window_location
+        };
 
         // Focus the window so keyboard input follows the titlebar grab.
         if let Some(keyboard) = self.seat.get_keyboard() {
@@ -2209,12 +2517,14 @@ fn default_app_tile_rect(layout: &GridLayout) -> metis_grid::TileRect {
     metis_grid::TileRect::new(col, row, w, h)
 }
 
-/// Apply maximize-consistent edge gaps to a raw snap region. A side that sits on
-/// the usable-zone boundary gets the full outer gap (`WINDOW_GAP_PX`, or the
-/// tighter `BAR_GAP_PX` against the bar at the top); an interior split line gets
-/// half that, so the gap *between* two snapped windows equals the gap around
-/// them. The result matches the geometry `set_maximized` produces for a window
-/// that fills the whole zone.
+/// When re-anchoring an oversized client, keep this placement-zone edge flush
+/// with the footprint (overflow spills toward the interior).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BarEdgeAnchor {
+    Min,
+    Max,
+}
+
 /// Pick a window origin on one axis that preserves the footprint's screen-edge
 /// gap when the client is larger than the footprint. Honors the footprint origin
 /// when the client fits; otherwise anchors to whichever screen edge the footprint
@@ -2225,37 +2535,47 @@ fn anchor_axis(
     zone_min: i32,
     zone_size: i32,
     actual: i32,
-    gap: i32,
+    gap_min: i32,
+    gap_max: i32,
+    bar_edge: Option<BarEdgeAnchor>,
 ) -> i32 {
     if actual <= foot_size {
         return foot_min;
     }
     let foot_max = foot_min + foot_size;
     let zone_max = zone_min + zone_size;
-    let touches_min = foot_min - zone_min <= gap;
-    let touches_max = zone_max - foot_max <= gap;
+    let touches_min = foot_min - zone_min <= gap_min;
+    let touches_max = zone_max - foot_max <= gap_max;
+
+    // Maximize hugs both zone edges — keep the bar-adjacent side fixed so any
+    // overflow spills away from the edge bar instead of underneath it.
+    if touches_min && touches_max {
+        return match bar_edge {
+            Some(BarEdgeAnchor::Max) => foot_max - actual,
+            Some(BarEdgeAnchor::Min) | None => foot_min,
+        };
+    }
     if touches_max && !touches_min {
-        // Hugs only the far edge (right / bottom snap): keep that gap.
         foot_max - actual
     } else {
-        // Hugs the near edge, both edges (maximize), or neither: keep the
-        // near-edge gap and let any overflow spill toward the far edge.
         foot_min
     }
 }
 
-fn snap_client_rect(raw: PixelRect, zone: PixelRect) -> PixelRect {
-    let g = WINDOW_GAP_PX;
+/// Apply maximize-consistent edge gaps to a raw snap region. Sides on the
+/// usable-zone boundary use `gaps` (bar-adjacent edges use `BAR_GAP_PX`, bare
+/// screen edges use `WINDOW_GAP_PX`); interior split lines get half `WINDOW_GAP_PX`.
+fn snap_client_rect(raw: PixelRect, zone: PixelRect, gaps: ZoneGaps) -> PixelRect {
     let half = WINDOW_GAP_PX / 2;
     let touches_left = raw.x <= zone.x;
     let touches_right = raw.x + raw.width >= zone.x + zone.width;
     let touches_top = raw.y <= zone.y;
     let touches_bottom = raw.y + raw.height >= zone.y + zone.height;
 
-    let l = if touches_left { g } else { half };
-    let r = if touches_right { g } else { half };
-    let t = if touches_top { BAR_GAP_PX } else { half };
-    let b = if touches_bottom { g } else { half };
+    let l = if touches_left { gaps.left } else { half };
+    let r = if touches_right { gaps.right } else { half };
+    let t = if touches_top { gaps.top } else { half };
+    let b = if touches_bottom { gaps.bottom } else { half };
 
     PixelRect {
         x: raw.x + l,

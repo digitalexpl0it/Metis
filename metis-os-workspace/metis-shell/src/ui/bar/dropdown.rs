@@ -35,7 +35,7 @@ pub fn wire_toggle_prepare(
     let popover = gtk::Popover::builder()
         .autohide(false)
         .has_arrow(true)
-        .position(gtk::PositionType::Bottom)
+        .position(super::popover_position())
         .child(panel)
         .build();
     popover.add_css_class("metis-bar-popover");

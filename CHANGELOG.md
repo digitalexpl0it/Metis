@@ -5,6 +5,27 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-23]
+
+### Added
+
+- **Configurable edge-bar position** — the bar can now anchor to the **top, bottom,
+  left, or right** of the screen via **Settings · Appearance · Edge bar** (`bar.json`
+  → `position`, now incl. `bottom`). The reserved exclusive zone follows the chosen
+  edge, the pill sits flush against it (drop-shadow pad on the inner side), the
+  layout flips between horizontal and vertical correctly on a live switch, and bar
+  popovers / the app launcher / task pickers open away from the bar (down for top,
+  up for bottom, right for left, left for right).
+- **Edge-bar distance slider** — a new **Distance from edge** control sets the gap
+  between the bar and its anchored screen edge (`bar.json` → `margin_top`, applied to
+  whichever edge the bar is on).
+- **Configurable edge-bar border** — the bar pill's border is now styleable via
+  `bar.json` → `bar_border` and **Settings · Appearance · Edge bar**: `mode`
+  (`accent` follows the theme accent gradient, `solid` a single color, or a custom
+  `gradient`), per-stop colors, and `width_px` (**0 disables the border**). The
+  gradient follows the bar's long axis and hugs the pill's rounded corners (rendered
+  via a layered `background-clip` stroke). Applied live (~1s) — no restart.
+
 ## [2026-06-22]
 
 ### Added

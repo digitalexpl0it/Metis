@@ -82,7 +82,7 @@ void main() {
 pub struct BlurRuntime {
     pub enabled: bool,
     pub radius: f32,
-    position: metis_config::BarPosition,
+    pub position: metis_config::BarPosition,
     id: Id,
     pub program: Option<GlesTexProgram>,
     commit: CommitCounter,
@@ -108,23 +108,24 @@ impl Default for BlurRuntime {
 
 impl BlurRuntime {
     /// Throttled re-read of `bar.json` (~1s) so a Settings app toggling blur is
-    /// picked up live. Returns true when settings changed (caller flags damage).
-    pub fn maybe_refresh(&mut self) -> bool {
+    /// picked up live. Returns `(changed, position_changed)`.
+    pub fn maybe_refresh(&mut self) -> (bool, bool) {
         if self.last_check.elapsed() < Duration::from_secs(1) {
-            return false;
+            return (false, false);
         }
         self.last_check = Instant::now();
         let (enabled, radius, position) = read_bar_blur_config();
+        let position_changed = position != self.position;
         if enabled != self.enabled
             || (radius - self.radius).abs() > f32::EPSILON
-            || position != self.position
+            || position_changed
         {
             self.enabled = enabled;
             self.radius = radius;
             self.position = position;
-            return true;
+            return (true, position_changed);
         }
-        false
+        (false, false)
     }
 
     /// Shrink the bar's full layer rect down to just the visible pill, excluding
@@ -143,6 +144,13 @@ impl BlurRuntime {
         match self.position {
             // Pill flush to the top; shadow pad sits below. Long edges: left/right.
             metis_config::BarPosition::Top => {
+                h -= pad;
+                x += side;
+                w -= 2 * side;
+            }
+            // Pill flush to the bottom; shadow pad sits above. Long edges: left/right.
+            metis_config::BarPosition::Bottom => {
+                y += pad;
                 h -= pad;
                 x += side;
                 w -= 2 * side;

@@ -181,15 +181,22 @@ verify_keybind_chain() {
 }
 
 if [[ "$DO_STOP" -eq 1 ]]; then
+    stopped=0
     if [[ -f "$PID_FILE" ]]; then
         pid="$(cat "$PID_FILE")"
         if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid" && echo "Stopped Metis (PID $pid)."
+            kill "$pid" && echo "Stopped Metis shell (PID $pid)."
+            stopped=1
         else
-            echo "Metis not running (stale PID $pid)."
+            echo "Metis shell not running (stale PID $pid)."
         fi
         rm -f "$PID_FILE"
-    else
+    fi
+    if comp_pid="$(pgrep -x metis-compositor 2>/dev/null)"; then
+        kill "$comp_pid" 2>/dev/null && echo "Stopped Metis compositor (PID $comp_pid)."
+        stopped=1
+    fi
+    if [[ "$stopped" -eq 0 && ! -f "$PID_FILE" ]]; then
         echo "Metis is not running (no pid file)."
     fi
     exit 0
@@ -510,7 +517,10 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         fi
 
         SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/metis"
-        LOCK_FILE="$SESSION_DIR/session.lock"
+        # Avoid `session.lock` — unrelated apps (e.g. Claude Desktop's VM service)
+        # have been observed to open that path and block flock even when Metis
+        # is not running.
+        LOCK_FILE="$SESSION_DIR/compositor-session.flock"
         LAST_EXIT_FILE="$SESSION_DIR/session.last-exit"
         mkdir -p "$SESSION_DIR" 2>/dev/null || true
 
@@ -519,8 +529,20 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         exec 9>"$LOCK_FILE"
         if ! flock -n 9; then
             holder="$(cat "$LOCK_FILE" 2>/dev/null)"
-            log "ERROR: a Metis session is already running (lock held${holder:+ by PID $holder})."
+            lock_note=""
+            if ! pgrep -x metis-compositor >/dev/null 2>&1; then
+                lock_holder="$(fuser "$LOCK_FILE" 2>/dev/null | tr -s ' ' || true)"
+                if [[ -n "$lock_holder" ]]; then
+                    lock_note=" (compositor not running; lock held by PID(s): ${lock_holder})"
+                else
+                    lock_note=" (compositor not running; stale lock)"
+                fi
+            fi
+            log "ERROR: a Metis session is already running (lock held${holder:+ by PID $holder})${lock_note}."
             log "       Refusing to start a second session. Stop the first: ./run-metis.sh --stop"
+            if [[ -n "$lock_note" ]]; then
+                log "       If Metis is not actually open, close the app holding the lock or restart it."
+            fi
             log "       If you didn't start this, see launch audit: $AUDIT_LOG"
             exit 1
         fi

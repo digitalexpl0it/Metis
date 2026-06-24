@@ -1,7 +1,7 @@
 mod loader;
 
 pub use loader::{
-    apply_bar_opacity, apply_menu_opacity, export_embedded_themes_to_config, init_theme,
+    apply_bar_appearance, apply_menu_opacity, export_embedded_themes_to_config, init_theme,
     reload_stylesheet, set_theme_mode,
 };
 // Theme tokens, semantic colors, mode, and the stylesheet builder now live in the

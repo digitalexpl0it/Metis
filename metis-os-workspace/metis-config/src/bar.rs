@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "lowercase")]
 pub enum BarPosition {
     Top,
+    Bottom,
     Left,
     Right,
 }
@@ -121,6 +122,49 @@ pub struct WindowBorder {
     pub width_px: f32,
 }
 
+/// Appearance of the border drawn around the edge bar's pill, rendered by the
+/// shell via GTK CSS. Independent of the window/title-pill borders. `accent`
+/// follows the theme accent gradient; `gradient` uses custom stops; the gradient
+/// flows along the bar's long axis (left→right when horizontal, top→bottom when
+/// vertical). `width_px = 0` disables the border entirely.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BarBorder {
+    #[serde(default)]
+    pub mode: BorderMode,
+    /// Flat stroke color (`#rrggbb`) used when `mode = solid`.
+    #[serde(default = "default_bar_border_color")]
+    pub color: String,
+    /// Gradient stops (`#rrggbb`), used when `mode = gradient`.
+    #[serde(default = "default_bar_border_gradient")]
+    pub gradient: Vec<String>,
+    /// Border thickness in pixels (0 disables the border).
+    #[serde(default = "default_bar_border_width")]
+    pub width_px: f32,
+}
+
+fn default_bar_border_color() -> String {
+    "#00F2FE".into()
+}
+
+fn default_bar_border_gradient() -> Vec<String> {
+    vec!["#00F2FE".into(), "#4FACFE".into(), "#A24BFF".into()]
+}
+
+fn default_bar_border_width() -> f32 {
+    1.0
+}
+
+impl Default for BarBorder {
+    fn default() -> Self {
+        Self {
+            mode: BorderMode::default(),
+            color: default_bar_border_color(),
+            gradient: default_bar_border_gradient(),
+            width_px: default_bar_border_width(),
+        }
+    }
+}
+
 fn default_pill_color() -> String {
     "#00F2FE".into()
 }
@@ -173,6 +217,8 @@ pub struct BarConfig {
     pub position: BarPosition,
     #[serde(default = "default_height")]
     pub height: u32,
+    /// Legacy field; vertical bars use `height` for cross-axis thickness so the
+    /// strip matches a horizontal top/bottom bar. Kept for config compatibility.
     #[serde(default = "default_width")]
     pub width: u32,
     #[serde(default = "default_margin_top")]
@@ -199,6 +245,10 @@ pub struct BarConfig {
     /// `width_px` also insets the client body.
     #[serde(default)]
     pub window_border: WindowBorder,
+    /// Appearance + thickness of the border around the edge bar's pill. Consumed by
+    /// the shell (rendered via GTK CSS); `width_px = 0` disables it.
+    #[serde(default)]
+    pub bar_border: BarBorder,
     #[serde(default = "default_true")]
     pub blur: bool,
     /// Gaussian backdrop-blur radius (in pixels) applied by the compositor behind
@@ -290,6 +340,7 @@ impl Default for BarConfig {
             titlebar_opacity: default_titlebar_opacity(),
             titlebar_pill_border: TitlebarPillBorder::default(),
             window_border: WindowBorder::default(),
+            bar_border: BarBorder::default(),
             blur: default_true(),
             blur_radius: default_blur_radius(),
             widgets: default_widgets(),
@@ -419,5 +470,8 @@ pub fn save_default_bar_config() -> std::io::Result<()> {
 pub fn save_bar_config(config: &BarConfig) -> std::io::Result<()> {
     super::ensure_config_dirs()?;
     let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
-    std::fs::write(bar_config_path(), json)
+    let path = bar_config_path();
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, &json)?;
+    std::fs::rename(tmp, path)
 }

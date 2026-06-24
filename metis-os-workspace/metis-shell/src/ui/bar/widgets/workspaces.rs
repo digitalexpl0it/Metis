@@ -13,7 +13,7 @@ pub struct WorkspacesWidget {
 impl WorkspacesWidget {
     pub fn new(position: BarPosition) -> Self {
         let axis = match position {
-            BarPosition::Top => gtk::Orientation::Horizontal,
+            BarPosition::Top | BarPosition::Bottom => gtk::Orientation::Horizontal,
             BarPosition::Left | BarPosition::Right => gtk::Orientation::Vertical,
         };
 

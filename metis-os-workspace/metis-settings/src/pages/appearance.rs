@@ -46,6 +46,8 @@ pub fn build() -> gtk::Widget {
     }));
     // Guards programmatic `set_rgba` (during refresh) from triggering a save.
     let suppress = Rc::new(Cell::new(false));
+    // Style buttons fire `toggled` when we set the initial active state below.
+    let suppress_mode = Rc::new(Cell::new(true));
 
     // Current wallpaper drives the live preview thumbnails in the style buttons.
     let current_wp = current_wallpaper();
@@ -64,6 +66,7 @@ pub fn build() -> gtk::Widget {
         // System falls back to Dark in the picker (auto-detect was unreliable).
         _ => dark_btn.set_active(true),
     }
+    suppress_mode.set(false);
     chooser.append(&light_btn);
     chooser.append(&dark_btn);
     mode_body.append(&chooser);
@@ -155,7 +158,12 @@ pub fn build() -> gtk::Widget {
     content.append(&font_card);
     {
         let state = state.clone();
+        let suppress_font = Rc::new(Cell::new(true));
+        let suppress_font_flag = suppress_font.clone();
         font_btn.connect_font_desc_notify(move |btn| {
+            if suppress_font_flag.get() {
+                return;
+            }
             let desc = btn.font_desc();
             let family = desc
                 .as_ref()
@@ -181,6 +189,7 @@ pub fn build() -> gtk::Widget {
             crate::theme::reapply();
             runtime::send("reload-theme");
         });
+        suppress_font.set(false);
     }
 
     // Style buttons: persist preference, re-target the colour editor, re-theme.
@@ -188,7 +197,11 @@ pub fn build() -> gtk::Widget {
         let state = state.clone();
         let buttons = buttons.clone();
         let suppress = suppress.clone();
+        let suppress_mode = suppress_mode.clone();
         Rc::new(move |mode: ThemeMode| {
+            if suppress_mode.get() {
+                return;
+            }
             if let Err(err) = metis_config::save_theme_preference(mode.clone()) {
                 tracing::warn!(%err, "failed to save theme preference");
             }
@@ -366,9 +379,27 @@ pub fn build() -> gtk::Widget {
         });
     }
 
-    // ---- Bar (opacity / blur) --------------------------------------------
+    // ---- Bar (position / distance / opacity / blur / border) -------------
     let bar = Rc::new(RefCell::new(metis_config::load_bar_config()));
     let (bar_card, bar_body) = ui::section_with_icon("Edge bar", "preferences-system-symbolic");
+
+    let position_dd = gtk::DropDown::from_strings(&["Top", "Bottom", "Left", "Right"]);
+    position_dd.set_selected(bar_position_to_index(bar.borrow().position));
+    bar_body.append(&ui::row_with_icon(
+        "view-paged-symbolic",
+        "Position",
+        &position_dd,
+    ));
+
+    let edge_margin = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 64.0, 1.0);
+    edge_margin.set_value(bar.borrow().margin_top as f64);
+    edge_margin.set_size_request(200, -1);
+    edge_margin.set_draw_value(true);
+    bar_body.append(&ui::row_with_icon(
+        "view-fullscreen-symbolic",
+        "Distance from edge",
+        &edge_margin,
+    ));
 
     let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     opacity.set_value(bar.borrow().opacity as f64);
@@ -406,6 +437,73 @@ pub fn build() -> gtk::Widget {
     blur_hint.set_wrap(true);
     blur_hint.add_css_class("metis-settings-hint");
     bar_body.append(&blur_hint);
+
+    // -- Edge-bar border (mode / width / colors) --
+    let bb = bar.borrow().bar_border.clone();
+
+    let bb_mode = gtk::DropDown::from_strings(&["Theme accent", "Solid color", "Custom gradient"]);
+    bb_mode.set_selected(match bb.mode {
+        metis_config::BorderMode::Accent => 0,
+        metis_config::BorderMode::Solid => 1,
+        metis_config::BorderMode::Gradient => 2,
+    });
+    bar_body.append(&ui::row_with_icon("view-paged-symbolic", "Bar border", &bb_mode));
+
+    let bb_width = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 8.0, 1.0);
+    bb_width.set_value(bb.width_px as f64);
+    bb_width.set_size_request(200, -1);
+    bb_width.set_draw_value(true);
+    bar_body.append(&ui::row_with_icon(
+        "view-fullscreen-symbolic",
+        "Bar border thickness",
+        &bb_width,
+    ));
+
+    let bb_solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let bb_solid = color_dialog_button();
+    bb_solid.set_rgba(&hex_to_rgba(&bb.color));
+    bb_solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Border color",
+        &bb_solid,
+    ));
+    bar_body.append(&bb_solid_box);
+
+    let bb_grad_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let bb_stop = |idx: usize, fallback: &str| {
+        let b = color_dialog_button();
+        let hex = bb.gradient.get(idx).map(String::as_str).unwrap_or(fallback);
+        b.set_rgba(&hex_to_rgba(hex));
+        b
+    };
+    let bb_g1 = bb_stop(0, "#00F2FE");
+    let bb_g2 = bb_stop(1, "#4FACFE");
+    let bb_g3 = bb_stop(2, "#A24BFF");
+    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient start", &bb_g1));
+    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient middle", &bb_g2));
+    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient end", &bb_g3));
+    bar_body.append(&bb_grad_box);
+
+    let bb_hint = gtk::Label::new(Some(
+        "The border around the edge bar's pill. \"Theme accent\" tracks your accent \
+         colors; or pick a solid color / custom gradient. Set thickness to 0 to \
+         disable it. Changes apply within ~1s.",
+    ));
+    bb_hint.set_xalign(0.0);
+    bb_hint.set_wrap(true);
+    bb_hint.add_css_class("metis-settings-hint");
+    bar_body.append(&bb_hint);
+
+    let bb_update_vis = {
+        let bb_solid_box = bb_solid_box.clone();
+        let bb_grad_box = bb_grad_box.clone();
+        Rc::new(move |mode: metis_config::BorderMode| {
+            bb_solid_box.set_visible(mode == metis_config::BorderMode::Solid);
+            bb_grad_box.set_visible(mode == metis_config::BorderMode::Gradient);
+        })
+    };
+    bb_update_vis(bb.mode);
+
     content.append(&bar_card);
 
     // ---- Windows (titlebar) ----------------------------------------------
@@ -581,6 +679,20 @@ pub fn build() -> gtk::Widget {
 
     {
         let bar = bar.clone();
+        position_dd.connect_selected_notify(move |dd| {
+            bar.borrow_mut().position = index_to_bar_position(dd.selected());
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        edge_margin.connect_value_changed(move |s| {
+            bar.borrow_mut().margin_top = s.value().round() as u32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
         opacity.connect_value_changed(move |s| {
             bar.borrow_mut().opacity = s.value() as f32;
             save_bar(&bar.borrow());
@@ -686,6 +798,42 @@ pub fn build() -> gtk::Widget {
             save_bar(&bar.borrow());
         });
     }
+    {
+        let bar = bar.clone();
+        let bb_update_vis = bb_update_vis.clone();
+        bb_mode.connect_selected_notify(move |dd| {
+            let mode = match dd.selected() {
+                1 => metis_config::BorderMode::Solid,
+                2 => metis_config::BorderMode::Gradient,
+                _ => metis_config::BorderMode::Accent,
+            };
+            bar.borrow_mut().bar_border.mode = mode;
+            bb_update_vis(mode);
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        bb_width.connect_value_changed(move |s| {
+            bar.borrow_mut().bar_border.width_px = s.value() as f32;
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
+        bb_solid.connect_rgba_notify(move |b| {
+            bar.borrow_mut().bar_border.color = rgba_to_hex(&b.rgba());
+            save_bar(&bar.borrow());
+        });
+    }
+    for (idx, btn) in [(0usize, &bb_g1), (1, &bb_g2), (2, &bb_g3)] {
+        let bar = bar.clone();
+        btn.connect_rgba_notify(move |b| {
+            let hex = rgba_to_hex(&b.rgba());
+            set_stops(&mut bar.borrow_mut().bar_border.gradient, idx, hex);
+            save_bar(&bar.borrow());
+        });
+    }
 
     scroller.upcast()
 }
@@ -705,11 +853,14 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     // directly) may have changed the file since. Re-read the on-disk config and
     // overwrite only the fields this page manages so we don't clobber theirs.
     let mut on_disk = metis_config::load_bar_config();
+    on_disk.position = cfg.position;
+    on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
     on_disk.menu_opacity = cfg.menu_opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
     on_disk.titlebar_pill_border = cfg.titlebar_pill_border.clone();
     on_disk.window_border = cfg.window_border.clone();
+    on_disk.bar_border = cfg.bar_border.clone();
     on_disk.blur = cfg.blur;
     on_disk.blur_radius = cfg.blur_radius;
     if let Err(err) = metis_config::save_bar_config(&on_disk) {
@@ -1014,6 +1165,26 @@ fn save_and_apply(cfg: &metis_config::WallpaperConfig) {
         tracing::warn!(%err, "failed to save wallpaper.json");
     }
     runtime::apply_background();
+}
+
+fn bar_position_to_index(pos: metis_config::BarPosition) -> u32 {
+    use metis_config::BarPosition as P;
+    match pos {
+        P::Top => 0,
+        P::Bottom => 1,
+        P::Left => 2,
+        P::Right => 3,
+    }
+}
+
+fn index_to_bar_position(idx: u32) -> metis_config::BarPosition {
+    use metis_config::BarPosition as P;
+    match idx {
+        1 => P::Bottom,
+        2 => P::Left,
+        3 => P::Right,
+        _ => P::Top,
+    }
 }
 
 fn direction_to_index(dir: metis_config::GradientDirection) -> u32 {

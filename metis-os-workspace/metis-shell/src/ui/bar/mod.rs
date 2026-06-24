@@ -1,7 +1,7 @@
 mod dropdown;
 mod widgets;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
@@ -16,10 +16,16 @@ use crate::services::{
 
 thread_local! {
     static BAR: RefCell<Option<BarHandle>> = const { RefCell::new(None) };
+    // Mirror of the active bar position, kept outside the `BAR` RefCell so
+    // `popover_position()` can be read while `BAR` is mutably borrowed (e.g. from
+    // within `rebuild_bar`, which builds widgets that query the popover side).
+    static BAR_POSITION: Cell<BarPosition> = const { Cell::new(BarPosition::Top) };
 }
 
 struct BarHandle {
     window: gtk::ApplicationWindow,
+    outer: gtk::Box,
+    column: gtk::Box,
     pill: gtk::Box,
     config: Rc<RefCell<BarConfig>>,
     widget_refs: widgets::WidgetRefs,
@@ -34,9 +40,6 @@ pub fn init_and_show(app: &gtk::Application) {
     let config = Rc::new(RefCell::new(load_bar_config()));
     let cfg = config.borrow().clone();
     let (win_w, win_h) = layer_window_size(&cfg);
-    let thickness = bar_body_thickness(&cfg);
-
-    let is_vertical = matches!(cfg.position, BarPosition::Left | BarPosition::Right);
 
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -45,48 +48,16 @@ pub fn init_and_show(app: &gtk::Application) {
         .default_height(win_h)
         .build();
 
-    let outer = gtk::Box::builder()
-        .orientation(if is_vertical {
-            gtk::Orientation::Vertical
-        } else {
-            gtk::Orientation::Horizontal
-        })
-        .build();
+    let outer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     outer.add_css_class("metis-bar-outer");
-    if is_vertical {
-        outer.add_css_class("metis-bar-outer-vertical");
-        outer.set_size_request(thickness, win_h);
-    } else {
-        outer.set_size_request(win_w, win_h);
-    }
 
-    let column = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(0)
-        .build();
+    let column = gtk::Box::new(gtk::Orientation::Vertical, 0);
     column.add_css_class("metis-bar-column");
-    column.set_hexpand(!is_vertical);
-    column.set_vexpand(is_vertical);
-    column.set_halign(gtk::Align::Fill);
-    column.set_valign(gtk::Align::Start);
-    if is_vertical {
-        column.set_size_request(thickness, win_h);
-    } else {
-        column.set_size_request(win_w, win_h);
-    }
 
-    let pill = gtk::Box::builder()
-        .orientation(orientation_for(&cfg))
-        .spacing(4)
-        .build();
+    let pill = gtk::Box::new(orientation_for(&cfg), 4);
     pill.add_css_class("metis-bar-pill");
-    apply_pill_layout(&pill, &cfg);
-    if is_vertical {
-        pill.set_size_request(cfg.width as i32, -1);
-        pill.add_css_class("metis-bar-pill-vertical");
-    } else {
-        pill.set_size_request(-1, cfg.height as i32);
-    }
+
+    configure_surface(&outer, &column, &pill, &cfg);
 
     column.append(&pill);
 
@@ -124,10 +95,6 @@ pub fn init_and_show(app: &gtk::Application) {
     pill.add_controller(dismiss);
 
     outer.append(&column);
-    outer.set_hexpand(true);
-    outer.set_vexpand(false);
-    outer.set_halign(gtk::Align::Fill);
-    outer.set_valign(gtk::Align::Start);
     window.set_child(Some(&outer));
 
     let widget_refs = widgets::build(&pill, config.clone());
@@ -147,6 +114,8 @@ pub fn init_and_show(app: &gtk::Application) {
     BAR.with(|bar| {
         *bar.borrow_mut() = Some(BarHandle {
             window: window.clone(),
+            outer,
+            column,
             pill,
             config: config.clone(),
             widget_refs,
@@ -178,7 +147,7 @@ pub fn init_and_show(app: &gtk::Application) {
 fn layer_window_size(config: &BarConfig) -> (i32, i32) {
     let thickness = bar_body_thickness(config);
     match config.position {
-        BarPosition::Top => (-1, thickness),
+        BarPosition::Top | BarPosition::Bottom => (-1, thickness),
         BarPosition::Left | BarPosition::Right => (thickness, -1),
     }
 }
@@ -190,10 +159,13 @@ fn layer_window_size(config: &BarConfig) -> (i32, i32) {
 const BAR_SHADOW_PAD: i32 = metis_config::bar::SHADOW_PAD;
 
 fn bar_body_thickness(config: &BarConfig) -> i32 {
-    match config.position {
-        BarPosition::Top => config.height as i32 + BAR_SHADOW_PAD,
-        BarPosition::Left | BarPosition::Right => config.width as i32 + BAR_SHADOW_PAD,
-    }
+    config.height as i32 + BAR_SHADOW_PAD
+}
+
+/// Visible cross-axis size of the bar pill (height when horizontal, width when
+/// vertical). Kept equal so left/right bars match the top/bottom strip thickness.
+fn bar_cross_thickness(config: &BarConfig) -> i32 {
+    config.height as i32
 }
 
 fn bar_body_height(config: &BarConfig) -> i32 {
@@ -202,6 +174,18 @@ fn bar_body_height(config: &BarConfig) -> i32 {
 
 /// Layer-shell popovers use GtkPopover — no layer window resize needed.
 pub(crate) fn sync_layer_window_height(_dropdown_open: bool) {}
+
+/// The side bar popovers/menus should open toward, derived from the bar's anchored
+/// edge: a top bar opens downward, a bottom bar upward, a left bar to the right,
+/// a right bar to the left. Falls back to `Bottom` before the bar is initialized.
+pub(crate) fn popover_position() -> gtk::PositionType {
+    match BAR_POSITION.with(Cell::get) {
+        BarPosition::Bottom => gtk::PositionType::Top,
+        BarPosition::Left => gtk::PositionType::Right,
+        BarPosition::Right => gtk::PositionType::Left,
+        BarPosition::Top => gtk::PositionType::Bottom,
+    }
+}
 
 /// Layer-shell surfaces do not receive outside-click events; the compositor
 /// tells us to pop down when the pointer hits bare desktop.
@@ -237,6 +221,85 @@ fn watch_compositor_dismiss() {
     });
 }
 
+/// Configure the bar's surface widget tree (outer box, column, pill) for the
+/// current position: orientation, expansion, alignment (so the pill sits flush
+/// against the anchored edge), size requests, and the vertical-bar CSS classes.
+/// Shared by the initial build and the live `rebuild_bar` path so switching
+/// between horizontal and vertical layouts at runtime re-sizes correctly.
+fn configure_surface(outer: &gtk::Box, column: &gtk::Box, pill: &gtk::Box, config: &BarConfig) {
+    // Publish the position for `popover_position()` before any widgets (which read
+    // it) are built; reads must not borrow `BAR`, which is held during rebuilds.
+    BAR_POSITION.with(|p| p.set(config.position));
+    let is_vertical = matches!(config.position, BarPosition::Left | BarPosition::Right);
+    let thickness = bar_body_thickness(config);
+
+    outer.set_orientation(if is_vertical {
+        gtk::Orientation::Vertical
+    } else {
+        gtk::Orientation::Horizontal
+    });
+    // Stretch along the bar's long axis only (width for top/bottom, height for
+    // left/right). Expanding on both axes makes a horizontal pill collapse to its
+    // natural content width.
+    outer.set_hexpand(!is_vertical);
+    outer.set_vexpand(is_vertical);
+    outer.set_halign(edge_halign(config.position));
+    outer.set_valign(edge_valign(config.position));
+    outer.remove_css_class("metis-bar-outer-vertical");
+    if is_vertical {
+        outer.add_css_class("metis-bar-outer-vertical");
+        outer.set_size_request(thickness, -1);
+    } else {
+        outer.set_size_request(-1, thickness);
+    }
+
+    column.set_orientation(gtk::Orientation::Vertical);
+    column.set_hexpand(!is_vertical);
+    column.set_vexpand(is_vertical);
+    column.set_halign(edge_halign(config.position));
+    column.set_valign(edge_valign(config.position));
+    if is_vertical {
+        column.set_size_request(thickness, -1);
+    } else {
+        column.set_size_request(-1, thickness);
+    }
+
+    pill.set_orientation(orientation_for(config));
+    pill.remove_css_class("metis-bar-pill-vertical");
+    pill.remove_css_class("metis-bar-pill-vertical-right");
+    if is_vertical {
+        pill.set_size_request(bar_cross_thickness(config), -1);
+        pill.add_css_class("metis-bar-pill-vertical");
+        if matches!(config.position, BarPosition::Right) {
+            pill.add_css_class("metis-bar-pill-vertical-right");
+        }
+    } else {
+        pill.set_size_request(-1, config.height as i32);
+    }
+    apply_pill_layout(pill, config);
+}
+
+/// Horizontal alignment of the bar strip within its layer surface (flush to the
+/// anchored screen edge; shadow pad sits on the inner side).
+fn edge_halign(position: BarPosition) -> gtk::Align {
+    match position {
+        BarPosition::Right => gtk::Align::End,
+        BarPosition::Left => gtk::Align::Start,
+        // Top/bottom bars fill the full monitor width.
+        BarPosition::Top | BarPosition::Bottom => gtk::Align::Fill,
+    }
+}
+
+/// Vertical alignment of the bar strip within its layer surface.
+fn edge_valign(position: BarPosition) -> gtk::Align {
+    match position {
+        BarPosition::Bottom => gtk::Align::End,
+        BarPosition::Top => gtk::Align::Start,
+        // Left/right bars fill the full monitor height.
+        BarPosition::Left | BarPosition::Right => gtk::Align::Fill,
+    }
+}
+
 fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     pill.remove_css_class("metis-bar-full");
     pill.remove_css_class("metis-bar-floating");
@@ -257,22 +320,41 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     }
     if config.full_width {
         pill.add_css_class("metis-bar-full");
-        pill.set_hexpand(!vertical);
-        pill.set_vexpand(vertical);
-        pill.set_halign(gtk::Align::Fill);
-        pill.set_valign(gtk::Align::Fill);
+        if vertical {
+            // Keep the pill at `height` px wide; the layer surface is wider only
+            // for the inner-edge shadow pad — do not stretch the pill into it.
+            pill.set_hexpand(false);
+            pill.set_vexpand(true);
+            pill.set_halign(edge_halign(config.position));
+            pill.set_valign(gtk::Align::Fill);
+        } else {
+            pill.set_hexpand(true);
+            pill.set_vexpand(false);
+            pill.set_halign(gtk::Align::Fill);
+            pill.set_valign(gtk::Align::Fill);
+        }
     } else {
         pill.add_css_class("metis-bar-floating");
         pill.set_hexpand(false);
         pill.set_vexpand(false);
-        pill.set_halign(gtk::Align::Center);
-        pill.set_valign(gtk::Align::Start);
+        pill.set_halign(if matches!(config.position, BarPosition::Right) {
+            gtk::Align::End
+        } else {
+            gtk::Align::Center
+        });
+        // Flush the floating pill against the anchored edge so the shadow pad sits
+        // on the inner side (below a top bar, above a bottom bar).
+        pill.set_valign(if matches!(config.position, BarPosition::Bottom) {
+            gtk::Align::End
+        } else {
+            gtk::Align::Start
+        });
     }
 }
 
 fn orientation_for(config: &BarConfig) -> gtk::Orientation {
     match config.position {
-        BarPosition::Top => gtk::Orientation::Horizontal,
+        BarPosition::Top | BarPosition::Bottom => gtk::Orientation::Horizontal,
         BarPosition::Left | BarPosition::Right => gtk::Orientation::Vertical,
     }
 }
@@ -298,11 +380,14 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     // baked into the surface thickness. This lets windows tuck right up under the
     // bar's bottom edge (the shadow pad region is transparent) instead of leaving a
     // chunk of dead space below the bar.
-    let visible_thickness = match config.position {
-        BarPosition::Top => config.height as i32,
-        BarPosition::Left | BarPosition::Right => config.width as i32,
+    let visible_thickness = bar_cross_thickness(config);
+    // Only the top bar reserves screen space (windows reflow below it). Bottom
+    // and side bars overlay the desktop; maximize/snap insets come from config.
+    let exclusive = match config.position {
+        BarPosition::Top => config.margin_top as i32 + visible_thickness,
+        BarPosition::Bottom | BarPosition::Left | BarPosition::Right => 0,
     };
-    window.set_exclusive_zone(config.margin_top as i32 + visible_thickness);
+    window.set_exclusive_zone(exclusive);
 
     match config.position {
         BarPosition::Top => {
@@ -313,6 +398,17 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
             window.set_margin(Edge::Left, config.margin_h as i32);
             window.set_margin(Edge::Right, config.margin_h as i32);
             window.set_height_request(thickness);
+            window.set_width_request(-1);
+        }
+        BarPosition::Bottom => {
+            window.set_anchor(Edge::Bottom, true);
+            window.set_anchor(Edge::Left, true);
+            window.set_anchor(Edge::Right, true);
+            window.set_margin(Edge::Bottom, config.margin_top as i32);
+            window.set_margin(Edge::Left, config.margin_h as i32);
+            window.set_margin(Edge::Right, config.margin_h as i32);
+            window.set_height_request(thickness);
+            window.set_width_request(-1);
         }
         BarPosition::Left => {
             window.set_anchor(Edge::Left, true);
@@ -322,6 +418,7 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
             window.set_margin(Edge::Top, config.margin_h as i32);
             window.set_margin(Edge::Bottom, config.margin_h as i32);
             window.set_width_request(thickness);
+            window.set_height_request(-1);
         }
         BarPosition::Right => {
             window.set_anchor(Edge::Right, true);
@@ -331,6 +428,7 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
             window.set_margin(Edge::Top, config.margin_h as i32);
             window.set_margin(Edge::Bottom, config.margin_h as i32);
             window.set_width_request(thickness);
+            window.set_height_request(-1);
         }
     }
 
@@ -338,8 +436,12 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     // a CSS provider in the theme loader), so icons/text stay fully opaque. The
     // window itself must remain at full opacity.
     window.set_opacity(1.0);
-    crate::ui::theme::apply_bar_opacity(config.opacity);
+    crate::ui::theme::apply_bar_appearance(config.opacity, &config.bar_border, config.position);
     crate::ui::theme::apply_menu_opacity(config.menu_opacity);
+
+    // Anchor/margin changes do not always trigger a GTK relayout on their own;
+    // queue a resize so gtk-layer-shell commits the new surface dimensions.
+    window.queue_resize();
 }
 
 fn rebuild_bar(config: Rc<RefCell<BarConfig>>) {
@@ -350,10 +452,13 @@ fn rebuild_bar(config: Rc<RefCell<BarConfig>>) {
             return;
         };
         let cfg = config.borrow();
+        configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
         apply_layer_geometry(&handle.window, &cfg);
-        handle.pill.set_orientation(orientation_for(&cfg));
-        apply_pill_layout(&handle.pill, &cfg);
-        handle.pill.set_size_request(-1, cfg.height as i32);
+        let (win_w, win_h) = layer_window_size(&cfg);
+        handle.window.set_default_size(win_w, win_h);
+        handle.outer.queue_resize();
+        handle.column.queue_resize();
+        handle.pill.queue_resize();
         while let Some(child) = handle.pill.first_child() {
             handle.pill.remove(&child);
         }

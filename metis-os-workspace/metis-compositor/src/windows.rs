@@ -18,6 +18,9 @@ pub struct WindowRecord {
     pub app_id: Option<String>,
     pub target_rect: PixelRect,
     pub restore_rect: Option<PixelRect>,
+    /// Pre-snap floating geometry is in `restore_rect`; this flag is set while the
+    /// window occupies a snap/maximize layout so a titlebar drag can restore size.
+    pub snapped: bool,
     pub fullscreen: bool,
     pub maximized: bool,
     pub minimized: bool,
@@ -65,6 +68,7 @@ impl WindowRegistry {
                 app_id,
                 target_rect: rect,
                 restore_rect: None,
+                snapped: false,
                 fullscreen: false,
                 maximized: false,
                 minimized: false,
@@ -160,6 +164,16 @@ impl WindowRegistry {
 
     pub fn take_restore_rect(&mut self, id: u32) -> Option<PixelRect> {
         self.by_id.get_mut(&id).and_then(|r| r.restore_rect.take())
+    }
+
+    pub fn set_snapped(&mut self, id: u32, snapped: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.snapped = snapped;
+        }
+    }
+
+    pub fn is_snapped(&self, id: u32) -> bool {
+        self.by_id.get(&id).is_some_and(|r| r.snapped)
     }
 
     pub fn is_minimized(&self, id: u32) -> bool {

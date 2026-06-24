@@ -95,16 +95,37 @@ pub struct TasksWidget {
 }
 
 impl TasksWidget {
-    pub fn new() -> Self {
-        let row = gtk::Box::new(gtk::Orientation::Horizontal, 2);
+    pub fn new(vertical: bool) -> Self {
+        let row = gtk::Box::new(
+            if vertical {
+                gtk::Orientation::Vertical
+            } else {
+                gtk::Orientation::Horizontal
+            },
+            2,
+        );
         row.add_css_class("metis-bar-tasks-row");
+        if vertical {
+            row.add_css_class("metis-bar-tasks-row-vertical");
+        }
 
         let root = gtk::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk::PolicyType::Automatic)
-            .vscrollbar_policy(gtk::PolicyType::Never)
+            .hscrollbar_policy(if vertical {
+                gtk::PolicyType::Never
+            } else {
+                gtk::PolicyType::Automatic
+            })
+            .vscrollbar_policy(if vertical {
+                gtk::PolicyType::Automatic
+            } else {
+                gtk::PolicyType::Never
+            })
             .child(&row)
             .build();
         root.add_css_class("metis-bar-tasks");
+        if vertical {
+            root.add_css_class("metis-bar-tasks-vertical");
+        }
         // Size the dock to its content (up to the available bar space) instead of
         // claiming a fixed slice of the bar. Both axes must propagate or the
         // scrolled window collapses to its 0-px minimum inside the bar strip.
@@ -552,7 +573,7 @@ fn show_window_menu(row: &gtk::Button, id: u32, title: &str) {
     let popover = gtk::Popover::builder()
         .autohide(false)
         .has_arrow(true)
-        .position(gtk::PositionType::Right)
+        .position(super::super::popover_position())
         .child(&panel)
         .build();
     popover.add_css_class("metis-bar-popover");
@@ -695,7 +716,7 @@ fn transient_popover(parent: &impl IsA<gtk::Widget>, panel: &gtk::Box) -> gtk::P
     let popover = gtk::Popover::builder()
         .autohide(false)
         .has_arrow(true)
-        .position(gtk::PositionType::Bottom)
+        .position(super::super::popover_position())
         .child(panel)
         .build();
     popover.add_css_class("metis-bar-popover");

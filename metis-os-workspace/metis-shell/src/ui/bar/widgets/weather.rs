@@ -17,20 +17,26 @@ pub struct WeatherWidget {
     others_sep: gtk::Separator,
     status: gtk::Label,
     last_sig: RefCell<String>,
+    compact: bool,
 }
 
 impl WeatherWidget {
-    pub fn new() -> Self {
+    pub fn new(compact: bool) -> Self {
         let root = gtk::Button::builder().build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-weather");
+        if compact {
+            root.add_css_class("metis-bar-weather-compact");
+        }
 
         let bar_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         let icon = icons::image("weather-overcast-symbolic");
         bar_box.append(&icon);
         let temp_label = gtk::Label::new(None);
         temp_label.add_css_class("metis-weather-bar-label");
-        bar_box.append(&temp_label);
+        if !compact {
+            bar_box.append(&temp_label);
+        }
         root.set_child(Some(&bar_box));
         root.set_tooltip_text(Some("Weather"));
 
@@ -80,6 +86,7 @@ impl WeatherWidget {
             others_sep,
             status,
             last_sig: RefCell::new(String::new()),
+            compact,
         }
     }
 
@@ -98,19 +105,24 @@ impl WeatherWidget {
 
         match snapshot.locations.first() {
             Some(primary) => {
-                self.temp_label
-                    .set_text(&format!("{:.0}°{}", primary.temp.round(), unit));
+                if !self.compact {
+                    self.temp_label
+                        .set_text(&format!("{:.0}°{}", primary.temp.round(), unit));
+                }
                 icons::set_icon(&self.icon, weather_icon(primary.code, primary.is_day));
                 self.root.set_tooltip_text(Some(&format!(
-                    "{} · {:.0}° {}",
+                    "{} · {:.0}°{} {}",
                     primary.name,
                     primary.temp.round(),
+                    unit,
                     primary.label
                 )));
                 self.status.set_visible(false);
             }
             None => {
-                self.temp_label.set_text("");
+                if !self.compact {
+                    self.temp_label.set_text("");
+                }
                 icons::set_icon(&self.icon, "weather-severe-alert-symbolic");
                 let msg = snapshot.error.as_deref().unwrap_or("Weather unavailable");
                 self.root.set_tooltip_text(Some(msg));

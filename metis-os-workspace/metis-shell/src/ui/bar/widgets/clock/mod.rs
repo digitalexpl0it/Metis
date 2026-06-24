@@ -71,25 +71,35 @@ pub struct ClockWidget {
 }
 
 impl ClockWidget {
-    pub fn new(config: &ClockConfig) -> Self {
+    pub fn new(config: &ClockConfig, compact: bool) -> Self {
         // Plain Button + non-autohide popover (same proven pattern as the volume
         // and notification widgets). A MenuButton's autohide popover tears itself
         // down when it holds complex/interactive content on our layer-shell bar.
         let root = gtk::Button::builder().build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-clock");
+        if compact {
+            root.add_css_class("metis-bar-clock-compact");
+        }
 
-        let row = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(8)
-            .build();
         let time_label = gtk::Label::new(None);
         time_label.add_css_class("metis-bar-clock-time");
         let date_label = gtk::Label::new(None);
         date_label.add_css_class("metis-bar-clock-date");
-        row.append(&time_label);
-        row.append(&date_label);
-        root.set_child(Some(&row));
+
+        if compact {
+            let icon = crate::ui::icons::image("preferences-system-time-symbolic");
+            root.set_child(Some(&icon));
+            root.set_tooltip_text(Some("Clock"));
+        } else {
+            let row = gtk::Box::builder()
+                .orientation(gtk::Orientation::Horizontal)
+                .spacing(8)
+                .build();
+            row.append(&time_label);
+            row.append(&date_label);
+            root.set_child(Some(&row));
+        }
 
         let store = Store(Rc::new(RefCell::new(crate::config::load_clocks_config(
             &config.timezones,
@@ -211,13 +221,22 @@ impl ClockWidget {
         });
 
         let widget = Self { root };
-        widget.refresh_bar_labels(config, &time_label, &date_label);
+        if compact {
+            widget.refresh_bar_tooltip(config, &widget.root);
+        } else {
+            widget.refresh_bar_labels(config, &time_label, &date_label);
+        }
 
         // ---- Per-second tick: bar labels, world times, alarm scheduling ----
         let cfg = config.clone();
         let last_minute = Rc::new(std::cell::Cell::new(Local::now().timestamp() / 60));
+        let root_for_tick = widget.root.clone();
         glib::timeout_add_local(std::time::Duration::from_secs(1), move || {
-            update_bar_labels(&time_label, &date_label, &cfg);
+            if compact {
+                update_bar_tooltip(&root_for_tick, &cfg);
+            } else {
+                update_bar_labels(&time_label, &date_label, &cfg);
+            }
             world.refresh();
 
             let minute = Local::now().timestamp() / 60;
@@ -243,12 +262,26 @@ impl ClockWidget {
     ) {
         update_bar_labels(time_label, date_label, config);
     }
+
+    fn refresh_bar_tooltip(&self, config: &ClockConfig, root: &gtk::Button) {
+        update_bar_tooltip(root, config);
+    }
 }
 
 fn update_bar_labels(time_label: &gtk::Label, date_label: &gtk::Label, config: &ClockConfig) {
     let now = Local::now();
     time_label.set_label(&now.format(&config.time_format).to_string());
     date_label.set_label(&now.format(&config.date_format).to_string());
+}
+
+fn update_bar_tooltip(root: &gtk::Button, config: &ClockConfig) {
+    let now = Local::now();
+    let tip = format!(
+        "{}\n{}",
+        now.format(&config.time_format),
+        now.format(&config.date_format)
+    );
+    root.set_tooltip_text(Some(&tip));
 }
 
 fn day_start(date: NaiveDate) -> DateTime<Local> {
