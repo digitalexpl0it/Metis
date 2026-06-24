@@ -154,6 +154,18 @@ impl MetisState {
                     // window resize/move chrome rendered geometrically *beneath* the
                     // popover — letting you drag a window through the open menu.
                     let on_bar_ui = self.metis_bar_ui_hit(loc);
+                    // Any press off the bar/popover dismisses open popovers — do this
+                    // FIRST so it still fires when the press is consumed by compositor
+                    // chrome (resize band or server-side titlebar) and returns early.
+                    // Without this, clicking another window's titlebar left the start
+                    // menu open while every other off-bar click closed it.
+                    //
+                    // When a popup grab is active, smithay's PopupPointerGrab already
+                    // dismisses popovers on outside clicks (popup_done); only fall back
+                    // to the manual signal when no grab is in effect.
+                    if !pointer.is_grabbed() && !on_bar_ui {
+                        let _ = metis_protocol::write_runtime_command("close-popovers");
+                    }
                     if !on_bar_ui {
                         // Window resize bands sit on the outer edges/corners — check them
                         // before decorations so grabbing an edge starts a resize (and
@@ -169,12 +181,6 @@ impl MetisState {
                             self.schedule_redraw();
                             return;
                         }
-                    }
-                    // When a popup grab is active, smithay's PopupPointerGrab already
-                    // dismisses popovers on outside clicks (popup_done). Only fall back
-                    // to the manual signal when no grab is in effect.
-                    if !pointer.is_grabbed() && !on_bar_ui {
-                        let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
                     // Always move keyboard focus to whatever was clicked — including
                     // the bar's own OnDemand layer surface. Text entries inside
