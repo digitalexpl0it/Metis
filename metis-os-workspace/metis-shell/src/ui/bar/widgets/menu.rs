@@ -63,6 +63,7 @@ pub fn install(button: &gtk::Button) {
         .build();
     apps_scroll.add_css_class("metis-menu-scroll");
     wire_vertical_scroll(&apps_scroll, &apps_scroll);
+    wire_vertical_scroll(&apps_container, &apps_scroll);
     wire_vertical_scroll(&center, &apps_scroll);
     center.append(&apps_scroll);
 
@@ -130,6 +131,8 @@ pub fn install(button: &gtk::Button) {
 
     overlay.set_child(Some(&panel));
     overlay.add_overlay(&tip);
+    wire_vertical_scroll(&panel, &apps_scroll);
+    wire_vertical_scroll(&overlay, &apps_scroll);
 
     // ---- Rebuild plumbing ----
     // A shared `refresh` handle lets row/tile context actions (pin/unpin) trigger
@@ -148,6 +151,7 @@ pub fn install(button: &gtk::Button) {
 
     let rebuild: Rc<dyn Fn()> = {
         let apps_container = apps_container.clone();
+        let apps_scroll = apps_scroll.clone();
         let pinned_flow = pinned_flow.clone();
         let pinned_hint = pinned_hint.clone();
         let header = header.clone();
@@ -155,7 +159,7 @@ pub fn install(button: &gtk::Button) {
         let refresh = refresh.clone();
         Rc::new(move || {
             let query = search.text().to_string();
-            populate_center(&apps_container, &header, &query, &refresh);
+            populate_center(&apps_container, &header, &query, &apps_scroll, &refresh);
             populate_pinned(&pinned_flow, &pinned_hint, &refresh);
         })
     };
@@ -176,6 +180,7 @@ pub fn install(button: &gtk::Button) {
     popover.add_css_class("metis-bar-popover");
     popover.add_css_class("metis-menu-popover");
     popover.set_parent(button);
+    wire_vertical_scroll(&popover, &apps_scroll);
 
     {
         let btn = button.clone();
@@ -183,12 +188,10 @@ pub fn install(button: &gtk::Button) {
         let search = search.clone();
         popover.connect_map(move |_| {
             btn.add_css_class("metis-bar-dropdown-active");
-            // Reset to the default (Frequent) view each open, then focus search so
-            // typing filters immediately. The entry is realized by map time, so a
-            // synchronous grab_focus lands on this OnDemand layer surface.
+            // Reset to the default (Frequent) view each open. Do not grab search
+            // focus here — a focused entry steals wheel events from the app list.
             search.set_text("");
             rebuild();
-            search.grab_focus();
         });
     }
     {
@@ -345,6 +348,7 @@ fn populate_center(
     container: &gtk::Box,
     header: &gtk::Label,
     query: &str,
+    scroll: &gtk::ScrolledWindow,
     refresh: &Rc<dyn Fn()>,
 ) {
     clear_box(container);
@@ -352,7 +356,7 @@ fn populate_center(
     if q.is_empty() {
         header.set_text("Frequent Apps");
         for entry in applications::frequent(FREQUENT_LIMIT) {
-            container.append(&app_row(&entry, refresh));
+            container.append(&app_row(&entry, scroll, refresh));
         }
         let mut last_letter = '\0';
         for entry in applications::list_apps() {
@@ -366,7 +370,7 @@ fn populate_center(
                 last_letter = letter;
                 container.append(&letter_header(letter));
             }
-            container.append(&app_row(&entry, refresh));
+            container.append(&app_row(&entry, scroll, refresh));
         }
     } else {
         header.set_text("Search Results");
@@ -378,7 +382,7 @@ fn populate_center(
             container.append(&empty);
         }
         for entry in results {
-            container.append(&app_row(&entry, refresh));
+            container.append(&app_row(&entry, scroll, refresh));
         }
     }
 }
@@ -424,11 +428,12 @@ fn wire_vertical_scroll(widget: &impl IsA<gtk::Widget>, scroll: &gtk::ScrolledWi
     widget.add_controller(ctrl);
 }
 
-fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
+fn app_row(entry: &AppEntry, scroll: &gtk::ScrolledWindow, refresh: &Rc<dyn Fn()>) -> gtk::Button {
     let row = gtk::Button::builder().has_frame(false).build();
     row.add_css_class("metis-menu-row");
     row.set_hexpand(true);
     row.set_halign(gtk::Align::Fill);
+    wire_vertical_scroll(&row, scroll);
 
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     hbox.set_hexpand(true);

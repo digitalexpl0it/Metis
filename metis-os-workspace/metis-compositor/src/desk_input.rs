@@ -1,9 +1,9 @@
 use metis_grid::{app_tile_body_rect, cell_to_pixels, PixelRect, TileKind};
 use smithay::{
     backend::renderer::utils::with_renderer_surface_state,
-    desktop::{layer_map_for_output, WindowSurfaceType},
+    desktop::{layer_map_for_output, PopupManager, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{Logical, Point},
+    utils::{Logical, Point, Rectangle},
     wayland::shell::wlr_layer::Layer as WlrLayer,
 };
 
@@ -20,7 +20,7 @@ fn surface_has_buffer(surface: &WlSurface) -> bool {
     with_renderer_surface_state(surface, |state| state.buffer().is_some()).unwrap_or(false)
 }
 
-fn metis_bar_pointer_active(
+fn metis_bar_region_contains(
     layer: &smithay::desktop::LayerSurface,
     layers: &smithay::desktop::LayerMap,
     rel: Point<f64, Logical>,
@@ -32,16 +32,34 @@ fn metis_bar_pointer_active(
         return false;
     };
     let local = rel - layer_geo.loc.to_f64();
-    // Include popups: the bar's dropdown popovers render below the strip, so the
-    // plain `bbox()` (strip only) would treat popover clicks as "outside the bar"
-    // and wrongly dismiss them. `bbox_with_popups()` covers the popover region too.
-    let bbox = layer.bbox_with_popups();
-    if !bbox.to_f64().contains(local) {
-        return false;
+
+    if layer.bbox().to_f64().contains(local) {
+        return true;
     }
-    layer
-        .surface_under(local, WindowSurfaceType::ALL)
-        .is_some()
+
+    // Popovers: use client geometry, not `bbox_with_popups()`. The surface-tree
+    // bbox can balloon to the full output and swallow desktop clicks — which
+    // prevented "click outside to dismiss" from ever firing.
+    let root = layer.wl_surface();
+    for (popup, location) in PopupManager::popups_for_surface(root) {
+        let geo = popup.geometry();
+        if geo.size.w <= 0 || geo.size.h <= 0 {
+            continue;
+        }
+        let origin = Point::from(location) + geo.loc;
+        if Rectangle::new(origin, geo.size).to_f64().contains(local) {
+            return true;
+        }
+    }
+    false
+}
+
+fn metis_bar_pointer_active(
+    layer: &smithay::desktop::LayerSurface,
+    layers: &smithay::desktop::LayerMap,
+    rel: Point<f64, Logical>,
+) -> bool {
+    metis_bar_region_contains(layer, layers, rel)
 }
 
 fn layer_accepts_pointer(
@@ -192,6 +210,9 @@ impl MetisState {
         rel: Point<f64, Logical>,
         output_geo: smithay::utils::Rectangle<i32, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        if layer.namespace().starts_with("metis-bar") {
+            return metis_bar_layer_surface_at(layer, layers, rel, output_geo);
+        }
         let layer_loc = layers.layer_geometry(layer).unwrap().loc;
         layer
             .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
@@ -231,27 +252,6 @@ impl MetisState {
         false
     }
 
-    fn metis_bar_surface_at(
-        &self,
-        pos: Point<f64, Logical>,
-        layers: &smithay::desktop::LayerMap,
-        output_geo: smithay::utils::Rectangle<i32, Logical>,
-    ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        let rel = pos - output_geo.loc.to_f64();
-        for layer in layers
-            .layers()
-            .filter(|layer| layer.namespace().starts_with("metis-bar"))
-        {
-            if !layer_accepts_pointer(layer, layers, rel) {
-                continue;
-            }
-            if let Some(hit) = self.layer_surface_at(layer, layers, rel, output_geo) {
-                return Some(hit);
-            }
-        }
-        None
-    }
-
     /// Route pointer hits: app bodies pass through, then layer-shell UI, then windows.
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
         let output = self.space.outputs().find(|o| {
@@ -263,6 +263,33 @@ impl MetisState {
         let rel = pos - output_geo.loc.to_f64();
         let layers = layer_map_for_output(output);
         let (x, y) = (pos.x as i32, pos.y as i32);
+
+        // The bar strip and its popovers (e.g. the start menu) take priority over
+        // everything below — including the desk-grid app-body passthrough. Without
+        // this, an app window stacked behind an open popover would win pointer focus,
+        // so scroll/clicks over the menu went to the window instead of the menu.
+        // (When the window was moved away the passthrough missed and it "worked".)
+        //
+        // NOTE: must NOT call `self.metis_bar_ui_hit()` here — it re-locks this
+        // output's layer map, which we already hold via `layers`, deadlocking the
+        // compositor thread. Use the held guard directly.
+        for layer in layers
+            .layers()
+            .filter(|layer| layer.namespace().starts_with("metis-bar"))
+        {
+            if !surface_has_buffer(layer.wl_surface()) {
+                continue;
+            }
+            if !metis_bar_region_contains(layer, &layers, rel) {
+                continue;
+            }
+            if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
+                return Some(hit);
+            }
+            // Over a bar region (strip or popover) with no concrete input surface —
+            // a transparent gutter. Block fallthrough so nothing below grabs focus.
+            return None;
+        }
 
         if let DeskHit::AppBody { window_id } = self.classify_hit(x, y) {
             if self.window_id_at(pos) == Some(window_id) {
@@ -277,20 +304,14 @@ impl MetisState {
                 if !surface_has_buffer(layer.wl_surface()) {
                     continue;
                 }
-                if layer.namespace().starts_with("metis-bar")
-                    && !metis_bar_pointer_active(layer, &layers, rel)
-                {
+                if layer.namespace().starts_with("metis-bar") {
+                    // Handled by the priority pass above.
                     continue;
                 }
                 if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
                     return Some(hit);
                 }
             }
-        }
-
-        // Popovers can extend below the bar strip; check even when layer_under misses.
-        if let Some(hit) = self.metis_bar_surface_at(pos, &layers, output_geo) {
-            return Some(hit);
         }
 
         if let Some(hit) = self.window_surface_at(pos) {
@@ -400,4 +421,33 @@ impl MetisState {
 
         None
     }
+}
+
+/// Resolve a pointer target on the bar layer, including transparent popover gutters.
+fn metis_bar_layer_surface_at(
+    layer: &smithay::desktop::LayerSurface,
+    layers: &smithay::desktop::LayerMap,
+    rel: Point<f64, Logical>,
+    output_geo: smithay::utils::Rectangle<i32, Logical>,
+) -> Option<(WlSurface, Point<f64, Logical>)> {
+    let layer_loc = layers.layer_geometry(layer)?.loc;
+    let local = rel - layer_loc.to_f64();
+
+    if let Some((surface, loc)) = layer.surface_under(local, WindowSurfaceType::ALL) {
+        return Some((surface, (loc + layer_loc + output_geo.loc).to_f64()));
+    }
+
+    if !metis_bar_region_contains(layer, layers, rel) {
+        return None;
+    }
+
+    // Transparent popover gutters have no input region — deliver to the popup
+    // surface using its global origin (smithay expects origin coords, not cursor).
+    let root = layer.wl_surface();
+    for (popup, location) in PopupManager::popups_for_surface(root) {
+        let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
+        return Some((popup.wl_surface().clone(), popup_origin_global));
+    }
+
+    None
 }

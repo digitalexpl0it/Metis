@@ -290,6 +290,9 @@ impl MetisState {
 
     /// Throttle pointer motion forwarded to clients — GTK hover repaints were saturating the loop.
     pub fn should_forward_pointer_motion(&mut self, location: Point<f64, Logical>) -> bool {
+        if self.metis_bar_ui_hit(location) {
+            return true;
+        }
         const MIN_MS: u128 = 48;
         const MIN_DIST_SQ: f64 = 9.0;
         let now = std::time::Instant::now();
