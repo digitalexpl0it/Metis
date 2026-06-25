@@ -24,6 +24,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Bottom edge-bar left too much gap below maximized/snapped windows** — overlay
+  bars reserved an extra `SHADOW_PAD` (16px) of transparent pad above the pill, so
+  windows stopped ~18px short of the visible bar regardless of the **Distance from
+  edge** value (even 0–1). All overlay bars (bottom/left/right) now reserve only the
+  visible strip (`margin + body`), matching the top bar, so windows tuck right up to
+  the pill with the same small `BAR_GAP_PX` breathing gap.
 - **Start-menu scroll over a window** — with the launcher open above an app window,
   the window behind it stole wheel/click focus, so the app list only scrolled when
   the window was moved away. The compositor now gives the bar strip and its popovers

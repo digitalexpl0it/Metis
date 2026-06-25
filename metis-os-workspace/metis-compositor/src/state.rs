@@ -1333,21 +1333,17 @@ impl MetisState {
         }
     }
 
-    /// Pixels the bar occupies along its anchored edge (margin + visible body, plus
-    /// shadow inset for overlay bars). Bottom keeps the full shadow pad so
-    /// translucent bars don't show maximized clients through them; left/right use
-    /// half the pad so snapped windows sit closer to the visible pill.
+    /// Pixels an overlay bar occupies along its anchored edge for window placement:
+    /// the configured edge distance plus the visible body. This mirrors the top
+    /// bar's layer-shell exclusive zone (`margin + body`) so every edge reserves
+    /// exactly the *visible* strip. The transparent shadow pad above the pill is
+    /// intentionally not reserved — the window tucks right up to the visible pill
+    /// (it sits below the pill's top edge, so a translucent bar never shows the
+    /// client through it), with a `BAR_GAP_PX` breathing gap added separately by
+    /// `zone_edge_gaps`.
     fn bar_reserved_px() -> i32 {
         let cfg = metis_config::load_bar_config();
-        let margin = cfg.margin_top as i32;
-        let body = cfg.height as i32;
-        let pad = metis_config::bar::SHADOW_PAD;
-        let shadow = match cfg.position {
-            metis_config::BarPosition::Top => 0,
-            metis_config::BarPosition::Bottom => pad,
-            metis_config::BarPosition::Left | metis_config::BarPosition::Right => pad / 2,
-        };
-        margin + body + shadow
+        cfg.margin_top as i32 + cfg.height as i32
     }
 
     /// Region for maximize, snap, and clamp. Top bar shrinks via layer-shell
