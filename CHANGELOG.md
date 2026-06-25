@@ -63,6 +63,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     constrain to the window's actual output. Without this, every bar popover
     (Metis Menu, calendar, Wi-Fi, notifications, weather) on a non-primary output
     was pushed off-screen and could neither be seen nor clicked.
+  - **Per-output wallpaper** — the desktop background is now composed per output
+    instead of one image stretched across the whole framebuffer. Each display is
+    cover-cropped to its own resolution (so the same picture fills a 16:9 and a
+    16:10 monitor correctly), and a display can carry its own picture via
+    `wallpaper.json`'s new `per_output` map (output name → path). The compositor
+    still uploads a single framebuffer-sized texture (each output's crop blitted at
+    its global origin), so the bar backdrop-blur path is unchanged. A new
+    **Settings · Appearance · Per-display background** card (shown only with 2+
+    displays) lists each output and lets you set or clear a per-display picture;
+    it discovers outputs through the new `ListOutputs` IPC command
+    (`CompositorEvent::OutputList` / `OutputInfo`). Sources are cached by path, so
+    two displays sharing an image only read it from disk once.
 - **Metis Menu settings page** — a new **Settings · Metis Menu** page gathers all
   launcher settings in one place, separate from the Edge bar card:
   - **Quick launchers** — choose which **terminal** and **file manager** the rail

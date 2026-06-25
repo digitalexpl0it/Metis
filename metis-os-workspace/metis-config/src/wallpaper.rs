@@ -5,6 +5,7 @@
 //! reads it on startup and applies changes live via the `ApplyBackground` IPC
 //! command.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -58,6 +59,14 @@ pub struct WallpaperConfig {
     /// Direction the gradient sweeps.
     #[serde(default)]
     pub gradient_direction: GradientDirection,
+    /// Per-output image overrides, keyed by the compositor's output name
+    /// (e.g. `metis-0`, `metis-1`). When an output appears here, that display
+    /// shows the given picture instead of the global background. Outputs not
+    /// listed fall back to the global `kind`/`path` above. Each display is
+    /// always cover-cropped to its own resolution, so the same image on two
+    /// differently sized monitors still fills each one correctly.
+    #[serde(default)]
+    pub per_output: HashMap<String, String>,
 }
 
 fn default_solid() -> String {
@@ -81,6 +90,7 @@ impl Default for WallpaperConfig {
             gradient_start: default_grad_start(),
             gradient_end: default_grad_end(),
             gradient_direction: GradientDirection::default(),
+            per_output: HashMap::new(),
         }
     }
 }

@@ -177,10 +177,10 @@ pub fn init_winit(
         state.monitor.width = geo.size.w;
         state.monitor.height = geo.size.h;
     }
-    // The wallpaper spans the whole framebuffer (all outputs).
-    state
-        .wallpaper
-        .resize(Size::from((window_size.w, window_size.h)));
+    // Compose the wallpaper per output: each logical monitor gets its own
+    // cover-cropped image blitted into the shared framebuffer texture.
+    let (wp_full, wp_regions) = state.wallpaper_layout();
+    state.wallpaper.set_layout(wp_full, wp_regions);
 
     if state.wallpaper.enabled() {
         state.wallpaper.start_async_decode();
@@ -295,7 +295,8 @@ pub fn init_winit(
                     state.monitor.width = geo.size.w;
                     state.monitor.height = geo.size.h;
                 }
-                state.wallpaper.schedule_redecode(Size::from((size.w, size.h)));
+                let (wp_full, wp_regions) = state.wallpaper_layout();
+                state.wallpaper.set_layout(wp_full, wp_regions);
                 state.emit_monitor_changed();
                 frame_age = 0;
                 let ids: Vec<u32> = state.windows.ids();

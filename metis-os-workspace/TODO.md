@@ -182,8 +182,11 @@ so each milestone is shippable on its own:
 - [x] **Per-output edge bar** — one bar per output (`gtk4-layer-shell`
       `set_monitor`), rebuilt on monitor hotplug; `bar.json` `displays`
       (`all`/`primary`) + Settings control to limit it to the primary output.
-- [ ] **Per-output state** — each output owns its own usable area, grid, and
-      wallpaper (per-display wallpaper image option); the dock becomes per-output
+- [~] **Per-output state** — each output owns its own usable area, grid, and
+      wallpaper. _Done:_ per-output wallpaper — each display is cover-cropped to its
+      own resolution and can carry its own picture via `wallpaper.json` `per_output`
+      (Settings · Appearance · Per-display background; outputs discovered via the
+      `ListOutputs` IPC). _Remaining:_ per-output usable area/grid + per-output dock.
 - [ ] **Per-output workspaces** — Hyprland-style: each workspace is its own grid;
       switch/move-to-workspace keybinds + IPC; the workspaces widget drives them
 - [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs

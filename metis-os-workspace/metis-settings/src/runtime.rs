@@ -26,6 +26,20 @@ pub fn apply_background() {
     }
 }
 
+/// Query the compositor for the connected outputs (name + geometry), primary
+/// first. Returns an empty list if the compositor is unreachable, so callers can
+/// degrade to a single global background.
+pub fn list_outputs() -> Vec<metis_protocol::OutputInfo> {
+    match send_command(CompositorCommand::ListOutputs) {
+        Ok(CompositorEvent::OutputList { outputs }) => outputs,
+        Ok(_) => Vec::new(),
+        Err(err) => {
+            tracing::warn!(%err, "failed to list outputs via compositor IPC");
+            Vec::new()
+        }
+    }
+}
+
 fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
     let path = metis_protocol::ipc_socket_path();
     let mut stream = UnixStream::connect(&path)?;

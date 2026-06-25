@@ -6,6 +6,9 @@ pub use metis_grid::{GridLayout, GridMetrics, MonitorRect, PixelRect};
 pub enum CompositorCommand {
     Ping,
     GetMonitor,
+    /// List the connected outputs (name + geometry), so the settings app can offer
+    /// per-display options (e.g. per-output wallpaper).
+    ListOutputs,
     GetLayout,
     ListWindows,
     MoveWindow { id: u32, rect: PixelRect },
@@ -51,6 +54,8 @@ pub enum TileMode {
 pub enum CompositorEvent {
     Pong,
     Monitor { rect: MonitorRect },
+    /// Reply to `ListOutputs`: every connected output, primary first.
+    OutputList { outputs: Vec<OutputInfo> },
     LayoutChanged {
         layout: GridLayout,
         gutter_px: u32,
@@ -95,6 +100,16 @@ pub struct WindowInfo {
     /// Virtual workspace the window belongs to (1-based).
     #[serde(default)]
     pub workspace: u32,
+}
+
+/// A connected output, as reported to the settings app for per-display options.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OutputInfo {
+    /// Compositor output name (e.g. `metis-0`). This is the key used in
+    /// `wallpaper.json`'s `per_output` map.
+    pub name: String,
+    /// Output position and size in global logical pixels.
+    pub rect: MonitorRect,
 }
 
 pub fn ipc_socket_path() -> std::path::PathBuf {

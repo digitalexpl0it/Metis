@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -21,10 +22,12 @@ use smithay::utils::{Physical, Point, Size, Transform};
 
 /// Result handed back from the decode worker thread.
 struct DecodeOutput {
+    /// One full-framebuffer RGBA buffer (`full_size`) composed of every output's
+    /// own cover-cropped image, each blitted at its global origin.
     pixels: Vec<u8>,
-    /// Set only when the worker loaded the source from disk, so the main thread
-    /// can cache it and skip re-decoding the file on later (resize) decodes.
-    source: Option<Arc<image::RgbaImage>>,
+    /// Sources the worker loaded from disk this pass, keyed by path, so the main
+    /// thread can cache them and skip re-reading on later (resize) decodes.
+    sources: HashMap<PathBuf, Arc<RgbaImage>>,
 }
 
 /// How the desktop background is produced. `Image` reads `path`; the others are
@@ -40,19 +43,37 @@ enum BackgroundMode {
     },
 }
 
+/// One logical output's slot in the full framebuffer: where it sits (global
+/// physical origin) and how big it is. The wallpaper is composed by cropping
+/// each output's image to `size` and blitting at `origin`, so every monitor is
+/// cover-filled independently rather than one image stretched across them all.
+#[derive(Clone, PartialEq)]
+pub struct OutputRegion {
+    pub name: String,
+    pub origin: Point<i32, Physical>,
+    pub size: Size<i32, Physical>,
+}
+
 pub struct Wallpaper {
-    mode: BackgroundMode,
-    path: PathBuf,
+    /// Background used for any output without a per-output override.
+    default_mode: BackgroundMode,
+    default_path: PathBuf,
+    /// Per-output image overrides (output name → image path), from `wallpaper.json`.
+    overrides: HashMap<String, PathBuf>,
+    /// Current output layout the framebuffer is composed for.
+    regions: Vec<OutputRegion>,
+    /// Size of the whole virtual desktop (all outputs) in physical pixels.
+    full_size: Size<i32, Physical>,
     buffer: Option<TextureBuffer<GlesTexture>>,
     /// The raw texture backing `buffer`, kept so the bar's backdrop blur can
     /// sample the wallpaper region behind the bar (TextureBuffer hides it).
     texture: Option<GlesTexture>,
-    output_size: Size<i32, Physical>,
     /// Decoded RGBA pixels (CPU) ready for a fast GPU upload during render.
     cpu_pixels: Option<Vec<u8>>,
-    /// Full-resolution source kept in memory so resizes only re-scale (cheap)
-    /// instead of re-reading and re-decoding the JPEG from disk (expensive).
-    source: Option<Arc<image::RgbaImage>>,
+    /// Full-resolution sources kept in memory (keyed by path) so resizes only
+    /// re-scale (cheap) instead of re-reading and re-decoding from disk. Shared
+    /// across outputs, so two displays showing the same image only read it once.
+    sources: HashMap<PathBuf, Arc<RgbaImage>>,
     decode_result: Option<Arc<Mutex<Option<DecodeOutput>>>>,
     decode_thread: Option<JoinHandle<()>>,
     /// When set, a (re)decode is due once this instant passes — debounces the
@@ -70,18 +91,20 @@ fn wallpaper_disabled() -> bool {
 
 impl Wallpaper {
     pub fn new() -> Self {
-        let (mode, path) = resolve_background();
-        if path.is_file() {
-            tracing::info!(path = %path.display(), "wallpaper configured");
+        let (default_mode, default_path, overrides) = resolve_config();
+        if default_path.is_file() {
+            tracing::info!(path = %default_path.display(), "wallpaper configured");
         }
         Self {
-            mode,
-            path,
+            default_mode,
+            default_path,
+            overrides,
+            regions: Vec::new(),
+            full_size: Size::from((0, 0)),
             buffer: None,
             texture: None,
-            output_size: Size::from((0, 0)),
             cpu_pixels: None,
-            source: None,
+            sources: HashMap::new(),
             decode_result: None,
             decode_thread: None,
             redecode_at: None,
@@ -92,24 +115,37 @@ impl Wallpaper {
         if wallpaper_disabled() {
             return false;
         }
-        match self.mode {
-            BackgroundMode::Image => self.path.is_file(),
+        let default_ok = match self.default_mode {
+            BackgroundMode::Image => self.default_path.is_file(),
             BackgroundMode::Solid(_) | BackgroundMode::Gradient { .. } => true,
+        };
+        // Per-output overrides can carry the desktop on their own even if the
+        // global image is missing, so honour those too.
+        default_ok || !self.overrides.is_empty()
+    }
+
+    /// Resolve a single output's background: its per-output override if present,
+    /// otherwise the global default.
+    fn region_background(&self, name: &str) -> (BackgroundMode, PathBuf) {
+        if let Some(path) = self.overrides.get(name) {
+            return (BackgroundMode::Image, path.clone());
         }
+        (self.default_mode.clone(), self.default_path.clone())
     }
 
     /// Re-read `wallpaper.json` and switch the background at runtime: drop the
-    /// cached source/buffers so the next decode regenerates from the new config.
-    /// The caller sizes the output and kicks off the decode.
+    /// cached sources/buffers so the next decode regenerates from the new config.
+    /// The caller re-applies the layout and kicks off the decode.
     pub fn apply_config(&mut self) {
-        let (mode, path) = resolve_background();
-        if mode == self.mode && path == self.path {
+        let (mode, path, overrides) = resolve_config();
+        if mode == self.default_mode && path == self.default_path && overrides == self.overrides {
             return;
         }
         tracing::info!("wallpaper: applying new background config");
-        self.mode = mode;
-        self.path = path;
-        self.source = None; // force regeneration / re-read
+        self.default_mode = mode;
+        self.default_path = path;
+        self.overrides = overrides;
+        self.sources.clear(); // force regeneration / re-read
         self.invalidate();
     }
 
@@ -125,21 +161,15 @@ impl Wallpaper {
         self.decode_result = None;
     }
 
-    pub fn resize(&mut self, size: Size<i32, Physical>) {
-        if self.output_size != size {
-            self.output_size = size;
-            self.invalidate();
-        }
-    }
-
-    /// Record a new output size from a window resize and schedule a single
-    /// decode after a short debounce, so a flood of resize events (maximize,
-    /// restore, drag) collapses into one decode instead of one per event.
-    pub fn schedule_redecode(&mut self, size: Size<i32, Physical>) {
-        if self.output_size == size && (self.buffer.is_some() || self.redecode_at.is_some()) {
+    /// Set the output layout (full framebuffer size + per-output regions) the
+    /// wallpaper composes for. Schedules a debounced re-decode when it changes,
+    /// collapsing the burst of resize/hotplug events into a single decode.
+    pub fn set_layout(&mut self, full_size: Size<i32, Physical>, regions: Vec<OutputRegion>) {
+        if self.full_size == full_size && self.regions == regions {
             return;
         }
-        self.output_size = size;
+        self.full_size = full_size;
+        self.regions = regions;
         self.invalidate();
         self.redecode_at = Some(Instant::now() + Duration::from_millis(120));
     }
@@ -164,53 +194,89 @@ impl Wallpaper {
             || (self.cpu_pixels.is_some() && self.buffer.is_none())
     }
 
-    /// Start JPEG decode on a background thread so compositor init stays responsive.
+    /// Compose the full-desktop wallpaper on a background thread (one cover-crop
+    /// per output, blitted into the shared framebuffer) so init/resize stay
+    /// responsive.
     pub fn start_async_decode(&mut self) {
         if !self.enabled() || self.cpu_pixels.is_some() || self.decode_thread.is_some() {
             return;
         }
-        if self.output_size.w <= 0 || self.output_size.h <= 0 {
+        if self.full_size.w <= 0 || self.full_size.h <= 0 || self.regions.is_empty() {
             return;
         }
+        self.redecode_at = None;
 
-        let w = self.output_size.w as u32;
-        let h = self.output_size.h as u32;
-        let path = self.path.clone();
-        let mode = self.mode.clone();
-        let cached_source = self.source.clone();
+        let full = self.full_size;
+        // Resolve every region's (mode, path) up front so the worker is fully
+        // self-contained and never touches `self`.
+        let jobs: Vec<(OutputRegion, BackgroundMode, PathBuf)> = self
+            .regions
+            .iter()
+            .map(|r| {
+                let (mode, path) = self.region_background(&r.name);
+                (r.clone(), mode, path)
+            })
+            .collect();
+        let cached = self.sources.clone();
         let slot = Arc::new(Mutex::new(None));
         let slot_worker = Arc::clone(&slot);
 
-        tracing::debug!(width = w, height = h, "starting wallpaper decode thread");
+        tracing::debug!(width = full.w, height = full.h, outputs = jobs.len(), "composing wallpaper");
         let handle = std::thread::Builder::new()
             .name("metis-wallpaper-decode".into())
             .spawn(move || {
-                let (source, fresh) = match cached_source {
-                    Some(src) => (src, false),
-                    None => {
-                        let img = match &mode {
-                            BackgroundMode::Image => {
-                                let Ok(img) = image::open(&path) else {
-                                    tracing::warn!(path = %path.display(), "failed to open wallpaper");
-                                    return;
-                                };
-                                img.into_rgba8()
-                            }
-                            BackgroundMode::Solid(rgb) => gen_solid(*rgb, w, h),
-                            BackgroundMode::Gradient { a, b, dir } => {
-                                gen_gradient(*a, *b, *dir, w, h)
-                            }
-                        };
-                        (Arc::new(img), true)
+                let fw = full.w.max(0) as usize;
+                let fh = full.h.max(0) as usize;
+                let mut buf = vec![0u8; fw * fh * 4];
+                let mut new_sources: HashMap<PathBuf, Arc<RgbaImage>> = HashMap::new();
+
+                for (region, mode, path) in jobs {
+                    let rw = region.size.w.max(0) as u32;
+                    let rh = region.size.h.max(0) as u32;
+                    if rw == 0 || rh == 0 {
+                        continue;
                     }
-                };
-                let pixels = cover_crop_rgba(&source, w, h);
-                let out = DecodeOutput {
-                    pixels,
-                    source: if fresh { Some(source) } else { None },
-                };
+                    let pixels = match mode {
+                        BackgroundMode::Image => {
+                            let source = cached
+                                .get(&path)
+                                .or_else(|| new_sources.get(&path))
+                                .cloned()
+                                .or_else(|| match image::open(&path) {
+                                    Ok(img) => {
+                                        let arc = Arc::new(img.into_rgba8());
+                                        new_sources.insert(path.clone(), arc.clone());
+                                        Some(arc)
+                                    }
+                                    Err(_) => {
+                                        tracing::warn!(path = %path.display(), "failed to open wallpaper");
+                                        None
+                                    }
+                                });
+                            match source {
+                                Some(src) => cover_crop_rgba(&src, rw, rh),
+                                None => vec![0u8; (rw as usize) * (rh as usize) * 4],
+                            }
+                        }
+                        BackgroundMode::Solid(rgb) => gen_solid(rgb, rw, rh).into_raw(),
+                        BackgroundMode::Gradient { a, b, dir } => {
+                            gen_gradient(a, b, dir, rw, rh).into_raw()
+                        }
+                    };
+                    blit(
+                        &mut buf,
+                        fw,
+                        fh,
+                        region.origin.x,
+                        region.origin.y,
+                        &pixels,
+                        rw as usize,
+                        rh as usize,
+                    );
+                }
+
                 if let Ok(mut guard) = slot_worker.lock() {
-                    *guard = Some(out);
+                    *guard = Some(DecodeOutput { pixels: buf, sources: new_sources });
                 }
             })
             .ok();
@@ -221,7 +287,7 @@ impl Wallpaper {
         }
     }
 
-    /// Pull decoded pixels from the worker thread when ready.
+    /// Pull the composed framebuffer from the worker thread when ready.
     pub fn poll_decode(&mut self) {
         if self.cpu_pixels.is_some() {
             return;
@@ -230,13 +296,12 @@ impl Wallpaper {
             if let Ok(mut guard) = slot.lock() {
                 if let Some(out) = guard.take() {
                     tracing::info!(
-                        path = %self.path.display(),
-                        width = self.output_size.w,
-                        height = self.output_size.h,
-                        "wallpaper decoded"
+                        width = self.full_size.w,
+                        height = self.full_size.h,
+                        "wallpaper composed"
                     );
-                    if out.source.is_some() {
-                        self.source = out.source;
+                    for (path, src) in out.sources {
+                        self.sources.insert(path, src);
                     }
                     self.cpu_pixels = Some(out.pixels);
                 }
@@ -255,7 +320,7 @@ impl Wallpaper {
         if !self.enabled() || self.buffer.is_some() {
             return;
         }
-        if self.output_size.w <= 0 || self.output_size.h <= 0 {
+        if self.full_size.w <= 0 || self.full_size.h <= 0 {
             return;
         }
 
@@ -265,8 +330,8 @@ impl Wallpaper {
             return;
         };
 
-        let w = self.output_size.w;
-        let h = self.output_size.h;
+        let w = self.full_size.w;
+        let h = self.full_size.h;
 
         // Import the texture explicitly (rather than letting TextureBuffer own it)
         // so we can also hand the GlesTexture to the bar backdrop-blur element.
@@ -279,7 +344,7 @@ impl Wallpaper {
                     Transform::Normal,
                     None,
                 );
-                tracing::info!(path = %self.path.display(), width = w, height = h, "wallpaper ready");
+                tracing::info!(width = w, height = h, "wallpaper ready");
                 self.texture = Some(texture);
                 self.buffer = Some(buf);
             }
@@ -328,6 +393,60 @@ fn cover_crop_rgba(rgba: &image::RgbaImage, out_w: u32, out_h: u32) -> Vec<u8> {
     image::imageops::crop_imm(&resized, x, y, out_w, out_h)
         .to_image()
         .into_raw()
+}
+
+/// Copy a `src_w × src_h` RGBA block into `dst` (a `dst_w × dst_h` RGBA buffer)
+/// at `(ox, oy)`, clipping to the destination bounds. Copies row by row so a
+/// region near the edge of the framebuffer is partially blitted rather than
+/// skipped. Within Metis's tiled layout every region lands fully in-bounds.
+#[allow(clippy::too_many_arguments)]
+fn blit(
+    dst: &mut [u8],
+    dst_w: usize,
+    dst_h: usize,
+    ox: i32,
+    oy: i32,
+    src: &[u8],
+    src_w: usize,
+    src_h: usize,
+) {
+    if src_w == 0 || src_h == 0 {
+        return;
+    }
+    let x0 = ox.max(0);
+    let x1 = (ox + src_w as i32).min(dst_w as i32);
+    if x1 <= x0 {
+        return;
+    }
+    let copy_w = (x1 - x0) as usize;
+    let src_col0 = (x0 - ox) as usize;
+    for row in 0..src_h {
+        let dy = oy + row as i32;
+        if dy < 0 || dy as usize >= dst_h {
+            continue;
+        }
+        let s = (row * src_w + src_col0) * 4;
+        let d = (dy as usize * dst_w + x0 as usize) * 4;
+        if s + copy_w * 4 <= src.len() && d + copy_w * 4 <= dst.len() {
+            dst[d..d + copy_w * 4].copy_from_slice(&src[s..s + copy_w * 4]);
+        }
+    }
+}
+
+/// Resolve the full wallpaper config: the global default background plus the set
+/// of valid per-output image overrides (entries whose file is missing are
+/// dropped, so a stale path silently falls back to the global background).
+fn resolve_config() -> (BackgroundMode, PathBuf, HashMap<String, PathBuf>) {
+    let (mode, path) = resolve_background();
+    let overrides = metis_config::load_wallpaper_config()
+        .per_output
+        .into_iter()
+        .filter_map(|(name, raw)| {
+            let p = PathBuf::from(raw);
+            p.is_file().then_some((name, p))
+        })
+        .collect();
+    (mode, path, overrides)
 }
 
 /// Build the active background mode (and image path, if any) from `wallpaper.json`.

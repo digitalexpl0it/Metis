@@ -2343,6 +2343,25 @@ impl MetisState {
             CompositorCommand::GetMonitor => CompositorEvent::Monitor {
                 rect: self.monitor,
             },
+            CompositorCommand::ListOutputs => {
+                let outputs = self
+                    .space
+                    .outputs()
+                    .filter_map(|o| {
+                        let geo = self.space.output_geometry(o)?;
+                        Some(metis_protocol::OutputInfo {
+                            name: o.name(),
+                            rect: metis_protocol::MonitorRect {
+                                x: geo.loc.x,
+                                y: geo.loc.y,
+                                width: geo.size.w,
+                                height: geo.size.h,
+                            },
+                        })
+                    })
+                    .collect();
+                CompositorEvent::OutputList { outputs }
+            }
             CompositorCommand::GetLayout => CompositorEvent::LayoutChanged {
                 layout: self.grid_layout.clone(),
                 gutter_px: self.gutter_px,
@@ -2452,7 +2471,8 @@ impl MetisState {
             }
             CompositorCommand::ApplyBackground => {
                 self.wallpaper.apply_config();
-                self.wallpaper.resize(self.output_physical_size());
+                let (full, regions) = self.wallpaper_layout();
+                self.wallpaper.set_layout(full, regions);
                 self.wallpaper.start_async_decode();
                 self.damaged = true;
                 self.request_redraw();
@@ -2461,14 +2481,31 @@ impl MetisState {
         }
     }
 
-    /// The current output size in physical pixels (for wallpaper decoding).
-    fn output_physical_size(&self) -> smithay::utils::Size<i32, smithay::utils::Physical> {
-        self.space
+    /// The wallpaper layout: the whole virtual desktop's physical size plus one
+    /// region per output (global physical origin + size). The wallpaper composes
+    /// a single framebuffer-sized texture by cover-cropping each output's image
+    /// into its region, so every monitor is filled independently.
+    pub fn wallpaper_layout(
+        &self,
+    ) -> (
+        smithay::utils::Size<i32, smithay::utils::Physical>,
+        Vec<crate::wallpaper::OutputRegion>,
+    ) {
+        let bounds = self.desktop_bounds();
+        let full = smithay::utils::Size::from((bounds.size.w, bounds.size.h)).to_physical(1);
+        let regions = self
+            .space
             .outputs()
-            .next()
-            .and_then(|o| self.space.output_geometry(o))
-            .map(|g| smithay::utils::Size::from((g.size.w, g.size.h)))
-            .unwrap_or_else(|| smithay::utils::Size::from((self.monitor.width as i32, self.monitor.height as i32)))
+            .filter_map(|o| {
+                let geo = self.space.output_geometry(o)?;
+                Some(crate::wallpaper::OutputRegion {
+                    name: o.name(),
+                    origin: (geo.loc - bounds.loc).to_physical(1),
+                    size: geo.size.to_physical(1),
+                })
+            })
+            .collect();
+        (full, regions)
     }
 
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
