@@ -1,8 +1,7 @@
-//! Start Menu settings: which terminal / file manager the launcher rail opens
+//! Metis Menu settings: which terminal / file manager the launcher rail opens
 //! (auto-detected installs or a custom path, persisted to `menu.json`), plus the
-//! start-menu panel opacity (stored in `bar.json`). The shell reads the launcher
-//! choices at click time; the opacity change nudges a `reload-bar` so it applies
-//! live.
+//! menu panel opacity (stored in `bar.json`). The shell reads the launcher choices
+//! at click time; the opacity change nudges a `reload-bar` so it applies live.
 
 use std::rc::Rc;
 
@@ -14,7 +13,7 @@ use metis_config::MenuConfig;
 use crate::{runtime, ui};
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Start Menu");
+    let (scroller, content) = ui::page("Metis Menu");
     let cfg = metis_config::load_menu_config();
 
     // ---- Quick launchers --------------------------------------------------
@@ -71,7 +70,7 @@ pub fn build() -> gtk::Widget {
     menu_opacity.connect_value_changed(|s| set_menu_opacity(s.value() as f32));
 
     let look_hint = gtk::Label::new(Some(
-        "Opacity of the start-menu panel and its translucent surfaces. Applies within ~1s.",
+        "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s.",
     ));
     look_hint.set_xalign(0.0);
     look_hint.set_wrap(true);
@@ -206,7 +205,7 @@ fn set_menu_opacity(value: f32) {
     let mut bar = metis_config::load_bar_config();
     bar.menu_opacity = value;
     if let Err(err) = metis_config::save_bar_config(&bar) {
-        tracing::warn!(%err, "failed to save bar.json start-menu opacity");
+        tracing::warn!(%err, "failed to save bar.json menu opacity");
         return;
     }
     runtime::send("reload-bar");

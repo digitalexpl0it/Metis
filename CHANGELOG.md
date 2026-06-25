@@ -9,7 +9,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
-- **Start Menu settings page** — a new **Settings · Start Menu** page gathers all
+- **Metis Menu settings page** — a new **Settings · Metis Menu** page gathers all
   launcher settings in one place, separate from the Edge bar card:
   - **Quick launchers** — choose which **terminal** and **file manager** the rail
     opens. Each picker auto-detects installed options
@@ -19,8 +19,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     them at launch time and falls back to `$TERMINAL`/`$FILE_MANAGER`, then the
     known candidates, then `xdg-open` — so an unset or missing program degrades
     gracefully without a restart.
-  - **Appearance** — the start-menu **panel opacity** moved here from the Edge bar
-    card (still stored in `bar.json` `menu_opacity`, applied live via `reload-bar`).
+  - **Appearance** — the menu **panel opacity** moved here from the Edge bar card
+    (still stored in `bar.json` `menu_opacity`, applied live via `reload-bar`).
 
 ### Fixed
 
