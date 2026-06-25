@@ -62,9 +62,10 @@ pub fn install(button: &gtk::Button) {
         .child(&apps_container)
         .build();
     apps_scroll.add_css_class("metis-menu-scroll");
+    // A single Capture-phase controller on the scrolled window intercepts wheel
+    // events for its whole subtree (rows + transparent gutters) before the row
+    // buttons can swallow them — no per-widget wiring needed.
     wire_vertical_scroll(&apps_scroll, &apps_scroll);
-    wire_vertical_scroll(&apps_container, &apps_scroll);
-    wire_vertical_scroll(&center, &apps_scroll);
     center.append(&apps_scroll);
 
     let search = gtk::SearchEntry::builder()
@@ -125,14 +126,11 @@ pub fn install(button: &gtk::Button) {
         .build();
     pinned_scroll.add_css_class("metis-menu-scroll");
     wire_vertical_scroll(&pinned_scroll, &pinned_scroll);
-    wire_vertical_scroll(&pinned_col, &pinned_scroll);
     pinned_col.append(&pinned_scroll);
     panel.append(&pinned_col);
 
     overlay.set_child(Some(&panel));
     overlay.add_overlay(&tip);
-    wire_vertical_scroll(&panel, &apps_scroll);
-    wire_vertical_scroll(&overlay, &apps_scroll);
 
     // ---- Rebuild plumbing ----
     // A shared `refresh` handle lets row/tile context actions (pin/unpin) trigger
@@ -151,7 +149,6 @@ pub fn install(button: &gtk::Button) {
 
     let rebuild: Rc<dyn Fn()> = {
         let apps_container = apps_container.clone();
-        let apps_scroll = apps_scroll.clone();
         let pinned_flow = pinned_flow.clone();
         let pinned_hint = pinned_hint.clone();
         let header = header.clone();
@@ -159,7 +156,7 @@ pub fn install(button: &gtk::Button) {
         let refresh = refresh.clone();
         Rc::new(move || {
             let query = search.text().to_string();
-            populate_center(&apps_container, &header, &query, &apps_scroll, &refresh);
+            populate_center(&apps_container, &header, &query, &refresh);
             populate_pinned(&pinned_flow, &pinned_hint, &refresh);
         })
     };
@@ -180,7 +177,12 @@ pub fn install(button: &gtk::Button) {
     popover.add_css_class("metis-bar-popover");
     popover.add_css_class("metis-menu-popover");
     popover.set_parent(button);
-    wire_vertical_scroll(&popover, &apps_scroll);
+
+    // Type-to-search without forcing focus on open: key capture routes typing
+    // anywhere in the popover to the search entry (which only grabs focus once you
+    // start typing). Scroll is positional, not focus-based, so this never steals
+    // wheel events from the app list.
+    search.set_key_capture_widget(Some(&popover));
 
     {
         let btn = button.clone();
@@ -188,8 +190,7 @@ pub fn install(button: &gtk::Button) {
         let search = search.clone();
         popover.connect_map(move |_| {
             btn.add_css_class("metis-bar-dropdown-active");
-            // Reset to the default (Frequent) view each open. Do not grab search
-            // focus here — a focused entry steals wheel events from the app list.
+            // Reset to the default (Frequent) view each open.
             search.set_text("");
             rebuild();
         });
@@ -222,10 +223,10 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     rail.add_css_class("metis-menu-rail");
 
     rail.append(&rail_button(overlay, tip, "system-file-manager-symbolic", "Files", || {
-        launch_first(FILE_MANAGERS)
+        launch_quick_action(launch_file_manager_snippet())
     }));
     rail.append(&rail_button(overlay, tip, "utilities-terminal-symbolic", "Terminal", || {
-        launch_first(TERMINALS)
+        launch_quick_action(launch_terminal_snippet())
     }));
     rail.append(&rail_button(overlay, tip, "preferences-system-symbolic", "Settings", || {
         super::super::dropdown::close_all();
@@ -348,7 +349,6 @@ fn populate_center(
     container: &gtk::Box,
     header: &gtk::Label,
     query: &str,
-    scroll: &gtk::ScrolledWindow,
     refresh: &Rc<dyn Fn()>,
 ) {
     clear_box(container);
@@ -356,7 +356,7 @@ fn populate_center(
     if q.is_empty() {
         header.set_text("Frequent Apps");
         for entry in applications::frequent(FREQUENT_LIMIT) {
-            container.append(&app_row(&entry, scroll, refresh));
+            container.append(&app_row(&entry, refresh));
         }
         let mut last_letter = '\0';
         for entry in applications::list_apps() {
@@ -370,7 +370,7 @@ fn populate_center(
                 last_letter = letter;
                 container.append(&letter_header(letter));
             }
-            container.append(&app_row(&entry, scroll, refresh));
+            container.append(&app_row(&entry, refresh));
         }
     } else {
         header.set_text("Search Results");
@@ -382,7 +382,7 @@ fn populate_center(
             container.append(&empty);
         }
         for entry in results {
-            container.append(&app_row(&entry, scroll, refresh));
+            container.append(&app_row(&entry, refresh));
         }
     }
 }
@@ -404,9 +404,10 @@ fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, refresh: &Rc<dyn Fn()
     }
 }
 
-/// Wheel events on GtkButton rows are swallowed before they reach the scrolled
-/// window. Capture phase on the scroll viewport forwards scroll everywhere in
-/// the list (including the blank gutter beside row labels).
+/// Drive a scrolled window's vertical adjustment from wheel events. Attached in
+/// Capture phase on the `ScrolledWindow` so it intercepts the whole subtree
+/// before child row buttons (which otherwise swallow scroll) and covers the blank
+/// gutter beside row labels.
 fn wire_vertical_scroll(widget: &impl IsA<gtk::Widget>, scroll: &gtk::ScrolledWindow) {
     let ctrl = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
     ctrl.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -428,12 +429,11 @@ fn wire_vertical_scroll(widget: &impl IsA<gtk::Widget>, scroll: &gtk::ScrolledWi
     widget.add_controller(ctrl);
 }
 
-fn app_row(entry: &AppEntry, scroll: &gtk::ScrolledWindow, refresh: &Rc<dyn Fn()>) -> gtk::Button {
+fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
     let row = gtk::Button::builder().has_frame(false).build();
     row.add_css_class("metis-menu-row");
     row.set_hexpand(true);
     row.set_halign(gtk::Align::Fill);
-    wire_vertical_scroll(&row, scroll);
 
     let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     hbox.set_hexpand(true);
@@ -531,18 +531,76 @@ fn clear_box(container: &gtk::Box) {
     }
 }
 
-/// File managers / terminals to try, in order. Passed straight to the compositor,
-/// which runs any space-containing program via `sh -lc`, so `$VAR` expansion and
-/// `command -v` probing work as written.
-const FILE_MANAGERS: &str =
-    r#"for f in "$FILE_MANAGER" nautilus dolphin nemo thunar pcmanfm caja; do command -v "$f" >/dev/null 2>&1 && exec "$f" "$HOME"; done; exec xdg-open "$HOME""#;
-const TERMINALS: &str =
-    r#"for t in "$TERMINAL" x-terminal-emulator kgx gnome-terminal konsole foot alacritty kitty xterm; do command -v "$t" >/dev/null 2>&1 && exec "$t"; done"#;
+/// Escape a value for safe interpolation inside a double-quoted shell word.
+fn shell_dquote(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('`', "\\`")
+}
 
-fn launch_first(snippet: &str) {
+/// Build a launch snippet that tries (in order) the user's chosen program, then
+/// the environment hint, then each known candidate, then `final_fallback`. Passed
+/// straight to the compositor, which runs space-containing programs via `sh -lc`,
+/// so `$VAR` expansion and `command -v` probing work as written.
+///
+/// The chosen value is probed on its own line so a custom path containing spaces
+/// stays a single argument (the candidate loop can only hold whitespace-free names).
+fn build_launch_snippet(
+    chosen: Option<&str>,
+    env_hint: &str,
+    candidates: &[(&str, &str)],
+    args: &str,
+    final_fallback: &str,
+) -> String {
+    let mut snippet = String::new();
+    if let Some(chosen) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
+        let c = shell_dquote(chosen);
+        snippet.push_str(&format!(
+            "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\"{args}; fi; "
+        ));
+    }
+    snippet.push_str(&format!("for x in \"{env_hint}\""));
+    for (bin, _) in candidates {
+        snippet.push(' ');
+        snippet.push_str(bin);
+    }
+    snippet.push_str(&format!(
+        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\"{args}; done"
+    ));
+    if !final_fallback.is_empty() {
+        snippet.push_str("; ");
+        snippet.push_str(final_fallback);
+    }
+    snippet
+}
+
+fn launch_terminal_snippet() -> String {
+    let cfg = metis_config::load_menu_config();
+    build_launch_snippet(
+        cfg.terminal.as_deref(),
+        "$TERMINAL",
+        metis_config::KNOWN_TERMINALS,
+        "",
+        "",
+    )
+}
+
+fn launch_file_manager_snippet() -> String {
+    let cfg = metis_config::load_menu_config();
+    build_launch_snippet(
+        cfg.file_manager.as_deref(),
+        "$FILE_MANAGER",
+        metis_config::KNOWN_FILE_MANAGERS,
+        " \"$HOME\"",
+        "exec xdg-open \"$HOME\"",
+    )
+}
+
+fn launch_quick_action(snippet: String) {
     // Close before the launched window grabs focus (see `app_row`).
     super::super::dropdown::close_all();
-    if let Err(err) = crate::compositor::launch_program(snippet) {
+    if let Err(err) = crate::compositor::launch_program(&snippet) {
         tracing::warn!(%err, "failed to launch quick action");
     }
 }

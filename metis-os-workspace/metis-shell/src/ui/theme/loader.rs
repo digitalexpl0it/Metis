@@ -35,18 +35,6 @@ pub fn active_tokens() -> ThemeTokens {
     THEME_STATE.with(|state| state.borrow().tokens.clone())
 }
 
-pub fn set_theme_mode(mode: ThemeMode) {
-    let tokens = match mode {
-        ThemeMode::Dark => ThemeTokens::dark_default(),
-        ThemeMode::Light => ThemeTokens::light_default(),
-        ThemeMode::System => detect_system_theme(),
-    };
-    apply_tokens(&tokens);
-    if let Err(err) = config::save_theme_preference(mode) {
-        tracing::warn!("failed to save theme preference: {err}");
-    }
-}
-
 fn load_active_theme() -> ThemeTokens {
     let mode = config::load_theme_preference().unwrap_or(ThemeMode::Dark);
     let user_path = config::theme_file_path(&mode);

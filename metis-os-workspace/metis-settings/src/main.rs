@@ -19,6 +19,7 @@ const APP_ID: &str = "com.metis.Settings";
 /// `--page <name>` flag preselects one.
 const PAGES: &[(&str, &str, &str)] = &[
     ("appearance", "Appearance", "preferences-desktop-appearance-symbolic"),
+    ("startmenu", "Start Menu", "view-app-grid-symbolic"),
     ("weather", "Weather", "weather-few-clouds-symbolic"),
     ("network", "Network", "network-wireless-symbolic"),
     ("calendars", "Calendars", "x-office-calendar-symbolic"),
@@ -74,6 +75,7 @@ fn build_ui(app: &Application, page: Option<String>) {
     stack.set_vexpand(true);
 
     stack.add_titled(&pages::appearance::build(), Some("appearance"), "Appearance");
+    stack.add_titled(&pages::startmenu::build(), Some("startmenu"), "Start Menu");
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
     stack.add_titled(&pages::network::build(), Some("network"), "Network");
     stack.add_titled(&pages::calendars::build(), Some("calendars"), "Calendars");

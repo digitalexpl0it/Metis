@@ -100,24 +100,8 @@ pub fn close_all() {
     });
 }
 
-/// Pop down every registered popover except `keep` (used for single-open behavior
-/// when opening a grab-based popover that is itself registered).
-pub fn close_others(keep: &gtk::Popover) {
-    POPOVERS.with(|list| {
-        for popover in list.borrow().iter() {
-            if popover != keep {
-                popover.popdown();
-            }
-        }
-    });
-}
-
 pub fn is_open() -> bool {
     POPOVERS.with(|list| list.borrow().iter().any(|p| p.is_visible()))
-}
-
-pub fn is_open_for(_key: &str) -> bool {
-    is_open()
 }
 
 pub fn request_close_all() {

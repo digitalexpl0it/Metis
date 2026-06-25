@@ -12,7 +12,7 @@
 
 use std::time::{Duration, Instant};
 
-use smithay::backend::renderer::element::{Element, Id, Kind, RenderElement};
+use smithay::backend::renderer::element::{Element, Id, RenderElement};
 use smithay::backend::renderer::gles::{
     GlesError, GlesFrame, GlesRenderer, GlesTexProgram, GlesTexture, Uniform, UniformName,
     UniformType,

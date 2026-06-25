@@ -168,13 +168,6 @@ fn bar_cross_thickness(config: &BarConfig) -> i32 {
     config.height as i32
 }
 
-fn bar_body_height(config: &BarConfig) -> i32 {
-    bar_body_thickness(config)
-}
-
-/// Layer-shell popovers use GtkPopover — no layer window resize needed.
-pub(crate) fn sync_layer_window_height(_dropdown_open: bool) {}
-
 /// The side bar popovers/menus should open toward, derived from the bar's anchored
 /// edge: a top bar opens downward, a bottom bar upward, a left bar to the right,
 /// a right bar to the left. Falls back to `Bottom` before the bar is initialized.

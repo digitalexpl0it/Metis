@@ -5,6 +5,59 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-24]
+
+### Added
+
+- **Start Menu settings page** — a new **Settings · Start Menu** page gathers all
+  launcher settings in one place, separate from the Edge bar card:
+  - **Quick launchers** — choose which **terminal** and **file manager** the rail
+    opens. Each picker auto-detects installed options
+    (kgx/gnome-terminal/konsole/foot/… and nautilus/dolphin/nemo/thunar/…) and
+    offers a **Custom** entry with a file chooser to point at any executable path.
+    Choices persist to `menu.json` (`terminal` / `file_manager`); the shell reads
+    them at launch time and falls back to `$TERMINAL`/`$FILE_MANAGER`, then the
+    known candidates, then `xdg-open` — so an unset or missing program degrades
+    gracefully without a restart.
+  - **Appearance** — the start-menu **panel opacity** moved here from the Edge bar
+    card (still stored in `bar.json` `menu_opacity`, applied live via `reload-bar`).
+
+### Fixed
+
+- **Start-menu scroll over a window** — with the launcher open above an app window,
+  the window behind it stole wheel/click focus, so the app list only scrolled when
+  the window was moved away. The compositor now gives the bar strip and its popovers
+  top pointer priority in `surface_under`, hit-testing them before the desk-grid
+  app-body passthrough; transparent popover gutters route to the popup surface
+  instead of falling through to whatever is underneath.
+- **Start-menu dismissal** — clicking the desktop or another window's titlebar now
+  reliably closes an open popover. Hit-testing uses the bar strip's `bbox()` plus each
+  popup's client `geometry()` (instead of `bbox_with_popups()`, which could balloon to
+  the whole output and swallow outside clicks), and the `close-popovers` command is
+  issued before titlebar/resize handlers can consume the press and return early.
+- **Compositor deadlock on pointer move** — `surface_under` no longer calls
+  `metis_bar_ui_hit()` while already holding the output's layer map (a re-lock that
+  froze the compositor thread); the region check now uses the held guard directly.
+- **Dark-mode start-menu scrollbar artifacts** — the shell now syncs GTK's built-in
+  Adwaita dark/light variant to the saved theme preference on live `reload-theme`, and
+  the menu CSS flattens GtkScrolledWindow undershoot/overshoot/trough chrome so the
+  scroll gutter stays flat and scrollable in dark themes. Invalid GTK4 CSS (GTK3-only
+  scrollbar stepper props, `min-width: 100%`) was removed.
+- **Settings app re-theming the shell on open** — building the Appearance page no
+  longer fires spurious `reload-theme` commands; programmatic init of the theme/font
+  controls is suppressed so opening Settings doesn't re-trigger the shell's theming.
+- **Type-to-search restored** — the launcher again filters as you type without first
+  clicking the search box, via `SearchEntry::set_key_capture_widget` (which only takes
+  focus once typing begins) instead of grabbing focus on open, so wheel scrolling over
+  the app list keeps working.
+
+### Changed
+
+- **Input-routing & menu cleanup** — collapsed redundant compositor hit-test helpers,
+  pruned the stacked `wire_vertical_scroll` controllers down to one Capture-phase
+  controller per `ScrolledWindow`, and removed dead shell/compositor code (unused
+  theme/bar/dropdown helpers and imports).
+
 ## [2026-06-23]
 
 ### Added

@@ -39,6 +39,16 @@ window management (multi-monitor, workspaces, richer tiling).
       power actions rail, Frequent/alphabetical app list with apps-only search,
       and a pinnable apps grid; translucent panel (`menu_opacity`) with in-surface
       tooltips, dismissed synchronously on launch
+  - [x] Dedicated **Settings · Start Menu** page — Quick launchers (configurable
+        Terminal / File-manager from auto-detected installs or a custom binary path,
+        persisted to `menu.json`; shell falls back to env hint → known candidates →
+        `xdg-open`) plus the start-menu panel opacity (moved out of the Edge bar card)
+  - [x] Input robustness — compositor gives the bar popover top pointer priority so
+        the app list scrolls even over a window behind it; click-outside (desktop or
+        another window's titlebar) reliably dismisses; type-to-search works without
+        clicking the search box first (`SearchEntry` key capture, no focus grab); and
+        the scroll gutter/scrollbar stay flat in dark mode (GTK variant synced to the
+        active theme)
 
 ---
 

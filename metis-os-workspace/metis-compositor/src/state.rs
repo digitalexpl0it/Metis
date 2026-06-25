@@ -21,7 +21,7 @@ use smithay::{
         output::OutputManagerState,
         selection::{
             data_device::DataDeviceState,
-            primary_selection::{PrimarySelectionHandler, PrimarySelectionState},
+            primary_selection::PrimarySelectionState,
         },
         shell::{
             wlr_layer::WlrLayerShellState,
@@ -1300,26 +1300,6 @@ impl MetisState {
         match same.iter().position(|&x| x == id) {
             Some(p) => format!("{} ({})", title, p + 1),
             None => title.to_string(),
-        }
-    }
-
-    /// Full output geometry in global logical coordinates.
-    fn output_pixel_rect(&self) -> PixelRect {
-        if let Some(output) = self.space.outputs().next() {
-            if let Some(g) = self.space.output_geometry(output) {
-                return PixelRect {
-                    x: g.loc.x,
-                    y: g.loc.y,
-                    width: g.size.w,
-                    height: g.size.h,
-                };
-            }
-        }
-        PixelRect {
-            x: self.monitor.x,
-            y: self.monitor.y,
-            width: self.monitor.width as i32,
-            height: self.monitor.height as i32,
         }
     }
 

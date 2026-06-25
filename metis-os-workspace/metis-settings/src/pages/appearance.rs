@@ -407,16 +407,6 @@ pub fn build() -> gtk::Widget {
     opacity.set_draw_value(true);
     bar_body.append(&ui::row_with_icon("display-brightness-symbolic", "Opacity", &opacity));
 
-    let menu_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
-    menu_opacity.set_value(bar.borrow().menu_opacity as f64);
-    menu_opacity.set_size_request(200, -1);
-    menu_opacity.set_draw_value(true);
-    bar_body.append(&ui::row_with_icon(
-        "view-app-grid-symbolic",
-        "Start menu opacity",
-        &menu_opacity,
-    ));
-
     let blur = gtk::Switch::new();
     blur.set_active(bar.borrow().blur);
     blur.set_halign(gtk::Align::End);
@@ -700,13 +690,6 @@ pub fn build() -> gtk::Widget {
     }
     {
         let bar = bar.clone();
-        menu_opacity.connect_value_changed(move |s| {
-            bar.borrow_mut().menu_opacity = s.value() as f32;
-            save_bar(&bar.borrow());
-        });
-    }
-    {
-        let bar = bar.clone();
         titlebar_opacity.connect_value_changed(move |s| {
             bar.borrow_mut().titlebar_opacity = s.value() as f32;
             save_bar(&bar.borrow());
@@ -856,7 +839,6 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     on_disk.position = cfg.position;
     on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
-    on_disk.menu_opacity = cfg.menu_opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
     on_disk.titlebar_pill_border = cfg.titlebar_pill_border.clone();
     on_disk.window_border = cfg.window_border.clone();

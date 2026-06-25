@@ -54,21 +54,13 @@ fn metis_bar_region_contains(
     false
 }
 
-fn metis_bar_pointer_active(
-    layer: &smithay::desktop::LayerSurface,
-    layers: &smithay::desktop::LayerMap,
-    rel: Point<f64, Logical>,
-) -> bool {
-    metis_bar_region_contains(layer, layers, rel)
-}
-
 fn layer_accepts_pointer(
     layer: &smithay::desktop::LayerSurface,
     layers: &smithay::desktop::LayerMap,
     rel: Point<f64, Logical>,
 ) -> bool {
     if layer.namespace().starts_with("metis-bar") {
-        return metis_bar_pointer_active(layer, layers, rel);
+        return metis_bar_region_contains(layer, layers, rel);
     }
     if !surface_has_buffer(layer.wl_surface()) {
         return false;
@@ -441,12 +433,20 @@ fn metis_bar_layer_surface_at(
         return None;
     }
 
-    // Transparent popover gutters have no input region — deliver to the popup
-    // surface using its global origin (smithay expects origin coords, not cursor).
+    // Transparent popover gutters have no input region — deliver to the popup whose
+    // geometry contains the point, using its global origin (smithay's focus tuple
+    // expects the surface origin, not the cursor position).
     let root = layer.wl_surface();
     for (popup, location) in PopupManager::popups_for_surface(root) {
-        let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
-        return Some((popup.wl_surface().clone(), popup_origin_global));
+        let geo = popup.geometry();
+        if geo.size.w <= 0 || geo.size.h <= 0 {
+            continue;
+        }
+        let origin = Point::from(location) + geo.loc;
+        if Rectangle::new(origin, geo.size).to_f64().contains(local) {
+            let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
+            return Some((popup.wl_surface().clone(), popup_origin_global));
+        }
     }
 
     None
