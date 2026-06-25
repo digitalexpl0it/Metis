@@ -375,9 +375,22 @@ impl MetisState {
             .elements()
             .find(|w| w.wl_surface().is_some_and(|s| *s == root))
         {
-            let output = self.space.outputs().next().unwrap();
-            let output_geo = self.space.output_geometry(output).unwrap();
             let window_geo = self.space.element_geometry(window).unwrap();
+            // Constrain to the output the window actually sits on, not always the
+            // primary — otherwise toplevel popups on a secondary output get clamped
+            // to the wrong monitor's area. Both `output_geo` and `window_geo` are
+            // global, so the global origins cancel below.
+            let output = self
+                .space
+                .outputs()
+                .find(|o| {
+                    self.space
+                        .output_geometry(o)
+                        .is_some_and(|g| g.overlaps(window_geo))
+                })
+                .or_else(|| self.space.outputs().next())
+                .unwrap();
+            let output_geo = self.space.output_geometry(output).unwrap();
 
             let mut target = inset(output_geo);
             target.loc -= get_popup_toplevel_coords(&kind);
@@ -393,9 +406,15 @@ impl MetisState {
             return;
         };
         let output_geo = self.space.output_geometry(&output).unwrap();
+        // `get_unconstrained_geometry` expects `target` in the parent layer
+        // surface's local frame. `layer_geo.loc` is output-local while `output_geo`
+        // is global, so subtract BOTH the output origin and the layer offset —
+        // without the output origin, popovers on a non-primary output are pushed
+        // off-screen by that output's global X (and never appear / take input).
         let mut target = inset(output_geo);
         target.loc -= get_popup_toplevel_coords(&kind);
         target.loc -= layer_geo.loc;
+        target.loc -= output_geo.loc;
 
         popup.with_pending_state(|state| {
             state.geometry = state.positioner.get_unconstrained_geometry(target);

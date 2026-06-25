@@ -9,6 +9,59 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Multi-output groundwork (Phase 3)** — first slices of the output-agnostic
+  refactor:
+  - **Output-geometry foundation** — a centralized helper layer
+    (`primary_output` / `output_rect` / `primary_monitor_rect`) that
+    `grid_metrics`, `usable_zone`, `placement_zone`, `set_fullscreen`, and
+    `arrange_layers` now route through instead of scattered
+    `space.outputs().next()` / cached-`monitor` reads. Behavior is identical with
+    one output; per-output work now only changes "which output" at these
+    chokepoints.
+  - **Virtual-output dev rig** — `METIS_VIRTUAL_OUTPUTS=2` tiles the nested winit
+    window into two side-by-side logical monitors so multi-output behavior
+    (per-output bars, placement, layer-shell) can be exercised before a real
+    DRM/udev backend. A dedicated full-window render output drives the damage
+    tracker / scale / wallpaper / frame timing, and the render loop now gathers
+    layer-shell surfaces + bar blur from every output (offset by each output's
+    global origin). Default (unset / `1`) is byte-for-byte the previous
+    single-output path.
+- **Virtual workspaces (single output)** — the workspace dots in the bar are now
+  live. Each workspace is its own independently-tiled set of app windows; the desk
+  widgets (clock/weather/rss) are shared across all of them. Switching stashes the
+  current workspace's app tiles, hides its windows, then restores and remaps the
+  target's, and focuses the topmost window there.
+  - **Keybinds** — `Super`+`1`…`9` switch workspace; `Super`+`Shift`+`1`…`9` move
+    the focused window to a workspace (digit detection is shift-independent).
+  - **Bar dots** — clicking a dot switches via the compositor; the compositor's
+    new `WorkspaceChanged` event keeps the active dot in sync (single source of
+    truth), with an optimistic local update for instant feedback.
+  - **Protocol** — new `SwitchWorkspace` / `MoveWindowToWorkspace` commands and a
+    `WorkspaceChanged` event; `WindowInfo.workspace` is now populated (1-based).
+    Workspace count comes from `bar.json` `workspace_count` (1–12, default 4).
+  - **Multi-output input/drag fixes** — absolute-pointer motion now maps across
+    the whole virtual desktop (union of all outputs) instead of the first output,
+    so the cursor is no longer compressed into the primary monitor; and titlebar
+    drags clamp to the full desktop bounds so a window can be moved between
+    outputs (previously it was pinned to the primary output's zone).
+  - **Per-output edge bar** — the shell now spawns one edge bar per connected
+    output (bound via `gtk4-layer-shell` `set_monitor`), rebuilding on monitor
+    hotplug. A new **Settings · Appearance · Edge bar → "Show bar on"** control
+    (`bar.json` `displays`: `all` | `primary`, default `all`) switches between a
+    bar on every display and a single bar on the primary output.
+  - **Per-bar live updates on every output** — the notification and taskbar
+    refresh registries held a single callback, so only the last-built bar updated
+    instantly while others waited (5–10s) for an unrelated poll change. They now
+    fan out to one (weak) hook per bar, so notifications and dock changes appear on
+    every display at once. Audio actions (volume/mute/scroll) also force an
+    immediate poll read-back so all bars reflect the new level within one cycle
+    instead of lagging several seconds behind the bar whose popover is open.
+  - **Popover positioning on secondary outputs** — `unconstrain_popup` now
+    expresses the allowed area in the parent surface's local frame (subtracting the
+    output's global origin as well as the layer offset), and toplevel popups
+    constrain to the window's actual output. Without this, every bar popover
+    (Metis Menu, calendar, Wi-Fi, notifications, weather) on a non-primary output
+    was pushed off-screen and could neither be seen nor clicked.
 - **Metis Menu settings page** — a new **Settings · Metis Menu** page gathers all
   launcher settings in one place, separate from the Edge bar card:
   - **Quick launchers** — choose which **terminal** and **file manager** the rail

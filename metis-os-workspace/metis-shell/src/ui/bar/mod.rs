@@ -8,17 +8,22 @@ use std::sync::mpsc::Receiver;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
-use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarPosition};
+use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
 use crate::services::{
     spawn_bar_pollers, spawn_notification_service, spawn_weather_service, workspace_snapshot,
     BarNotification, BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
-    static BAR: RefCell<Option<BarHandle>> = const { RefCell::new(None) };
-    // Mirror of the active bar position, kept outside the `BAR` RefCell so
-    // `popover_position()` can be read while `BAR` is mutably borrowed (e.g. from
-    // within `rebuild_bar`, which builds widgets that query the popover side).
+    // One bar per output (monitor); see `BarDisplays`. A single-monitor session
+    // holds exactly one handle.
+    static BARS: RefCell<Vec<BarHandle>> = const { RefCell::new(Vec::new()) };
+    // The owning GTK application, kept so monitor hotplug / config changes can
+    // build fresh bar windows without threading `app` through every call.
+    static APP: RefCell<Option<gtk::Application>> = const { RefCell::new(None) };
+    // Mirror of the active bar position, kept outside the `BARS` RefCell so
+    // `popover_position()` can be read while `BARS` is mutably borrowed (e.g. from
+    // within `rebuild_bars`, which builds widgets that query the popover side).
     static BAR_POSITION: Cell<BarPosition> = const { Cell::new(BarPosition::Top) };
 }
 
@@ -37,7 +42,44 @@ pub fn init_and_show(app: &gtk::Application) {
         tracing::warn!(%err, "failed to write default bar.json");
     }
 
+    APP.with(|a| *a.borrow_mut() = Some(app.clone()));
+
     let config = Rc::new(RefCell::new(load_bar_config()));
+    let cfg = config.borrow().clone();
+
+    // One bar per target output. `target_monitors` returns at least one entry
+    // (`None` = let the compositor pick the output) so the single-monitor path is
+    // unchanged.
+    let monitors = target_monitors(&cfg);
+    let handles: Vec<BarHandle> = monitors
+        .iter()
+        .map(|m| build_bar(app, config.clone(), m.as_ref()))
+        .collect();
+    let count = handles.len();
+    BARS.with(|bars| *bars.borrow_mut() = handles);
+
+    // Defer pollers so GTK can finish the first layer-shell commit before subprocess I/O.
+    glib::timeout_add_seconds_local(2, move || {
+        attach_poll_channel(spawn_bar_pollers());
+        attach_weather_channel(spawn_weather_service());
+        attach_notification_channel(spawn_notification_service());
+        watch_bar_config();
+        watch_theme_files();
+        watch_compositor_dismiss();
+        watch_monitors();
+        glib::ControlFlow::Break
+    });
+
+    tracing::info!(bars = count, position = ?cfg.position, "Metis edge bar initialized");
+}
+
+/// Build a single bar window, optionally bound to `monitor` (None lets the
+/// compositor choose the output). Returns the handle without registering it.
+fn build_bar(
+    app: &gtk::Application,
+    config: Rc<RefCell<BarConfig>>,
+    monitor: Option<&gtk::gdk::Monitor>,
+) -> BarHandle {
     let cfg = config.borrow().clone();
     let (win_w, win_h) = layer_window_size(&cfg);
 
@@ -103,6 +145,11 @@ pub fn init_and_show(app: &gtk::Application) {
         ..Default::default()
     });
     apply_layer_geometry(&window, &cfg);
+    // Bind to a specific output (multi-monitor); must be set before the surface is
+    // mapped. Omitted (None) lets the compositor place it on the primary output.
+    if let Some(monitor) = monitor {
+        window.set_monitor(monitor);
+    }
 
     // Defer map until layer-shell anchors/size are applied (avoids 0-height first commit).
     let show_window = window.clone();
@@ -111,37 +158,60 @@ pub fn init_and_show(app: &gtk::Application) {
         show_window.present();
     });
 
-    BAR.with(|bar| {
-        *bar.borrow_mut() = Some(BarHandle {
-            window: window.clone(),
-            outer,
-            column,
-            pill,
-            config: config.clone(),
-            widget_refs,
-        });
-    });
+    BarHandle {
+        window,
+        outer,
+        column,
+        pill,
+        config,
+        widget_refs,
+    }
+}
 
-    // Defer pollers so GTK can finish the first layer-shell commit before subprocess I/O.
-    glib::timeout_add_seconds_local(2, {
-        let config = config.clone();
-        move || {
-            attach_poll_channel(spawn_bar_pollers());
-            attach_weather_channel(spawn_weather_service());
-            attach_notification_channel(spawn_notification_service());
-            watch_bar_config(config.clone());
-            watch_theme_files();
-            watch_compositor_dismiss();
-            glib::ControlFlow::Break
+/// The outputs the bar should appear on, as GDK monitors. Returns at least one
+/// entry; `None` means "no specific monitor" (compositor picks the primary).
+/// `BarDisplays::Primary` yields a single bar on the first monitor.
+fn target_monitors(cfg: &BarConfig) -> Vec<Option<gtk::gdk::Monitor>> {
+    let monitors = connected_monitors();
+    match cfg.displays {
+        BarDisplays::Primary => vec![monitors.into_iter().next()],
+        BarDisplays::All => {
+            if monitors.is_empty() {
+                vec![None]
+            } else {
+                monitors.into_iter().map(Some).collect()
+            }
         }
-    });
+    }
+}
 
-    tracing::info!(
-        win_w,
-        win_h,
-        position = ?cfg.position,
-        "Metis edge bar initialized"
-    );
+/// Snapshot of the currently connected GDK monitors (first entry is treated as
+/// the primary output).
+fn connected_monitors() -> Vec<gtk::gdk::Monitor> {
+    use gtk::gio::prelude::ListModelExt;
+    let Some(display) = gtk::gdk::Display::default() else {
+        return Vec::new();
+    };
+    let list = display.monitors();
+    let mut out = Vec::new();
+    for i in 0..list.n_items() {
+        if let Some(monitor) = list.item(i).and_then(|o| o.downcast::<gtk::gdk::Monitor>().ok()) {
+            out.push(monitor);
+        }
+    }
+    out
+}
+
+/// Rebuild every bar when monitors are added/removed so the per-output bars track
+/// the current display layout.
+fn watch_monitors() {
+    use gtk::gio::prelude::ListModelExt;
+    let Some(display) = gtk::gdk::Display::default() else {
+        return;
+    };
+    display
+        .monitors()
+        .connect_items_changed(move |_, _, _, _| rebuild_from_config());
 }
 
 fn layer_window_size(config: &BarConfig) -> (i32, i32) {
@@ -437,29 +507,52 @@ fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
     window.queue_resize();
 }
 
-fn rebuild_bar(config: Rc<RefCell<BarConfig>>) {
+/// Re-apply geometry/widgets to every existing bar in place (keeps the layer
+/// surfaces — used for live theme/opacity/position edits that don't change the
+/// set of outputs).
+fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
     dropdown::close_all();
-    BAR.with(|bar| {
-        let mut slot = bar.borrow_mut();
-        let Some(handle) = slot.as_mut() else {
-            return;
-        };
+    BARS.with(|bars| {
+        let mut bars = bars.borrow_mut();
         let cfg = config.borrow();
-        configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
-        apply_layer_geometry(&handle.window, &cfg);
         let (win_w, win_h) = layer_window_size(&cfg);
-        handle.window.set_default_size(win_w, win_h);
-        handle.outer.queue_resize();
-        handle.column.queue_resize();
-        handle.pill.queue_resize();
-        while let Some(child) = handle.pill.first_child() {
-            handle.pill.remove(&child);
+        for handle in bars.iter_mut() {
+            configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
+            apply_layer_geometry(&handle.window, &cfg);
+            handle.window.set_default_size(win_w, win_h);
+            handle.outer.queue_resize();
+            handle.column.queue_resize();
+            handle.pill.queue_resize();
+            while let Some(child) = handle.pill.first_child() {
+                handle.pill.remove(&child);
+            }
+            handle.widget_refs = widgets::build(&handle.pill, config.clone());
         }
-        handle.widget_refs = widgets::build(&handle.pill, config.clone());
     });
 }
 
-fn watch_bar_config(config: Rc<RefCell<BarConfig>>) {
+/// Tear down all bars and rebuild from scratch for the current monitor set —
+/// used when the number of target outputs changes (monitor hotplug or toggling
+/// the `displays` option).
+fn rebuild_all_bars(config: Rc<RefCell<BarConfig>>) {
+    dropdown::close_all();
+    let Some(app) = APP.with(|a| a.borrow().clone()) else {
+        return;
+    };
+    BARS.with(|bars| {
+        for handle in bars.borrow_mut().drain(..) {
+            handle.window.destroy();
+        }
+    });
+    let cfg = config.borrow().clone();
+    let handles: Vec<BarHandle> = target_monitors(&cfg)
+        .iter()
+        .map(|m| build_bar(&app, config.clone(), m.as_ref()))
+        .collect();
+    BARS.with(|bars| *bars.borrow_mut() = handles);
+}
+
+fn watch_bar_config() {
     let path = crate::config::bar_config_path();
     if !path.exists() {
         if let Err(err) = crate::config::save_default_bar_config() {
@@ -474,12 +567,10 @@ fn watch_bar_config(config: Rc<RefCell<BarConfig>>) {
     };
 
     monitor.connect_changed(move |_, _, _event, _| {
-        let config = config.clone();
-        glib::timeout_add_local_once(std::time::Duration::from_millis(250), move || {
-            let cfg = load_bar_config();
-            *config.borrow_mut() = cfg;
-            rebuild_bar(config.clone());
-            crate::ui::theme::reload_stylesheet();
+        glib::timeout_add_local_once(std::time::Duration::from_millis(250), || {
+            // Re-reads bar.json and rebuilds in place, or recreates the surfaces if
+            // the `displays` option changed the number of bars.
+            rebuild_from_config();
         });
     });
 }
@@ -516,8 +607,8 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
                 error = ?snapshot.error,
                 "weather: UI received snapshot"
             );
-            BAR.with(|bar| {
-                if let Some(handle) = bar.borrow().as_ref() {
+            BARS.with(|bars| {
+                for handle in bars.borrow().iter() {
                     handle.widget_refs.apply_weather(&snapshot);
                 }
             });
@@ -545,8 +636,8 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
                 continue;
             }
             last = snapshot.clone();
-            BAR.with(|bar| {
-                if let Some(handle) = bar.borrow().as_ref() {
+            BARS.with(|bars| {
+                for handle in bars.borrow().iter() {
                     handle.widget_refs.apply_snapshot(&snapshot);
                 }
             });
@@ -556,14 +647,25 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
 }
 
 pub fn rebuild_from_config() {
-    // Clone the config Rc out and drop the BAR borrow *before* calling
-    // rebuild_bar, which re-borrows BAR mutably. Holding the borrow across the
+    // Clone the config Rc out and drop the BARS borrow *before* calling the
+    // rebuild helpers, which re-borrow BARS mutably. Holding the borrow across the
     // call panics with "RefCell already borrowed".
-    let config = BAR.with(|bar| bar.borrow().as_ref().map(|handle| handle.config.clone()));
-    if let Some(config) = config {
-        // Pull the latest on-disk bar config so live theme/opacity edits apply.
-        *config.borrow_mut() = load_bar_config();
-        rebuild_bar(config.clone());
-        crate::ui::theme::reload_stylesheet();
+    let (config, cur_count) = BARS.with(|bars| {
+        let bars = bars.borrow();
+        (bars.first().map(|h| h.config.clone()), bars.len())
+    });
+    let Some(config) = config else {
+        return;
+    };
+    // Pull the latest on-disk bar config so live theme/opacity edits apply.
+    *config.borrow_mut() = load_bar_config();
+    let target_count = target_monitors(&config.borrow()).len();
+    if target_count != cur_count {
+        // The set of outputs changed (hotplug, or `displays` toggled) — recreate
+        // the bar surfaces so each output gets (or loses) its bar.
+        rebuild_all_bars(config.clone());
+    } else {
+        rebuild_bars_in_place(config.clone());
     }
+    crate::ui::theme::reload_stylesheet();
 }

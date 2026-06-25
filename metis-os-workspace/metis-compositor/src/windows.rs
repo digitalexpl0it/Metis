@@ -24,6 +24,9 @@ pub struct WindowRecord {
     pub fullscreen: bool,
     pub maximized: bool,
     pub minimized: bool,
+    /// Virtual workspace this window lives on (1-based). Windows are created on the
+    /// active workspace; only the active workspace's windows are mapped into `Space`.
+    pub workspace: u32,
     /// True after the first buffer commit; probe toplevels that never commit are dropped quietly.
     pub ready: bool,
 }
@@ -72,6 +75,7 @@ impl WindowRegistry {
                 fullscreen: false,
                 maximized: false,
                 minimized: false,
+                workspace: 1,
                 ready: false,
             },
         );
@@ -180,9 +184,19 @@ impl WindowRegistry {
         self.by_id.get(&id).is_some_and(|r| r.minimized)
     }
 
+    pub fn set_workspace(&mut self, id: u32, workspace: u32) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.workspace = workspace;
+        }
+    }
+
+    pub fn workspace(&self, id: u32) -> Option<u32> {
+        self.by_id.get(&id).map(|r| r.workspace)
+    }
+
     /// Snapshot of ready windows. `focused` is left `false` here (the registry
-    /// has no seat access); the caller patches the focused id. `output`/`workspace`
-    /// are placeholders (0) until multi-output/workspaces land in Phase 3.
+    /// has no seat access); the caller patches the focused id. `output` is a
+    /// placeholder (0) until multi-output lands later in Phase 3.
     pub fn list(&self) -> Vec<WindowInfo> {
         self.by_id
             .values()
@@ -196,7 +210,7 @@ impl WindowRegistry {
                 minimized: r.minimized,
                 focused: false,
                 output: 0,
-                workspace: 0,
+                workspace: r.workspace,
             })
             .collect()
     }

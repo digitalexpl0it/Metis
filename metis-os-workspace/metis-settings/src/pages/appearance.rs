@@ -391,6 +391,14 @@ pub fn build() -> gtk::Widget {
         &position_dd,
     ));
 
+    let displays_dd = gtk::DropDown::from_strings(&["All displays", "Primary display only"]);
+    displays_dd.set_selected(bar_displays_to_index(bar.borrow().displays));
+    bar_body.append(&ui::row_with_icon(
+        "video-display-symbolic",
+        "Show bar on",
+        &displays_dd,
+    ));
+
     let edge_margin = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 64.0, 1.0);
     edge_margin.set_value(bar.borrow().margin_top as f64);
     edge_margin.set_size_request(200, -1);
@@ -676,6 +684,13 @@ pub fn build() -> gtk::Widget {
     }
     {
         let bar = bar.clone();
+        displays_dd.connect_selected_notify(move |dd| {
+            bar.borrow_mut().displays = index_to_bar_displays(dd.selected());
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
         edge_margin.connect_value_changed(move |s| {
             bar.borrow_mut().margin_top = s.value().round() as u32;
             save_bar(&bar.borrow());
@@ -837,6 +852,7 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     // overwrite only the fields this page manages so we don't clobber theirs.
     let mut on_disk = metis_config::load_bar_config();
     on_disk.position = cfg.position;
+    on_disk.displays = cfg.displays;
     on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
@@ -1166,6 +1182,20 @@ fn index_to_bar_position(idx: u32) -> metis_config::BarPosition {
         2 => P::Left,
         3 => P::Right,
         _ => P::Top,
+    }
+}
+
+fn bar_displays_to_index(displays: metis_config::BarDisplays) -> u32 {
+    match displays {
+        metis_config::BarDisplays::All => 0,
+        metis_config::BarDisplays::Primary => 1,
+    }
+}
+
+fn index_to_bar_displays(idx: u32) -> metis_config::BarDisplays {
+    match idx {
+        1 => metis_config::BarDisplays::Primary,
+        _ => metis_config::BarDisplays::All,
     }
 }
 

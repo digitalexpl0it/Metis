@@ -14,6 +14,22 @@ use smithay::{
 use crate::focus::KeyboardFocusTarget;
 use crate::state::MetisState;
 
+/// Map a number-row keysym (1..9) to a 1-based workspace id, for Super+<n> bindings.
+fn workspace_from_keysym(sym: u32) -> Option<u32> {
+    match sym {
+        keysyms::KEY_1 => Some(1),
+        keysyms::KEY_2 => Some(2),
+        keysyms::KEY_3 => Some(3),
+        keysyms::KEY_4 => Some(4),
+        keysyms::KEY_5 => Some(5),
+        keysyms::KEY_6 => Some(6),
+        keysyms::KEY_7 => Some(7),
+        keysyms::KEY_8 => Some(8),
+        keysyms::KEY_9 => Some(9),
+        _ => None,
+    }
+}
+
 impl MetisState {
     pub fn process_input_event<B: InputBackend>(&mut self, event: InputEvent<B>) {
         let mut needs_redraw = false;
@@ -33,6 +49,24 @@ impl MetisState {
                     |state, modifiers, keysym| {
                         if key_state == KeyState::Pressed {
                             let sym = u32::from(keysym.modified_sym());
+                            // Use the layout's raw Latin sym so Super+Shift+<n>
+                            // (whose modified sym is punctuation) still maps to a digit.
+                            let digit_sym = keysym
+                                .raw_latin_sym_or_raw_current_sym()
+                                .map(u32::from)
+                                .unwrap_or(sym);
+                            if modifiers.logo {
+                                if let Some(ws) = workspace_from_keysym(digit_sym) {
+                                    if modifiers.shift {
+                                        if let Some(id) = state.focused_window_id() {
+                                            state.move_window_to_workspace(id, ws);
+                                        }
+                                    } else {
+                                        state.switch_workspace(ws);
+                                    }
+                                    return FilterResult::Intercept(());
+                                }
+                            }
                             if modifiers.logo && sym == keysyms::KEY_q {
                                 if let Some(id) = state.focused_window_id() {
                                     state.close_window(id);
@@ -103,9 +137,12 @@ impl MetisState {
                 pointer.frame(self);
             }
             InputEvent::PointerMotionAbsolute { event, .. } => {
-                let output = self.space.outputs().next().unwrap();
-                let output_geo = self.space.output_geometry(output).unwrap();
-                let pos = event.position_transformed(output_geo.size) + output_geo.loc.to_f64();
+                // The absolute position is normalized to the whole winit window, so
+                // map it across the full virtual desktop (all outputs), not just the
+                // first one — otherwise multi-output sessions compress the cursor
+                // into the primary output's (now smaller) rect.
+                let bounds = self.desktop_bounds();
+                let pos = event.position_transformed(bounds.size) + bounds.loc.to_f64();
                 let pointer = self.seat.get_pointer().unwrap();
                 pointer.set_location(pos);
                 // Redraw so a client-drawn cursor follows the pointer.

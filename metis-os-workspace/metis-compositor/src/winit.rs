@@ -65,8 +65,41 @@ fn resize_cursor(edge: Option<crate::grabs::ResizeEdge>) -> smithay::reexports::
     icon.into()
 }
 
+/// Number of virtual outputs to simulate in the nested dev session, from
+/// `METIS_VIRTUAL_OUTPUTS` (default 1, clamped 1..=2). `2` tiles the winit window
+/// into two side-by-side logical monitors so multi-output behavior (per-output
+/// bars, placement, workspaces) can be exercised before a real DRM backend.
+fn virtual_output_count() -> usize {
+    std::env::var("METIS_VIRTUAL_OUTPUTS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(1)
+        .clamp(1, 2)
+}
+
+/// Tile the winit framebuffer into `count` side-by-side logical outputs, each as
+/// `(mode size, global position)`. The outputs tile the global coordinate space
+/// contiguously, so rendering everything in global coords fills the window.
+fn output_layout(
+    window: Size<i32, Physical>,
+    count: usize,
+) -> Vec<(Size<i32, Physical>, Point<i32, Logical>)> {
+    let w = window.w.max(1);
+    let h = window.h.max(1);
+    if count >= 2 {
+        let left = w / 2;
+        vec![
+            (Size::from((left, h)), Point::from((0, 0))),
+            (Size::from((w - left, h)), Point::from((left, 0))),
+        ]
+    } else {
+        vec![(Size::from((w, h)), Point::from((0, 0)))]
+    }
+}
+
 /// On-screen rectangle of the Metis bar layer surface, used to position the
-/// backdrop blur. `None` when the bar is not (yet) mapped.
+/// backdrop blur. Returned in the output's local physical coordinates; the caller
+/// offsets by the output's global origin. `None` when the bar is not (yet) mapped.
 fn bar_layer_rect(output: &Output) -> Option<Rectangle<i32, Physical>> {
     let map = smithay::desktop::layer_map_for_output(output);
     for layer in map.layers() {
@@ -86,44 +119,74 @@ pub fn init_winit(
     let (backend, winit) = winit::init::<GlesRenderer>()?;
     let backend = Rc::new(RefCell::new(backend));
 
-    let mode = Mode {
-        size: backend.borrow().window_size(),
-        refresh: 60_000,
-    };
+    let window_size = backend.borrow().window_size();
+    let count = virtual_output_count();
+    let layout = output_layout(window_size, count);
+    if count > 1 {
+        tracing::info!(count, "METIS_VIRTUAL_OUTPUTS: simulating multiple outputs");
+    }
 
-    let output = Output::new(
-        "metis-0".to_string(),
+    // Client-visible logical outputs — one per virtual monitor, tiling the window.
+    let mut logical_outputs: Vec<Output> = Vec::new();
+    for (i, (size, pos)) in layout.iter().enumerate() {
+        let output = Output::new(
+            format!("metis-{i}"),
+            PhysicalProperties {
+                size: (0, 0).into(),
+                subpixel: Subpixel::Unknown,
+                make: "Metis".into(),
+                model: "Compositor".into(),
+                serial_number: i.to_string(),
+            },
+        );
+        let _global = output.create_global::<MetisState>(&state.display_handle);
+        let mode = Mode { size: *size, refresh: 60_000 };
+        output.change_current_state(Some(mode), Some(Transform::Flipped180), None, Some(*pos));
+        output.set_preferred(mode);
+        state.space.map_output(&output, *pos);
+        logical_outputs.push(output);
+    }
+
+    // Dedicated full-window render output: NOT client-visible and NOT in the
+    // Space. It only drives the damage tracker, render scale, wallpaper size, and
+    // frame timing so the winit framebuffer is always fully covered no matter how
+    // many logical outputs tile it. With one output it matches `metis-0` exactly.
+    let render_output = Output::new(
+        "metis-render".to_string(),
         PhysicalProperties {
             size: (0, 0).into(),
             subpixel: Subpixel::Unknown,
             make: "Metis".into(),
             model: "Compositor".into(),
-            serial_number: "0".into(),
+            serial_number: "render".into(),
         },
     );
-    let _global = output.create_global::<MetisState>(&state.display_handle);
-    output.change_current_state(
-        Some(mode),
+    let render_mode = Mode { size: window_size, refresh: 60_000 };
+    render_output.change_current_state(
+        Some(render_mode),
         Some(Transform::Flipped180),
         None,
         Some((0, 0).into()),
     );
-    output.set_preferred(mode);
+    render_output.set_preferred(render_mode);
 
-    state.space.map_output(&output, (0, 0));
-    if let Some(geo) = state.space.output_geometry(&output) {
+    if let Some(geo) = logical_outputs
+        .first()
+        .and_then(|o| state.space.output_geometry(o))
+    {
         state.monitor.width = geo.size.w;
         state.monitor.height = geo.size.h;
-        state
-            .wallpaper
-            .resize(Size::from((geo.size.w, geo.size.h)));
     }
+    // The wallpaper spans the whole framebuffer (all outputs).
+    state
+        .wallpaper
+        .resize(Size::from((window_size.w, window_size.h)));
 
     if state.wallpaper.enabled() {
         state.wallpaper.start_async_decode();
     }
 
-    let mut damage_tracker = OutputDamageTracker::from_output(&output);
+    let mut damage_tracker = OutputDamageTracker::from_output(&render_output);
     let mut frame_age = 0usize;
 
     let backend_winit = backend.clone();
@@ -208,17 +271,30 @@ pub fn init_winit(
         match event {
             WinitEvent::Resized { size, .. } => {
                 state.run_pending_startup();
-                output.change_current_state(
-                    Some(Mode {
-                        size,
-                        refresh: 60_000,
-                    }),
+                // Re-tile the logical outputs across the new framebuffer size.
+                let layout = output_layout(size, logical_outputs.len().max(1));
+                for (out, (out_size, pos)) in logical_outputs.iter().zip(layout.iter()) {
+                    out.change_current_state(
+                        Some(Mode { size: *out_size, refresh: 60_000 }),
+                        Some(Transform::Flipped180),
+                        None,
+                        Some(*pos),
+                    );
+                    state.space.map_output(out, *pos);
+                }
+                render_output.change_current_state(
+                    Some(Mode { size, refresh: 60_000 }),
                     Some(Transform::Flipped180),
                     None,
                     None,
                 );
-                state.monitor.width = size.w;
-                state.monitor.height = size.h;
+                if let Some(geo) = logical_outputs
+                    .first()
+                    .and_then(|o| state.space.output_geometry(o))
+                {
+                    state.monitor.width = geo.size.w;
+                    state.monitor.height = geo.size.h;
+                }
                 state.wallpaper.schedule_redecode(Size::from((size.w, size.h)));
                 state.emit_monitor_changed();
                 frame_age = 0;
@@ -263,20 +339,29 @@ pub fn init_winit(
 
                             let wallpaper_owned = state.wallpaper.render_element();
 
-                            // Build the bar backdrop-blur element (samples the
-                            // wallpaper under the bar through a Gaussian shader).
-                            // Drawn below the bar surface, above wallpaper/windows.
-                            let blur_element = {
-                                state.blur.ensure_program(renderer);
-                                let rect = bar_layer_rect(&output)
-                                    .map(|r| state.blur.confine_to_pill(r));
-                                match (rect, state.wallpaper.texture()) {
-                                    (Some(rect), Some((tex, tex_size))) => {
-                                        state.blur.element(rect, tex, tex_size)
-                                    }
-                                    _ => None,
-                                }
-                            };
+                            // Build the bar backdrop-blur element per output (each
+                            // output may carry its own bar). Sampled from the
+                            // wallpaper under the bar through a Gaussian shader and
+                            // drawn below the bar surface, above wallpaper/windows.
+                            let bar_rects: Vec<Rectangle<i32, Physical>> = state
+                                .space
+                                .outputs()
+                                .filter_map(|out| {
+                                    let origin =
+                                        state.space.output_geometry(out)?.loc.to_physical(1);
+                                    let local = bar_layer_rect(out)?;
+                                    Some(Rectangle::new(local.loc + origin, local.size))
+                                })
+                                .collect();
+                            state.blur.ensure_program(renderer);
+                            let blur_elements: Vec<crate::blur::BlurElement> = bar_rects
+                                .into_iter()
+                                .filter_map(|r| {
+                                    let rect = state.blur.confine_to_pill(r);
+                                    let (tex, tex_size) = state.wallpaper.texture()?;
+                                    state.blur.element(rect, tex, tex_size)
+                                })
+                                .collect();
 
                             // Snap-zone drop preview (translucent fill at the
                             // destination), drawn on top of everything during a
@@ -319,31 +404,47 @@ pub fn init_winit(
                             } = deco_elements;
 
                             let output_scale =
-                                Scale::from(output.current_scale().fractional_scale());
+                                Scale::from(render_output.current_scale().fractional_scale());
 
-                            // Layer-shell surfaces: background/bottom render beneath
-                            // windows, top/overlay above them (the Metis bar is a Top
-                            // layer).
-                            let layer_map = layer_map_for_output(&output);
-                            let (lower_layers, upper_layers): (Vec<_>, Vec<_>) = layer_map
-                                .layers()
-                                .rev()
-                                .partition(|s| {
-                                    matches!(s.layer(), Layer::Background | Layer::Bottom)
-                                });
-                            let render_layer = |renderer: &mut GlesRenderer,
-                                                out: &mut Vec<OutputStack>,
-                                                surface: &smithay::desktop::LayerSurface| {
-                                if let Some(geo) = layer_map.layer_geometry(surface) {
-                                    let loc = geo.loc.to_physical_precise_round(output_scale);
-                                    let elems = AsRenderElements::<GlesRenderer>::render_elements::<
-                                        WaylandSurfaceRenderElement<GlesRenderer>,
-                                    >(
-                                        surface, renderer, loc, output_scale, 1.0
-                                    );
-                                    out.extend(elems.into_iter().map(OutputStack::Surface));
+                            // Layer-shell surfaces, gathered from every output's layer
+                            // map: background/bottom render beneath windows, top/overlay
+                            // above them (the Metis bar is a Top layer). Each surface is
+                            // offset by its output's global origin so multi-output bars
+                            // land on the right monitor.
+                            let mut upper_layer_elems: Vec<OutputStack> = Vec::new();
+                            let mut lower_layer_elems: Vec<OutputStack> = Vec::new();
+                            let layer_outputs: Vec<Output> =
+                                state.space.outputs().cloned().collect();
+                            for out in &layer_outputs {
+                                let origin = state
+                                    .space
+                                    .output_geometry(out)
+                                    .map(|g| g.loc)
+                                    .unwrap_or_default();
+                                let map = layer_map_for_output(out);
+                                for surface in map.layers().rev() {
+                                    let Some(geo) = map.layer_geometry(surface) else {
+                                        continue;
+                                    };
+                                    let loc = (geo.loc + origin)
+                                        .to_physical_precise_round(output_scale);
+                                    let elems =
+                                        AsRenderElements::<GlesRenderer>::render_elements::<
+                                            WaylandSurfaceRenderElement<GlesRenderer>,
+                                        >(
+                                            surface, renderer, loc, output_scale, 1.0
+                                        );
+                                    let target = if matches!(
+                                        surface.layer(),
+                                        Layer::Background | Layer::Bottom
+                                    ) {
+                                        &mut lower_layer_elems
+                                    } else {
+                                        &mut upper_layer_elems
+                                    };
+                                    target.extend(elems.into_iter().map(OutputStack::Surface));
                                 }
-                            };
+                            }
 
                             // smithay's damage renderer draws elements front-to-back:
                             // the FIRST element in the slice ends up on top, so the
@@ -361,9 +462,7 @@ pub fn init_winit(
                                 deco_overlay.into_iter().map(OutputStack::Deco),
                             );
                             // Top/overlay layer surfaces (the bar) above all windows.
-                            for surface in &upper_layers {
-                                render_layer(renderer, &mut render_elements, surface);
-                            }
+                            render_elements.extend(upper_layer_elems);
                             // Defensive: chrome whose window can't be matched in the
                             // space stacking below would otherwise render behind every
                             // window (titlebar tucked behind an overlapping app). Draw
@@ -424,13 +523,10 @@ pub fn init_winit(
                             // handled inline above; nothing should be left here.
                             debug_assert!(deco_below.is_empty());
                             // Background/bottom layer surfaces beneath the windows.
-                            for surface in &lower_layers {
-                                render_layer(renderer, &mut render_elements, surface);
-                            }
+                            render_elements.extend(lower_layer_elems);
                             // Below the windows, above the wallpaper.
-                            if let Some(blur) = blur_element {
-                                render_elements.push(OutputStack::Blur(blur));
-                            }
+                            render_elements
+                                .extend(blur_elements.into_iter().map(OutputStack::Blur));
                             if let Some(wallpaper) = wallpaper_owned {
                                 render_elements.push(OutputStack::Wallpaper(wallpaper));
                             }
@@ -459,12 +555,18 @@ pub fn init_winit(
                     // Deliver frame callbacks for the frame we just presented so
                     // clients paint their next frame; then clear damage + flush.
                     let now = state.start_time.elapsed();
-                    state.space.elements().for_each(|window| {
-                        window.send_frame(&output, now, Some(Duration::ZERO), |_, _| {
-                            Some(output.clone())
+                    let frame_outputs: Vec<Output> = state.space.outputs().cloned().collect();
+                    if let Some(primary) = frame_outputs.first() {
+                        let primary = primary.clone();
+                        state.space.elements().for_each(|window| {
+                            window.send_frame(&primary, now, Some(Duration::ZERO), |_, _| {
+                                Some(primary.clone())
+                            });
                         });
-                    });
-                    state.send_layer_frames(&output, now);
+                    }
+                    for out in &frame_outputs {
+                        state.send_layer_frames(out, now);
+                    }
                     state.damaged = false;
                     state.defer_client_flush = true;
                 }
@@ -472,7 +574,7 @@ pub fn init_winit(
                 state.space.refresh();
                 state.cleanup_destroyed_windows();
                 state.popups.cleanup();
-                if let Some(out) = state.space.outputs().next() {
+                for out in state.space.outputs() {
                     smithay::desktop::layer_map_for_output(out).cleanup();
                 }
 

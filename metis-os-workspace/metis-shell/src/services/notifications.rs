@@ -13,21 +13,33 @@ thread_local! {
     /// Notifications raised at runtime (timers, alarms, calendar reminders),
     /// newest-first, with identical messages coalesced into a single entry.
     static RUNTIME: RefCell<Vec<NotificationEntry>> = const { RefCell::new(Vec::new()) };
-    /// Repaint hook installed by the bar's notifications widget.
-    static REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+    /// Repaint hooks installed by each bar's notifications widget (one per output
+    /// in a multi-monitor session). Weak so a torn-down bar's hook drops itself.
+    static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
 }
 
 const RUNTIME_CAP: usize = 50;
 
-/// Register a callback the runtime queue invokes whenever it changes so the bar
-/// can repaint its notification badge and list.
+/// Register a callback the runtime queue invokes whenever it changes so every bar
+/// can repaint its notification badge and list. Each bar registers its own hook;
+/// dead hooks (from rebuilt/removed bars) are pruned on the next register/fire.
 pub fn register_refresh(cb: Rc<dyn Fn()>) {
-    REFRESH.with(|r| *r.borrow_mut() = Some(cb));
+    REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.push(Rc::downgrade(&cb));
+    });
 }
 
 fn fire_refresh() {
-    let cb = REFRESH.with(|r| r.borrow().clone());
-    if let Some(cb) = cb {
+    // Collect live callbacks first so we don't hold the REFRESH borrow while a
+    // callback runs (a callback may re-enter via register_refresh).
+    let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.iter().filter_map(std::rc::Weak::upgrade).collect()
+    });
+    for cb in callbacks {
         cb();
     }
 }

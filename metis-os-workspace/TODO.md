@@ -5,8 +5,11 @@ complete; Phase 2 (`metis-settings` app + server-side window decorations) comple
 including decoration polish (rounded button glyphs + focus-aware dimming),
 theme-aware + translucent titlebars with an auto-hide overlay for maximized /
 edge-snapped windows, and XWayland support. A taskbar / running-apps dock has
-landed on the edge bar (live window state over IPC). Next: Phase 3 — broader
-window management (multi-monitor, workspaces, richer tiling).
+landed on the edge bar (live window state over IPC). Phase 3 is underway —
+single-output **virtual workspaces** have landed (live bar dots + `Super`+`n`
+keybinds); next up are the output-agnostic refactor, multi-monitor, and an
+optional scrolling layout. Then Phase 4 (settings-app expansion into a full
+control center) and Phase 5 (display pipeline: VRR, colour management, HDR).
 
 ---
 
@@ -19,7 +22,7 @@ window management (multi-monitor, workspaces, richer tiling).
 - [x] Distance from edge — slider for the gap between the bar and its anchored screen edge
 - [x] Edge-bar border — `bar_border` (accent gradient / solid / custom gradient + width,
       0 disables); rounded gradient via layered `background-clip`, flows along the long axis
-- [x] Workspace indicator (single Metis desktop for now)
+- [x] Workspace indicator — live virtual workspaces (click a dot or `Super`+`n` to switch)
 - [x] Clock popover — tabbed: calendar, world clocks, stopwatch, timer, alarms
 - [x] World Clocks — inline searchable timezone picker (up to 3 zones)
 - [x] Stopwatch with scrollable lap list
@@ -157,17 +160,38 @@ Phase 3 per-output bars + per-output workspaces.
 Broaden window management beyond the single-output, single-desktop stub. Staged
 so each milestone is shippable on its own:
 
-- [ ] **Output-agnostic refactor** — remove the `space.outputs().next()` /
+- [x] **Virtual workspaces (single output)** — fixed-N workspaces on the one
+      output, each its own set of tiled app windows with shared desk widgets.
+      `SwitchWorkspace`/`MoveWindowToWorkspace` commands + `WorkspaceChanged`
+      event; `Super`+`1..9` / `Super`+`Shift`+`1..9` keybinds; bar dots wired
+      through IPC; `WindowInfo.workspace` populated. Count from `bar.json`
+      `workspace_count`. (Per-output split comes with the refactor below.)
+- [~] **Output-agnostic refactor** — remove the `space.outputs().next()` /
       single-monitor assumptions; thread an output id through placement, grid,
-      snapping, decorations, and IPC
+      snapping, decorations, and IPC. _Started:_ centralized output-geometry
+      helpers (`primary_output`/`output_rect`/`primary_monitor_rect`) now back
+      `grid_metrics`/`usable_zone`/`placement_zone`/`set_fullscreen`/
+      `arrange_layers`. _Done:_ absolute-pointer mapping now spans all outputs
+      (`desktop_bounds`) and titlebar drags clamp to the whole desktop so windows
+      move between outputs. _Remaining:_ per-window output association, per-output
+      placement/snap routing, `GetMonitors` protocol.
+- [~] **Virtual outputs under winit** — `METIS_VIRTUAL_OUTPUTS=2` tiles the
+      nested window into two side-by-side logical outputs (dedicated full-window
+      render output + multi-output layer/blur/frame loop). The test rig for the
+      rest of the refactor; cursor + cross-output drag now work on it.
+- [x] **Per-output edge bar** — one bar per output (`gtk4-layer-shell`
+      `set_monitor`), rebuilt on monitor hotplug; `bar.json` `displays`
+      (`all`/`primary`) + Settings control to limit it to the primary output.
 - [ ] **Per-output state** — each output owns its own usable area, grid, and
-      wallpaper; the bar (and dock) become per-output
+      wallpaper (per-display wallpaper image option); the dock becomes per-output
 - [ ] **Per-output workspaces** — Hyprland-style: each workspace is its own grid;
       switch/move-to-workspace keybinds + IPC; the workspaces widget drives them
-- [ ] **Virtual outputs under winit** — simulate multiple monitors in the nested
-      dev session for testing before real DRM/udev
 - [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs
 - [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
+- [ ] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
+      workspace as an alternative to tiling, selectable per-workspace; built as a
+      second layout mode in `metis-grid` (the reflow engine is already isolated +
+      pure, so tiling and scrolling can share the same window model)
 - [ ] Taskbar follows: filter the dock to the current output + active workspace
       (the `WindowInfo.output`/`workspace` fields are already reserved)
 - [ ] DRM/udev backend (real multi-seat sessions) — deferred until the above lands
@@ -177,6 +201,66 @@ so each milestone is shippable on its own:
       only Metis's server-side controls show; also a clean handoff for theme / font /
       dark-mode prefs to clients. (Avoided while nested — it would alter the host
       GNOME session live.)
+
+---
+
+## Phase 4 — System settings expansion
+
+Grow `metis-settings` from appearance / menu / weather / network / calendars into a
+proper control center. Most pages need real device or service backends (libinput,
+D-Bus services, PipeWire) that only work under the DRM/udev session — under the
+nested winit dev session they degrade to read-only or no-op. Group the sidebar into
+**Input**, **Devices**, and **System** sections as it grows.
+
+### Input devices (libinput / xkb)
+Compositor applies device config from a new `input.json`; settings writes it and the
+compositor live-reloads (mirrors the `bar.json` watcher pattern).
+
+- [ ] **Mouse** — pointer speed / acceleration, acceleration profile (flat vs
+      adaptive), natural scroll, primary button (left/right-handed), scroll speed
+- [ ] **Touchpad** — shown only when a touchpad device is present: tap-to-click,
+      tap-and-drag, two-finger / edge scroll, natural scroll, disable-while-typing,
+      palm rejection, pointer speed
+- [ ] **Keyboard** — layout(s) + switch shortcut (xkb), repeat delay + rate, compose
+      key, Caps/Esc remap; applied via Smithay's xkb config + `wl_keyboard`
+      `repeat_info`
+
+### Devices (D-Bus services)
+- [ ] **Bluetooth** — adapter on/off, scan, pair / connect / trust / remove, battery
+      level where reported; via BlueZ (`org.bluez`) over D-Bus. Add a bar indicator
+      that appears only when an adapter is present
+- [ ] **Printers** — list / add / manage printers + queues via CUPS (IPP / D-Bus);
+      may begin as a thin launcher for an existing tool, then go native
+
+### System
+- [ ] **Power / Battery** — power profiles (power-saver / balanced / performance) via
+      power-profiles-daemon, battery details + health via UPower, idle-dim / blank /
+      suspend timeouts, lid-close action; feeds the existing bar battery widget
+- [ ] **Sound** — output / input device selection, per-device volume + mute, default
+      sink / source, balance, and (later) per-app volume; via PipeWire / PulseAudio.
+      Feeds the existing bar volume control
+- [ ] **Display** — per-output resolution, refresh rate, scale, orientation,
+      multi-monitor arrangement + primary, VRR toggle, night-light / colour
+      temperature; writes output config (`outputs.json`). Depends on the Phase 3
+      output-agnostic refactor (and the Phase 5 DRM backend for real mode-setting /
+      VRR)
+
+---
+
+## Phase 5 — Display pipeline (HDR / VRR / colour)
+
+Advanced output features, all gated on the real DRM/udev backend (deferred in
+Phase 3) — none of these are possible under the nested winit dev session.
+
+- [ ] **VRR / adaptive sync** — enable per-output via Smithay's DRM VRR support;
+      opt-in toggle surfaced in the Display settings page
+- [ ] **Colour management** — ICC / per-output colour profiles and the
+      `wp_color_management` protocol; groundwork shared with HDR
+- [ ] **Night light / colour temperature** — scheduled warm-shift (also exposed in
+      Display settings); a simpler precursor that exercises the colour pipeline
+- [ ] **HDR** — wide-gamut / 10-bit GLES render path + DRM colour pipeline on top of
+      colour management (long-term; gated on protocol + Smithay maturity). A genuinely
+      rare thing for a lightweight DE — worth doing right rather than fast
 
 ---
 
@@ -323,7 +407,7 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 
 | Widget | Source |
 |--------|--------|
-| Workspaces | Metis compositor (single desktop stub) |
+| Workspaces | Metis compositor — live virtual workspaces (single output) |
 | Tasks | Running-apps dock — live compositor window state (`services/windows.rs`), per-app grouping, pin/minimize |
 | Clock | `chrono` + `GtkCalendar`, tabbed popover (world clocks, stopwatch, timer, alarms) |
 | Battery | `/sys/class/power_supply/BAT*` |

@@ -43,6 +43,15 @@ pub fn dispatch_workspace(id: u32) {
     if !(1..=count).contains(&id) {
         return;
     }
+    // Optimistic local update for snappy dot feedback; the compositor's
+    // `WorkspaceChanged` event is authoritative and reconciles this.
     ACTIVE_WORKSPACE.store(id, Ordering::Relaxed);
-    tracing::debug!(id, "workspace selected (compositor switch pending)");
+    if let Err(err) = crate::compositor::switch_workspace(id) {
+        tracing::warn!(id, %err, "failed to switch workspace");
+    }
+}
+
+/// Reconcile the active workspace from a compositor `WorkspaceChanged` event.
+pub fn set_active_workspace(id: u32) {
+    ACTIVE_WORKSPACE.store(id.max(1), Ordering::Relaxed);
 }

@@ -47,6 +47,9 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     crate::services::windows::reconcile_now();
                 }
                 SystemEvent::Compositor(evt) => {
+                    if let metis_protocol::CompositorEvent::WorkspaceChanged { active, .. } = &evt {
+                        crate::services::set_active_workspace(*active);
+                    }
                     crate::services::windows::apply_event(&evt);
                 }
                 SystemEvent::BriefingReady(items) => {

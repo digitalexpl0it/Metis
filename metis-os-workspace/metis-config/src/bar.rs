@@ -15,6 +15,22 @@ impl Default for BarPosition {
     }
 }
 
+/// Which outputs (monitors) the edge bar appears on in a multi-monitor session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BarDisplays {
+    /// One bar per connected output (default).
+    All,
+    /// A single bar on the primary output only.
+    Primary,
+}
+
+impl Default for BarDisplays {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClockConfig {
     #[serde(default = "default_time_format")]
@@ -215,6 +231,9 @@ impl Default for WindowBorder {
 pub struct BarConfig {
     #[serde(default)]
     pub position: BarPosition,
+    /// Which outputs the bar appears on (all monitors vs. primary only).
+    #[serde(default)]
+    pub displays: BarDisplays,
     #[serde(default = "default_height")]
     pub height: u32,
     /// Legacy field; vertical bars use `height` for cross-axis thickness so the
@@ -330,6 +349,7 @@ impl Default for BarConfig {
     fn default() -> Self {
         Self {
             position: BarPosition::Top,
+            displays: BarDisplays::default(),
             height: default_height(),
             width: default_width(),
             margin_top: default_margin_top(),

@@ -135,6 +135,14 @@ pub struct MetisState {
     pub grid_layout: GridLayout,
     pub gutter_px: u32,
     pub tile_modes: TileModeState,
+    /// The currently visible virtual workspace (1-based). Only this workspace's app
+    /// windows are mapped into `Space`; the rest are unmapped and their grid tiles
+    /// live in `stashed_app_tiles`.
+    pub active_workspace: u32,
+    /// App grid tiles for the inactive workspaces, keyed by workspace id. Desk
+    /// widget tiles are shared across workspaces and stay in `grid_layout`; only
+    /// `TileKind::App` tiles are stashed here while their workspace is hidden.
+    pub stashed_app_tiles: std::collections::HashMap<u32, Vec<metis_grid::GridTile>>,
     pub monitor: MonitorRect,
     pub ipc_listener: Option<std::os::unix::net::UnixListener>,
     pub events_listener: Option<std::os::unix::net::UnixListener>,
@@ -234,6 +242,8 @@ impl MetisState {
             grid_layout,
             gutter_px: 14,
             tile_modes: TileModeState::default(),
+            active_workspace: 1,
+            stashed_app_tiles: std::collections::HashMap::new(),
             monitor: MonitorRect {
                 x: 0,
                 y: 0,
@@ -811,9 +821,61 @@ impl MetisState {
     }
 
     pub fn arrange_layers(&self) {
-        if let Some(output) = self.space.outputs().next() {
+        for output in self.space.outputs() {
             layer_map_for_output(output).arrange();
         }
+    }
+
+    // --- Output registry helpers ------------------------------------------------
+    //
+    // The single source of truth for output geometry is the smithay `Space`. These
+    // helpers centralize "which output" decisions so the per-output refactor (Phase
+    // 3) only has to change the chokepoints below rather than ~15 scattered
+    // `space.outputs().next()` call sites. With one output they are equivalent to
+    // the old primary-only behavior.
+
+    /// The primary (first-registered) output, if any output is mapped yet.
+    pub fn primary_output(&self) -> Option<smithay::output::Output> {
+        self.space.outputs().next().cloned()
+    }
+
+    /// Global logical geometry of `output` as a `MonitorRect`.
+    pub fn output_rect(&self, output: &smithay::output::Output) -> Option<MonitorRect> {
+        self.space.output_geometry(output).map(|g| MonitorRect {
+            x: g.loc.x,
+            y: g.loc.y,
+            width: g.size.w,
+            height: g.size.h,
+        })
+    }
+
+    /// Geometry of the primary output, falling back to the cached `self.monitor`
+    /// (the configured default) before any output is mapped.
+    pub fn primary_monitor_rect(&self) -> MonitorRect {
+        self.primary_output()
+            .and_then(|o| self.output_rect(&o))
+            .unwrap_or(self.monitor)
+    }
+
+    /// Bounding rectangle of every output — the whole virtual desktop — in global
+    /// logical coords. Falls back to the cached monitor before any output maps.
+    /// Used for absolute-pointer mapping and cross-output window dragging.
+    pub fn desktop_bounds(&self) -> smithay::utils::Rectangle<i32, Logical> {
+        let mut bounds: Option<smithay::utils::Rectangle<i32, Logical>> = None;
+        for o in self.space.outputs() {
+            if let Some(g) = self.space.output_geometry(o) {
+                bounds = Some(match bounds {
+                    Some(b) => b.merge(g),
+                    None => g,
+                });
+            }
+        }
+        bounds.unwrap_or_else(|| {
+            smithay::utils::Rectangle::new(
+                Point::from((self.monitor.x, self.monitor.y)),
+                Size::from((self.monitor.width, self.monitor.height)),
+            )
+        })
     }
 
     /// Re-apply window geometry after the edge bar moves between reserved
@@ -866,7 +928,7 @@ impl MetisState {
             columns: self.grid_layout.columns,
             rows: self.grid_layout.rows,
             gutter: self.gutter_px,
-            monitor: self.monitor,
+            monitor: self.primary_monitor_rect(),
         }
     }
 
@@ -893,7 +955,7 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
-        let output = self.space.outputs().next().cloned();
+        let output = self.primary_output();
         let wl_surface = record.toplevel.wl_surface().clone();
 
         if enabled {
@@ -1374,9 +1436,9 @@ impl MetisState {
     /// `BAR_GAP_PX` is the thin padding kept between the edge bar and any window so
     /// the bar's drop shadow has breathing room and nothing visually touches it.
     pub fn usable_zone(&self) -> Option<PixelRect> {
-        let output = self.space.outputs().next()?;
-        let zone = layer_map_for_output(output).non_exclusive_zone();
-        let origin = self.space.output_geometry(output)?.loc;
+        let output = self.primary_output()?;
+        let zone = layer_map_for_output(&output).non_exclusive_zone();
+        let origin = self.space.output_geometry(&output)?.loc;
         Some(PixelRect {
             x: zone.loc.x + origin.x,
             y: zone.loc.y + origin.y,
@@ -1392,21 +1454,12 @@ impl MetisState {
         if let Some(zone) = self.usable_zone() {
             return zone;
         }
-        if let Some(output) = self.space.outputs().next() {
-            if let Some(g) = self.space.output_geometry(output) {
-                return PixelRect {
-                    x: g.loc.x,
-                    y: g.loc.y,
-                    width: g.size.w,
-                    height: g.size.h,
-                };
-            }
-        }
+        let monitor = self.primary_monitor_rect();
         PixelRect {
-            x: self.monitor.x,
-            y: self.monitor.y,
-            width: self.monitor.width as i32,
-            height: self.monitor.height as i32,
+            x: monitor.x,
+            y: monitor.y,
+            width: monitor.width as i32,
+            height: monitor.height as i32,
         }
     }
 
@@ -2133,6 +2186,156 @@ impl MetisState {
         });
     }
 
+    pub fn emit_workspace_changed(&self) {
+        use metis_protocol::CompositorEvent;
+        self.event_bus.emit(&CompositorEvent::WorkspaceChanged {
+            active: self.active_workspace,
+            count: self.workspace_count(),
+        });
+    }
+
+    /// Configured number of virtual workspaces (clamped to a sane 1..=12).
+    pub fn workspace_count(&self) -> u32 {
+        metis_config::load_bar_config().workspace_count.clamp(1, 12)
+    }
+
+    /// Show a different virtual workspace. Stashes the visible workspace's app
+    /// tiles (and unmaps its windows), then restores the target workspace's tiles
+    /// and remaps its windows. Desk widget tiles are shared and never stashed.
+    pub fn switch_workspace(&mut self, target: u32) {
+        let target = target.clamp(1, self.workspace_count());
+        if target == self.active_workspace {
+            return;
+        }
+        let current = self.active_workspace;
+
+        // Pull every app tile out of the live grid and remember it for `current`.
+        let mut stashed: Vec<metis_grid::GridTile> = Vec::new();
+        self.grid_layout.tiles.retain(|t| {
+            if matches!(t.kind, TileKind::App { .. }) {
+                stashed.push(t.clone());
+                false
+            } else {
+                true
+            }
+        });
+        // Hide the windows that just left the visible workspace.
+        for tile in &stashed {
+            if let TileKind::App { window_id: Some(wid), .. } = &tile.kind {
+                if let Some(record) = self.windows.get(*wid).cloned() {
+                    self.space.unmap_elem(&record.window);
+                }
+            }
+        }
+        self.stashed_app_tiles.insert(current, stashed);
+
+        self.active_workspace = target;
+
+        // Restore the target workspace's app tiles and remap its windows.
+        if let Some(tiles) = self.stashed_app_tiles.remove(&target) {
+            self.grid_layout.tiles.extend(tiles);
+        }
+        self.reposition_all_windows();
+        self.focus_topmost_on_active_workspace();
+
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+        self.emit_workspace_changed();
+    }
+
+    /// Move a window to another workspace. When it leaves or joins the visible
+    /// workspace its tile is stashed/restored and the window is hidden/shown.
+    pub fn move_window_to_workspace(&mut self, window_id: u32, target: u32) {
+        let target = target.clamp(1, self.workspace_count());
+        let Some(current) = self.windows.workspace(window_id) else {
+            return;
+        };
+        if target == current {
+            return;
+        }
+        self.windows.set_workspace(window_id, target);
+        let tile_id = format!("app-{window_id}");
+        let active = self.active_workspace;
+
+        if current == active {
+            // Leaving the visible workspace: stash its tile and hide it.
+            let mut moved: Vec<metis_grid::GridTile> = Vec::new();
+            self.grid_layout.tiles.retain(|t| {
+                if t.id == tile_id {
+                    moved.push(t.clone());
+                    false
+                } else {
+                    true
+                }
+            });
+            if let Some(record) = self.windows.get(window_id).cloned() {
+                self.space.unmap_elem(&record.window);
+            }
+            self.stashed_app_tiles.entry(target).or_default().extend(moved);
+            self.reposition_all_windows();
+            self.focus_topmost_on_active_workspace();
+        } else if target == active {
+            // Joining the visible workspace: pull its tile back into the grid.
+            if let Some(tiles) = self.stashed_app_tiles.get_mut(&current) {
+                if let Some(pos) = tiles.iter().position(|t| t.id == tile_id) {
+                    let tile = tiles.remove(pos);
+                    self.grid_layout.tiles.push(tile);
+                }
+            }
+            self.reposition_all_windows();
+        } else {
+            // Hidden-to-hidden: just relocate the stashed tile.
+            let tile = self
+                .stashed_app_tiles
+                .get_mut(&current)
+                .and_then(|tiles| {
+                    tiles
+                        .iter()
+                        .position(|t| t.id == tile_id)
+                        .map(|pos| tiles.remove(pos))
+                });
+            if let Some(tile) = tile {
+                self.stashed_app_tiles.entry(target).or_default().push(tile);
+            }
+        }
+
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+    }
+
+    /// Give keyboard focus to the topmost mapped window on the active workspace,
+    /// or clear focus if the workspace has no eligible window.
+    fn focus_topmost_on_active_workspace(&mut self) {
+        let Some(keyboard) = self.seat.get_keyboard() else {
+            return;
+        };
+        // `space.elements()` is bottom-to-top; the last match is the topmost.
+        let ordered: Vec<Window> = self.space.elements().cloned().collect();
+        let candidate = ordered.into_iter().rev().find_map(|w| {
+            let id = self.windows.id_for_window(&w)?;
+            let on_active = self.windows.workspace(id) == Some(self.active_workspace);
+            if on_active && !self.windows.is_minimized(id) {
+                Some((id, w))
+            } else {
+                None
+            }
+        });
+        let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+        match candidate {
+            Some((id, window)) => {
+                self.space.raise_element(&window, true);
+                keyboard.set_focus(self, Some(window.into()), serial);
+                self.event_bus
+                    .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+            }
+            None => {
+                keyboard.set_focus(self, Option::<KeyboardFocusTarget>::None, serial);
+            }
+        }
+    }
+
     pub fn handle_ipc(&mut self, cmd: CompositorCommand) -> metis_protocol::CompositorEvent {
         use metis_protocol::CompositorEvent;
         match cmd {
@@ -2217,6 +2420,23 @@ impl MetisState {
                 self.set_tile_mode(&tile_id, mode);
                 CompositorEvent::LayoutApplied
             }
+            CompositorCommand::SwitchWorkspace { id } => {
+                self.switch_workspace(id);
+                CompositorEvent::WorkspaceChanged {
+                    active: self.active_workspace,
+                    count: self.workspace_count(),
+                }
+            }
+            CompositorCommand::MoveWindowToWorkspace { window_id, workspace } => {
+                if self.windows.get(window_id).is_none() {
+                    CompositorEvent::Error {
+                        message: format!("window {window_id} not found"),
+                    }
+                } else {
+                    self.move_window_to_workspace(window_id, workspace);
+                    CompositorEvent::LayoutApplied
+                }
+            }
             CompositorCommand::SubscribeEvents => CompositorEvent::Pong,
             CompositorCommand::Launch { program } => {
                 // Route through spawn_client so the child inherits the nested
@@ -2253,6 +2473,7 @@ impl MetisState {
 
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
         let id = self.windows.register(window, title, app_id);
+        self.windows.set_workspace(id, self.active_workspace);
         self.ensure_app_tile_for_window(id);
     }
 

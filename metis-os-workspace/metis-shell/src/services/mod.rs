@@ -23,4 +23,4 @@ pub use poll::{
     WifiNetwork,
 };
 pub use weather::{spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
-pub use workspaces::{dispatch_workspace, workspace_snapshot, WorkspaceSnapshot};
+pub use workspaces::{dispatch_workspace, set_active_workspace, workspace_snapshot, WorkspaceSnapshot};

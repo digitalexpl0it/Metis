@@ -86,7 +86,11 @@ fn poll_loop(
     let mut last_sent = cached.clone();
 
     loop {
-        drain_audio_commands(&audio_rx);
+        // A user audio action (slider/mute/scroll) forces an immediate volume
+        // read-back below so *every* bar reflects the change within one poll cycle
+        // instead of waiting for the next 800ms volume tick — without this, bars
+        // other than the one whose popup is open lagged by several seconds.
+        let audio_changed = drain_audio_commands(&audio_rx);
         drain_network_commands(&network_rx);
 
         if tick % 4 == 0 {
@@ -102,7 +106,7 @@ fn poll_loop(
                 Vec::new()
             };
         }
-        if tick % 2 == 0 {
+        if tick % 2 == 0 || audio_changed {
             // Keep the last good reading when pactl times out / reports nothing,
             // so a transient failure doesn't snap sliders to 0 or flip mute state.
             if let Some(v) = read_volume_percent() {
@@ -131,8 +135,12 @@ fn poll_loop(
     }
 }
 
-fn drain_audio_commands(rx: &Receiver<AudioCommand>) {
+/// Returns true if at least one audio command was handled, so the caller can
+/// force an immediate volume read-back (fast cross-bar feedback).
+fn drain_audio_commands(rx: &Receiver<AudioCommand>) -> bool {
+    let mut handled = false;
     while let Ok(cmd) = rx.try_recv() {
+        handled = true;
         match cmd {
             AudioCommand::SetVolumeAbsolute(pct) => run_set_volume_absolute(pct),
             AudioCommand::SetVolumeRelative(delta) => run_set_volume_relative(delta),
@@ -141,6 +149,7 @@ fn drain_audio_commands(rx: &Receiver<AudioCommand>) {
             AudioCommand::SetMicMute(muted) => run_set_mic_mute(muted),
         }
     }
+    handled
 }
 
 fn queue_audio(cmd: AudioCommand) {

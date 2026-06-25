@@ -55,6 +55,12 @@ pub fn activate_window(id: u32) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Switch the active virtual workspace (1-based).
+pub fn switch_workspace(id: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SwitchWorkspace { id })?;
+    Ok(())
+}
+
 pub fn set_tile_mode(tile_id: &str, mode: TileMode) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::SetTileMode {
         tile_id: tile_id.to_string(),

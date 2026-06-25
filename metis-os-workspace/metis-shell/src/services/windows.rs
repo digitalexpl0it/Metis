@@ -16,19 +16,31 @@ pub struct WindowsSnapshot {
 
 thread_local! {
     static STORE: RefCell<WindowsSnapshot> = RefCell::new(WindowsSnapshot::default());
-    /// Repaint hook installed by the bar's tasks widget.
-    static REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+    /// Repaint hooks installed by each bar's tasks widget (one per output in a
+    /// multi-monitor session). Weak so a torn-down bar's hook drops itself.
+    static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Register a callback invoked whenever the window cache changes so the taskbar
-/// can repaint.
+/// Register a callback invoked whenever the window cache changes so every bar's
+/// taskbar can repaint. Each bar registers its own hook; dead hooks (from
+/// rebuilt/removed bars) are pruned on the next register/fire.
 pub fn register_refresh(cb: Rc<dyn Fn()>) {
-    REFRESH.with(|r| *r.borrow_mut() = Some(cb));
+    REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.push(Rc::downgrade(&cb));
+    });
 }
 
 fn fire_refresh() {
-    let cb = REFRESH.with(|r| r.borrow().clone());
-    if let Some(cb) = cb {
+    // Collect live callbacks first so we don't hold the REFRESH borrow while a
+    // callback runs (a callback may re-enter via register_refresh).
+    let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.iter().filter_map(std::rc::Weak::upgrade).collect()
+    });
+    for cb in callbacks {
         cb();
     }
 }
