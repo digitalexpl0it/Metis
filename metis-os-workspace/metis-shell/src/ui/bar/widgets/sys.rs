@@ -499,18 +499,43 @@ impl VolumeWidget {
         let updating = Rc::new(Cell::new(false));
         let suppress_until = Rc::new(Cell::new(Instant::now()));
 
+        // Late-bound so the row handlers can broadcast the *combined* audio state
+        // (output + input) to every bar after a user action — the real closure is
+        // installed below, once both rows (and their cells) exist.
+        let on_change_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+        let on_change: Rc<dyn Fn()> = {
+            let slot = on_change_slot.clone();
+            Rc::new(move || {
+                if let Some(cb) = slot.borrow().as_ref().cloned() {
+                    cb();
+                }
+            })
+        };
+
         let output = build_audio_row(
             &panel,
             AudioKind::Output,
             &updating,
             &suppress_until,
+            on_change.clone(),
         );
         let input = build_audio_row(
             &panel,
             AudioKind::Input,
             &updating,
             &suppress_until,
+            on_change.clone(),
         );
+
+        {
+            let out_p = output.percent.clone();
+            let out_m = output.muted.clone();
+            let in_p = input.percent.clone();
+            let in_m = input.muted.clone();
+            *on_change_slot.borrow_mut() = Some(Rc::new(move || {
+                crate::ui::bar::broadcast_audio(out_p.get(), out_m.get(), in_p.get(), in_m.get());
+            }));
+        }
 
         super::super::dropdown::wire_toggle(&root, &panel, "volume");
 
@@ -575,6 +600,37 @@ impl VolumeWidget {
             icons::set_icon(&self.input.mute_icon, names::mic(mic_percent, mic_muted));
         }
     }
+
+    /// Force the displayed audio state immediately (mirrors a user action made on
+    /// another bar). Bumps suppression so the lagging pactl read-back doesn't undo
+    /// it, and writes through `updating` so setting the slider doesn't re-fire the
+    /// value-changed handler.
+    pub fn apply_optimistic(&self, percent: u8, muted: bool, mic_percent: u8, mic_muted: bool) {
+        bump_suppress(&self.suppress_until);
+
+        self.last_out.set((percent, muted));
+        self.output.percent.set(percent);
+        self.output.muted.set(muted);
+        self.root
+            .set_tooltip_text(Some(&format!("Volume {percent}%")));
+        self.updating.set(true);
+        self.output
+            .scale
+            .set_value(f64::from(if muted { 0 } else { percent }));
+        self.updating.set(false);
+        icons::set_icon(&self.icon, names::volume(percent, muted));
+        icons::set_icon(&self.output.mute_icon, names::volume(percent, muted));
+
+        self.last_in.set((mic_percent, mic_muted));
+        self.input.percent.set(mic_percent);
+        self.input.muted.set(mic_muted);
+        self.updating.set(true);
+        self.input
+            .scale
+            .set_value(f64::from(if mic_muted { 0 } else { mic_percent }));
+        self.updating.set(false);
+        icons::set_icon(&self.input.mute_icon, names::mic(mic_percent, mic_muted));
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -588,6 +644,7 @@ fn build_audio_row(
     kind: AudioKind,
     updating: &Rc<Cell<bool>>,
     suppress_until: &Rc<Cell<Instant>>,
+    on_change: Rc<dyn Fn()>,
 ) -> AudioRow {
     let row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -630,6 +687,7 @@ fn build_audio_row(
         let updating = updating.clone();
         let scale = scale.clone();
         let set_mute_icon = set_mute_icon.clone();
+        let on_change = on_change.clone();
         mute_btn.connect_clicked(move |_| {
             let new_muted = !muted.get();
             muted.set(new_muted);
@@ -643,6 +701,7 @@ fn build_audio_row(
                 AudioKind::Output => crate::services::set_mute(new_muted),
                 AudioKind::Input => crate::services::set_mic_mute(new_muted),
             }
+            on_change();
         });
     }
     row.append(&mute_btn);
@@ -653,6 +712,7 @@ fn build_audio_row(
         let percent = percent.clone();
         let muted = muted.clone();
         let set_mute_icon = set_mute_icon.clone();
+        let on_change = on_change.clone();
         scale.connect_value_changed(move |scale| {
             if updating.get() {
                 return;
@@ -675,6 +735,7 @@ fn build_audio_row(
                 AudioKind::Output => crate::services::set_volume_absolute(pct),
                 AudioKind::Input => crate::services::set_mic_volume_absolute(pct),
             }
+            on_change();
         });
     }
     row.append(&scale);

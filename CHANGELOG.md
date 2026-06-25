@@ -53,9 +53,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     refresh registries held a single callback, so only the last-built bar updated
     instantly while others waited (5–10s) for an unrelated poll change. They now
     fan out to one (weak) hook per bar, so notifications and dock changes appear on
-    every display at once. Audio actions (volume/mute/scroll) also force an
-    immediate poll read-back so all bars reflect the new level within one cycle
-    instead of lagging several seconds behind the bar whose popover is open.
+    every display at once. Volume/mic slider and mute actions now broadcast the
+    new level to every bar instantly (optimistic, with poll suppression) so the
+    other displays update immediately instead of waiting for the pactl read-back;
+    audio actions also force an immediate poll read-back as a backstop.
   - **Popover positioning on secondary outputs** — `unconstrain_popup` now
     expresses the allowed area in the parent surface's local frame (subtracting the
     output's global origin as well as the layer offset), and toplevel popups

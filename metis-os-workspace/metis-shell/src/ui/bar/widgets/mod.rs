@@ -67,6 +67,20 @@ impl WidgetRefs {
         }
     }
 
+    /// Force the volume widget to show a user-driven audio change immediately,
+    /// bypassing the poll round-trip — used to mirror an action from another bar.
+    pub fn apply_volume_optimistic(
+        &self,
+        percent: u8,
+        muted: bool,
+        mic_percent: u8,
+        mic_muted: bool,
+    ) {
+        if let Some(w) = self.volume.borrow().as_ref() {
+            w.apply_optimistic(percent, muted, mic_percent, mic_muted);
+        }
+    }
+
     /// Weather arrives on its own (slow) channel, separate from the poll snapshot.
     pub fn apply_weather(&self, snapshot: &crate::services::WeatherSnapshot) {
         if let Some(w) = self.weather.borrow().as_ref() {

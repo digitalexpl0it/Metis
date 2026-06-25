@@ -646,6 +646,19 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
     });
 }
 
+/// Mirror a user audio change (volume/mic/mute) onto every bar immediately, so a
+/// multi-monitor session doesn't wait for the pactl poll round-trip to update the
+/// other displays' volume icons/sliders.
+pub fn broadcast_audio(percent: u8, muted: bool, mic_percent: u8, mic_muted: bool) {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            handle
+                .widget_refs
+                .apply_volume_optimistic(percent, muted, mic_percent, mic_muted);
+        }
+    });
+}
+
 pub fn rebuild_from_config() {
     // Clone the config Rc out and drop the BARS borrow *before* calling the
     // rebuild helpers, which re-borrow BARS mutably. Holding the borrow across the
