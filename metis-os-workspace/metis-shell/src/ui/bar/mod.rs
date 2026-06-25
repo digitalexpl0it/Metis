@@ -21,10 +21,18 @@ thread_local! {
     // The owning GTK application, kept so monitor hotplug / config changes can
     // build fresh bar windows without threading `app` through every call.
     static APP: RefCell<Option<gtk::Application>> = const { RefCell::new(None) };
+    // Keeps the GtkApplication alive even when it transiently owns zero windows
+    // (e.g. mid-rebuild when the display set changes). Without this the app would
+    // auto-quit the instant the last window is removed and tear down the Wayland
+    // connection ("Error flushing display: Broken pipe").
+    static APP_HOLD: RefCell<Option<gtk::gio::ApplicationHoldGuard>> = const { RefCell::new(None) };
     // Mirror of the active bar position, kept outside the `BARS` RefCell so
     // `popover_position()` can be read while `BARS` is mutably borrowed (e.g. from
     // within `rebuild_bars`, which builds widgets that query the popover side).
     static BAR_POSITION: Cell<BarPosition> = const { Cell::new(BarPosition::Top) };
+    // Set while a coalesced rebuild is queued, so a burst of config/monitor change
+    // triggers collapses into a single rebuild pass.
+    static REBUILD_SCHEDULED: Cell<bool> = const { Cell::new(false) };
 }
 
 struct BarHandle {
@@ -43,6 +51,7 @@ pub fn init_and_show(app: &gtk::Application) {
     }
 
     APP.with(|a| *a.borrow_mut() = Some(app.clone()));
+    APP_HOLD.with(|h| *h.borrow_mut() = Some(app.hold()));
 
     let config = Rc::new(RefCell::new(load_bar_config()));
     let cfg = config.borrow().clone();
@@ -89,6 +98,19 @@ fn build_bar(
         .default_width(win_w)
         .default_height(win_h)
         .build();
+
+    // Establish the layer-shell role, anchors, exclusive zone, and output binding
+    // *before* the window is realized or any child widgets are built. At startup
+    // GTK defers realization so ordering is forgiving, but building and presenting
+    // a fresh layer window at runtime (a displays-toggle / hotplug rebuild)
+    // realizes immediately — if the role/output aren't set first, gtk4-layer-shell
+    // can commit an invalid surface and the compositor drops the connection.
+    apply_layer_geometry(&window, &cfg);
+    // Bind to a specific output (multi-monitor); must be set before the surface is
+    // mapped. Omitted (None) lets the compositor place it on the primary output.
+    if let Some(monitor) = monitor {
+        window.set_monitor(monitor);
+    }
 
     let outer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     outer.add_css_class("metis-bar-outer");
@@ -144,12 +166,6 @@ fn build_bar(
         workspaces: workspace_snapshot(),
         ..Default::default()
     });
-    apply_layer_geometry(&window, &cfg);
-    // Bind to a specific output (multi-monitor); must be set before the surface is
-    // mapped. Omitted (None) lets the compositor place it on the primary output.
-    if let Some(monitor) = monitor {
-        window.set_monitor(monitor);
-    }
 
     // Defer map until layer-shell anchors/size are applied (avoids 0-height first commit).
     let show_window = window.clone();
@@ -539,17 +555,20 @@ fn rebuild_all_bars(config: Rc<RefCell<BarConfig>>) {
     let Some(app) = APP.with(|a| a.borrow().clone()) else {
         return;
     };
-    BARS.with(|bars| {
-        for handle in bars.borrow_mut().drain(..) {
-            handle.window.destroy();
-        }
-    });
     let cfg = config.borrow().clone();
-    let handles: Vec<BarHandle> = target_monitors(&cfg)
+    // Build the new bars *before* destroying the old ones so the application's
+    // window count never reaches zero — otherwise GtkApplication auto-quits the
+    // moment the last window is removed (then the display connection tears down:
+    // "Error flushing display: Broken pipe"). This also avoids a one-frame flash
+    // with no bar on screen.
+    let new_handles: Vec<BarHandle> = target_monitors(&cfg)
         .iter()
         .map(|m| build_bar(&app, config.clone(), m.as_ref()))
         .collect();
-    BARS.with(|bars| *bars.borrow_mut() = handles);
+    let old = BARS.with(|bars| std::mem::replace(&mut *bars.borrow_mut(), new_handles));
+    for handle in old {
+        handle.window.destroy();
+    }
 }
 
 fn watch_bar_config() {
@@ -660,6 +679,21 @@ pub fn broadcast_audio(percent: u8, muted: bool, mic_percent: u8, mic_muted: boo
 }
 
 pub fn rebuild_from_config() {
+    // Coalesce bursts: one settings change writes bar.json (which can emit several
+    // file-change events) *and* sends a `reload-bar` runtime command, so multiple
+    // rebuild triggers land within a few hundred ms. Collapsing them into a single
+    // deferred rebuild avoids overlapping teardown/rebuild passes racing each
+    // other (and the deferred surface present) while bars are being recreated.
+    if REBUILD_SCHEDULED.with(|f| f.replace(true)) {
+        return;
+    }
+    glib::timeout_add_local_once(std::time::Duration::from_millis(80), || {
+        REBUILD_SCHEDULED.with(|f| f.set(false));
+        rebuild_from_config_now();
+    });
+}
+
+fn rebuild_from_config_now() {
     // Clone the config Rc out and drop the BARS borrow *before* calling the
     // rebuild helpers, which re-borrow BARS mutably. Holding the borrow across the
     // call panics with "RefCell already borrowed".

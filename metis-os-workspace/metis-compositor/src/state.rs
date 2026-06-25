@@ -2829,7 +2829,21 @@ pub struct ClientState {
 
 impl ClientData for ClientState {
     fn initialized(&self, _client_id: ClientId) {}
-    fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
+    fn disconnected(&self, client_id: ClientId, reason: DisconnectReason) {
+        // A protocol error means a client (e.g. the shell's gtk4-layer-shell)
+        // sent something invalid and was force-disconnected; surface the exact
+        // object/code/message so these are diagnosable instead of silent.
+        match reason {
+            DisconnectReason::ProtocolError(err) => tracing::error!(
+                ?client_id,
+                object = %err.object_interface,
+                code = err.code,
+                message = %err.message,
+                "client disconnected: protocol error"
+            ),
+            other => tracing::info!(?client_id, ?other, "client disconnected"),
+        }
+    }
 }
 
 pub fn desk_config_path() -> std::path::PathBuf {

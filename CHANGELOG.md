@@ -90,6 +90,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Shell crash when changing the bar's "Show bar on" display set** — several
+  issues around rebuilding the per-output bars at runtime:
+  - Rebuilding destroyed every bar window *before* building the replacement, so the
+    `GtkApplication` briefly owned zero windows and auto-quit, tearing down the
+    Wayland connection ("Error flushing display: Broken pipe"). The rebuild now
+    builds the new bars first and destroys the old ones afterward (window count
+    never hits zero, no one-frame flash), and the shell holds the application alive
+    across transient zero-window states as a backstop.
+  - A fresh bar's layer-shell role/anchors/output binding are now established before
+    the window is realized or any child widgets are built — runtime window creation
+    realizes immediately (unlike the forgiving startup path), so out-of-order setup
+    could commit an invalid surface and get the client dropped.
+  - Rebuild triggers are coalesced: a single settings change writes `bar.json`
+    *and* sends `reload-bar`, so multiple rebuilds were storming in within a few
+    hundred ms and racing each other; they now collapse into one deferred pass.
+  - The compositor now logs client disconnects, including the exact object/code/
+    message of a Wayland protocol error, so client-kill bugs are diagnosable
+    instead of silent.
 - **Bottom edge-bar left too much gap below maximized/snapped windows** — overlay
   bars reserved an extra `SHADOW_PAD` (16px) of transparent pad above the pill, so
   windows stopped ~18px short of the visible bar regardless of the **Distance from
