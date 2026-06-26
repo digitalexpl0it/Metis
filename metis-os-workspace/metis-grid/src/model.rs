@@ -34,6 +34,17 @@ impl TileRect {
     }
 }
 
+/// Which arrangement model a workspace uses for its app windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum LayoutKind {
+    /// The manual reflowing tile grid (default).
+    #[default]
+    Grid,
+    /// A horizontally scrolling strip of columns (niri / PaperWM style).
+    Scroll,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TileKind {

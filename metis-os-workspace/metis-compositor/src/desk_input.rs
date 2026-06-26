@@ -94,6 +94,35 @@ impl MetisState {
             return DeskHit::Empty;
         };
 
+        // Scrolling workspaces position app windows from the strip, not the tile
+        // grid: test those frames first (topmost), then fall through to the desk's
+        // widget tiles (which sit behind the windows).
+        if self.active_layout_kind(&key) == metis_grid::LayoutKind::Scroll {
+            for (wid, full) in self.scroll_frames_for(&key) {
+                if !point_in_rect(x, y, full) {
+                    continue;
+                }
+                if point_in_rect(x, y, app_tile_body_rect(full)) {
+                    return DeskHit::AppBody { window_id: wid };
+                }
+                return DeskHit::AppHeader {
+                    tile_id: format!("app-{wid}"),
+                    window_id: wid,
+                };
+            }
+            for tile in &desk.layout.tiles {
+                if let TileKind::Widget { .. } = &tile.kind {
+                    let full = cell_to_pixels(&metrics, &tile.rect);
+                    if point_in_rect(x, y, full) {
+                        return DeskHit::WidgetTile {
+                            tile_id: tile.id.clone(),
+                        };
+                    }
+                }
+            }
+            return DeskHit::Empty;
+        }
+
         for tile in &desk.layout.tiles {
             let full = cell_to_pixels(&metrics, &tile.rect);
             if !point_in_rect(x, y, full) {
@@ -170,6 +199,10 @@ impl MetisState {
     }
 
     pub fn app_tile_body_rect(&self, window_id: u32) -> Option<PixelRect> {
+        // Scrolling workspace: the body comes from the strip frame.
+        if let Some(frame) = self.scroll_frame_for_window(window_id) {
+            return Some(app_tile_body_rect(frame));
+        }
         let key = self.desk_key_for_window(window_id);
         let metrics = match self.output_by_name(&key) {
             Some(o) => self.grid_metrics_for(&o),

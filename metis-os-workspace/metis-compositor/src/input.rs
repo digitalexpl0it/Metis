@@ -74,6 +74,47 @@ impl MetisState {
                                     return FilterResult::Intercept(());
                                 }
                             }
+                            if modifiers.logo {
+                                // Scrolling-layout navigation. Each helper only acts
+                                // (and reports `true`) when the workspace under the
+                                // pointer is in scroll mode, so these keys still
+                                // forward to apps on grid workspaces.
+                                let handled = match sym {
+                                    keysyms::KEY_Left if modifiers.shift => {
+                                        state.scroll_move_left()
+                                    }
+                                    keysyms::KEY_Right if modifiers.shift => {
+                                        state.scroll_move_right()
+                                    }
+                                    keysyms::KEY_Up if modifiers.shift => state.scroll_move_up(),
+                                    keysyms::KEY_Down if modifiers.shift => {
+                                        state.scroll_move_down()
+                                    }
+                                    keysyms::KEY_Left => state.scroll_focus_left(),
+                                    keysyms::KEY_Right => state.scroll_focus_right(),
+                                    keysyms::KEY_Up => state.scroll_focus_up(),
+                                    keysyms::KEY_Down => state.scroll_focus_down(),
+                                    keysyms::KEY_comma => state.scroll_consume(),
+                                    keysyms::KEY_period => state.scroll_expel(),
+                                    keysyms::KEY_minus | keysyms::KEY_equal => {
+                                        state.scroll_cycle_width()
+                                    }
+                                    _ => false,
+                                };
+                                if handled {
+                                    return FilterResult::Intercept(());
+                                }
+                                // Toggle grid <-> scroll for the active workspace
+                                // under the pointer.
+                                if sym == keysyms::KEY_backslash {
+                                    let key = state
+                                        .output_under_pointer()
+                                        .map(|o| o.name())
+                                        .unwrap_or_else(|| state.primary_key());
+                                    state.toggle_layout_kind(&key);
+                                    return FilterResult::Intercept(());
+                                }
+                            }
                             if modifiers.logo && sym == keysyms::KEY_q {
                                 if let Some(id) = state.focused_window_id() {
                                     state.close_window(id);

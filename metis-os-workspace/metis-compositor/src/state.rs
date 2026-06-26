@@ -98,6 +98,13 @@ pub struct OutputDesk {
     pub active_workspace: u32,
     /// App tiles for this output's hidden workspaces, keyed by workspace id.
     pub stashed_app_tiles: std::collections::HashMap<u32, Vec<metis_grid::GridTile>>,
+    /// Per-workspace layout mode (grid vs. scroll). Absent entries fall back to the
+    /// configured default; the grid tiles above remain the membership source of
+    /// truth in either mode.
+    pub layout_kind: std::collections::HashMap<u32, metis_grid::LayoutKind>,
+    /// Per-workspace scrolling-strip arrangement, used when that workspace's
+    /// `layout_kind` is `Scroll`.
+    pub scroll: std::collections::HashMap<u32, metis_grid::ScrollState>,
 }
 
 pub struct MetisState {
@@ -1001,6 +1008,8 @@ impl MetisState {
                     layout,
                     active_workspace: 1,
                     stashed_app_tiles: std::collections::HashMap::new(),
+                    layout_kind: std::collections::HashMap::new(),
+                    scroll: std::collections::HashMap::new(),
                 },
             );
         }
@@ -1029,6 +1038,284 @@ impl MetisState {
     /// Active workspace on the given output key (defaults to 1).
     pub fn active_workspace_for(&self, key: &str) -> u32 {
         self.desk(key).map(|d| d.active_workspace).unwrap_or(1)
+    }
+
+    // --- Scrolling layout -----------------------------------------------------
+
+    /// Layout mode new workspaces start in (from `bar.json`).
+    pub fn default_layout_kind(&self) -> metis_grid::LayoutKind {
+        match metis_config::load_bar_config().default_layout {
+            metis_config::DefaultLayout::Grid => metis_grid::LayoutKind::Grid,
+            metis_config::DefaultLayout::Scroll => metis_grid::LayoutKind::Scroll,
+        }
+    }
+
+    /// Layout mode of a specific workspace on an output (falls back to the default).
+    pub fn layout_kind_for(&self, key: &str, ws: u32) -> metis_grid::LayoutKind {
+        self.desk(key)
+            .and_then(|d| d.layout_kind.get(&ws).copied())
+            .unwrap_or_else(|| self.default_layout_kind())
+    }
+
+    /// Layout mode of the output's currently-active workspace.
+    pub fn active_layout_kind(&self, key: &str) -> metis_grid::LayoutKind {
+        self.layout_kind_for(key, self.active_workspace_for(key))
+    }
+
+    /// The bar-excluded usable zone for an output key, used as the scroll viewport.
+    fn scroll_zone_for(&self, key: &str) -> PixelRect {
+        match self.output_by_name(key) {
+            Some(o) => self.window_placement_zone_for(&o),
+            None => self.window_placement_zone(),
+        }
+    }
+
+    /// Full (titlebar-inclusive) frames for the active scroll workspace on `key`.
+    pub(crate) fn scroll_frames_for(&self, key: &str) -> Vec<(u32, PixelRect)> {
+        let ws = self.active_workspace_for(key);
+        let Some(desk) = self.desk(key) else {
+            return Vec::new();
+        };
+        let Some(scroll) = desk.scroll.get(&ws) else {
+            return Vec::new();
+        };
+        let zone = self.scroll_zone_for(key);
+        scroll.layout(zone, self.gutter_px as i32)
+    }
+
+    /// Full frame for a single window when its workspace is the active scroll
+    /// workspace on its output; `None` otherwise (so hidden windows stay unmapped).
+    pub(crate) fn scroll_frame_for_window(&self, id: u32) -> Option<PixelRect> {
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        if ws != self.active_workspace_for(&key) {
+            return None;
+        }
+        if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
+            return None;
+        }
+        self.scroll_frames_for(&key)
+            .into_iter()
+            .find(|(wid, _)| *wid == id)
+            .map(|(_, rect)| rect)
+    }
+
+    /// Mutable scroll state for an output's workspace, creating it on demand.
+    fn scroll_state_mut(&mut self, key: &str, ws: u32) -> &mut metis_grid::ScrollState {
+        self.desk_mut_or_default(key)
+            .scroll
+            .entry(ws)
+            .or_default()
+    }
+
+    /// Recompute the scroll offset for an output's active workspace so the focused
+    /// column is visible.
+    fn refresh_scroll_offset(&mut self, key: &str) {
+        let ws = self.active_workspace_for(key);
+        if self.layout_kind_for(key, ws) != metis_grid::LayoutKind::Scroll {
+            return;
+        }
+        let zone = self.scroll_zone_for(key);
+        let gutter = self.gutter_px as i32;
+        if let Some(scroll) = self.desk_mut_or_default(key).scroll.get_mut(&ws) {
+            scroll.scroll_x = scroll.desired_scroll_x(zone, gutter);
+        }
+    }
+
+    /// Drop a window from every output's scroll state (used on destroy / move).
+    fn remove_from_scroll_everywhere(&mut self, id: u32) {
+        for desk in self.desks.values_mut() {
+            for scroll in desk.scroll.values_mut() {
+                scroll.remove_window(id);
+            }
+        }
+    }
+
+    /// Set the layout mode of a specific (output, workspace) without repositioning.
+    /// Entering scroll seeds the strip from that workspace's app tiles (visible or
+    /// stashed); leaving scroll drops the strip and de-overlaps the visible grid.
+    fn set_layout_kind_on(&mut self, key: &str, ws: u32, kind: metis_grid::LayoutKind) {
+        if self.layout_kind_for(key, ws) == kind {
+            // Pin an explicit entry so a later default change can't silently flip it.
+            self.desk_mut_or_default(key).layout_kind.insert(ws, kind);
+            return;
+        }
+        let active = self.active_workspace_for(key);
+        // App window ids for this workspace, in tile order. The active workspace's
+        // tiles live in the visible layout; hidden workspaces' tiles are stashed.
+        let collect_ids = |tiles: &[metis_grid::GridTile]| -> Vec<u32> {
+            tiles
+                .iter()
+                .filter_map(|t| match &t.kind {
+                    TileKind::App { window_id: Some(wid), .. } => Some(*wid),
+                    _ => None,
+                })
+                .collect()
+        };
+        let app_ids: Vec<u32> = self
+            .desk(key)
+            .map(|d| {
+                if ws == active {
+                    collect_ids(&d.layout.tiles)
+                } else {
+                    d.stashed_app_tiles
+                        .get(&ws)
+                        .map(|t| collect_ids(t))
+                        .unwrap_or_default()
+                }
+            })
+            .unwrap_or_default();
+
+        match kind {
+            metis_grid::LayoutKind::Scroll => {
+                let mut scroll = metis_grid::ScrollState::new();
+                for wid in &app_ids {
+                    scroll.insert_window_after_focus(*wid);
+                }
+                if let Some(f) = self.focused_window_id() {
+                    scroll.focus_window(f);
+                }
+                let zone = self.scroll_zone_for(key);
+                let gutter = self.gutter_px as i32;
+                scroll.scroll_x = scroll.desired_scroll_x(zone, gutter);
+                let desk = self.desk_mut_or_default(key);
+                desk.scroll.insert(ws, scroll);
+                desk.layout_kind.insert(ws, kind);
+            }
+            metis_grid::LayoutKind::Grid => {
+                let desk = self.desk_mut_or_default(key);
+                desk.layout_kind.insert(ws, kind);
+                desk.scroll.remove(&ws);
+                if ws == active {
+                    metis_grid::sanitize_layout(&mut desk.layout);
+                }
+            }
+        }
+    }
+
+    /// Set the layout mode of an output's active workspace and apply it live.
+    pub fn set_layout_kind(&mut self, key: &str, kind: metis_grid::LayoutKind) {
+        let ws = self.active_workspace_for(key);
+        if self.layout_kind_for(key, ws) == kind {
+            return;
+        }
+        let focused = self.focused_window_id();
+        self.set_layout_kind_on(key, ws, kind);
+        self.reposition_all_windows();
+        if let Some(f) = focused {
+            self.focus_window_id(f);
+        }
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+    }
+
+    /// Apply a layout mode to every workspace on every output at once, so the
+    /// settings "New workspace layout" default behaves as a live global on/off.
+    pub fn set_layout_kind_all(&mut self, kind: metis_grid::LayoutKind) {
+        let count = self.workspace_count();
+        let keys: Vec<String> = self.desks.keys().cloned().collect();
+        let focused = self.focused_window_id();
+        for key in &keys {
+            for ws in 1..=count {
+                self.set_layout_kind_on(key, ws, kind);
+            }
+            self.refresh_scroll_offset(key);
+        }
+        self.reposition_all_windows();
+        if let Some(f) = focused {
+            self.focus_window_id(f);
+        }
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+    }
+
+    /// Flip the output's active workspace between grid and scroll.
+    pub fn toggle_layout_kind(&mut self, key: &str) {
+        let next = match self.active_layout_kind(key) {
+            metis_grid::LayoutKind::Grid => metis_grid::LayoutKind::Scroll,
+            metis_grid::LayoutKind::Scroll => metis_grid::LayoutKind::Grid,
+        };
+        self.set_layout_kind(key, next);
+    }
+
+    /// Give a window keyboard focus and raise it (mirrors `activate_window`'s tail).
+    pub fn focus_window_id(&mut self, id: u32) {
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            self.space.raise_element(&record.window, true);
+            let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+            keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+            self.event_bus
+                .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
+        }
+    }
+
+    /// Apply a scroll action to the output under the pointer's active scroll
+    /// workspace, then reposition and refocus. No-op unless that workspace is in
+    /// scroll mode.
+    fn with_active_scroll<F: FnOnce(&mut metis_grid::ScrollState)>(&mut self, f: F) -> bool {
+        let key = self
+            .output_under_pointer()
+            .map(|o| o.name())
+            .unwrap_or_else(|| self.primary_key());
+        let ws = self.active_workspace_for(&key);
+        if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
+            return false;
+        }
+        {
+            let scroll = self.scroll_state_mut(&key, ws);
+            f(scroll);
+        }
+        self.refresh_scroll_offset(&key);
+        self.reposition_all_windows();
+        let focused = self
+            .desk(&key)
+            .and_then(|d| d.scroll.get(&ws))
+            .and_then(|s| s.focused_window());
+        if let Some(f) = focused {
+            self.focus_window_id(f);
+        }
+        self.damaged = true;
+        self.request_redraw();
+        true
+    }
+
+    pub fn scroll_focus_left(&mut self) -> bool {
+        self.with_active_scroll(|s| s.focus_left())
+    }
+    pub fn scroll_focus_right(&mut self) -> bool {
+        self.with_active_scroll(|s| s.focus_right())
+    }
+    pub fn scroll_focus_up(&mut self) -> bool {
+        self.with_active_scroll(|s| s.focus_up())
+    }
+    pub fn scroll_focus_down(&mut self) -> bool {
+        self.with_active_scroll(|s| s.focus_down())
+    }
+    pub fn scroll_move_left(&mut self) -> bool {
+        self.with_active_scroll(|s| s.move_column_left())
+    }
+    pub fn scroll_move_right(&mut self) -> bool {
+        self.with_active_scroll(|s| s.move_column_right())
+    }
+    pub fn scroll_move_up(&mut self) -> bool {
+        self.with_active_scroll(|s| s.move_window_up())
+    }
+    pub fn scroll_move_down(&mut self) -> bool {
+        self.with_active_scroll(|s| s.move_window_down())
+    }
+    pub fn scroll_consume(&mut self) -> bool {
+        self.with_active_scroll(|s| s.consume_into_prev())
+    }
+    pub fn scroll_expel(&mut self) -> bool {
+        self.with_active_scroll(|s| s.expel_to_new_column())
+    }
+    pub fn scroll_cycle_width(&mut self) -> bool {
+        self.with_active_scroll(|s| s.cycle_focus_width())
     }
 
     /// Grid metrics (columns/rows/gutter + monitor rect) for a specific output.
@@ -1094,6 +1381,9 @@ impl MetisState {
             desk.layout.tiles.retain(|t| !matches_window(t));
             for tiles in desk.stashed_app_tiles.values_mut() {
                 tiles.retain(|t| !matches_window(t));
+            }
+            for scroll in desk.scroll.values_mut() {
+                scroll.remove_window(window_id);
             }
         }
     }
@@ -2281,6 +2571,10 @@ impl MetisState {
     }
 
     fn rect_for_window_tile(&self, id: u32) -> Option<PixelRect> {
+        // Scrolling workspaces position from the strip, not the tile grid.
+        if let Some(frame) = self.scroll_frame_for_window(id) {
+            return Some(frame);
+        }
         let key = self.desk_key_for_window(id);
         let desk = self.desk(&key)?;
         let tile = desk.layout.tiles.iter().find(|t| {
@@ -2397,6 +2691,11 @@ impl MetisState {
             desk.layout.tiles.push(tile);
         } else {
             desk.stashed_app_tiles.entry(ws).or_default().push(tile);
+        }
+        // Mirror membership into the scroll strip when this workspace scrolls.
+        if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll {
+            self.scroll_state_mut(&key, ws).insert_window_after_focus(id);
+            self.refresh_scroll_offset(&key);
         }
     }
 
@@ -2534,6 +2833,7 @@ impl MetisState {
                 desk.layout.tiles.extend(tiles);
             }
         }
+        self.refresh_scroll_offset(output_key);
         self.reposition_all_windows();
         self.focus_topmost_on_active_workspace();
 
@@ -2606,6 +2906,15 @@ impl MetisState {
                 desk.stashed_app_tiles.entry(target).or_default().push(tile);
             }
         }
+
+        // Keep the scroll strips in sync: drop from the source workspace, add to
+        // the target if it scrolls.
+        self.remove_from_scroll_everywhere(window_id);
+        if self.layout_kind_for(&key, target) == metis_grid::LayoutKind::Scroll {
+            self.scroll_state_mut(&key, target)
+                .insert_window_after_focus(window_id);
+        }
+        self.refresh_scroll_offset(&key);
 
         self.damaged = true;
         self.request_redraw();
@@ -2780,6 +3089,27 @@ impl MetisState {
                     self.move_window_to_workspace(window_id, workspace);
                     CompositorEvent::LayoutApplied
                 }
+            }
+            CompositorCommand::SetWorkspaceLayout { output, workspace, kind } => {
+                let key = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
+                    self.output_under_pointer()
+                        .map(|o| o.name())
+                        .unwrap_or_else(|| self.primary_key())
+                });
+                // A specific non-active workspace is set quietly (it's hidden);
+                // otherwise act on the output's active workspace (rebuilds the
+                // strip + repositions live).
+                match workspace {
+                    Some(ws) if ws != self.active_workspace_for(&key) => {
+                        self.set_layout_kind_on(&key, ws, kind);
+                    }
+                    _ => self.set_layout_kind(&key, kind),
+                }
+                CompositorEvent::LayoutApplied
+            }
+            CompositorCommand::SetDefaultLayout { kind } => {
+                self.set_layout_kind_all(kind);
+                CompositorEvent::LayoutApplied
             }
             CompositorCommand::SubscribeEvents => CompositorEvent::Pong,
             CompositorCommand::Launch { program } => {

@@ -26,6 +26,15 @@ pub fn apply_background() {
     }
 }
 
+/// Apply a layout mode (grid vs. scrolling) to every workspace on every output
+/// immediately, so changing the "New workspace layout" default acts as a live
+/// global on/off rather than only affecting future workspaces. Best-effort.
+pub fn apply_default_layout(kind: metis_protocol::LayoutKind) {
+    if let Err(err) = send_command(CompositorCommand::SetDefaultLayout { kind }) {
+        tracing::warn!(%err, "failed to apply default layout via compositor IPC");
+    }
+}
+
 /// Query the compositor for the connected outputs (name + geometry), primary
 /// first. Returns an empty list if the compositor is unreachable, so callers can
 /// degrade to a single global background.

@@ -208,10 +208,16 @@ so each milestone is shippable on its own:
       fanning out to all outputs in linked mode (each emits its own `WorkspaceChanged`).
 - [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs
 - [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
-- [ ] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
-      workspace as an alternative to tiling, selectable per-workspace; built as a
-      second layout mode in `metis-grid` (the reflow engine is already isolated +
-      pure, so tiling and scrolling can share the same window model)
+- [x] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
+      workspace, selectable per-workspace as a second mode in `metis-grid`
+      (`scroll.rs`: `ScrollState` of columns, each a vertical window stack). App
+      tiles stay the membership/stash source of truth; scroll mode only overrides
+      pixel placement + hit-testing. Toggle live with `Super`+`\`; settings default
+      for new workspaces via `bar.json#default_layout`. Keybinds (scroll workspace
+      only): `Super`+arrows focus, `Super`+`Shift`+arrows move, `Super`+`,`/`.`
+      consume/expel a window into/out of a column stack, `Super`+`-`/`=` cycle column
+      width. `SetWorkspaceLayout` IPC. _Remaining (later):_ scroll animation, cross-
+      output clamping of off-screen columns, vertical stacking polish.
 - [x] **Taskbar follows** — each output's dock shows only the windows on that
       output's currently-visible workspace (pinned launchers persist everywhere).
       `WindowInfo.output` carries the monitor name; the dock filters by
@@ -356,6 +362,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
   },
   "workspace_count": 4,
   "workspace_mode": "separate",
+  "default_layout": "grid",
   "taskbar_pinned": []
 }
 ```
@@ -390,6 +397,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `clock.timezones` | Extra zones listed in the calendar popover |
 | `workspace_count` | Number of workspace indicator dots (1–12) |
 | `workspace_mode` | Multi-monitor workspace behavior: `separate` (each output independent) or `linked` (all outputs switch together). Settings → Appearance → Edge bar → Workspaces |
+| `default_layout` | Layout mode: `grid` (tiling) or `scroll` (niri-style strip). Changing it in Settings → Appearance → Edge bar → New workspace layout applies live to every workspace; `Super`+`\` toggles a single workspace |
 | `taskbar_pinned` | App ids pinned to the `tasks` dock, in order (independent of `menu.json` launcher pins) |
 
 Edit `bar.json` while the shell runs — changes apply within ~1s (the compositor

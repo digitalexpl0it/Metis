@@ -9,6 +9,28 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Scrolling workspace layout (niri / PaperWM style)** — a second per-workspace
+  layout mode alongside the grid. App windows form a horizontal strip of columns,
+  each holding a vertical stack of windows; the viewport scrolls so the focused
+  column stays visible.
+  - **`metis-grid` scroll engine** — new `scroll.rs` (`ScrollState` / `ScrollColumn`
+    / `ColumnWidth`) with pure insert/remove/focus/move/consume/expel/width-cycle
+    ops and pixel-frame layout + scroll-into-view math. A `LayoutKind { Grid, Scroll }`
+    enum selects the mode.
+  - **Per-workspace mode** — each (output, workspace) tracks its own `layout_kind`
+    and scroll strip. App tiles remain the membership/stash source of truth, so
+    open/close, workspace switch/move, and dock filtering are unchanged; scroll mode
+    only overrides pixel placement and hit-testing.
+  - **Keybinds** (active scroll workspace only) — `Super`+arrows move focus across
+    columns / within a column; `Super`+`Shift`+arrows move the column / window;
+    `Super`+`,` consumes a window into the previous column, `Super`+`.` expels it to
+    a new column; `Super`+`-`/`=` cycles the focused column width. `Super`+`\`
+    toggles the active workspace between grid and scroll on any workspace.
+  - **Settings + IPC** — `bar.json#default_layout` (Settings → Appearance → Edge bar
+    → New workspace layout) acts as a live global on/off: changing it applies the
+    mode to every workspace on every output at once (`SetDefaultLayout` IPC). A
+    `SetWorkspaceLayout` command sets the mode for a single output/workspace.
+
 - **Per-output workspaces (Phase 3)** — each output now owns an independent set
   of virtual workspaces, Hyprland-style. Every monitor has its own active
   workspace and its own grid of app windows; switching one output never disturbs

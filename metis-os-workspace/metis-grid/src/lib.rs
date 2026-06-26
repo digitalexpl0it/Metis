@@ -3,6 +3,7 @@ mod layout;
 mod layout_engine;
 mod model;
 mod presets;
+mod scroll;
 mod snap_zones;
 mod tile_mode;
 
@@ -16,8 +17,9 @@ pub use layout_engine::{
     move_item, preview_move, repair_layout, resize_item, sanitize_layout, validate_layout,
     CompactType, EngineConfig,
 };
-pub use model::{GridLayout, GridTile, ReflowError, TileKind, TileRect};
+pub use model::{GridLayout, GridTile, LayoutKind, ReflowError, TileKind, TileRect};
 pub use presets::{apply_preset, remove_tile, TilePreset};
+pub use scroll::{ColumnWidth, ScrollColumn, ScrollState};
 pub use snap_zones::{
     drop_target_for_tile, monitor_point_from_grid_local, pixel_snap_target, snap_label,
     snap_target_at_point,

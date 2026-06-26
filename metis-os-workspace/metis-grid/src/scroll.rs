@@ -1,0 +1,440 @@
+//! Horizontally scrolling workspace layout (niri / PaperWM style).
+//!
+//! App windows form a horizontal strip of [`ScrollColumn`]s; each column holds a
+//! vertical stack of windows. The viewport ([`ScrollState::scroll_x`]) shifts the
+//! strip so the focused column stays visible. This module is pure arrangement
+//! logic — it stores window ids and computes pixel frames; the compositor maps
+//! the actual surfaces and draws decorations from those frames.
+
+use serde::{Deserialize, Serialize};
+
+use crate::layout::PixelRect;
+
+/// Preset column widths, as a fraction of the usable viewport width. Cycled with
+/// [`ColumnWidth::cycle`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ColumnWidth {
+    OneThird,
+    #[default]
+    Half,
+    TwoThirds,
+    Full,
+}
+
+impl ColumnWidth {
+    pub fn frac(self) -> f32 {
+        match self {
+            ColumnWidth::OneThird => 1.0 / 3.0,
+            ColumnWidth::Half => 0.5,
+            ColumnWidth::TwoThirds => 2.0 / 3.0,
+            ColumnWidth::Full => 1.0,
+        }
+    }
+
+    /// Step to the next preset, wrapping OneThird -> Half -> TwoThirds -> Full -> OneThird.
+    pub fn cycle(self) -> Self {
+        match self {
+            ColumnWidth::OneThird => ColumnWidth::Half,
+            ColumnWidth::Half => ColumnWidth::TwoThirds,
+            ColumnWidth::TwoThirds => ColumnWidth::Full,
+            ColumnWidth::Full => ColumnWidth::OneThird,
+        }
+    }
+}
+
+/// A single column in the scroll strip: a vertical stack of windows (top to
+/// bottom) plus the column's width preset and which window in the stack is focused.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScrollColumn {
+    pub windows: Vec<u32>,
+    #[serde(default)]
+    pub focus_row: usize,
+    #[serde(default)]
+    pub width: ColumnWidth,
+}
+
+impl ScrollColumn {
+    fn single(window: u32) -> Self {
+        Self {
+            windows: vec![window],
+            focus_row: 0,
+            width: ColumnWidth::default(),
+        }
+    }
+
+    fn clamp_focus(&mut self) {
+        if self.windows.is_empty() {
+            self.focus_row = 0;
+        } else if self.focus_row >= self.windows.len() {
+            self.focus_row = self.windows.len() - 1;
+        }
+    }
+}
+
+/// The scroll-strip arrangement for one workspace.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct ScrollState {
+    pub columns: Vec<ScrollColumn>,
+    #[serde(default)]
+    pub focus_col: usize,
+    /// Current viewport offset (px) into the strip; 0 shows the leftmost column.
+    #[serde(default)]
+    pub scroll_x: i32,
+}
+
+impl ScrollState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.columns.iter().all(|c| c.windows.is_empty())
+    }
+
+    pub fn contains(&self, window: u32) -> bool {
+        self.columns
+            .iter()
+            .any(|c| c.windows.contains(&window))
+    }
+
+    /// The currently focused window, if any.
+    pub fn focused_window(&self) -> Option<u32> {
+        let col = self.columns.get(self.focus_col)?;
+        col.windows.get(col.focus_row).copied()
+    }
+
+    fn clamp_focus(&mut self) {
+        if self.columns.is_empty() {
+            self.focus_col = 0;
+            return;
+        }
+        if self.focus_col >= self.columns.len() {
+            self.focus_col = self.columns.len() - 1;
+        }
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            col.clamp_focus();
+        }
+    }
+
+    /// Append a window as a brand-new column immediately to the right of the
+    /// focused column, and focus it. No-op if the window is already present.
+    pub fn insert_window_after_focus(&mut self, window: u32) {
+        if self.contains(window) {
+            return;
+        }
+        if self.columns.is_empty() {
+            self.columns.push(ScrollColumn::single(window));
+            self.focus_col = 0;
+        } else {
+            let at = (self.focus_col + 1).min(self.columns.len());
+            self.columns.insert(at, ScrollColumn::single(window));
+            self.focus_col = at;
+        }
+    }
+
+    /// Remove a window from the strip, dropping its column if it becomes empty.
+    pub fn remove_window(&mut self, window: u32) {
+        let mut removed = false;
+        for col in &mut self.columns {
+            if let Some(pos) = col.windows.iter().position(|&w| w == window) {
+                col.windows.remove(pos);
+                col.clamp_focus();
+                removed = true;
+                break;
+            }
+        }
+        if removed {
+            self.columns.retain(|c| !c.windows.is_empty());
+            self.clamp_focus();
+        }
+    }
+
+    pub fn focus_left(&mut self) {
+        if self.focus_col > 0 {
+            self.focus_col -= 1;
+        }
+    }
+
+    pub fn focus_right(&mut self) {
+        if self.focus_col + 1 < self.columns.len() {
+            self.focus_col += 1;
+        }
+    }
+
+    pub fn focus_up(&mut self) {
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            if col.focus_row > 0 {
+                col.focus_row -= 1;
+            }
+        }
+    }
+
+    pub fn focus_down(&mut self) {
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            if col.focus_row + 1 < col.windows.len() {
+                col.focus_row += 1;
+            }
+        }
+    }
+
+    pub fn move_column_left(&mut self) {
+        if self.focus_col > 0 {
+            self.columns.swap(self.focus_col, self.focus_col - 1);
+            self.focus_col -= 1;
+        }
+    }
+
+    pub fn move_column_right(&mut self) {
+        if self.focus_col + 1 < self.columns.len() {
+            self.columns.swap(self.focus_col, self.focus_col + 1);
+            self.focus_col += 1;
+        }
+    }
+
+    pub fn move_window_up(&mut self) {
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            if col.focus_row > 0 {
+                col.windows.swap(col.focus_row, col.focus_row - 1);
+                col.focus_row -= 1;
+            }
+        }
+    }
+
+    pub fn move_window_down(&mut self) {
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            if col.focus_row + 1 < col.windows.len() {
+                col.windows.swap(col.focus_row, col.focus_row + 1);
+                col.focus_row += 1;
+            }
+        }
+    }
+
+    /// Pull the focused window into the bottom of the previous column's stack.
+    /// No-op when the focused column is the leftmost.
+    pub fn consume_into_prev(&mut self) {
+        if self.focus_col == 0 || self.focus_col >= self.columns.len() {
+            return;
+        }
+        let Some(window) = self.focused_window() else {
+            return;
+        };
+        let col = &mut self.columns[self.focus_col];
+        col.windows.remove(col.focus_row);
+        col.clamp_focus();
+        let from = self.focus_col;
+        let prev = from - 1;
+        self.columns[prev].windows.push(window);
+        self.columns[prev].focus_row = self.columns[prev].windows.len() - 1;
+        if self.columns[from].windows.is_empty() {
+            self.columns.remove(from);
+        }
+        self.focus_col = prev;
+        self.clamp_focus();
+    }
+
+    /// Pop the focused window out of its stack into a new column to the right.
+    /// No-op when the focused column already holds just that one window.
+    pub fn expel_to_new_column(&mut self) {
+        let Some(col) = self.columns.get_mut(self.focus_col) else {
+            return;
+        };
+        if col.windows.len() <= 1 {
+            return;
+        }
+        let window = col.windows.remove(col.focus_row);
+        col.clamp_focus();
+        let at = self.focus_col + 1;
+        self.columns.insert(at, ScrollColumn::single(window));
+        self.focus_col = at;
+    }
+
+    pub fn cycle_focus_width(&mut self) {
+        if let Some(col) = self.columns.get_mut(self.focus_col) {
+            col.width = col.width.cycle();
+        }
+    }
+
+    /// Focus the column/row that holds `window`, if present.
+    pub fn focus_window(&mut self, window: u32) {
+        for (ci, col) in self.columns.iter_mut().enumerate() {
+            if let Some(ri) = col.windows.iter().position(|&w| w == window) {
+                self.focus_col = ci;
+                col.focus_row = ri;
+                return;
+            }
+        }
+    }
+
+    /// Compute the full (titlebar-inclusive) pixel frame for every window, laid
+    /// out left to right with `scroll_x` applied. `zone` is the bar-excluded
+    /// usable area in global logical coordinates.
+    pub fn layout(&self, zone: PixelRect, gutter: i32) -> Vec<(u32, PixelRect)> {
+        let mut out = Vec::new();
+        let mut cursor = zone.x - self.scroll_x;
+        for col in &self.columns {
+            let w = col_width_px(col.width, zone.width);
+            let n = col.windows.len().max(1) as i32;
+            let total_gut = gutter * (n - 1);
+            let cell_h = ((zone.height - total_gut) / n).max(1);
+            for (i, &window) in col.windows.iter().enumerate() {
+                let y = zone.y + i as i32 * (cell_h + gutter);
+                out.push((
+                    window,
+                    PixelRect {
+                        x: cursor,
+                        y,
+                        width: w,
+                        height: cell_h,
+                    },
+                ));
+            }
+            cursor += w + gutter;
+        }
+        out
+    }
+
+    /// The `scroll_x` value that brings the focused column fully into view (left
+    /// aligned when it's wider than the viewport). Callers store the result back
+    /// into [`ScrollState::scroll_x`].
+    pub fn desired_scroll_x(&self, zone: PixelRect, gutter: i32) -> i32 {
+        if self.columns.is_empty() {
+            return 0;
+        }
+        let mut start = 0;
+        for col in self.columns.iter().take(self.focus_col) {
+            start += col_width_px(col.width, zone.width) + gutter;
+        }
+        let width = self
+            .columns
+            .get(self.focus_col)
+            .map(|c| col_width_px(c.width, zone.width))
+            .unwrap_or(zone.width);
+
+        let mut scroll = self.scroll_x;
+        if width >= zone.width || start < scroll {
+            scroll = start;
+        } else if start + width > scroll + zone.width {
+            scroll = start + width - zone.width;
+        }
+        scroll.max(0)
+    }
+}
+
+fn col_width_px(width: ColumnWidth, zone_width: i32) -> i32 {
+    ((zone_width as f32) * width.frac()).round() as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ZONE: PixelRect = PixelRect {
+        x: 0,
+        y: 0,
+        width: 1200,
+        height: 800,
+    };
+
+    #[test]
+    fn insert_creates_columns_right_of_focus() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        s.insert_window_after_focus(3);
+        assert_eq!(s.columns.len(), 3);
+        assert_eq!(s.focused_window(), Some(3));
+        // Inserting in the middle: focus column 0 then insert.
+        s.focus_col = 0;
+        s.insert_window_after_focus(4);
+        assert_eq!(s.columns[1].windows, vec![4]);
+        assert_eq!(s.focused_window(), Some(4));
+    }
+
+    #[test]
+    fn insert_is_idempotent() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(1);
+        assert_eq!(s.columns.len(), 1);
+    }
+
+    #[test]
+    fn remove_drops_empty_column() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        s.remove_window(2);
+        assert_eq!(s.columns.len(), 1);
+        assert_eq!(s.focused_window(), Some(1));
+    }
+
+    #[test]
+    fn consume_and_expel_roundtrip() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        // focus is col 1 (window 2); consume into prev stacks it under window 1.
+        s.consume_into_prev();
+        assert_eq!(s.columns.len(), 1);
+        assert_eq!(s.columns[0].windows, vec![1, 2]);
+        assert_eq!(s.focused_window(), Some(2));
+        // expel pops window 2 back into its own column.
+        s.expel_to_new_column();
+        assert_eq!(s.columns.len(), 2);
+        assert_eq!(s.columns[1].windows, vec![2]);
+        assert_eq!(s.focused_window(), Some(2));
+    }
+
+    #[test]
+    fn cycle_width_changes_focus_column() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        assert_eq!(s.columns[0].width, ColumnWidth::Half);
+        s.cycle_focus_width();
+        assert_eq!(s.columns[0].width, ColumnWidth::TwoThirds);
+    }
+
+    #[test]
+    fn layout_places_columns_left_to_right() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        let frames = s.layout(ZONE, 10);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].0, 1);
+        assert_eq!(frames[0].1.x, 0);
+        // Half of 1200 = 600, + gutter 10.
+        assert_eq!(frames[0].1.width, 600);
+        assert_eq!(frames[1].1.x, 610);
+    }
+
+    #[test]
+    fn layout_stacks_within_column() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.consume_into_prev(); // single column, can't consume — still col 0
+        s.insert_window_after_focus(2);
+        s.consume_into_prev(); // stack 2 under 1 in col 0
+        let frames = s.layout(ZONE, 10);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].1.y, 0);
+        // (800 - 10) / 2 = 395, next y = 395 + 10 = 405.
+        assert_eq!(frames[0].1.height, 395);
+        assert_eq!(frames[1].1.y, 405);
+    }
+
+    #[test]
+    fn desired_scroll_brings_focus_into_view() {
+        let mut s = ScrollState::new();
+        for id in 1..=4 {
+            s.insert_window_after_focus(id);
+            s.cycle_focus_width(); // Half -> TwoThirds for variety not needed; keep
+            s.columns[s.focus_col].width = ColumnWidth::Half;
+        }
+        // Four half-width (600px) columns => strip much wider than 1200 viewport.
+        // Focused is the last column; scroll should reveal it.
+        let scroll = s.desired_scroll_x(ZONE, 10);
+        assert!(scroll > 0);
+    }
+}

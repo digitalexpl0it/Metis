@@ -49,6 +49,18 @@ impl Default for WorkspaceMode {
     }
 }
 
+/// The layout mode new workspaces start in. Mirrors `metis_grid::LayoutKind`
+/// without pulling the grid crate into config; the compositor maps between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DefaultLayout {
+    /// The manual reflowing tile grid (default).
+    #[default]
+    Grid,
+    /// A horizontally scrolling strip of columns (niri / PaperWM style).
+    Scroll,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClockConfig {
     #[serde(default = "default_time_format")]
@@ -302,6 +314,9 @@ pub struct BarConfig {
     /// How workspaces behave across multiple monitors (independent vs. linked).
     #[serde(default)]
     pub workspace_mode: WorkspaceMode,
+    /// Layout mode new workspaces start in (grid tiling vs. scrolling strip).
+    #[serde(default)]
+    pub default_layout: DefaultLayout,
     /// App ids pinned to the taskbar/dock, in display order. Independent of the
     /// launcher's `menu.json` pins. Persisted by the tasks widget.
     #[serde(default)]
@@ -388,6 +403,7 @@ impl Default for BarConfig {
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),
             workspace_mode: WorkspaceMode::default(),
+            default_layout: DefaultLayout::default(),
             taskbar_pinned: Vec::new(),
         }
     }

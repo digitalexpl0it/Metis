@@ -510,6 +510,19 @@ pub fn build() -> gtk::Widget {
         &workspace_mode_dd,
     ));
 
+    let default_layout_dd =
+        gtk::DropDown::from_strings(&["Grid tiling", "Scrolling"]);
+    default_layout_dd.set_selected(default_layout_to_index(bar.borrow().default_layout));
+    default_layout_dd.set_tooltip_text(Some(
+        "Applies to every workspace right away.\n\
+         Toggle a single workspace with Super + \\.",
+    ));
+    bar_body.append(&ui::row_with_icon(
+        "view-columns-symbolic",
+        "New workspace layout",
+        &default_layout_dd,
+    ));
+
     let edge_margin = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 64.0, 1.0);
     edge_margin.set_value(bar.borrow().margin_top as f64);
     edge_margin.set_size_request(200, -1);
@@ -809,6 +822,20 @@ pub fn build() -> gtk::Widget {
     }
     {
         let bar = bar.clone();
+        default_layout_dd.connect_selected_notify(move |dd| {
+            let layout = index_to_default_layout(dd.selected());
+            bar.borrow_mut().default_layout = layout;
+            save_bar(&bar.borrow());
+            // Apply live to every workspace so the dropdown is a real on/off switch,
+            // not just a seed for future workspaces.
+            runtime::apply_default_layout(match layout {
+                metis_config::DefaultLayout::Grid => metis_protocol::LayoutKind::Grid,
+                metis_config::DefaultLayout::Scroll => metis_protocol::LayoutKind::Scroll,
+            });
+        });
+    }
+    {
+        let bar = bar.clone();
         edge_margin.connect_value_changed(move |s| {
             bar.borrow_mut().margin_top = s.value().round() as u32;
             save_bar(&bar.borrow());
@@ -972,6 +999,7 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     on_disk.position = cfg.position;
     on_disk.displays = cfg.displays;
     on_disk.workspace_mode = cfg.workspace_mode;
+    on_disk.default_layout = cfg.default_layout;
     on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
@@ -1329,6 +1357,20 @@ fn index_to_workspace_mode(idx: u32) -> metis_config::WorkspaceMode {
     match idx {
         1 => metis_config::WorkspaceMode::Linked,
         _ => metis_config::WorkspaceMode::Separate,
+    }
+}
+
+fn default_layout_to_index(layout: metis_config::DefaultLayout) -> u32 {
+    match layout {
+        metis_config::DefaultLayout::Grid => 0,
+        metis_config::DefaultLayout::Scroll => 1,
+    }
+}
+
+fn index_to_default_layout(idx: u32) -> metis_config::DefaultLayout {
+    match idx {
+        1 => metis_config::DefaultLayout::Scroll,
+        _ => metis_config::DefaultLayout::Grid,
     }
 }
 

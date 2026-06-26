@@ -1,4 +1,4 @@
-pub use metis_grid::{GridLayout, GridMetrics, MonitorRect, PixelRect};
+pub use metis_grid::{GridLayout, GridMetrics, LayoutKind, MonitorRect, PixelRect};
 
 /// Commands sent from the Metis shell to the compositor.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -34,6 +34,20 @@ pub enum CompositorCommand {
     /// Move a window to another virtual workspace (1-based). If the target is not
     /// the active workspace the window is hidden until that workspace is shown.
     MoveWindowToWorkspace { window_id: u32, workspace: u32 },
+    /// Set the layout mode (grid vs. scrolling) of a workspace. `output` is an
+    /// output name (`None`/empty targets the output under the pointer); `workspace`
+    /// `None` targets that output's currently-active workspace.
+    SetWorkspaceLayout {
+        #[serde(default)]
+        output: Option<String>,
+        #[serde(default)]
+        workspace: Option<u32>,
+        kind: LayoutKind,
+    },
+    /// Apply a layout mode to every workspace on every output at once (used when
+    /// the settings "New workspace layout" default changes, so it acts as a live
+    /// global on/off rather than only seeding future workspaces).
+    SetDefaultLayout { kind: LayoutKind },
     Launch { program: String },
     /// End the Metis session: stop the compositor event loop so the session host
     /// (run script / display manager) tears the session down cleanly. Used by the
