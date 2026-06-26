@@ -1,15 +1,17 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 (edge bar, incl. the ArcMenu-style app launcher)
-complete; Phase 2 (`metis-settings` app + server-side window decorations) complete,
-including decoration polish (rounded button glyphs + focus-aware dimming),
-theme-aware + translucent titlebars with an auto-hide overlay for maximized /
-edge-snapped windows, and XWayland support. A taskbar / running-apps dock has
-landed on the edge bar (live window state over IPC). Phase 3 is underway —
-single-output **virtual workspaces** have landed (live bar dots + `Super`+`n`
-keybinds); next up are the output-agnostic refactor, multi-monitor, and an
-optional scrolling layout. Then Phase 4 (settings-app expansion into a full
-control center) and Phase 5 (display pipeline: VRR, colour management, HDR).
+**Current phase:** Phase 1 (edge bar, incl. the ArcMenu-style app launcher) and
+Phase 2 (`metis-settings` app + server-side window decorations) are complete —
+decoration polish, theme-aware + translucent auto-hiding titlebars, edge snapping,
+XWayland, and a taskbar / running-apps dock. Phase 3 (multi-monitor, workspaces &
+tiling) is largely done: the output-agnostic refactor, per-output edge bars +
+wallpaper + usable areas, independent **or** linked per-output virtual workspaces
+(live bar dots + `Super`+`n`), a dock that follows the output + workspace, and an
+optional niri/PaperWM-style **scrolling layout** selectable per workspace
+(`Super`+`\`). Remaining in Phase 3: cross-output window/workspace moves, richer
+automatic tiling, and the DRM/udev backend (deferred). Next: Phase 4 (settings-app
+expansion into a full control center) and Phase 5 (display pipeline: VRR, colour
+management, HDR).
 
 ---
 
@@ -297,16 +299,19 @@ Phase 3) — none of these are possible under the nested winit dev session.
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
 `clock.json`, `calendars.json`, `themes/dark.json`, `themes/light.json`. Created
-on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
-(compositor), `briefing.json` (optional, user-created).
+on demand: `config.json` (on preference change), `menu.json` (launcher defaults /
+pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
+`dismissed.json`, `desk.json` (compositor), `briefing.json` (optional, user-created).
 
 | File | Purpose |
 |------|---------|
-| `bar.json` | Edge bar layout and widgets |
+| `bar.json` | Edge bar layout, widgets, workspaces, borders, default layout |
 | `clock.json` | World clocks and alarms |
 | `calendars.json` | Calendar accounts |
 | `config.json` | Active theme, onboarding state, briefing-on-login |
-| `desk.json` | Compositor window-grid layout |
+| `menu.json` | App launcher: terminal + file-manager defaults, pinned apps |
+| `wallpaper.json` | Wallpaper picture / colour / gradient (+ per-output overrides) |
+| `desk.json` | Compositor window-grid layout (widget tiles) |
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |

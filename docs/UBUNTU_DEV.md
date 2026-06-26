@@ -28,6 +28,16 @@ cd metis-os-workspace/metis-shell
 ./run-metis.sh --build --session
 ```
 
+To exercise multi-monitor behaviour in the nested session, split the window into
+N side-by-side virtual outputs:
+
+```bash
+METIS_VIRTUAL_OUTPUTS=2 ./run-metis.sh --session
+```
+
+For day-to-day usage (keybinds, workspaces, scrolling layout, settings), see the
+[User Guide](USER_GUIDE.md).
+
 On first run, Metis writes defaults to `~/.config/metis/`:
 
 - `bar.json` — edge bar layout and widgets
@@ -38,6 +48,9 @@ On first run, Metis writes defaults to `~/.config/metis/`:
 Created later, on demand:
 
 - `config.json` — active theme, onboarding state, briefing-on-login (written when you change a preference)
+- `menu.json` — app launcher terminal / file-manager defaults and pinned apps
+- `wallpaper.json` — background picture / colour / gradient (and per-output overrides)
+- `weather.json` — bar weather unit, auto-detect / IP-geolocation, saved locations
 - `dismissed.json` — dismissed calendar reminders
 - `desk.json` — compositor window-grid layout (written by the compositor, same directory)
 - `briefing.json` — weather coordinates and RSS feed URL (optional; create it yourself)
