@@ -31,6 +31,24 @@ impl Default for BarDisplays {
     }
 }
 
+/// How virtual workspaces behave across multiple outputs (monitors).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorkspaceMode {
+    /// Each output owns an independent set of workspaces; switching one output's
+    /// workspace leaves the others alone (default).
+    Separate,
+    /// All outputs switch together: changing to workspace N moves every monitor to
+    /// its own workspace N at once.
+    Linked,
+}
+
+impl Default for WorkspaceMode {
+    fn default() -> Self {
+        Self::Separate
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClockConfig {
     #[serde(default = "default_time_format")]
@@ -281,6 +299,9 @@ pub struct BarConfig {
     /// Number of workspace indicator dots (1–12).
     #[serde(default = "default_workspace_count")]
     pub workspace_count: u32,
+    /// How workspaces behave across multiple monitors (independent vs. linked).
+    #[serde(default)]
+    pub workspace_mode: WorkspaceMode,
     /// App ids pinned to the taskbar/dock, in display order. Independent of the
     /// launcher's `menu.json` pins. Persisted by the tasks widget.
     #[serde(default)]
@@ -366,6 +387,7 @@ impl Default for BarConfig {
             widgets: default_widgets(),
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),
+            workspace_mode: WorkspaceMode::default(),
             taskbar_pinned: Vec::new(),
         }
     }

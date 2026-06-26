@@ -87,9 +87,16 @@ impl WidgetRefs {
             w.update(snapshot);
         }
     }
+
+    /// Repaint the workspace dots from the current per-output active workspace.
+    pub fn refresh_workspaces(&self) {
+        if let Some(w) = self.workspaces.borrow().as_ref() {
+            w.update(&crate::services::workspace_snapshot());
+        }
+    }
 }
 
-pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
+pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<String>) -> WidgetRefs {
     let refs = WidgetRefs {
         workspaces: RefCell::new(None),
         tasks: RefCell::new(None),
@@ -130,13 +137,13 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>) -> WidgetRefs {
                 root.append(&spacer);
             }
             BarWidgetId::Workspaces => {
-                let w = WorkspacesWidget::new(cfg.position);
+                let w = WorkspacesWidget::new(cfg.position, output.clone());
                 append_bar_widget(root, w.root(), bar_orientation);
-                w.update(&crate::services::workspace_snapshot());
+                w.update(&crate::services::workspace_snapshot_for(output.as_deref()));
                 *refs.workspaces.borrow_mut() = Some(w);
             }
             BarWidgetId::Tasks => {
-                let w = TasksWidget::new(compact);
+                let w = TasksWidget::new(compact, output.clone());
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.tasks.borrow_mut() = Some(w);
             }

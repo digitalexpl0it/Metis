@@ -62,7 +62,14 @@ impl MetisState {
                                             state.move_window_to_workspace(id, ws);
                                         }
                                     } else {
-                                        state.switch_workspace(ws);
+                                        // Target the output under the pointer; in
+                                        // linked mode this switches every output to
+                                        // the same workspace at once.
+                                        let key = state
+                                            .output_under_pointer()
+                                            .map(|o| o.name())
+                                            .unwrap_or_else(|| state.primary_key());
+                                        state.switch_workspace_routed(&key, ws);
                                     }
                                     return FilterResult::Intercept(());
                                 }

@@ -42,6 +42,9 @@ struct BarHandle {
     pill: gtk::Box,
     config: Rc<RefCell<BarConfig>>,
     widget_refs: widgets::WidgetRefs,
+    /// Compositor output name this bar is bound to (e.g. `metis-0`), used so its
+    /// workspace widget switches/reads that output's own workspaces.
+    output: Option<String>,
 }
 
 
@@ -111,6 +114,9 @@ fn build_bar(
     if let Some(monitor) = monitor {
         window.set_monitor(monitor);
     }
+    // The compositor output name this bar lives on (its workspace widget uses it to
+    // drive that output's own workspaces).
+    let output = monitor.and_then(monitor_output_name);
 
     let outer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     outer.add_css_class("metis-bar-outer");
@@ -161,7 +167,7 @@ fn build_bar(
     outer.append(&column);
     window.set_child(Some(&outer));
 
-    let widget_refs = widgets::build(&pill, config.clone());
+    let widget_refs = widgets::build(&pill, config.clone(), output.clone());
     widget_refs.apply_snapshot(&BarSnapshot {
         workspaces: workspace_snapshot(),
         ..Default::default()
@@ -181,7 +187,28 @@ fn build_bar(
         pill,
         config,
         widget_refs,
+        output,
     }
+}
+
+/// The compositor output name (e.g. `metis-0`) backing a GDK monitor. Under the
+/// nested Metis session GDK exposes the compositor's `wl_output` name via the
+/// monitor connector.
+fn monitor_output_name(monitor: &gtk::gdk::Monitor) -> Option<String> {
+    monitor
+        .connector()
+        .map(|c| c.to_string())
+        .filter(|c| !c.is_empty())
+}
+
+/// Repaint every bar's workspace dots from the current per-output active
+/// workspace (called after an optimistic switch or a `WorkspaceChanged` event).
+pub fn refresh_workspaces() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            handle.widget_refs.refresh_workspaces();
+        }
+    });
 }
 
 /// The outputs the bar should appear on, as GDK monitors. Returns at least one
@@ -542,7 +569,7 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
             while let Some(child) = handle.pill.first_child() {
                 handle.pill.remove(&child);
             }
-            handle.widget_refs = widgets::build(&handle.pill, config.clone());
+            handle.widget_refs = widgets::build(&handle.pill, config.clone(), handle.output.clone());
         }
     });
 }

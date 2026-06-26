@@ -24,9 +24,13 @@ pub struct WindowRecord {
     pub fullscreen: bool,
     pub maximized: bool,
     pub minimized: bool,
-    /// Virtual workspace this window lives on (1-based). Windows are created on the
-    /// active workspace; only the active workspace's windows are mapped into `Space`.
+    /// Virtual workspace this window lives on (1-based), scoped to its `output`.
+    /// A window is mapped into `Space` only while its output's active workspace
+    /// equals this value.
     pub workspace: u32,
+    /// Name of the output (monitor) this window belongs to. Empty until assigned
+    /// at registration. Per-output workspaces key off `(output, workspace)`.
+    pub output: String,
     /// True after the first buffer commit; probe toplevels that never commit are dropped quietly.
     pub ready: bool,
 }
@@ -76,6 +80,7 @@ impl WindowRegistry {
                 maximized: false,
                 minimized: false,
                 workspace: 1,
+                output: String::new(),
                 ready: false,
             },
         );
@@ -194,9 +199,19 @@ impl WindowRegistry {
         self.by_id.get(&id).map(|r| r.workspace)
     }
 
+    pub fn set_output(&mut self, id: u32, output: String) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.output = output;
+        }
+    }
+
+    pub fn output_name(&self, id: u32) -> Option<String> {
+        self.by_id.get(&id).map(|r| r.output.clone())
+    }
+
     /// Snapshot of ready windows. `focused` is left `false` here (the registry
-    /// has no seat access); the caller patches the focused id. `output` is a
-    /// placeholder (0) until multi-output lands later in Phase 3.
+    /// has no seat access); the caller patches the focused id. `output` is the
+    /// name of the monitor the window lives on (per-output workspaces).
     pub fn list(&self) -> Vec<WindowInfo> {
         self.by_id
             .values()
@@ -209,7 +224,7 @@ impl WindowRegistry {
                 fullscreen: r.fullscreen,
                 minimized: r.minimized,
                 focused: false,
-                output: 0,
+                output: r.output.clone(),
                 workspace: r.workspace,
             })
             .collect()

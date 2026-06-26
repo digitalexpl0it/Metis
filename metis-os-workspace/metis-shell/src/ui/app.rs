@@ -47,10 +47,22 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     crate::services::windows::reconcile_now();
                 }
                 SystemEvent::Compositor(evt) => {
-                    if let metis_protocol::CompositorEvent::WorkspaceChanged { active, .. } = &evt {
-                        crate::services::set_active_workspace(*active);
+                    if let metis_protocol::CompositorEvent::WorkspaceChanged { output, active, .. } =
+                        &evt
+                    {
+                        crate::services::set_active_workspace(output, *active);
+                        crate::ui::bar::refresh_workspaces();
+                        // Pull a fresh window list so each output's dock reflects
+                        // the now-visible workspace (and any cross-workspace move).
+                        crate::services::windows::reconcile_now();
                     }
                     crate::services::windows::apply_event(&evt);
+                    // A freshly opened window arrives without its output/workspace
+                    // (the event doesn't carry them); reconcile so dock filtering
+                    // routes it to the right bar promptly.
+                    if matches!(&evt, metis_protocol::CompositorEvent::WindowOpened { .. }) {
+                        crate::services::windows::reconcile_now();
+                    }
                 }
                 SystemEvent::BriefingReady(items) => {
                     tracing::info!(count = items.len(), "briefing ready");

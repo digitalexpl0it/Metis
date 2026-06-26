@@ -5,6 +5,44 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-25]
+
+### Added
+
+- **Per-output workspaces (Phase 3)** — each output now owns an independent set
+  of virtual workspaces, Hyprland-style. Every monitor has its own active
+  workspace and its own grid of app windows; switching one output never disturbs
+  the others.
+  - **Per-output desk state** — the compositor's single global grid /
+    `active_workspace` / stash was replaced by an `OutputDesk` per output
+    (`desks: HashMap<output, OutputDesk>`), seeded lazily as outputs map. The
+    primary output keeps the `desk.json` widget tiles; secondary outputs get an
+    app-only grid. Grid metrics, tiling, hit-testing, and window placement are
+    now computed against the window's (or cursor's) own output.
+  - **Window → output binding** — windows are tagged with the output they open
+    on (the one under the cursor) and tile within it; a window is mapped only
+    while its output's active workspace matches.
+  - **Keybinds** — `Super`+`1`…`9` switch the workspace on the output *under the
+    pointer*; `Super`+`Shift`+`1`…`9` move the focused window between its own
+    output's workspaces.
+  - **Per-output bar dots** — each monitor's edge bar drives and reflects its own
+    output's workspaces. The shell tracks active workspace per output and matches
+    each bar to its compositor output via the GDK monitor connector name.
+  - **Protocol** — `SwitchWorkspace` and `WorkspaceChanged` now carry an `output`
+    name (back-compatible default); `WorkspaceChanged` is emitted per output.
+  - **Workspace mode toggle** — Settings → Appearance → Edge bar → Workspaces lets
+    you pick `separate` (independent per output, default) or `linked` (every monitor
+    switches to the same workspace at once). Stored as `bar.json#workspace_mode`; the
+    compositor routes workspace switches (`Super`+`n` and `SwitchWorkspace`) through
+    `switch_workspace_routed`, fanning out to all outputs in linked mode.
+- **Taskbar follows the output + workspace** — each monitor's dock now shows only
+  the windows on that output's currently-visible workspace (pinned launchers still
+  appear everywhere). `WindowInfo.output` is populated with the window's monitor
+  name; the dock filters by `(output, active workspace)`, repaints on workspace
+  switch, and dedups per bar (so multiple monitors no longer thrash one shared
+  signature). The shell reconciles its window cache on workspace change / window
+  open so a window lands on the right dock immediately.
+
 ## [2026-06-24]
 
 ### Added
@@ -12,7 +50,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Multi-output groundwork (Phase 3)** — first slices of the output-agnostic
   refactor:
   - **Output-geometry foundation** — a centralized helper layer
-    (`primary_output` / `output_rect` / `primary_monitor_rect`) that
+    (`primary_output` / `output_rect` / `desktop_bounds`) that
     `grid_metrics`, `usable_zone`, `placement_zone`, `set_fullscreen`, and
     `arrange_layers` now route through instead of scattered
     `space.outputs().next()` / cached-`monitor` reads. Behavior is identical with
@@ -75,6 +113,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     it discovers outputs through the new `ListOutputs` IPC command
     (`CompositorEvent::OutputList` / `OutputInfo`). Sources are cached by path, so
     two displays sharing an image only read it from disk once.
+  - **Per-output window placement, snapping & maximize** — window management now
+    follows the monitor the cursor (or window) is on instead of always the primary
+    output. New floating windows open centered on the output **under the cursor**;
+    dragging a window to a screen edge snaps/tiles it on the **hovered** output;
+    the maximize button/zone fills the output the window currently sits on; and a
+    floating window is clamped within **its own** monitor so it's no longer yanked
+    back to the primary. Built on new output-resolution helpers (`output_at` /
+    `output_under_pointer` / `output_for_window`) plus output-parameterized zone
+    helpers (`usable_zone_for` / `placement_zone_for` / `window_placement_zone_for`
+    / `centered_rect_in`); the overlay-bar strip is now reserved only on outputs
+    that actually show a bar. Grid/tiling stays on the primary output until
+    per-output workspaces land. Single-output behavior is unchanged.
 - **Metis Menu settings page** — a new **Settings · Metis Menu** page gathers all
   launcher settings in one place, separate from the Edge bar card:
   - **Quick launchers** — choose which **terminal** and **file manager** the rail
@@ -90,6 +140,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Snapping/maximizing on a secondary output pulled the window toward the
+  primary** — the snap math was correct, but the follow-up auto-hide re-anchor
+  (`reclamp_auto_hide`, run after every snap/maximize) still clamped against the
+  *primary* output's zone, so a left-half snap on the second display was dragged
+  back across the monitor boundary (half on each screen). It now re-anchors within
+  the window's own output.
 - **Shell crash when changing the bar's "Show bar on" display set (root cause)** —
   removing a per-output bar tore down its `zwlr_layer_surface_v1`, and the
   compositor killed the shell with `invalid_size` ("width 0 requested without

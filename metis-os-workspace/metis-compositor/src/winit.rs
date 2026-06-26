@@ -144,6 +144,7 @@ pub fn init_winit(
         output.change_current_state(Some(mode), Some(Transform::Flipped180), None, Some(*pos));
         output.set_preferred(mode);
         state.space.map_output(&output, *pos);
+        state.ensure_desk_for_output(&output);
         logical_outputs.push(output);
     }
 

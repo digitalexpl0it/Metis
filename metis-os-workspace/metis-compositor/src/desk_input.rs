@@ -86,9 +86,15 @@ pub fn point_in_rect(x: i32, y: i32, rect: PixelRect) -> bool {
 
 impl MetisState {
     pub fn classify_hit(&self, x: i32, y: i32) -> DeskHit {
-        let metrics = self.grid_metrics();
+        let (metrics, key) = match self.output_at(Point::from((x, y))) {
+            Some(o) => (self.grid_metrics_for(&o), o.name()),
+            None => (self.grid_metrics(), self.primary_key()),
+        };
+        let Some(desk) = self.desk(&key) else {
+            return DeskHit::Empty;
+        };
 
-        for tile in &self.grid_layout.tiles {
+        for tile in &desk.layout.tiles {
             let full = cell_to_pixels(&metrics, &tile.rect);
             if !point_in_rect(x, y, full) {
                 continue;
@@ -128,7 +134,10 @@ impl MetisState {
     }
 
     fn is_gutter_hit(&self, x: i32, y: i32) -> bool {
-        let metrics = self.grid_metrics();
+        let metrics = match self.output_at(Point::from((x, y))) {
+            Some(o) => self.grid_metrics_for(&o),
+            None => self.grid_metrics(),
+        };
         let gutter = metrics.gutter as i32;
         if gutter <= 0 {
             return false;
@@ -161,8 +170,13 @@ impl MetisState {
     }
 
     pub fn app_tile_body_rect(&self, window_id: u32) -> Option<PixelRect> {
-        let metrics = self.grid_metrics();
-        for tile in &self.grid_layout.tiles {
+        let key = self.desk_key_for_window(window_id);
+        let metrics = match self.output_by_name(&key) {
+            Some(o) => self.grid_metrics_for(&o),
+            None => self.grid_metrics(),
+        };
+        let desk = self.desk(&key)?;
+        for tile in &desk.layout.tiles {
             let TileKind::App {
                 window_id: Some(wid),
                 ..

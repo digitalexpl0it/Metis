@@ -34,20 +34,17 @@ thread_local! {
     /// `TASK_POPOVER`). Tracked separately so it can always be torn down before its
     /// parent picker is, otherwise GTK finalizes a row that still owns this popover.
     static ROW_MENU: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
-    /// Signature of the last-rendered dock. The 5-second `ListWindows` reconcile
-    /// fires a refresh unconditionally; without this guard every reconcile would
-    /// tear the dock down (and dismiss an open picker/right-click menu) even when
-    /// nothing changed.
-    static LAST_SIG: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
-/// Content fingerprint of the dock: everything that affects what's drawn. Windows
-/// are sorted by id so a reconcile that merely reorders the list doesn't count as a
-/// change (which would needlessly rebuild and close any open popover).
-fn dock_signature(snap: &WindowsSnapshot, pinned: &[String]) -> String {
-    let mut wins: Vec<&WindowInfo> = snap.windows.iter().collect();
+/// Content fingerprint of the (already output/workspace-filtered) dock: everything
+/// that affects what's drawn. Windows are sorted by id so a reconcile that merely
+/// reorders the list doesn't count as a change (which would needlessly rebuild and
+/// close any open popover). The signature is per-widget, so each output's dock
+/// dedups against its own last render.
+fn dock_signature(windows: &[WindowInfo], focused: Option<u32>, pinned: &[String]) -> String {
+    let mut wins: Vec<&WindowInfo> = windows.iter().collect();
     wins.sort_by_key(|w| w.id);
-    let mut sig = format!("f:{:?}|", snap.focused);
+    let mut sig = format!("f:{focused:?}|");
     for w in wins {
         sig.push_str(&format!(
             "{}:{}:{}:{};",
@@ -95,7 +92,10 @@ pub struct TasksWidget {
 }
 
 impl TasksWidget {
-    pub fn new(vertical: bool) -> Self {
+    /// `output` is the compositor output name this bar lives on; the dock shows
+    /// only windows on that output's currently-visible workspace. `None` (a bar
+    /// not bound to a specific output) shows everything.
+    pub fn new(vertical: bool, output: Option<String>) -> Self {
         let row = gtk::Box::new(
             if vertical {
                 gtk::Orientation::Vertical
@@ -132,21 +132,21 @@ impl TasksWidget {
         root.set_propagate_natural_width(true);
         root.set_propagate_natural_height(true);
 
+        // Per-widget dedup signature (each output's dock has different content, so a
+        // shared global guard would make multiple bars thrash each other's renders).
+        // Fresh per widget, so a bar rebuilt after a bar.json change repaints once.
+        let last_sig: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+
         let refresh: Rc<dyn Fn()> = {
             let row = row.clone();
+            let output = output.clone();
+            let last_sig = last_sig.clone();
             Rc::new(move || {
                 let snap = windows::snapshot();
                 let pinned = load_bar_config().taskbar_pinned;
-                rebuild(&row, &snap, &pinned);
+                rebuild(&row, &snap, &pinned, output.as_deref(), &last_sig);
             })
         };
-
-        // This is a brand-new (empty) dock — e.g. the whole bar was rebuilt after a
-        // bar.json change like an opacity tweak. `LAST_SIG` is a thread-local that
-        // outlives the widget, so clear it; otherwise the first populate below sees
-        // an unchanged signature, early-returns, and the dock stays empty until some
-        // window event finally changes the signature.
-        LAST_SIG.with(|c| *c.borrow_mut() = None);
 
         windows::register_refresh(refresh.clone());
         refresh();
@@ -226,14 +226,39 @@ fn matches_app_id(entry: &AppEntry, needle: &str) -> bool {
             .is_some_and(|w| w.to_lowercase() == needle)
 }
 
-fn rebuild(row: &gtk::Box, snap: &WindowsSnapshot, pinned: &[String]) {
+fn rebuild(
+    row: &gtk::Box,
+    snap: &WindowsSnapshot,
+    pinned: &[String],
+    output: Option<&str>,
+    last_sig: &RefCell<Option<String>>,
+) {
+    // Show only the windows on this bar's output and its currently-visible
+    // workspace. Entries whose output/workspace aren't known yet (an event-folded
+    // open before the next reconcile) are kept so nothing flickers out.
+    let active_ws = crate::services::active_workspace_for(output);
+    let visible: Vec<WindowInfo> = snap
+        .windows
+        .iter()
+        .filter(|w| {
+            let out_ok = match output {
+                Some(o) => w.output.is_empty() || w.output == o,
+                None => true,
+            };
+            let ws_ok = w.workspace == 0 || w.workspace == active_ws;
+            out_ok && ws_ok
+        })
+        .cloned()
+        .collect();
+
     // Skip no-op rebuilds (e.g. the idle 5-second reconcile) so an open picker /
-    // right-click menu isn't dismissed when nothing actually changed.
-    let sig = dock_signature(snap, pinned);
-    if LAST_SIG.with(|c| c.borrow().as_deref() == Some(sig.as_str())) {
+    // right-click menu isn't dismissed when nothing actually changed. The active
+    // workspace is part of the signature so switching workspaces always repaints.
+    let sig = format!("ws:{active_ws}|{}", dock_signature(&visible, snap.focused, pinned));
+    if last_sig.borrow().as_deref() == Some(sig.as_str()) {
         return;
     }
-    LAST_SIG.with(|c| *c.borrow_mut() = Some(sig));
+    *last_sig.borrow_mut() = Some(sig);
 
     // Tear down any open picker/menu first: its button is about to be destroyed and
     // a popover still parented to a finalized button crashes GTK.
@@ -263,7 +288,7 @@ fn rebuild(row: &gtk::Box, snap: &WindowsSnapshot, pinned: &[String]) {
     };
 
     tracing::info!(
-        windows = snap.windows.len(),
+        windows = visible.len(),
         pinned = pinned.len(),
         "tasks: rebuilding dock"
     );
@@ -300,7 +325,7 @@ fn rebuild(row: &gtk::Box, snap: &WindowsSnapshot, pinned: &[String]) {
     }
 
     // Then running windows, merged into pinned groups or appended as new ones.
-    for w in &snap.windows {
+    for w in &visible {
         let (pin_id, key, name, icon, exec, resolved) = match w.app_id.as_deref() {
             Some(app_id) if !app_id.is_empty() => {
                 if let Some(e) = resolve(app_id) {

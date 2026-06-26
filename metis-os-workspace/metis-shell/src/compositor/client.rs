@@ -55,9 +55,10 @@ pub fn activate_window(id: u32) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Switch the active virtual workspace (1-based).
-pub fn switch_workspace(id: u32) -> std::io::Result<()> {
-    let _ = send_command(CompositorCommand::SwitchWorkspace { id })?;
+/// Switch the active virtual workspace (1-based) on `output` (output name, or
+/// `None` to target the output under the pointer).
+pub fn switch_workspace(output: Option<String>, id: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SwitchWorkspace { output, id })?;
     Ok(())
 }
 

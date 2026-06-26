@@ -1,17 +1,20 @@
 use gtk::prelude::*;
 
 use crate::config::BarPosition;
-use crate::services::{dispatch_workspace, WorkspaceSnapshot};
+use crate::services::{active_workspace_for, dispatch_workspace, WorkspaceSnapshot};
 
 const DOT_PX: i32 = 7;
 
 pub struct WorkspacesWidget {
     root: gtk::Box,
     buttons: gtk::Box,
+    /// Compositor output name this bar lives on, used to switch / read that
+    /// output's own workspaces. `None` for a bar not bound to a specific output.
+    output: Option<String>,
 }
 
 impl WorkspacesWidget {
-    pub fn new(position: BarPosition) -> Self {
+    pub fn new(position: BarPosition, output: Option<String>) -> Self {
         let axis = match position {
             BarPosition::Top | BarPosition::Bottom => gtk::Orientation::Horizontal,
             BarPosition::Left | BarPosition::Right => gtk::Orientation::Vertical,
@@ -37,7 +40,11 @@ impl WorkspacesWidget {
         buttons.set_halign(gtk::Align::Center);
         root.append(&buttons);
 
-        Self { root, buttons }
+        Self {
+            root,
+            buttons,
+            output,
+        }
     }
 
     pub fn root(&self) -> &gtk::Box {
@@ -49,13 +56,17 @@ impl WorkspacesWidget {
             self.buttons.remove(&child);
         }
 
+        // The active dot is this output's own active workspace, not the snapshot's
+        // (output-agnostic) value, so each monitor's bar reflects its own state.
+        let active_id = active_workspace_for(self.output.as_deref());
+
         let dots = if snapshot.workspaces.is_empty() {
             (0..4).map(|_| (0u32, false)).collect::<Vec<_>>()
         } else {
             snapshot
                 .workspaces
                 .iter()
-                .map(|ws| (ws.id, ws.id == snapshot.active_id))
+                .map(|ws| (ws.id, ws.id == active_id))
                 .collect()
         };
 
@@ -66,9 +77,12 @@ impl WorkspacesWidget {
                 dot.set_tooltip_text(Some("Metis desktop"));
             } else {
                 dot.set_tooltip_text(Some(&format!("Desktop {id}")));
+                let output = self.output.clone();
                 let gesture = gtk::GestureClick::new();
                 gesture.connect_pressed(move |_, _, _, _| {
-                    dispatch_workspace(id);
+                    dispatch_workspace(output.clone(), id);
+                    // Optimistic local repaint across all bars on this output.
+                    crate::ui::bar::refresh_workspaces();
                 });
                 dot.add_controller(gesture);
             }

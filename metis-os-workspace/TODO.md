@@ -171,10 +171,14 @@ so each milestone is shippable on its own:
       snapping, decorations, and IPC. _Started:_ centralized output-geometry
       helpers (`primary_output`/`output_rect`/`primary_monitor_rect`) now back
       `grid_metrics`/`usable_zone`/`placement_zone`/`set_fullscreen`/
-      `arrange_layers`. _Done:_ absolute-pointer mapping now spans all outputs
-      (`desktop_bounds`) and titlebar drags clamp to the whole desktop so windows
-      move between outputs. _Remaining:_ per-window output association, per-output
-      placement/snap routing, `GetMonitors` protocol.
+      `arrange_layers`. _Done:_ absolute-pointer mapping spans all outputs
+      (`desktop_bounds`) and titlebar drags clamp to the whole desktop; per-output
+      placement/snap routing — new windows open on the output under the cursor,
+      drag-to-edge snaps tile on the hovered output, maximize fills the window's
+      own output, and floating windows clamp within their own monitor
+      (`output_at`/`output_under_pointer`/`output_for_window` +
+      `*_zone_for(output)` zone helpers). _Remaining:_ per-output grid/tiling
+      (lands with per-output workspaces), `GetMonitors`-style protocol surface.
 - [~] **Virtual outputs under winit** — `METIS_VIRTUAL_OUTPUTS=2` tiles the
       nested window into two side-by-side logical outputs (dedicated full-window
       render output + multi-output layer/blur/frame loop). The test rig for the
@@ -182,21 +186,37 @@ so each milestone is shippable on its own:
 - [x] **Per-output edge bar** — one bar per output (`gtk4-layer-shell`
       `set_monitor`), rebuilt on monitor hotplug; `bar.json` `displays`
       (`all`/`primary`) + Settings control to limit it to the primary output.
-- [~] **Per-output state** — each output owns its own usable area, grid, and
-      wallpaper. _Done:_ per-output wallpaper — each display is cover-cropped to its
+- [x] **Per-output state** — each output owns its own usable area, grid, and
+      wallpaper. Per-output wallpaper — each display is cover-cropped to its
       own resolution and can carry its own picture via `wallpaper.json` `per_output`
       (Settings · Appearance · Per-display background; outputs discovered via the
-      `ListOutputs` IPC). _Remaining:_ per-output usable area/grid + per-output dock.
-- [ ] **Per-output workspaces** — Hyprland-style: each workspace is its own grid;
-      switch/move-to-workspace keybinds + IPC; the workspaces widget drives them
+      `ListOutputs` IPC); per-output usable area drives floating placement,
+      snapping, and maximize; per-output grid/tiling landed with per-output
+      workspaces below; per-output dock landed with "Taskbar follows" below.
+- [x] **Per-output workspaces** — Hyprland-style: each output owns an independent
+      set of workspaces, its own active workspace, and its own grid of app
+      windows. Compositor state is now per-output (`OutputDesk` per output: grid +
+      active workspace + stashed tiles); windows are tagged with their output and
+      map only while their output's active workspace matches. `Super`+`n` /
+      `Super`+`Shift`+`n` act on the output under the pointer; `SwitchWorkspace` /
+      `WorkspaceChanged` carry an output id; each per-output bar drives and
+      reflects its own output's workspaces (matched via the GDK monitor connector).
+- [x] **Workspace mode toggle** — Settings → Appearance → Edge bar → Workspaces
+      chooses `separate` (independent per output, default) or `linked` (every output
+      switches to the same workspace at once). `bar.json#workspace_mode`; the
+      compositor routes `Super`+`n` / `SwitchWorkspace` through `switch_workspace_routed`,
+      fanning out to all outputs in linked mode (each emits its own `WorkspaceChanged`).
 - [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs
 - [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
 - [ ] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
       workspace as an alternative to tiling, selectable per-workspace; built as a
       second layout mode in `metis-grid` (the reflow engine is already isolated +
       pure, so tiling and scrolling can share the same window model)
-- [ ] Taskbar follows: filter the dock to the current output + active workspace
-      (the `WindowInfo.output`/`workspace` fields are already reserved)
+- [x] **Taskbar follows** — each output's dock shows only the windows on that
+      output's currently-visible workspace (pinned launchers persist everywhere).
+      `WindowInfo.output` carries the monitor name; the dock filters by
+      `(output, active workspace)`, repaints on workspace switch, and dedups per
+      bar. The "Per-output state" per-output dock item is now also covered.
 - [ ] DRM/udev backend (real multi-seat sessions) — deferred until the above lands
 - [ ] **Settings portal (`org.freedesktop.portal.Settings`)** — once Metis runs as
       a standalone DE (not nested in GNOME), serve an empty GTK decoration layout so
@@ -335,6 +355,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
     "timezones": ["UTC"]
   },
   "workspace_count": 4,
+  "workspace_mode": "separate",
   "taskbar_pinned": []
 }
 ```
@@ -368,6 +389,7 @@ on demand: `config.json` (on preference change), `dismissed.json`, `desk.json`
 | `clock.time_format` / `date_format` | `chrono` format strings |
 | `clock.timezones` | Extra zones listed in the calendar popover |
 | `workspace_count` | Number of workspace indicator dots (1–12) |
+| `workspace_mode` | Multi-monitor workspace behavior: `separate` (each output independent) or `linked` (all outputs switch together). Settings → Appearance → Edge bar → Workspaces |
 | `taskbar_pinned` | App ids pinned to the `tasks` dock, in order (independent of `menu.json` launcher pins) |
 
 Edit `bar.json` while the shell runs — changes apply within ~1s (the compositor

@@ -117,7 +117,7 @@ pub fn apply_event(evt: &CompositorEvent) {
                         fullscreen: false,
                         minimized: false,
                         focused: false,
-                        output: 0,
+                        output: String::new(),
                         workspace: 0,
                     });
                 }

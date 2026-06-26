@@ -22,9 +22,15 @@ pub enum CompositorCommand {
     SetFullscreen { id: u32, enabled: bool },
     ApplyLayout { layout: GridLayout, gutter_px: u32 },
     SetTileMode { tile_id: String, mode: TileMode },
-    /// Switch the active virtual workspace (1-based). Out-of-range ids are clamped
-    /// to the configured workspace count.
-    SwitchWorkspace { id: u32 },
+    /// Switch the active virtual workspace (1-based) on a specific output. Out-of-range
+    /// ids are clamped to the configured workspace count. `output` is an output name
+    /// (as reported by `ListOutputs`); `None`/empty targets the output under the
+    /// pointer. Each output owns an independent set of workspaces.
+    SwitchWorkspace {
+        #[serde(default)]
+        output: Option<String>,
+        id: u32,
+    },
     /// Move a window to another virtual workspace (1-based). If the target is not
     /// the active workspace the window is hidden until that workspace is shown.
     MoveWindowToWorkspace { window_id: u32, workspace: u32 },
@@ -78,8 +84,14 @@ pub enum CompositorEvent {
     },
     LayoutApplied,
     MonitorChanged { rect: MonitorRect },
-    /// The active virtual workspace changed (1-based), with the current total count.
-    WorkspaceChanged { active: u32, count: u32 },
+    /// The active virtual workspace changed (1-based) on `output`, with the current
+    /// total count. Each output reports its own active workspace independently.
+    WorkspaceChanged {
+        #[serde(default)]
+        output: String,
+        active: u32,
+        count: u32,
+    },
     Error { message: String },
 }
 
@@ -94,9 +106,10 @@ pub struct WindowInfo {
     pub minimized: bool,
     #[serde(default)]
     pub focused: bool,
-    /// Output the window is currently on (0 until multi-output lands in Phase 3).
+    /// Name of the output (monitor) the window is currently on (e.g. `metis-0`).
+    /// Empty when not yet known (an event-folded entry before the next reconcile).
     #[serde(default)]
-    pub output: u32,
+    pub output: String,
     /// Virtual workspace the window belongs to (1-based).
     #[serde(default)]
     pub workspace: u32,

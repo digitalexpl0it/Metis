@@ -88,6 +88,18 @@ const DEFAULT_FLOAT_H: i32 = 660;
 /// down before it ever got a buffer) reopening as an unusable sliver.
 const MIN_SAVED_WINDOW_PX: i32 = 120;
 
+/// Per-output desktop state. Each output (monitor) owns an independent set of
+/// virtual workspaces: its visible grid (`layout`), which workspace is showing
+/// (`active_workspace`), and the hidden workspaces' app tiles (`stashed_app_tiles`).
+/// Desk widget tiles (clock/weather/…) only exist on the primary output's desk.
+pub struct OutputDesk {
+    pub layout: GridLayout,
+    /// Currently visible virtual workspace on this output (1-based).
+    pub active_workspace: u32,
+    /// App tiles for this output's hidden workspaces, keyed by workspace id.
+    pub stashed_app_tiles: std::collections::HashMap<u32, Vec<metis_grid::GridTile>>,
+}
+
 pub struct MetisState {
     pub start_time: std::time::Instant,
     pub socket_name: OsString,
@@ -132,17 +144,15 @@ pub struct MetisState {
     /// Persisted per-app floating geometry, so apps reopen where they were left.
     pub window_state: crate::window_state::WindowStateStore,
 
-    pub grid_layout: GridLayout,
+    /// Per-output desktops, keyed by output name. Created lazily as outputs map;
+    /// the first (primary) output's desk is seeded from `desk.json` (widgets),
+    /// secondary outputs get an app-only grid. See `OutputDesk`.
+    pub desks: std::collections::HashMap<String, OutputDesk>,
+    /// Baseline grid (columns/rows + widget tiles) loaded from `desk.json`, used to
+    /// seed the primary output's desk and to size secondary (app-only) desks.
+    pub default_layout: GridLayout,
     pub gutter_px: u32,
     pub tile_modes: TileModeState,
-    /// The currently visible virtual workspace (1-based). Only this workspace's app
-    /// windows are mapped into `Space`; the rest are unmapped and their grid tiles
-    /// live in `stashed_app_tiles`.
-    pub active_workspace: u32,
-    /// App grid tiles for the inactive workspaces, keyed by workspace id. Desk
-    /// widget tiles are shared across workspaces and stay in `grid_layout`; only
-    /// `TileKind::App` tiles are stashed here while their workspace is hidden.
-    pub stashed_app_tiles: std::collections::HashMap<u32, Vec<metis_grid::GridTile>>,
     pub monitor: MonitorRect,
     pub ipc_listener: Option<std::os::unix::net::UnixListener>,
     pub events_listener: Option<std::os::unix::net::UnixListener>,
@@ -239,11 +249,10 @@ impl MetisState {
             auto_hide_titlebar: std::collections::HashSet::new(),
             revealed_titlebar: None,
             window_state: crate::window_state::WindowStateStore::load(),
-            grid_layout,
+            desks: std::collections::HashMap::new(),
+            default_layout: grid_layout,
             gutter_px: 14,
             tile_modes: TileModeState::default(),
-            active_workspace: 1,
-            stashed_app_tiles: std::collections::HashMap::new(),
             monitor: MonitorRect {
                 x: 0,
                 y: 0,
@@ -322,18 +331,7 @@ impl MetisState {
     }
 
     pub fn tile_id_for_window(&self, window_id: u32) -> Option<String> {
-        self.grid_layout.tiles.iter().find_map(|t| {
-            if let TileKind::App {
-                window_id: Some(wid),
-                ..
-            } = &t.kind
-            {
-                if *wid == window_id {
-                    return Some(t.id.clone());
-                }
-            }
-            None
-        })
+        self.find_app_tile(window_id).map(|(_, t)| t.id)
     }
 
     /// App windows slotted in the desk grid — not free-floating or fullscreen.
@@ -381,7 +379,12 @@ impl MetisState {
     /// the bar). Returns the final *client* rect (gaps already applied to match
     /// the maximize look) + label, or `None` when the pointer isn't near an edge.
     pub fn snap_target_at(&self, x: i32, y: i32) -> Option<(PixelRect, &'static str)> {
-        let place = self.window_placement_zone();
+        // Snap against the output the pointer is over, so dragging a window to a
+        // secondary monitor's edge tiles it on *that* monitor.
+        let place = match self.output_at(Point::from((x, y))) {
+            Some(output) => self.window_placement_zone_for(&output),
+            None => self.window_placement_zone(),
+        };
         let pos = metis_config::load_bar_config().position;
 
         // Snap geometry is computed in `place` (beside the bar). When the pointer
@@ -849,14 +852,6 @@ impl MetisState {
         })
     }
 
-    /// Geometry of the primary output, falling back to the cached `self.monitor`
-    /// (the configured default) before any output is mapped.
-    pub fn primary_monitor_rect(&self) -> MonitorRect {
-        self.primary_output()
-            .and_then(|o| self.output_rect(&o))
-            .unwrap_or(self.monitor)
-    }
-
     /// Bounding rectangle of every output — the whole virtual desktop — in global
     /// logical coords. Falls back to the cached monitor before any output maps.
     /// Used for absolute-pointer mapping and cross-output window dragging.
@@ -876,6 +871,53 @@ impl MetisState {
                 Size::from((self.monitor.width, self.monitor.height)),
             )
         })
+    }
+
+    /// The output whose logical geometry contains `point` (global logical
+    /// coords), falling back to the primary output when the point is off every
+    /// output. Used to route placement, snapping, and maximize to the monitor a
+    /// window or the cursor is actually on.
+    pub fn output_at(&self, point: Point<i32, Logical>) -> Option<smithay::output::Output> {
+        self.space
+            .outputs()
+            .find(|o| {
+                self.space
+                    .output_geometry(o)
+                    .is_some_and(|g| g.contains(point))
+            })
+            .cloned()
+            .or_else(|| self.primary_output())
+    }
+
+    /// The output currently under the pointer, falling back to primary.
+    pub fn output_under_pointer(&self) -> Option<smithay::output::Output> {
+        match self.seat.get_pointer() {
+            Some(p) => {
+                let loc = p.current_location();
+                self.output_at(Point::from((loc.x.round() as i32, loc.y.round() as i32)))
+            }
+            None => self.primary_output(),
+        }
+    }
+
+    /// The output a window `id` sits on, decided by its center point (live
+    /// geometry preferred, else its target rect), falling back to primary.
+    pub fn output_for_window(&self, id: u32) -> Option<smithay::output::Output> {
+        let rect = self
+            .window_body_rect(id)
+            .or_else(|| self.windows.target_rect(id))?;
+        let center = Point::from((rect.x + rect.width / 2, rect.y + rect.height / 2));
+        self.output_at(center)
+    }
+
+    /// True when `output` carries a Metis edge bar layer surface. Overlay bars
+    /// (bottom/left/right) don't set a layer-shell exclusive zone, so window
+    /// placement reserves their strip manually — but only on the outputs that
+    /// actually show a bar (e.g. not on secondaries in "primary display only").
+    fn output_has_bar(&self, output: &smithay::output::Output) -> bool {
+        layer_map_for_output(output)
+            .layers()
+            .any(|l| l.namespace() == "metis-bar")
     }
 
     /// Re-apply window geometry after the edge bar moves between reserved
@@ -923,12 +965,136 @@ impl MetisState {
         self.reflow_for_bar_geometry_change();
     }
 
-    pub fn grid_metrics(&self) -> GridMetrics {
+    // --- Per-output desk helpers -----------------------------------------------
+
+    /// The output with the given name, if mapped.
+    pub fn output_by_name(&self, name: &str) -> Option<smithay::output::Output> {
+        self.space.outputs().find(|o| o.name() == name).cloned()
+    }
+
+    /// Desk key (output name) of the primary output, falling back to any existing
+    /// desk, then the empty string before any output/desk exists.
+    pub fn primary_key(&self) -> String {
+        self.primary_output()
+            .map(|o| o.name())
+            .or_else(|| self.desks.keys().next().cloned())
+            .unwrap_or_default()
+    }
+
+    /// Desk for an output key, if it exists.
+    pub fn desk(&self, key: &str) -> Option<&OutputDesk> {
+        self.desks.get(key)
+    }
+
+    /// Desk for an output key, creating it on demand. The first desk created is
+    /// the primary (seeded with widgets from `desk.json`); later ones are app-only.
+    pub fn desk_mut_or_default(&mut self, key: &str) -> &mut OutputDesk {
+        if !self.desks.contains_key(key) {
+            let is_primary = self.desks.is_empty();
+            let mut layout = self.default_layout.clone();
+            if !is_primary {
+                layout.tiles.retain(|t| matches!(t.kind, TileKind::App { .. }));
+            }
+            self.desks.insert(
+                key.to_string(),
+                OutputDesk {
+                    layout,
+                    active_workspace: 1,
+                    stashed_app_tiles: std::collections::HashMap::new(),
+                },
+            );
+        }
+        self.desks.get_mut(key).unwrap()
+    }
+
+    /// Ensure a desk exists for `output` (called when an output is mapped).
+    pub fn ensure_desk_for_output(&mut self, output: &smithay::output::Output) {
+        let key = output.name();
+        let _ = self.desk_mut_or_default(&key);
+    }
+
+    /// Desk key (output name) a window belongs to. Prefers its assigned `output`,
+    /// then the output under its geometry, then the primary.
+    pub fn desk_key_for_window(&self, id: u32) -> String {
+        if let Some(name) = self.windows.output_name(id) {
+            if !name.is_empty() && self.desks.contains_key(&name) {
+                return name;
+            }
+        }
+        self.output_for_window(id)
+            .map(|o| o.name())
+            .unwrap_or_else(|| self.primary_key())
+    }
+
+    /// Active workspace on the given output key (defaults to 1).
+    pub fn active_workspace_for(&self, key: &str) -> u32 {
+        self.desk(key).map(|d| d.active_workspace).unwrap_or(1)
+    }
+
+    /// Grid metrics (columns/rows/gutter + monitor rect) for a specific output.
+    pub fn grid_metrics_for(&self, output: &smithay::output::Output) -> GridMetrics {
+        let key = output.name();
+        let (columns, rows) = self
+            .desk(&key)
+            .map(|d| (d.layout.columns, d.layout.rows))
+            .unwrap_or((self.default_layout.columns, self.default_layout.rows));
         GridMetrics {
-            columns: self.grid_layout.columns,
-            rows: self.grid_layout.rows,
+            columns,
+            rows,
             gutter: self.gutter_px,
-            monitor: self.primary_monitor_rect(),
+            monitor: self.output_rect(output).unwrap_or(self.monitor),
+        }
+    }
+
+    /// Grid metrics for the primary output (back-compat for output-agnostic call sites).
+    pub fn grid_metrics(&self) -> GridMetrics {
+        match self.primary_output() {
+            Some(o) => self.grid_metrics_for(&o),
+            None => GridMetrics {
+                columns: self.default_layout.columns,
+                rows: self.default_layout.rows,
+                gutter: self.gutter_px,
+                monitor: self.monitor,
+            },
+        }
+    }
+
+    /// Find the app tile for `window_id` across all outputs' visible layouts,
+    /// returning its output key and a clone of the tile.
+    pub fn find_app_tile(&self, window_id: u32) -> Option<(String, metis_grid::GridTile)> {
+        for (key, desk) in &self.desks {
+            for tile in &desk.layout.tiles {
+                if let TileKind::App { window_id: Some(wid), .. } = &tile.kind {
+                    if *wid == window_id {
+                        return Some((key.clone(), tile.clone()));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Output key whose visible layout currently contains `tile_id`.
+    pub fn desk_key_for_tile(&self, tile_id: &str) -> Option<String> {
+        self.desks.iter().find_map(|(key, desk)| {
+            desk.layout
+                .tiles
+                .iter()
+                .any(|t| t.id == tile_id)
+                .then(|| key.clone())
+        })
+    }
+
+    /// Drop a window's app tile from every desk (visible and stashed).
+    fn remove_app_tile_everywhere(&mut self, window_id: u32) {
+        let matches_window = |t: &metis_grid::GridTile| {
+            matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == window_id)
+        };
+        for desk in self.desks.values_mut() {
+            desk.layout.tiles.retain(|t| !matches_window(t));
+            for tiles in desk.stashed_app_tiles.values_mut() {
+                tiles.retain(|t| !matches_window(t));
+            }
         }
     }
 
@@ -1013,8 +1179,12 @@ impl MetisState {
             // Hyprland-style gap on every side, so the window floats inside the
             // screen rather than butting up against the edges. Metis draws the
             // server-side titlebar + border, so the client is inset to the body
-            // of that footprint (`app_tile_body_rect`).
-            let zone = self.window_placement_zone();
+            // of that footprint (`app_tile_body_rect`). Fills the output the
+            // window currently sits on, not always the primary.
+            let zone = match self.output_for_window(id) {
+                Some(output) => self.window_placement_zone_for(&output),
+                None => self.window_placement_zone(),
+            };
             // Tight gap against the edge bar on whichever screen edge it occupies,
             // Hyprland-style gaps against the bare screen edges elsewhere.
             let gaps = self.zone_edge_gaps();
@@ -1227,7 +1397,13 @@ impl MetisState {
         if size.w <= 0 || size.h <= 0 {
             return;
         }
-        let zone = self.window_placement_zone();
+        // Anchor against the output the window sits on, not always the primary —
+        // otherwise an auto-hide (maximized / edge-snapped) window on a secondary
+        // monitor gets dragged back toward the primary output's zone.
+        let zone = match self.output_for_window(id) {
+            Some(output) => self.window_placement_zone_for(&output),
+            None => self.window_placement_zone(),
+        };
         let gaps = self.zone_edge_gaps();
         let pos = metis_config::load_bar_config().position;
         let y_anchor = match pos {
@@ -1413,7 +1589,24 @@ impl MetisState {
     /// so snapped/tiled windows sit beside/above it (floating windows may still
     /// slide underneath).
     pub(crate) fn window_placement_zone(&self) -> PixelRect {
-        let mut zone = self.placement_zone();
+        match self.primary_output() {
+            Some(output) => self.window_placement_zone_for(&output),
+            None => self.placement_zone(),
+        }
+    }
+
+    /// Like [`window_placement_zone`](Self::window_placement_zone) but for a
+    /// specific `output`, so snap/maximize/placement target the monitor a window
+    /// (or the cursor) is on. The overlay-bar strip is only reserved on outputs
+    /// that actually show a bar.
+    pub(crate) fn window_placement_zone_for(
+        &self,
+        output: &smithay::output::Output,
+    ) -> PixelRect {
+        let mut zone = self.placement_zone_for(output);
+        if !self.output_has_bar(output) {
+            return zone;
+        }
         let reserve = Self::bar_reserved_px();
         match metis_config::load_bar_config().position {
             metis_config::BarPosition::Bottom => {
@@ -1437,8 +1630,14 @@ impl MetisState {
     /// the bar's drop shadow has breathing room and nothing visually touches it.
     pub fn usable_zone(&self) -> Option<PixelRect> {
         let output = self.primary_output()?;
-        let zone = layer_map_for_output(&output).non_exclusive_zone();
-        let origin = self.space.output_geometry(&output)?.loc;
+        self.usable_zone_for(&output)
+    }
+
+    /// The usable area of a specific `output` (its geometry minus that output's
+    /// exclusive layer-shell zones), in global logical coordinates.
+    pub fn usable_zone_for(&self, output: &smithay::output::Output) -> Option<PixelRect> {
+        let zone = layer_map_for_output(output).non_exclusive_zone();
+        let origin = self.space.output_geometry(output)?.loc;
         Some(PixelRect {
             x: zone.loc.x + origin.x,
             y: zone.loc.y + origin.y,
@@ -1451,10 +1650,27 @@ impl MetisState {
     /// known yet, and finally to the configured monitor size. Always returns the
     /// main (first) output, so off-screen windows are recovered onto it.
     fn placement_zone(&self) -> PixelRect {
-        if let Some(zone) = self.usable_zone() {
+        match self.primary_output() {
+            Some(output) => self.placement_zone_for(&output),
+            None => {
+                let monitor = self.monitor;
+                PixelRect {
+                    x: monitor.x,
+                    y: monitor.y,
+                    width: monitor.width as i32,
+                    height: monitor.height as i32,
+                }
+            }
+        }
+    }
+
+    /// Usable area of `output`, falling back to its full geometry if the bar
+    /// zone isn't known yet, and finally to the configured monitor size.
+    fn placement_zone_for(&self, output: &smithay::output::Output) -> PixelRect {
+        if let Some(zone) = self.usable_zone_for(output) {
             return zone;
         }
-        let monitor = self.primary_monitor_rect();
+        let monitor = self.output_rect(output).unwrap_or(self.monitor);
         PixelRect {
             x: monitor.x,
             y: monitor.y,
@@ -1463,9 +1679,23 @@ impl MetisState {
         }
     }
 
-    /// A rect of `width`x`height` centered in the usable area (clamped to fit).
+    /// A rect of `width`x`height` centered in the primary output's usable area.
     fn centered_rect(&self, width: i32, height: i32) -> PixelRect {
-        let zone = self.placement_zone();
+        self.centered_rect_in_zone(self.placement_zone(), width, height)
+    }
+
+    /// A rect of `width`x`height` centered in `output`'s usable area.
+    fn centered_rect_in(
+        &self,
+        output: &smithay::output::Output,
+        width: i32,
+        height: i32,
+    ) -> PixelRect {
+        self.centered_rect_in_zone(self.placement_zone_for(output), width, height)
+    }
+
+    /// A rect of `width`x`height` centered in `zone` (clamped to fit).
+    fn centered_rect_in_zone(&self, zone: PixelRect, width: i32, height: i32) -> PixelRect {
         let w = width.min((zone.width - WINDOW_GAP_PX * 2).max(1)).max(1);
         let h = height.min((zone.height - WINDOW_GAP_PX * 2).max(1)).max(1);
         PixelRect {
@@ -1551,7 +1781,13 @@ impl MetisState {
     /// Keep a floating window on-screen. Overlay edge bars do not inset the bounds
     /// (windows may slide underneath); only the top bar reserves space.
     fn clamp_floating_rect(&self, rect: PixelRect) -> PixelRect {
-        let zone = self.placement_zone();
+        // Clamp within the output the window mostly sits on (by its center), so a
+        // floating window on a secondary monitor isn't yanked back to primary.
+        let center = Point::from((rect.x + rect.width / 2, rect.y + rect.height / 2));
+        let zone = match self.output_at(center) {
+            Some(output) => self.placement_zone_for(&output),
+            None => self.placement_zone(),
+        };
         let g = WINDOW_GAP_PX;
         let pos = metis_config::load_bar_config().position;
         let gaps = self.zone_edge_gaps();
@@ -1625,9 +1861,13 @@ impl MetisState {
             .as_deref()
             .is_some_and(|t| CENTERED_FLOAT_TITLES.contains(&t));
         if by_app_id || by_title {
-            // Center the chrome footprint, then inset the client to its body so
-            // Metis draws the server-side titlebar + border around it.
-            let footprint = self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+            // Center the chrome footprint on the output under the cursor (falls
+            // back to primary), then inset the client to its body so Metis draws
+            // the server-side titlebar + border around it.
+            let footprint = match self.output_under_pointer() {
+                Some(output) => self.centered_rect_in(&output, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H),
+                None => self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H),
+            };
             let rect = app_tile_body_rect(footprint);
             self.floating.insert(id);
             self.windows.set_target_rect(id, rect);
@@ -2041,30 +2281,34 @@ impl MetisState {
     }
 
     fn rect_for_window_tile(&self, id: u32) -> Option<PixelRect> {
-        self.grid_layout.tiles.iter().find_map(|t| {
-            if let TileKind::App {
-                window_id: Some(wid),
-                ..
-            } = &t.kind
-            {
-                if *wid == id {
-                    return Some(cell_to_pixels(&self.grid_metrics(), &t.rect));
-                }
-            }
-            None
-        })
+        let key = self.desk_key_for_window(id);
+        let desk = self.desk(&key)?;
+        let tile = desk.layout.tiles.iter().find(|t| {
+            matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == id)
+        })?;
+        let metrics = match self.output_by_name(&key) {
+            Some(o) => self.grid_metrics_for(&o),
+            None => self.grid_metrics(),
+        };
+        Some(cell_to_pixels(&metrics, &tile.rect))
     }
 
     pub fn apply_grid_layout(&mut self, shell_layout: GridLayout, gutter_px: u32) {
         use std::collections::HashMap;
 
+        // The shell desk editor is dormant; this path applies to the primary desk.
+        let key = self.primary_key();
         let compositor_apps: HashMap<String, metis_grid::GridTile> = self
-            .grid_layout
-            .tiles
-            .iter()
-            .filter(|t| matches!(t.kind, TileKind::App { .. }))
-            .map(|t| (t.id.clone(), t.clone()))
-            .collect();
+            .desk(&key)
+            .map(|d| {
+                d.layout
+                    .tiles
+                    .iter()
+                    .filter(|t| matches!(t.kind, TileKind::App { .. }))
+                    .map(|t| (t.id.clone(), t.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let mut merged = shell_layout;
         for tile in &mut merged.tiles {
@@ -2095,7 +2339,7 @@ impl MetisState {
             }
         }
 
-        self.grid_layout = merged;
+        self.desk_mut_or_default(&key).layout = merged;
         self.gutter_px = gutter_px;
         self.ensure_app_tiles_for_open_windows();
         self.reposition_all_windows();
@@ -2119,13 +2363,25 @@ impl MetisState {
     /// Reserve a grid slot as soon as an app registers (before its first buffer commit).
     fn ensure_app_tile_for_window(&mut self, id: u32) {
         let tile_id = format!("app-{id}");
-        if self.grid_layout.tiles.iter().any(|t| t.id == tile_id) {
-            return;
+        let key = self.desk_key_for_window(id);
+        // Already present, visible or stashed on this output's desk?
+        if let Some(desk) = self.desk(&key) {
+            if desk.layout.tiles.iter().any(|t| t.id == tile_id)
+                || desk
+                    .stashed_app_tiles
+                    .values()
+                    .any(|tiles| tiles.iter().any(|t| t.id == tile_id))
+            {
+                return;
+            }
         }
         let class = self.windows.get(id).and_then(|r| r.app_id.clone());
-        self.grid_layout.tiles.push(metis_grid::GridTile {
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        let active = self.active_workspace_for(&key);
+        let desk = self.desk_mut_or_default(&key);
+        let tile = metis_grid::GridTile {
             id: tile_id,
-            rect: default_app_tile_rect(&self.grid_layout),
+            rect: default_app_tile_rect(&desk.layout),
             kind: TileKind::App {
                 window_id: Some(id),
                 class,
@@ -2136,7 +2392,12 @@ impl MetisState {
             max_w: None,
             min_h: None,
             max_h: None,
-        });
+        };
+        if ws == active {
+            desk.layout.tiles.push(tile);
+        } else {
+            desk.stashed_app_tiles.entry(ws).or_default().push(tile);
+        }
     }
 
     pub fn sync_all_app_windows(&mut self) {
@@ -2165,15 +2426,24 @@ impl MetisState {
     }
 
     fn persist_layout(&mut self) {
-        if let Err(err) = self.grid_layout.save_to_path(&desk_config_path()) {
-            tracing::warn!(%err, "failed to persist grid layout");
+        // Persist the primary desk's layout (its widget positions) to `desk.json`.
+        let key = self.primary_key();
+        if let Some(desk) = self.desk(&key) {
+            if let Err(err) = desk.layout.save_to_path(&desk_config_path()) {
+                tracing::warn!(%err, "failed to persist grid layout");
+            }
         }
     }
 
     pub fn emit_layout_changed(&self) {
         use metis_protocol::CompositorEvent;
+        let key = self.primary_key();
+        let layout = self
+            .desk(&key)
+            .map(|d| d.layout.clone())
+            .unwrap_or_else(|| self.default_layout.clone());
         self.event_bus.emit(&CompositorEvent::LayoutChanged {
-            layout: self.grid_layout.clone(),
+            layout,
             gutter_px: self.gutter_px,
             metrics: self.grid_metrics(),
         });
@@ -2186,10 +2456,11 @@ impl MetisState {
         });
     }
 
-    pub fn emit_workspace_changed(&self) {
+    pub fn emit_workspace_changed(&self, output_key: &str) {
         use metis_protocol::CompositorEvent;
         self.event_bus.emit(&CompositorEvent::WorkspaceChanged {
-            active: self.active_workspace,
+            output: output_key.to_string(),
+            active: self.active_workspace_for(output_key),
             count: self.workspace_count(),
         });
     }
@@ -2199,26 +2470,53 @@ impl MetisState {
         metis_config::load_bar_config().workspace_count.clamp(1, 12)
     }
 
-    /// Show a different virtual workspace. Stashes the visible workspace's app
-    /// tiles (and unmaps its windows), then restores the target workspace's tiles
-    /// and remaps its windows. Desk widget tiles are shared and never stashed.
-    pub fn switch_workspace(&mut self, target: u32) {
+    /// Configured multi-monitor workspace behavior (independent vs. linked).
+    pub fn workspace_mode(&self) -> metis_config::WorkspaceMode {
+        metis_config::load_bar_config().workspace_mode
+    }
+
+    /// Switch workspace honoring the configured multi-monitor mode. In `Separate`
+    /// only `requested_output` changes; in `Linked` every output switches to the
+    /// same workspace at once (each emits its own `WorkspaceChanged`).
+    pub fn switch_workspace_routed(&mut self, requested_output: &str, target: u32) {
+        if self.workspace_mode() == metis_config::WorkspaceMode::Linked {
+            let keys: Vec<String> = self.space.outputs().map(|o| o.name()).collect();
+            if keys.is_empty() {
+                self.switch_workspace(requested_output, target);
+            } else {
+                for key in keys {
+                    self.switch_workspace(&key, target);
+                }
+            }
+        } else {
+            self.switch_workspace(requested_output, target);
+        }
+    }
+
+    /// Show a different virtual workspace on a single output. Stashes that
+    /// output's visible app tiles (and unmaps their windows), then restores the
+    /// target workspace's tiles and remaps its windows. Other outputs and the
+    /// desk widget tiles are untouched.
+    pub fn switch_workspace(&mut self, output_key: &str, target: u32) {
         let target = target.clamp(1, self.workspace_count());
-        if target == self.active_workspace {
+        let current = self.active_workspace_for(output_key);
+        if target == current {
             return;
         }
-        let current = self.active_workspace;
 
-        // Pull every app tile out of the live grid and remember it for `current`.
+        // Pull this output's app tiles out of its live grid and remember them.
         let mut stashed: Vec<metis_grid::GridTile> = Vec::new();
-        self.grid_layout.tiles.retain(|t| {
-            if matches!(t.kind, TileKind::App { .. }) {
-                stashed.push(t.clone());
-                false
-            } else {
-                true
-            }
-        });
+        {
+            let desk = self.desk_mut_or_default(output_key);
+            desk.layout.tiles.retain(|t| {
+                if matches!(t.kind, TileKind::App { .. }) {
+                    stashed.push(t.clone());
+                    false
+                } else {
+                    true
+                }
+            });
+        }
         // Hide the windows that just left the visible workspace.
         for tile in &stashed {
             if let TileKind::App { window_id: Some(wid), .. } = &tile.kind {
@@ -2227,13 +2525,14 @@ impl MetisState {
                 }
             }
         }
-        self.stashed_app_tiles.insert(current, stashed);
-
-        self.active_workspace = target;
-
-        // Restore the target workspace's app tiles and remap its windows.
-        if let Some(tiles) = self.stashed_app_tiles.remove(&target) {
-            self.grid_layout.tiles.extend(tiles);
+        {
+            let desk = self.desk_mut_or_default(output_key);
+            desk.stashed_app_tiles.insert(current, stashed);
+            desk.active_workspace = target;
+            // Restore the target workspace's app tiles.
+            if let Some(tiles) = desk.stashed_app_tiles.remove(&target) {
+                desk.layout.tiles.extend(tiles);
+            }
         }
         self.reposition_all_windows();
         self.focus_topmost_on_active_workspace();
@@ -2241,11 +2540,12 @@ impl MetisState {
         self.damaged = true;
         self.request_redraw();
         self.emit_layout_changed();
-        self.emit_workspace_changed();
+        self.emit_workspace_changed(output_key);
     }
 
-    /// Move a window to another workspace. When it leaves or joins the visible
-    /// workspace its tile is stashed/restored and the window is hidden/shown.
+    /// Move a window to another workspace on its own output. When it leaves or
+    /// joins that output's visible workspace its tile is stashed/restored and the
+    /// window is hidden/shown.
     pub fn move_window_to_workspace(&mut self, window_id: u32, target: u32) {
         let target = target.clamp(1, self.workspace_count());
         let Some(current) = self.windows.workspace(window_id) else {
@@ -2254,59 +2554,70 @@ impl MetisState {
         if target == current {
             return;
         }
+        let key = self.desk_key_for_window(window_id);
         self.windows.set_workspace(window_id, target);
         let tile_id = format!("app-{window_id}");
-        let active = self.active_workspace;
+        let active = self.active_workspace_for(&key);
 
         if current == active {
             // Leaving the visible workspace: stash its tile and hide it.
             let mut moved: Vec<metis_grid::GridTile> = Vec::new();
-            self.grid_layout.tiles.retain(|t| {
-                if t.id == tile_id {
-                    moved.push(t.clone());
-                    false
-                } else {
-                    true
-                }
-            });
+            {
+                let desk = self.desk_mut_or_default(&key);
+                desk.layout.tiles.retain(|t| {
+                    if t.id == tile_id {
+                        moved.push(t.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
             if let Some(record) = self.windows.get(window_id).cloned() {
                 self.space.unmap_elem(&record.window);
             }
-            self.stashed_app_tiles.entry(target).or_default().extend(moved);
+            self.desk_mut_or_default(&key)
+                .stashed_app_tiles
+                .entry(target)
+                .or_default()
+                .extend(moved);
             self.reposition_all_windows();
             self.focus_topmost_on_active_workspace();
         } else if target == active {
             // Joining the visible workspace: pull its tile back into the grid.
-            if let Some(tiles) = self.stashed_app_tiles.get_mut(&current) {
+            let desk = self.desk_mut_or_default(&key);
+            if let Some(tiles) = desk.stashed_app_tiles.get_mut(&current) {
                 if let Some(pos) = tiles.iter().position(|t| t.id == tile_id) {
                     let tile = tiles.remove(pos);
-                    self.grid_layout.tiles.push(tile);
+                    desk.layout.tiles.push(tile);
                 }
             }
             self.reposition_all_windows();
         } else {
             // Hidden-to-hidden: just relocate the stashed tile.
-            let tile = self
-                .stashed_app_tiles
-                .get_mut(&current)
-                .and_then(|tiles| {
-                    tiles
-                        .iter()
-                        .position(|t| t.id == tile_id)
-                        .map(|pos| tiles.remove(pos))
-                });
+            let desk = self.desk_mut_or_default(&key);
+            let tile = desk.stashed_app_tiles.get_mut(&current).and_then(|tiles| {
+                tiles
+                    .iter()
+                    .position(|t| t.id == tile_id)
+                    .map(|pos| tiles.remove(pos))
+            });
             if let Some(tile) = tile {
-                self.stashed_app_tiles.entry(target).or_default().push(tile);
+                desk.stashed_app_tiles.entry(target).or_default().push(tile);
             }
         }
 
         self.damaged = true;
         self.request_redraw();
         self.emit_layout_changed();
+        // Nudge the shell to reconcile its window cache so per-output/per-workspace
+        // dock filtering reflects the move promptly (the active workspace itself is
+        // unchanged; this just carries the refresh).
+        self.emit_workspace_changed(&key);
     }
 
-    /// Give keyboard focus to the topmost mapped window on the active workspace,
-    /// or clear focus if the workspace has no eligible window.
+    /// Give keyboard focus to the topmost mapped window on its output's active
+    /// workspace, or clear focus if no eligible window is visible.
     fn focus_topmost_on_active_workspace(&mut self) {
         let Some(keyboard) = self.seat.get_keyboard() else {
             return;
@@ -2315,7 +2626,8 @@ impl MetisState {
         let ordered: Vec<Window> = self.space.elements().cloned().collect();
         let candidate = ordered.into_iter().rev().find_map(|w| {
             let id = self.windows.id_for_window(&w)?;
-            let on_active = self.windows.workspace(id) == Some(self.active_workspace);
+            let key = self.desk_key_for_window(id);
+            let on_active = self.windows.workspace(id) == Some(self.active_workspace_for(&key));
             if on_active && !self.windows.is_minimized(id) {
                 Some((id, w))
             } else {
@@ -2362,11 +2674,18 @@ impl MetisState {
                     .collect();
                 CompositorEvent::OutputList { outputs }
             }
-            CompositorCommand::GetLayout => CompositorEvent::LayoutChanged {
-                layout: self.grid_layout.clone(),
-                gutter_px: self.gutter_px,
-                metrics: self.grid_metrics(),
-            },
+            CompositorCommand::GetLayout => {
+                let key = self.primary_key();
+                let layout = self
+                    .desk(&key)
+                    .map(|d| d.layout.clone())
+                    .unwrap_or_else(|| self.default_layout.clone());
+                CompositorEvent::LayoutChanged {
+                    layout,
+                    gutter_px: self.gutter_px,
+                    metrics: self.grid_metrics(),
+                }
+            }
             CompositorCommand::ListWindows => {
                 let focused = self.focused_window_id();
                 let mut windows = self.windows.list();
@@ -2439,10 +2758,16 @@ impl MetisState {
                 self.set_tile_mode(&tile_id, mode);
                 CompositorEvent::LayoutApplied
             }
-            CompositorCommand::SwitchWorkspace { id } => {
-                self.switch_workspace(id);
+            CompositorCommand::SwitchWorkspace { output, id } => {
+                let key = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
+                    self.output_under_pointer()
+                        .map(|o| o.name())
+                        .unwrap_or_else(|| self.primary_key())
+                });
+                self.switch_workspace_routed(&key, id);
                 CompositorEvent::WorkspaceChanged {
-                    active: self.active_workspace,
+                    output: key.clone(),
+                    active: self.active_workspace_for(&key),
                     count: self.workspace_count(),
                 }
             }
@@ -2510,7 +2835,14 @@ impl MetisState {
 
     pub fn register_new_window(&mut self, window: Window, title: String, app_id: Option<String>) {
         let id = self.windows.register(window, title, app_id);
-        self.windows.set_workspace(id, self.active_workspace);
+        // New windows open on the output under the cursor, joining that output's
+        // currently-visible workspace.
+        let key = self
+            .output_under_pointer()
+            .map(|o| o.name())
+            .unwrap_or_else(|| self.primary_key());
+        self.windows.set_output(id, key.clone());
+        self.windows.set_workspace(id, self.active_workspace_for(&key));
         self.ensure_app_tile_for_window(id);
     }
 
@@ -2608,14 +2940,17 @@ impl MetisState {
     pub(crate) fn set_app_tile_display_name(&mut self, window_id: u32, title: &str, app_id: Option<&str>) {
         let display = app_display_name(app_id, title);
         let tile_id = format!("app-{window_id}");
-        if let Some(tile) = self.grid_layout.tiles.iter_mut().find(|t| t.id == tile_id) {
-            if let TileKind::App {
-                window_id: wid,
-                class,
-            } = &mut tile.kind
-            {
-                *wid = Some(window_id);
-                *class = Some(display);
+        let key = self.desk_key_for_window(window_id);
+        if let Some(desk) = self.desks.get_mut(&key) {
+            if let Some(tile) = desk.layout.tiles.iter_mut().find(|t| t.id == tile_id) {
+                if let TileKind::App {
+                    window_id: wid,
+                    class,
+                } = &mut tile.kind
+                {
+                    *wid = Some(window_id);
+                    *class = Some(display);
+                }
             }
         }
     }
@@ -2645,26 +2980,33 @@ impl MetisState {
     pub fn set_tile_mode(&mut self, tile_id: &str, mode: metis_protocol::TileMode) {
         use metis_protocol::TileMode;
 
-        let window_id = self.grid_layout.tiles.iter().find_map(|t| {
-            if t.id != tile_id {
-                return None;
-            }
-            if let TileKind::App {
-                window_id: Some(wid),
-                ..
-            } = &t.kind
-            {
-                Some(*wid)
-            } else {
-                None
-            }
+        let key = self
+            .desk_key_for_tile(tile_id)
+            .unwrap_or_else(|| self.primary_key());
+        let window_id = self.desk(&key).and_then(|d| {
+            d.layout.tiles.iter().find_map(|t| {
+                if t.id != tile_id {
+                    return None;
+                }
+                if let TileKind::App {
+                    window_id: Some(wid),
+                    ..
+                } = &t.kind
+                {
+                    Some(*wid)
+                } else {
+                    None
+                }
+            })
         });
 
         match mode {
             TileMode::Grid => {
                 if let Some(restored) = self.tile_modes.exit(tile_id) {
-                    if let Some(tile) = self.grid_layout.tile_mut(tile_id) {
-                        tile.rect = restored;
+                    if let Some(desk) = self.desks.get_mut(&key) {
+                        if let Some(tile) = desk.layout.tile_mut(tile_id) {
+                            tile.rect = restored;
+                        }
                     }
                     self.reposition_all_windows();
                     self.persist_layout();
@@ -2678,20 +3020,28 @@ impl MetisState {
                 }
             }
             TileMode::AppFullscreen => {
-                self.tile_modes.enter(&self.grid_layout, tile_id, metis_grid::TileMode::AppFullscreen);
+                if let Some(layout) = self.desk(&key).map(|d| d.layout.clone()) {
+                    self.tile_modes
+                        .enter(&layout, tile_id, metis_grid::TileMode::AppFullscreen);
+                }
                 if let Some(id) = window_id {
                     self.set_fullscreen(id, true);
                 }
             }
             TileMode::Minimized => {
-                self.tile_modes.enter(&self.grid_layout, tile_id, metis_grid::TileMode::Minimized);
+                if let Some(layout) = self.desk(&key).map(|d| d.layout.clone()) {
+                    self.tile_modes
+                        .enter(&layout, tile_id, metis_grid::TileMode::Minimized);
+                }
                 if let Some(id) = window_id {
                     self.minimize_window(id);
                 }
             }
             TileMode::Immersive => {
-                self.tile_modes
-                    .enter(&self.grid_layout, tile_id, metis_grid::TileMode::Immersive);
+                if let Some(layout) = self.desk(&key).map(|d| d.layout.clone()) {
+                    self.tile_modes
+                        .enter(&layout, tile_id, metis_grid::TileMode::Immersive);
+                }
                 tracing::info!(tile_id, "immersive mode requested (shell handles chrome)");
             }
         }
@@ -2702,15 +3052,7 @@ impl MetisState {
 
         self.floating.remove(&id);
         self.clear_auto_hide(id);
-        self.grid_layout.tiles.retain(|t| {
-            !matches!(
-                &t.kind,
-                TileKind::App {
-                    window_id: Some(wid),
-                    ..
-                } if *wid == id
-            )
-        });
+        self.remove_app_tile_everywhere(id);
         self.persist_layout();
         self.emit_layout_changed();
         self.event_bus.emit(&CompositorEvent::WindowClosed { id });

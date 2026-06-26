@@ -1554,12 +1554,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: rgba({accent_rgb}, 0.22);
     }}
 
+    /* Keep the whole panel (rail + center + divider + pinned + padding) under
+       ~580px so it fits within a single narrow output's placement area (e.g. a
+       640px monitor or a split dev output) instead of overflowing onto the
+       neighbouring display, which leaves the popover unable to open. */
     .metis-menu-center {{
-        min-width: 320px;
+        min-width: 268px;
     }}
 
     .metis-menu-pinned {{
-        min-width: 240px;
+        min-width: 204px;
         margin-left: 4px;
     }}
 
