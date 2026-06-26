@@ -90,6 +90,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Shell crash when changing the bar's "Show bar on" display set (root cause)** —
+  removing a per-output bar tore down its `zwlr_layer_surface_v1`, and the
+  compositor killed the shell with `invalid_size` ("width 0 requested without
+  setting left and right anchors"). This was a smithay + gtk4-layer-shell teardown
+  interaction: destroying a layer surface resets its cached state to defaults
+  (size 0×0, no anchors), and the trailing `attach(null); commit` that the toolkit
+  sends then fails smithay's pre-commit size/anchor validation. The compositor now
+  installs a pre-commit hook (ahead of smithay's, registered on the bare surface in
+  `new_surface`) that repairs that degenerate teardown state so the unmap commits
+  cleanly. Normal layer surfaces are untouched. This is the actual fix; the
+  shell-side rebuild changes below are defensive hardening that remain in place.
 - **Shell crash when changing the bar's "Show bar on" display set** — several
   issues around rebuilding the per-output bars at runtime:
   - Rebuilding destroyed every bar window *before* building the replacement, so the

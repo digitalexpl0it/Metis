@@ -10,10 +10,11 @@ use smithay::{
     wayland::{
         buffer::BufferHandler,
         compositor::{
-            CompositorClientState, CompositorHandler, CompositorState, get_parent,
-            is_sync_subsurface,
+            CompositorClientState, CompositorHandler, CompositorState, add_pre_commit_hook,
+            get_parent, is_sync_subsurface, with_states,
         },
         seat::WaylandFocus,
+        shell::wlr_layer::{Anchor, LayerSurfaceCachedState, LayerSurfaceData},
         shm::{ShmHandler, ShmState},
     },
 };
@@ -28,6 +29,41 @@ impl CompositorHandler for MetisState {
             return &state.compositor_state;
         }
         &client.get_data::<ClientState>().unwrap().compositor_state
+    }
+
+    fn new_surface(&mut self, surface: &WlSurface) {
+        // Work around a smithay + gtk4-layer-shell teardown crash. When a
+        // gtk4-layer-shell window is destroyed (e.g. removing a per-output edge
+        // bar after a "Show bar on" change) the toolkit issues
+        // `zwlr_layer_surface_v1.destroy()` — which makes smithay reset the
+        // layer surface's cached state to defaults (size 0×0, no anchors) — and
+        // then a trailing `wl_surface.attach(null); commit`. Smithay's
+        // layer-shell pre-commit hook validates that reset state, sees width 0
+        // without left/right anchors, and posts an `invalid_size` protocol
+        // error, disconnecting the shell.
+        //
+        // We register our own pre-commit hook here, on the bare surface before
+        // any role (and thus before smithay's layer hook) exists, so it runs
+        // first. It only touches surfaces that already carry the layer role and
+        // only when they are in that degenerate teardown state, repairing the
+        // pending anchors so the unmap commit validates cleanly. Well-behaved
+        // layer surfaces never commit a zero dimension without the matching
+        // anchors, so this is a no-op during normal operation.
+        add_pre_commit_hook::<Self, _>(surface, |_state, _dh, surface| {
+            with_states(surface, |states| {
+                if states.data_map.get::<LayerSurfaceData>().is_none() {
+                    return;
+                }
+                let mut guard = states.cached_state.get::<LayerSurfaceCachedState>();
+                let pending = guard.pending();
+                if pending.size.w == 0 && !pending.anchor.anchored_horizontally() {
+                    pending.anchor |= Anchor::LEFT | Anchor::RIGHT;
+                }
+                if pending.size.h == 0 && !pending.anchor.anchored_vertically() {
+                    pending.anchor |= Anchor::TOP | Anchor::BOTTOM;
+                }
+            });
+        });
     }
 
     fn commit(&mut self, surface: &WlSurface) {
