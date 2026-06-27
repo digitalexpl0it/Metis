@@ -197,6 +197,99 @@ pub struct MetisState {
     /// Last known edge-bar position; used to reflow windows immediately when the
     /// bar layer commits after a settings change (not only on the blur poll).
     pub(crate) last_bar_position: metis_config::BarPosition,
+    /// Last scroll-animation tick (16ms heartbeat).
+    last_scroll_tick: Option<std::time::Instant>,
+    /// Debounce grid/scroll toggle (`Mod+\`) so key-repeat cannot flip modes
+    /// dozens of times per second and stall the compositor.
+    last_layout_toggle: Option<std::time::Instant>,
+    /// Resolved once at startup and reused for every spawned client — avoids
+    /// blocking the event loop on `gsettings`/D-Bus during shell launch.
+    client_cursor_theme: String,
+    client_cursor_size: String,
+}
+
+/// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
+/// `gsettings` in `spawn_client` blocked the compositor event loop during shell
+/// startup (especially after `--import-env`), which GNOME reported as
+/// "Unknown is not responding".
+fn resolve_client_cursor_env() -> (String, String) {
+    fn cursor_icon_dirs() -> Vec<std::path::PathBuf> {
+        let mut dirs = Vec::new();
+        if let Ok(home) = std::env::var("HOME") {
+            dirs.push(std::path::PathBuf::from(format!("{home}/.icons")));
+            dirs.push(std::path::PathBuf::from(format!("{home}/.local/share/icons")));
+        }
+        dirs.push(std::path::PathBuf::from("/usr/share/icons"));
+        dirs.push(std::path::PathBuf::from("/usr/local/share/icons"));
+        dirs
+    }
+    fn resolve_cursor_theme(name: &str) -> Option<String> {
+        fn inner(name: &str, dirs: &[std::path::PathBuf], depth: u8) -> Option<String> {
+            if name.is_empty() || depth > 8 {
+                return None;
+            }
+            if dirs.iter().any(|d| d.join(name).join("cursors").is_dir()) {
+                return Some(name.to_string());
+            }
+            for d in dirs {
+                let Ok(text) = std::fs::read_to_string(d.join(name).join("index.theme")) else {
+                    continue;
+                };
+                for line in text.lines() {
+                    if let Some(rest) = line.trim().strip_prefix("Inherits") {
+                        let rest = rest.trim_start_matches([' ', '=']).trim();
+                        for parent in rest.split(',') {
+                            if let Some(found) = inner(parent.trim(), dirs, depth + 1) {
+                                return Some(found);
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        }
+        inner(name, &cursor_icon_dirs(), 0)
+    }
+    fn gtk_settings_value(home: &str, key: &str) -> Option<String> {
+        for rel in ["gtk-4.0/settings.ini", "gtk-3.0/settings.ini"] {
+            let path = std::path::Path::new(home).join(".config").join(rel);
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            for line in text.lines() {
+                let line = line.trim();
+                if line.starts_with('#') || !line.contains('=') {
+                    continue;
+                }
+                let (k, v) = line.split_once('=')?;
+                if k.trim() == key {
+                    let v = v.trim().trim_matches('"');
+                    if !v.is_empty() {
+                        return Some(v.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    let theme_pref = std::env::var("XCURSOR_THEME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| gtk_settings_value(&home, "gtk-cursor-theme-name"))
+        .unwrap_or_else(|| "default".into());
+    let cursor_theme = resolve_cursor_theme(&theme_pref)
+        .or_else(|| resolve_cursor_theme("default"))
+        .or_else(|| resolve_cursor_theme("Yaru"))
+        .or_else(|| resolve_cursor_theme("Adwaita"))
+        .unwrap_or_else(|| "Adwaita".into());
+    let cursor_size = std::env::var("XCURSOR_SIZE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| gtk_settings_value(&home, "gtk-cursor-theme-size"))
+        .unwrap_or_else(|| "24".into());
+    (cursor_theme, cursor_size)
 }
 
 impl MetisState {
@@ -230,6 +323,12 @@ impl MetisState {
         let grid_layout = GridLayout::load_from_path(&desk_path);
         let mut grid_layout = grid_layout;
         metis_grid::sanitize_layout(&mut grid_layout);
+        let (client_cursor_theme, client_cursor_size) = resolve_client_cursor_env();
+        tracing::info!(
+            theme = %client_cursor_theme,
+            size = %client_cursor_size,
+            "client cursor theme"
+        );
 
         Self {
             start_time,
@@ -286,7 +385,31 @@ impl MetisState {
             defer_client_flush: false,
             last_pointer_forward: None,
             last_bar_position: metis_config::load_bar_config().position,
+            last_scroll_tick: None,
+            last_layout_toggle: None,
+            client_cursor_theme,
+            client_cursor_size,
         }
+    }
+
+    /// True while the startup splash layer is on-screen (backdrop blur is deferred
+    /// until it dismisses — the first blur pass is expensive).
+    pub fn splash_overlay_visible(&self) -> bool {
+        use smithay::desktop::layer_map_for_output;
+        for out in self.space.outputs() {
+            let map = layer_map_for_output(out);
+            for layer in map.layers() {
+                if layer.namespace() != "metis-splash" {
+                    continue;
+                }
+                match map.layer_geometry(layer) {
+                    Some(g) if g.loc.y >= 0 && g.loc.y < 16_000 => return true,
+                    None => return true,
+                    _ => {}
+                }
+            }
+        }
+        false
     }
 
     pub fn set_redraw_trigger(&mut self, trigger: Rc<dyn Fn()>) {
@@ -618,20 +741,19 @@ impl MetisState {
                 self.startup_shell = None;
             }
             self.shell_spawned = true;
-            return;
         }
 
         if self.shell_spawned && !self.client_spawned && elapsed > Duration::from_millis(750) {
             if let Some(client) = self.startup_client.take() {
                 self.spawn_client(&client);
+                // Only poll grid placement when an explicit `-c` client was requested.
+                self.startup_frames = 120;
             }
             self.client_spawned = true;
-            self.startup_frames = 0;
         }
 
-        // After the session client launches, keep trying until it lands in its grid slot.
-        if self.client_spawned && self.startup_frames < 120 {
-            self.startup_frames = self.startup_frames.saturating_add(1);
+        if self.startup_frames > 0 {
+            self.startup_frames -= 1;
             self.sync_all_app_windows();
         }
     }
@@ -695,85 +817,8 @@ impl MetisState {
             cmd.env("XDG_RUNTIME_DIR", runtime);
         }
 
-        // Without these, GTK clients fall back to the built-in (large black) Xcursor
-        // because the nested session has no settings daemon. The catch: GNOME's
-        // `cursor-theme` is often "default", and the theme literally named "default"
-        // IS the big black cursor — on the host it only looks right because it
-        // inherits a real theme. So resolve the `Inherits=` chain to a theme that
-        // actually ships cursor images (e.g. default -> DMZ-White).
-        fn cursor_icon_dirs() -> Vec<std::path::PathBuf> {
-            let mut dirs = Vec::new();
-            if let Ok(home) = std::env::var("HOME") {
-                dirs.push(std::path::PathBuf::from(format!("{home}/.icons")));
-                dirs.push(std::path::PathBuf::from(format!("{home}/.local/share/icons")));
-            }
-            dirs.push(std::path::PathBuf::from("/usr/share/icons"));
-            dirs.push(std::path::PathBuf::from("/usr/local/share/icons"));
-            dirs
-        }
-        fn resolve_cursor_theme(name: &str) -> Option<String> {
-            fn inner(name: &str, dirs: &[std::path::PathBuf], depth: u8) -> Option<String> {
-                if name.is_empty() || depth > 8 {
-                    return None;
-                }
-                if dirs.iter().any(|d| d.join(name).join("cursors").is_dir()) {
-                    return Some(name.to_string());
-                }
-                for d in dirs {
-                    let Ok(text) = std::fs::read_to_string(d.join(name).join("index.theme")) else {
-                        continue;
-                    };
-                    for line in text.lines() {
-                        if let Some(rest) = line.trim().strip_prefix("Inherits") {
-                            let rest = rest.trim_start_matches([' ', '=']).trim();
-                            for parent in rest.split(',') {
-                                if let Some(found) = inner(parent.trim(), dirs, depth + 1) {
-                                    return Some(found);
-                                }
-                            }
-                        }
-                    }
-                }
-                None
-            }
-            inner(name, &cursor_icon_dirs(), 0)
-        }
-        let gsettings_get = |key: &str| -> Option<String> {
-            let out = std::process::Command::new("gsettings")
-                .args(["get", "org.gnome.desktop.interface", key])
-                .output()
-                .ok()?;
-            if !out.status.success() {
-                return None;
-            }
-            let s = String::from_utf8_lossy(&out.stdout);
-            let s = s.trim().trim_matches('\'').trim().to_string();
-            if s.is_empty() {
-                None
-            } else {
-                Some(s)
-            }
-        };
-
-        let theme_pref = std::env::var("XCURSOR_THEME")
-            .ok()
-            .filter(|s| !s.is_empty())
-            .or_else(|| gsettings_get("cursor-theme"))
-            .unwrap_or_else(|| "default".into());
-        let cursor_theme = resolve_cursor_theme(&theme_pref)
-            .or_else(|| resolve_cursor_theme("default"))
-            .or_else(|| resolve_cursor_theme("Yaru"))
-            .or_else(|| resolve_cursor_theme("Adwaita"))
-            .unwrap_or_else(|| "Adwaita".into());
-        let cursor_size = std::env::var("XCURSOR_SIZE")
-            .ok()
-            .filter(|s| !s.is_empty())
-            .or_else(|| gsettings_get("cursor-size"))
-            .unwrap_or_else(|| "24".into());
-
-        tracing::info!(theme = %cursor_theme, size = %cursor_size, "client cursor theme");
-        cmd.env("XCURSOR_THEME", cursor_theme);
-        cmd.env("XCURSOR_SIZE", cursor_size);
+        cmd.env("XCURSOR_THEME", &self.client_cursor_theme);
+        cmd.env("XCURSOR_SIZE", &self.client_cursor_size);
 
         match cmd.spawn() {
             Ok(child) => {
@@ -956,6 +1001,7 @@ impl MetisState {
             }
         }
         self.sync_all_app_windows();
+        self.refresh_all_scroll_offsets();
         self.arrange_layers();
         self.schedule_redraw();
     }
@@ -1057,6 +1103,7 @@ impl MetisState {
     /// Layout mode new workspaces start in (from `bar.json`).
     pub fn default_layout_kind(&self) -> metis_grid::LayoutKind {
         match metis_config::load_bar_config().default_layout {
+            metis_config::DefaultLayout::Free => metis_grid::LayoutKind::Free,
             metis_config::DefaultLayout::Grid => metis_grid::LayoutKind::Grid,
             metis_config::DefaultLayout::Scroll => metis_grid::LayoutKind::Scroll,
         }
@@ -1121,8 +1168,9 @@ impl MetisState {
     }
 
     /// Recompute the scroll offset for an output's active workspace so the focused
-    /// column is visible.
-    fn refresh_scroll_offset(&mut self, key: &str) {
+    /// column is visible. Scroll snapping is always immediate — animation was
+    /// disabled after it caused configure/render storms with resize-averse clients.
+    fn refresh_scroll_offset(&mut self, key: &str, _animate: bool) {
         let ws = self.active_workspace_for(key);
         if self.layout_kind_for(key, ws) != metis_grid::LayoutKind::Scroll {
             return;
@@ -1130,8 +1178,224 @@ impl MetisState {
         let zone = self.scroll_zone_for(key);
         let gutter = self.gutter_px as i32;
         if let Some(scroll) = self.desk_mut_or_default(key).scroll.get_mut(&ws) {
-            scroll.scroll_x = scroll.desired_scroll_x(zone, gutter);
+            let target = scroll.desired_scroll_x(zone, gutter);
+            scroll.set_scroll_target(target, zone, gutter);
+            scroll.snap_scroll();
         }
+    }
+
+    /// Re-snap every active scroll workspace after the usable zone changes.
+    pub(crate) fn refresh_all_scroll_offsets(&mut self) {
+        let keys: Vec<String> = self.desks.keys().cloned().collect();
+        for key in keys {
+            let ws = self.active_workspace_for(&key);
+            if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll {
+                self.refresh_scroll_offset(&key, false);
+            }
+        }
+    }
+
+    /// Advance scroll-strip animations on every output; returns true while any strip
+    /// is still easing toward its target.
+    pub fn tick_scroll_animations(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        let dt = self
+            .last_scroll_tick
+            .map(|t| now.duration_since(t).as_secs_f32())
+            .unwrap_or(0.016);
+        self.last_scroll_tick = Some(now);
+
+        let keys: Vec<String> = self.desks.keys().cloned().collect();
+        let mut moved = false;
+        for key in keys {
+            let ws = self.active_workspace_for(&key);
+            if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
+                continue;
+            }
+            if let Some(scroll) = self.desk_mut_or_default(&key).scroll.get_mut(&ws) {
+                if scroll.scroll_x != scroll.scroll_x_target {
+                    moved |= scroll.advance_scroll_animation(dt);
+                }
+            }
+        }
+        moved
+    }
+
+    /// Window ids slotted on a specific (output, workspace), in tile order.
+    fn app_ids_for_workspace(&self, key: &str, ws: u32) -> Vec<u32> {
+        let active = self.active_workspace_for(key);
+        let collect_ids = |tiles: &[metis_grid::GridTile]| -> Vec<u32> {
+            tiles
+                .iter()
+                .filter_map(|t| match &t.kind {
+                    TileKind::App { window_id: Some(wid), .. } => Some(*wid),
+                    _ => None,
+                })
+                .collect()
+        };
+        self.desk(key)
+            .map(|d| {
+                if ws == active {
+                    collect_ids(&d.layout.tiles)
+                } else {
+                    d.stashed_app_tiles
+                        .get(&ws)
+                        .map(|t| collect_ids(t))
+                        .unwrap_or_default()
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    /// App windows positioned by the scroll strip (excludes free-floating clients).
+    fn scroll_managed_app_ids(&self, key: &str, ws: u32) -> Vec<u32> {
+        self.app_ids_for_workspace(key, ws)
+            .into_iter()
+            .filter(|id| !self.floating.contains(id))
+            .collect()
+    }
+
+    /// True when the scroll strip lists exactly the workspace's app windows.
+    fn scroll_strip_matches(app_ids: &[u32], scroll: &metis_grid::ScrollState) -> bool {
+        use std::collections::HashSet;
+        let strip: HashSet<u32> = scroll
+            .columns
+            .iter()
+            .flat_map(|c| c.windows.iter().copied())
+            .collect();
+        let tiles: HashSet<u32> = app_ids.iter().copied().collect();
+        strip == tiles
+    }
+
+    /// Window ids on a specific (output, workspace).
+    fn window_ids_on_workspace(&self, key: &str, ws: u32) -> Vec<u32> {
+        self.windows
+            .ids()
+            .into_iter()
+            .filter(|id| {
+                self.desk_key_for_window(*id) == key
+                    && self.windows.workspace(*id).unwrap_or(1) == ws
+            })
+            .collect()
+    }
+
+    /// True when a window belongs to the active workspace on its output and may
+    /// be mapped (minimized windows are handled separately).
+    fn window_visible_on_desktop(&self, id: u32) -> bool {
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        ws == self.active_workspace_for(&key)
+    }
+
+    /// Best-effort client body rect for a mapped or placed window.
+    fn current_window_body_rect(&self, id: u32) -> Option<PixelRect> {
+        let record = self.windows.get(id)?;
+        if let Some(loc) = self.space.element_location(&record.window) {
+            let size = record.window.geometry().size;
+            if size.w > 0 && size.h > 0 {
+                return Some(PixelRect {
+                    x: loc.x,
+                    y: loc.y,
+                    width: size.w,
+                    height: size.h,
+                });
+            }
+        }
+        self.windows
+            .target_rect(id)
+            .or_else(|| self.rect_for_window_tile(id).map(app_tile_body_rect))
+    }
+
+    /// Drop grid/scroll management for a workspace — windows keep their on-screen
+    /// geometry and float freely.
+    fn release_workspace_to_free(&mut self, key: &str, ws: u32) {
+        for id in self.window_ids_on_workspace(key, ws) {
+            if let Some(body) = self.current_window_body_rect(id) {
+                self.windows.set_target_rect(id, body);
+            }
+            self.floating.insert(id);
+            self.auto_hide_titlebar.remove(&id);
+            self.save_window_geometry(id);
+        }
+        let active = self.active_workspace_for(key);
+        let desk = self.desk_mut_or_default(key);
+        if ws == active {
+            desk
+                .layout
+                .tiles
+                .retain(|t| !matches!(t.kind, TileKind::App { .. }));
+        } else {
+            desk.stashed_app_tiles.remove(&ws);
+        }
+        desk.scroll.remove(&ws);
+    }
+
+    /// Pull every window on a workspace into the grid and reserve tiles.
+    fn adopt_workspace_to_grid(&mut self, key: &str, ws: u32) {
+        for id in self.window_ids_on_workspace(key, ws) {
+            self.floating.remove(&id);
+            self.ensure_app_tile_for_window(id);
+        }
+    }
+
+    /// Pull every window on a workspace into the scroll strip.
+    fn adopt_workspace_to_scroll(&mut self, key: &str, ws: u32) {
+        for id in self.window_ids_on_workspace(key, ws) {
+            self.floating.remove(&id);
+            self.ensure_app_tile_for_window(id);
+        }
+        self.seed_scroll_state(key, ws);
+    }
+
+    /// Build or refresh the scroll strip for a workspace from its app tiles.
+    fn seed_scroll_state(&mut self, key: &str, ws: u32) {
+        let app_ids = self.scroll_managed_app_ids(key, ws);
+        let focused = self.focused_window_id();
+        let zone = self.scroll_zone_for(key);
+        let gutter = self.gutter_px as i32;
+        let desk = self.desk_mut_or_default(key);
+        let needs_rebuild = desk.scroll.get(&ws).is_none_or(|s| {
+            (s.columns.is_empty() && !app_ids.is_empty())
+                || !Self::scroll_strip_matches(&app_ids, s)
+        });
+        if needs_rebuild {
+            let mut scroll = metis_grid::ScrollState::new();
+            for wid in &app_ids {
+                scroll.insert_window_after_focus(*wid);
+            }
+            if let Some(f) = focused {
+                scroll.focus_window(f);
+            }
+            desk.scroll.insert(ws, scroll);
+        }
+        if let Some(scroll) = desk.scroll.get_mut(&ws) {
+            let target = scroll.desired_scroll_x(zone, gutter);
+            scroll.set_scroll_target(target, zone, gutter);
+            scroll.snap_scroll();
+        }
+    }
+
+    /// Re-position only the windows on active scroll workspaces (used during
+    /// viewport animation so we don't reconfigure every client every frame).
+    pub(crate) fn reposition_scroll_windows(&mut self) {
+        let keys: Vec<String> = self.desks.keys().cloned().collect();
+        for key in keys {
+            let ws = self.active_workspace_for(&key);
+            if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
+                continue;
+            }
+            for id in self.scroll_managed_app_ids(&key, ws) {
+                self.apply_window_rect(id);
+            }
+        }
+    }
+
+    /// True when `id` belongs to the active scroll workspace on its output.
+    fn is_active_scroll_window(&self, id: u32) -> bool {
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        ws == self.active_workspace_for(&key)
+            && self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll
     }
 
     /// Drop a window from every output's scroll state (used on destroy / move).
@@ -1147,52 +1411,33 @@ impl MetisState {
     /// Entering scroll seeds the strip from that workspace's app tiles (visible or
     /// stashed); leaving scroll drops the strip and de-overlaps the visible grid.
     fn set_layout_kind_on(&mut self, key: &str, ws: u32, kind: metis_grid::LayoutKind) {
+        let active = self.active_workspace_for(key);
         if self.layout_kind_for(key, ws) == kind {
             // Pin an explicit entry so a later default change can't silently flip it.
             self.desk_mut_or_default(key).layout_kind.insert(ws, kind);
+            // Still sync backing state. When bar.json already matches the target
+            // (e.g. SetDefaultLayout after saving the dropdown), the early return
+            // used to skip seeding scroll strips entirely.
+            match kind {
+                metis_grid::LayoutKind::Scroll => self.seed_scroll_state(key, ws),
+                metis_grid::LayoutKind::Grid => {
+                    let desk = self.desk_mut_or_default(key);
+                    desk.scroll.remove(&ws);
+                    if ws == active {
+                        metis_grid::sanitize_layout(&mut desk.layout);
+                    }
+                }
+                metis_grid::LayoutKind::Free => {
+                    self.desk_mut_or_default(key).scroll.remove(&ws);
+                }
+            }
             return;
         }
-        let active = self.active_workspace_for(key);
-        // App window ids for this workspace, in tile order. The active workspace's
-        // tiles live in the visible layout; hidden workspaces' tiles are stashed.
-        let collect_ids = |tiles: &[metis_grid::GridTile]| -> Vec<u32> {
-            tiles
-                .iter()
-                .filter_map(|t| match &t.kind {
-                    TileKind::App { window_id: Some(wid), .. } => Some(*wid),
-                    _ => None,
-                })
-                .collect()
-        };
-        let app_ids: Vec<u32> = self
-            .desk(key)
-            .map(|d| {
-                if ws == active {
-                    collect_ids(&d.layout.tiles)
-                } else {
-                    d.stashed_app_tiles
-                        .get(&ws)
-                        .map(|t| collect_ids(t))
-                        .unwrap_or_default()
-                }
-            })
-            .unwrap_or_default();
 
         match kind {
             metis_grid::LayoutKind::Scroll => {
-                let mut scroll = metis_grid::ScrollState::new();
-                for wid in &app_ids {
-                    scroll.insert_window_after_focus(*wid);
-                }
-                if let Some(f) = self.focused_window_id() {
-                    scroll.focus_window(f);
-                }
-                let zone = self.scroll_zone_for(key);
-                let gutter = self.gutter_px as i32;
-                scroll.scroll_x = scroll.desired_scroll_x(zone, gutter);
-                let desk = self.desk_mut_or_default(key);
-                desk.scroll.insert(ws, scroll);
-                desk.layout_kind.insert(ws, kind);
+                self.seed_scroll_state(key, ws);
+                self.desk_mut_or_default(key).layout_kind.insert(ws, kind);
             }
             metis_grid::LayoutKind::Grid => {
                 let desk = self.desk_mut_or_default(key);
@@ -1201,6 +1446,11 @@ impl MetisState {
                 if ws == active {
                     metis_grid::sanitize_layout(&mut desk.layout);
                 }
+            }
+            metis_grid::LayoutKind::Free => {
+                let desk = self.desk_mut_or_default(key);
+                desk.layout_kind.insert(ws, kind);
+                desk.scroll.remove(&ws);
             }
         }
     }
@@ -1213,7 +1463,22 @@ impl MetisState {
         }
         let focused = self.focused_window_id();
         self.set_layout_kind_on(key, ws, kind);
-        self.reposition_all_windows();
+        match kind {
+            metis_grid::LayoutKind::Grid => {
+                self.adopt_workspace_to_grid(key, ws);
+                self.auto_reflow_grid_apps(key, focused, false);
+            }
+            metis_grid::LayoutKind::Scroll => {
+                self.adopt_workspace_to_scroll(key, ws);
+                self.refresh_scroll_offset(key, false);
+                self.reposition_scroll_windows();
+            }
+            metis_grid::LayoutKind::Free => {
+                self.release_workspace_to_free(key, ws);
+                self.reposition_all_windows();
+                self.persist_layout();
+            }
+        }
         if let Some(f) = focused {
             self.focus_window_id(f);
         }
@@ -1232,7 +1497,25 @@ impl MetisState {
             for ws in 1..=count {
                 self.set_layout_kind_on(key, ws, kind);
             }
-            self.refresh_scroll_offset(key);
+            match kind {
+                metis_grid::LayoutKind::Free => {
+                    for ws in 1..=count {
+                        self.release_workspace_to_free(key, ws);
+                    }
+                }
+                metis_grid::LayoutKind::Grid => {
+                    for ws in 1..=count {
+                        self.adopt_workspace_to_grid(key, ws);
+                    }
+                    self.auto_reflow_grid_apps(key, focused, false);
+                }
+                metis_grid::LayoutKind::Scroll => {
+                    for ws in 1..=count {
+                        self.adopt_workspace_to_scroll(key, ws);
+                    }
+                    self.refresh_scroll_offset(key, false);
+                }
+            }
         }
         self.reposition_all_windows();
         if let Some(f) = focused {
@@ -1243,12 +1526,60 @@ impl MetisState {
         self.emit_layout_changed();
     }
 
-    /// Flip the output's active workspace between grid and scroll.
+    /// Turn on grid tiling for the active workspace under `key`.
+    pub fn enable_grid_tiling(&mut self, key: &str) {
+        const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(500);
+        let now = std::time::Instant::now();
+        if self
+            .last_layout_toggle
+            .is_some_and(|t| now.duration_since(t) < DEBOUNCE)
+        {
+            return;
+        }
+        self.last_layout_toggle = Some(now);
+        if self.active_layout_kind(key) == metis_grid::LayoutKind::Grid {
+            return;
+        }
+        tracing::info!(output = key, "enable_grid_tiling");
+        self.set_layout_kind(key, metis_grid::LayoutKind::Grid);
+    }
+
+    /// Return the active workspace to a normal floating desktop (grid/scroll off).
+    pub fn disable_grid_tiling(&mut self, key: &str) {
+        const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(500);
+        let now = std::time::Instant::now();
+        if self
+            .last_layout_toggle
+            .is_some_and(|t| now.duration_since(t) < DEBOUNCE)
+        {
+            return;
+        }
+        self.last_layout_toggle = Some(now);
+        if self.active_layout_kind(key) == metis_grid::LayoutKind::Free {
+            return;
+        }
+        tracing::info!(output = key, "disable_grid_tiling");
+        self.set_layout_kind(key, metis_grid::LayoutKind::Free);
+    }
+
+    /// Cycle the active workspace: free desktop → grid tiling → scrolling.
     pub fn toggle_layout_kind(&mut self, key: &str) {
+        const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(500);
+        let now = std::time::Instant::now();
+        if self
+            .last_layout_toggle
+            .is_some_and(|t| now.duration_since(t) < DEBOUNCE)
+        {
+            return;
+        }
+        self.last_layout_toggle = Some(now);
+
         let next = match self.active_layout_kind(key) {
+            metis_grid::LayoutKind::Free => metis_grid::LayoutKind::Grid,
             metis_grid::LayoutKind::Grid => metis_grid::LayoutKind::Scroll,
-            metis_grid::LayoutKind::Scroll => metis_grid::LayoutKind::Grid,
+            metis_grid::LayoutKind::Scroll => metis_grid::LayoutKind::Free,
         };
+        tracing::info!(output = key, ?next, "toggle_layout_kind");
         self.set_layout_kind(key, next);
     }
 
@@ -1257,8 +1588,11 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
+        self.space.raise_element(&record.window, true);
+        if self.focused_window_id() == Some(id) {
+            return;
+        }
         if let Some(keyboard) = self.seat.get_keyboard() {
-            self.space.raise_element(&record.window, true);
             let serial = smithay::utils::SERIAL_COUNTER.next_serial();
             keyboard.set_focus(self, Some(record.window.clone().into()), serial);
             self.event_bus
@@ -1282,8 +1616,8 @@ impl MetisState {
             let scroll = self.scroll_state_mut(&key, ws);
             f(scroll);
         }
-        self.refresh_scroll_offset(&key);
-        self.reposition_all_windows();
+        self.refresh_scroll_offset(&key, false);
+        self.reposition_scroll_windows();
         let focused = self
             .desk(&key)
             .and_then(|d| d.scroll.get(&ws))
@@ -1294,6 +1628,32 @@ impl MetisState {
         self.damaged = true;
         self.request_redraw();
         true
+    }
+
+    /// Keep the scroll strip's focused column aligned with keyboard focus.
+    pub fn sync_scroll_focus_for_window(&mut self, id: u32) {
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        if ws != self.active_workspace_for(&key) {
+            return;
+        }
+        if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
+            return;
+        }
+        let changed = self
+            .desk_mut_or_default(&key)
+            .scroll
+            .get_mut(&ws)
+            .map(|scroll| {
+                let before = scroll.focused_window();
+                scroll.focus_window(id);
+                before != scroll.focused_window()
+            })
+            .unwrap_or(false);
+        if changed {
+            self.refresh_scroll_offset(&key, false);
+            self.reposition_scroll_windows();
+        }
     }
 
     pub fn scroll_focus_left(&mut self) -> bool {
@@ -1337,11 +1697,70 @@ impl MetisState {
             .desk(&key)
             .map(|d| (d.layout.columns, d.layout.rows))
             .unwrap_or((self.default_layout.columns, self.default_layout.rows));
+        let zone = self.grid_placement_zone_for(output);
         GridMetrics {
             columns,
             rows,
             gutter: self.gutter_px,
-            monitor: self.output_rect(output).unwrap_or(self.monitor),
+            monitor: MonitorRect {
+                x: zone.x,
+                y: zone.y,
+                width: zone.width,
+                height: zone.height,
+            },
+        }
+    }
+
+    /// Usable desktop band for grid tiling on `output` (below/ beside the edge bar).
+    fn grid_placement_zone_for(&self, output: &smithay::output::Output) -> PixelRect {
+        let mut zone = self.window_placement_zone_for(output);
+        if !self.output_has_bar(output) {
+            return zone;
+        }
+        let Some(output_geo) = self.output_rect(output) else {
+            return zone;
+        };
+        let reserve = Self::bar_reserved_px();
+        let gaps = self.zone_edge_gaps();
+        match metis_config::load_bar_config().position {
+            metis_config::BarPosition::Top => {
+                let min_y = output_geo.y + reserve + gaps.top;
+                if zone.y < min_y {
+                    let delta = min_y - zone.y;
+                    zone.y = min_y;
+                    zone.height = (zone.height - delta).max(1);
+                }
+            }
+            metis_config::BarPosition::Bottom => {
+                zone.height = (zone.height - gaps.bottom).max(1);
+            }
+            metis_config::BarPosition::Left => {
+                let min_x = output_geo.x + reserve + gaps.left;
+                if zone.x < min_x {
+                    let delta = min_x - zone.x;
+                    zone.x = min_x;
+                    zone.width = (zone.width - delta).max(1);
+                }
+            }
+            metis_config::BarPosition::Right => {
+                zone.width = (zone.width - gaps.right).max(1);
+            }
+        }
+        zone
+    }
+
+    /// Hide persistent titlebars for grid-tiled windows; reveal on hover.
+    fn sync_grid_titlebar_chrome(&mut self, output_key: &str) {
+        let ws = self.active_workspace_for(output_key);
+        if self.layout_kind_for(output_key, ws) != metis_grid::LayoutKind::Grid {
+            return;
+        }
+        for id in self.window_ids_on_workspace(output_key, ws) {
+            if self.tile_id_for_window(id).is_some() && !self.floating.contains(&id) {
+                self.auto_hide_titlebar.insert(id);
+            } else {
+                self.auto_hide_titlebar.remove(&id);
+            }
         }
     }
 
@@ -1382,6 +1801,47 @@ impl MetisState {
                 .any(|t| t.id == tile_id)
                 .then(|| key.clone())
         })
+    }
+
+    /// Drop app tiles whose window no longer exists and dedupe multiple tiles for
+    /// the same live window (stale `desk.json` entries otherwise block reflow).
+    fn prune_stale_app_tiles(&mut self, output_key: &str) {
+        use std::collections::{HashMap, HashSet};
+
+        let live: HashSet<u32> = self.windows.ids().into_iter().collect();
+        let desk = self.desk_mut_or_default(output_key);
+
+        let prune_list = |tiles: &mut Vec<metis_grid::GridTile>| {
+            tiles.retain(|t| match &t.kind {
+                TileKind::App { window_id: Some(wid), .. } => live.contains(wid),
+                TileKind::App { window_id: None, .. } => false,
+                _ => true,
+            });
+            let mut keep: HashMap<u32, String> = HashMap::new();
+            for t in tiles.iter() {
+                let TileKind::App {
+                    window_id: Some(wid),
+                    ..
+                } = &t.kind
+                else {
+                    continue;
+                };
+                let canonical = format!("app-{wid}");
+                keep.entry(*wid).or_insert_with(|| t.id.clone());
+                if t.id == canonical {
+                    keep.insert(*wid, canonical);
+                }
+            }
+            tiles.retain(|t| match &t.kind {
+                TileKind::App { window_id: Some(wid), .. } => keep.get(wid) == Some(&t.id),
+                _ => true,
+            });
+        };
+
+        prune_list(&mut desk.layout.tiles);
+        for tiles in desk.stashed_app_tiles.values_mut() {
+            prune_list(tiles);
+        }
     }
 
     /// Drop a window's app tile from every desk (visible and stashed).
@@ -1622,6 +2082,17 @@ impl MetisState {
         if self.windows.is_minimized(id) {
             return;
         }
+        if !self.window_visible_on_desktop(id) {
+            if self
+                .space
+                .elements()
+                .any(|w| self.windows.id_for_window(w) == Some(id))
+            {
+                self.space.unmap_elem(&record.window);
+                self.schedule_redraw();
+            }
+            return;
+        }
         // Floating windows keep their free geometry (only recovered if they'd
         // land off every active output); grid windows snap to their tile.
         let rect = if self.floating.contains(&id) {
@@ -1637,10 +2108,31 @@ impl MetisState {
                 }
             })
         } else {
-            self.rect_for_window_tile(id).map(app_tile_body_rect)
+            self.rect_for_window_tile(id).and_then(|full| {
+                let body = if self.auto_hide_titlebar.contains(&id) {
+                    metis_grid::app_tile_auto_hide_body_rect(full)
+                } else {
+                    app_tile_body_rect(full)
+                };
+                if self.is_active_scroll_window(id) {
+                    let key = self.desk_key_for_window(id);
+                    let zone = self.scroll_zone_for(&key);
+                    if !body.intersects(&zone) {
+                        return None;
+                    }
+                }
+                Some(body)
+            })
         };
         let Some(rect) = rect else {
-            // No grid slot yet — never map at the registry default (0, 0).
+            if self
+                .space
+                .elements()
+                .any(|w| self.windows.id_for_window(w) == Some(id))
+            {
+                self.space.unmap_elem(&record.window);
+                self.schedule_redraw();
+            }
             return;
         };
         let mapped = self
@@ -1656,8 +2148,10 @@ impl MetisState {
                 .space
                 .element_location(&record.window)
                 .is_some_and(|l| l == loc)
-            && record.window.geometry().size == size
             && record.target_rect == rect
+            && (record.window.geometry().size == size
+                || self.floating.contains(&id)
+                || self.is_active_scroll_window(id))
         {
             return;
         }
@@ -1981,6 +2475,33 @@ impl MetisState {
         }
     }
 
+    /// Output a window was opened on (assigned at registration from the pointer).
+    fn launch_output_for(&self, id: u32) -> Option<smithay::output::Output> {
+        self.windows
+            .output_name(id)
+            .and_then(|name| self.output_by_name(&name))
+            .or_else(|| self.output_under_pointer())
+            .or_else(|| self.primary_output())
+    }
+
+    /// Center a client body of `body_w`×`body_h` in the launch output's usable zone.
+    fn centered_body_for_window(&self, id: u32, body_w: i32, body_h: i32) -> PixelRect {
+        let border = metis_grid::app_tile_border_px() as i32;
+        let header = metis_grid::APP_TILE_HEADER_PX;
+        let footprint_w = body_w + border * 2;
+        let footprint_h = body_h + header + border;
+        let footprint = match self.launch_output_for(id) {
+            Some(output) => self.centered_rect_in(&output, footprint_w, footprint_h),
+            None => self.centered_rect(footprint_w, footprint_h),
+        };
+        self.clamp_body_below_bar(app_tile_body_rect(footprint))
+    }
+
+    /// Restore a saved client body rect, keeping position and size when possible.
+    fn restore_body_for_window(&self, saved: PixelRect) -> PixelRect {
+        self.clamp_floating_rect(self.recover_offscreen_rect(saved))
+    }
+
     /// A rect of `width`x`height` centered in the primary output's usable area.
     fn centered_rect(&self, width: i32, height: i32) -> PixelRect {
         self.centered_rect_in_zone(self.placement_zone(), width, height)
@@ -2115,7 +2636,7 @@ impl MetisState {
     /// buffer commit, so the initial activation may not see it). No-ops once the
     /// window is floating — i.e. already auto-placed or moved by the user.
     pub(crate) fn maybe_autoplace_window(&mut self, id: u32) {
-        if self.floating.contains(&id) {
+        if self.floating.contains(&id) || self.windows.placement_chosen(id) {
             return;
         }
         let app_id = self.windows.get(id).and_then(|r| r.app_id.clone());
@@ -2124,59 +2645,102 @@ impl MetisState {
         }
     }
 
-    /// Decide where a freshly-mapped window should appear (called once, on first
-    /// activation). Restores saved per-app geometry, or centers apps that open
-    /// floating by default. Returns true when the window was placed as floating.
+    /// Decide where a freshly-mapped window should appear (once per window).
+    /// Grid workspaces tile; free and scroll workspaces center floating windows
+    /// (saved size when the app was opened before, default size on first launch).
+    /// Returns true when the window was placed as floating.
     fn place_new_window(&mut self, id: u32, app_id: Option<&str>) -> bool {
-        let title = self.windows.get(id).map(|r| r.title.clone());
-        tracing::info!(id, ?app_id, ?title, "place_new_window: deciding placement");
-        // Restore a previously saved position/size for this app (keyed by app_id).
-        // Only recovered onto the primary output if the saved spot is off every
-        // active monitor (e.g. a monitor that's since been disconnected).
-        if let Some(app_id) = app_id {
-            if let Some(saved) = self.window_state.get(app_id) {
-                let saved_rect = saved.to_rect();
-                // Ignore degenerate saved geometry (a stale 1x1 from a window that
-                // never got a buffer) so the app falls back to a sane default.
-                if saved_rect.width < MIN_SAVED_WINDOW_PX
-                    || saved_rect.height < MIN_SAVED_WINDOW_PX
-                {
-                    self.window_state.remove(app_id);
-                } else {
-                    let rect = self.recover_offscreen_rect(saved_rect);
-                    // Geometry saved from a snapped/maximized (auto-hide) window
-                    // sits flush under the bar; restored as a floating window its
-                    // titlebar would draw above the body, under the edge bar. Drop
-                    // it below.
-                    let rect = self.clamp_body_below_bar(rect);
-                    self.floating.insert(id);
-                    self.windows.set_target_rect(id, rect);
-                    tracing::info!(id, "place_new_window: restored saved geometry");
-                    return true;
-                }
-            }
+        if self.windows.placement_chosen(id) {
+            return self.floating.contains(&id);
         }
-        // No saved state: center apps that default to floating. Match on app_id, or
-        // fall back to the window title (GTK can be slow to set app_id over Wayland).
+
+        let title = self.windows.get(id).map(|r| r.title.clone());
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        let kind = self.layout_kind_for(&key, ws);
+
+        tracing::info!(id, ?app_id, ?title, ?kind, "place_new_window: deciding placement");
+
+        // Settings and similar always open centered floating regardless of layout.
         let by_app_id = app_id.is_some_and(|a| CENTERED_FLOAT_APP_IDS.contains(&a));
         let by_title = title
             .as_deref()
             .is_some_and(|t| CENTERED_FLOAT_TITLES.contains(&t));
         if by_app_id || by_title {
-            // Center the chrome footprint on the output under the cursor (falls
-            // back to primary), then inset the client to its body so Metis draws
-            // the server-side titlebar + border around it.
-            let footprint = match self.output_under_pointer() {
-                Some(output) => self.centered_rect_in(&output, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H),
-                None => self.centered_rect(DEFAULT_FLOAT_W, DEFAULT_FLOAT_H),
-            };
-            let rect = app_tile_body_rect(footprint);
+            let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
             self.floating.insert(id);
             self.windows.set_target_rect(id, rect);
+            self.windows.set_placement_chosen(id, true);
             tracing::info!(id, ?rect, "place_new_window: centered default-float app");
             return true;
         }
-        false
+
+        // Grid layout: tile via the desk — never auto-center from saved geometry.
+        if kind == metis_grid::LayoutKind::Grid {
+            self.windows.set_placement_chosen(id, true);
+            return false;
+        }
+
+        // Free desktop: restore saved geometry when known, else centered default.
+        if kind == metis_grid::LayoutKind::Free {
+            if let Some(app_id) = app_id {
+                if let Some(saved) = self.window_state.get(app_id) {
+                    let saved_rect = saved.to_rect();
+                    if saved_rect.width >= MIN_SAVED_WINDOW_PX
+                        && saved_rect.height >= MIN_SAVED_WINDOW_PX
+                    {
+                        let rect = self.restore_body_for_window(saved_rect);
+                        self.floating.insert(id);
+                        self.windows.set_target_rect(id, rect);
+                        self.windows.set_placement_chosen(id, true);
+                        tracing::info!(id, ?rect, "place_new_window: restored saved geometry");
+                        return true;
+                    }
+                    self.window_state.remove(app_id);
+                }
+            }
+            let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+            self.floating.insert(id);
+            self.windows.set_target_rect(id, rect);
+            self.windows.set_placement_chosen(id, true);
+            tracing::info!(id, "place_new_window: free desktop centered on launch output");
+            return true;
+        }
+
+        // Scroll layout needs an app_id before we can classify first vs returning.
+        let Some(app_id) = app_id else {
+            return false;
+        };
+
+        // Returning app: restore saved width/height centered on the launch output.
+        if let Some(saved) = self.window_state.get(app_id) {
+            let saved_rect = saved.to_rect();
+            if saved_rect.width < MIN_SAVED_WINDOW_PX
+                || saved_rect.height < MIN_SAVED_WINDOW_PX
+            {
+                self.window_state.remove(app_id);
+            } else {
+                let rect = self.restore_body_for_window(saved_rect);
+                self.floating.insert(id);
+                self.windows.set_target_rect(id, rect);
+                self.windows.set_placement_chosen(id, true);
+                tracing::info!(
+                    id,
+                    ?rect,
+                    ?kind,
+                    "place_new_window: restored saved geometry"
+                );
+                return true;
+            }
+        }
+
+        // First launch: centered default on the output it was opened from.
+        let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+        self.floating.insert(id);
+        self.windows.set_target_rect(id, rect);
+        self.windows.set_placement_chosen(id, true);
+        tracing::info!(id, ?kind, "place_new_window: first launch centered on launch output");
+        true
     }
 
     /// Persist a floating window's current on-screen geometry under its app_id,
@@ -2583,6 +3147,9 @@ impl MetisState {
     }
 
     fn rect_for_window_tile(&self, id: u32) -> Option<PixelRect> {
+        if self.floating.contains(&id) {
+            return None;
+        }
         // Scrolling workspaces position from the strip, not the tile grid.
         if let Some(frame) = self.scroll_frame_for_window(id) {
             return Some(frame);
@@ -2648,6 +3215,7 @@ impl MetisState {
         self.desk_mut_or_default(&key).layout = merged;
         self.gutter_px = gutter_px;
         self.ensure_app_tiles_for_open_windows();
+        self.sync_grid_titlebar_chrome(&key);
         self.reposition_all_windows();
     }
 
@@ -2657,10 +3225,9 @@ impl MetisState {
         }
     }
 
-    fn reposition_all_windows(&mut self) {
-        let ids: Vec<u32> = self.windows.ids();
-        for id in ids {
-            if self.rect_for_window_tile(id).is_some() {
+    pub(crate) fn reposition_all_windows(&mut self) {
+        for id in self.windows.ids() {
+            if self.floating.contains(&id) || self.rect_for_window_tile(id).is_some() {
                 self.apply_window_rect(id);
             }
         }
@@ -2668,8 +3235,13 @@ impl MetisState {
 
     /// Reserve a grid slot as soon as an app registers (before its first buffer commit).
     fn ensure_app_tile_for_window(&mut self, id: u32) {
-        let tile_id = format!("app-{id}");
         let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Free {
+            return;
+        }
+
+        let tile_id = format!("app-{id}");
         // Already present, visible or stashed on this output's desk?
         if let Some(desk) = self.desk(&key) {
             if desk.layout.tiles.iter().any(|t| t.id == tile_id)
@@ -2682,7 +3254,6 @@ impl MetisState {
             }
         }
         let class = self.windows.get(id).and_then(|r| r.app_id.clone());
-        let ws = self.windows.workspace(id).unwrap_or(1);
         let active = self.active_workspace_for(&key);
         let desk = self.desk_mut_or_default(&key);
         let tile = metis_grid::GridTile {
@@ -2706,19 +3277,26 @@ impl MetisState {
         }
         // Mirror membership into the scroll strip when this workspace scrolls.
         if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll {
-            self.scroll_state_mut(&key, ws).insert_window_after_focus(id);
-            self.refresh_scroll_offset(&key);
+            self.seed_scroll_state(&key, ws);
+            self.refresh_scroll_offset(&key, false);
         } else {
-            self.auto_reflow_grid_apps(&key, Some(id));
+            self.auto_reflow_grid_apps(&key, Some(id), true);
         }
     }
 
     /// Split the active grid workspace among grid-managed app windows.
-    fn auto_reflow_grid_apps(&mut self, output_key: &str, focus_window_id: Option<u32>) {
+    fn auto_reflow_grid_apps(
+        &mut self,
+        output_key: &str,
+        focus_window_id: Option<u32>,
+        emit: bool,
+    ) {
         let ws = self.active_workspace_for(output_key);
         if self.layout_kind_for(output_key, ws) != metis_grid::LayoutKind::Grid {
             return;
         }
+
+        self.prune_stale_app_tiles(output_key);
 
         let include: Vec<String> = self
             .desk(output_key)
@@ -2748,14 +3326,25 @@ impl MetisState {
         let focus_tile_id = focus_window_id.and_then(|id| self.tile_id_for_window(id));
 
         let desk = self.desk_mut_or_default(output_key);
+        metis_grid::sanitize_layout(&mut desk.layout);
+        let focus = focus_tile_id.as_deref();
         if let Err(err) =
-            metis_grid::auto_tile_apps(&mut desk.layout, focus_tile_id.as_deref(), &include)
+            metis_grid::auto_tile_apps(&mut desk.layout, focus, &include)
         {
-            tracing::warn!(%err, output = output_key, "auto_tile_apps failed");
+            tracing::warn!(%err, output = output_key, "auto_tile_apps failed after sanitize; retrying");
+            metis_grid::sanitize_layout(&mut desk.layout);
+            if let Err(err) =
+                metis_grid::auto_tile_apps(&mut desk.layout, focus, &include)
+            {
+                tracing::warn!(%err, output = output_key, "auto_tile_apps failed after retry");
+            }
         }
+        self.sync_grid_titlebar_chrome(output_key);
         self.reposition_all_windows();
         self.persist_layout();
-        self.emit_layout_changed();
+        if emit {
+            self.emit_layout_changed();
+        }
     }
 
     pub fn sync_all_app_windows(&mut self) {
@@ -2862,6 +3451,21 @@ impl MetisState {
             return;
         }
 
+        if self.layout_kind_for(output_key, current) == metis_grid::LayoutKind::Free {
+            for id in self.window_ids_on_workspace(output_key, current) {
+                if let Some(record) = self.windows.get(id).cloned() {
+                    self.space.unmap_elem(&record.window);
+                }
+            }
+            self.desk_mut_or_default(output_key).active_workspace = target;
+            for id in self.window_ids_on_workspace(output_key, target) {
+                self.apply_window_rect(id);
+            }
+            self.focus_topmost_on_active_workspace();
+            self.emit_workspace_changed(output_key);
+            return;
+        }
+
         // Pull this output's app tiles out of its live grid and remember them.
         let mut stashed: Vec<metis_grid::GridTile> = Vec::new();
         {
@@ -2892,9 +3496,9 @@ impl MetisState {
                 desk.layout.tiles.extend(tiles);
             }
         }
-        self.refresh_scroll_offset(output_key);
+        self.refresh_scroll_offset(output_key, false);
         if self.layout_kind_for(output_key, target) == metis_grid::LayoutKind::Grid {
-            self.auto_reflow_grid_apps(output_key, self.focused_window_id());
+            self.auto_reflow_grid_apps(output_key, self.focused_window_id(), false);
         }
         self.reposition_all_windows();
         self.focus_topmost_on_active_workspace();
@@ -3032,9 +3636,8 @@ impl MetisState {
         }
 
         if self.layout_kind_for(target_key, workspace) == metis_grid::LayoutKind::Scroll {
-            self.scroll_state_mut(target_key, workspace)
-                .insert_window_after_focus(window_id);
-            self.refresh_scroll_offset(target_key);
+            self.seed_scroll_state(target_key, workspace);
+            self.refresh_scroll_offset(target_key, false);
         }
 
         if was_visible && !will_be_visible {
@@ -3201,7 +3804,7 @@ impl MetisState {
         }
 
         if will_be_visible_on_target {
-            self.refresh_scroll_offset(target_key);
+            self.refresh_scroll_offset(target_key, false);
             for &id in &window_ids {
                 if !self.windows.is_minimized(id) {
                     self.apply_window_rect(id);
@@ -3306,10 +3909,9 @@ impl MetisState {
         // the target if it scrolls.
         self.remove_from_scroll_everywhere(window_id);
         if self.layout_kind_for(&key, target) == metis_grid::LayoutKind::Scroll {
-            self.scroll_state_mut(&key, target)
-                .insert_window_after_focus(window_id);
+            self.seed_scroll_state(&key, target);
         }
-        self.refresh_scroll_offset(&key);
+        self.refresh_scroll_offset(&key, false);
 
         self.damaged = true;
         self.request_redraw();
@@ -3360,20 +3962,30 @@ impl MetisState {
                 rect: self.monitor,
             },
             CompositorCommand::ListOutputs => {
-                let outputs = self
+                let primary = self.primary_output().map(|o| o.name());
+                let mut entries: Vec<(String, MonitorRect)> = self
                     .space
                     .outputs()
                     .filter_map(|o| {
                         let geo = self.space.output_geometry(o)?;
-                        Some(metis_protocol::OutputInfo {
-                            name: o.name(),
-                            rect: metis_protocol::MonitorRect {
+                        Some((
+                            o.name(),
+                            MonitorRect {
                                 x: geo.loc.x,
                                 y: geo.loc.y,
                                 width: geo.size.w,
                                 height: geo.size.h,
                             },
-                        })
+                        ))
+                    })
+                    .collect();
+                entries.sort_by_key(|(_, rect)| (rect.x, rect.y));
+                let outputs = entries
+                    .into_iter()
+                    .map(|(name, rect)| metis_protocol::OutputInfo {
+                        name: name.clone(),
+                        primary: primary.as_deref() == Some(name.as_str()),
+                        rect,
                     })
                     .collect();
                 CompositorEvent::OutputList { outputs }
@@ -3636,7 +4248,7 @@ impl MetisState {
         let (title, app_id) = read_toplevel_metadata(&record.toplevel);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
-        if !self.floating.contains(&id) {
+        if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
             self.place_new_window(id, app_id.as_deref());
         }
         self.apply_window_rect(id);
@@ -3644,6 +4256,14 @@ impl MetisState {
 
     pub fn activate_window(&mut self, id: u32) {
         use metis_protocol::CompositorEvent;
+
+        let key = self.desk_key_for_window(id);
+        let ws = self.windows.workspace(id).unwrap_or(1);
+        let kind = self.layout_kind_for(&key, ws);
+        if kind == metis_grid::LayoutKind::Free {
+            // Grid tiles must not drive placement while the workspace is floating.
+            self.remove_app_tile_everywhere(id);
+        }
 
         self.ensure_app_tile_for_window(id);
         let Some(record) = self.windows.get(id).cloned() else {
@@ -3655,11 +4275,11 @@ impl MetisState {
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
 
         let already_ready = self.windows.is_ready(id);
-        // First activation: choose a placement (restore saved geometry or center
-        // default-floating apps) before the window is mapped. Skip it when the
-        // window was already primed (initial configure sent on first commit) so
-        // we don't re-run placement.
-        if !already_ready && !record.toplevel.is_initial_configure_sent() {
+        // Choose placement before the first map whenever the window is not yet
+        // floating (e.g. app_id arrived after the initial configure).
+        if kind == metis_grid::LayoutKind::Free {
+            self.place_new_window(id, app_id.as_deref());
+        } else if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
             self.place_new_window(id, app_id.as_deref());
         }
         self.apply_window_rect(id);
@@ -3671,8 +4291,12 @@ impl MetisState {
         self.windows.set_ready(id, true);
 
         let suggested_rect = self
-            .rect_for_window_tile(id)
-            .map(app_tile_body_rect)
+            .windows
+            .target_rect(id)
+            .or_else(|| {
+                self.rect_for_window_tile(id)
+                    .map(metis_grid::app_tile_body_rect)
+            })
             .unwrap_or(PixelRect {
                 x: 0,
                 y: 0,
@@ -3817,11 +4441,13 @@ impl MetisState {
     pub fn on_window_destroyed(&mut self, id: u32) {
         use metis_protocol::CompositorEvent;
 
+        self.save_window_geometry(id);
         self.floating.remove(&id);
         self.clear_auto_hide(id);
         let desk_key = self.desk_key_for_window(id);
         self.remove_app_tile_everywhere(id);
-        self.auto_reflow_grid_apps(&desk_key, self.focused_window_id());
+        self.auto_reflow_grid_apps(&desk_key, self.focused_window_id(), false);
+        self.persist_layout();
         self.event_bus.emit(&CompositorEvent::WindowClosed { id });
     }
 

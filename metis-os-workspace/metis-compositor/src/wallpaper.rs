@@ -74,7 +74,10 @@ pub struct Wallpaper {
     /// re-scale (cheap) instead of re-reading and re-decoding from disk. Shared
     /// across outputs, so two displays showing the same image only read it once.
     sources: HashMap<PathBuf, Arc<RgbaImage>>,
-    decode_result: Option<Arc<Mutex<Option<DecodeOutput>>>>,
+    /// `(generation, result)` — the generation tag lets us ignore stale worker
+    /// output after a layout invalidation without dropping the slot mid-flight.
+    decode_slot: Arc<Mutex<(u64, Option<DecodeOutput>)>>,
+    decode_generation: u64,
     decode_thread: Option<JoinHandle<()>>,
     /// When set, a (re)decode is due once this instant passes — debounces the
     /// burst of resize events emitted while maximizing/restoring the window.
@@ -105,7 +108,8 @@ impl Wallpaper {
             texture: None,
             cpu_pixels: None,
             sources: HashMap::new(),
-            decode_result: None,
+            decode_slot: Arc::new(Mutex::new((0, None))),
+            decode_generation: 0,
             decode_thread: None,
             redecode_at: None,
         }
@@ -153,12 +157,10 @@ impl Wallpaper {
         self.buffer = None;
         self.texture = None;
         self.cpu_pixels = None;
-        // Detach any in-flight decode rather than joining on the compositor
-        // thread — joining here blocked the main loop for the entire decode
-        // (seconds) on every resize. The orphaned worker writes into its own
-        // (now-dropped) slot and exits on its own.
-        self.decode_thread = None;
-        self.decode_result = None;
+        // Bump the generation so any in-flight worker's result is ignored on poll.
+        // Never drop `decode_slot` or join here — that orphaned workers and/or
+        // blocked the main loop for the full decode on every resize burst.
+        self.decode_generation = self.decode_generation.wrapping_add(1);
     }
 
     /// Set the output layout (full framebuffer size + per-output regions) the
@@ -171,7 +173,10 @@ impl Wallpaper {
         self.full_size = full_size;
         self.regions = regions;
         self.invalidate();
-        self.redecode_at = Some(Instant::now() + Duration::from_millis(120));
+        // Keep the earliest scheduled decode — a burst of startup resizes must not
+        // push this forward forever and starve the first compose pass.
+        let at = Instant::now() + Duration::from_millis(120);
+        self.redecode_at = Some(self.redecode_at.map_or(at, |prev| prev.min(at)));
     }
 
     /// Drive debounced decoding and result polling from the compositor
@@ -184,29 +189,47 @@ impl Wallpaper {
         }
         if let Some(at) = self.redecode_at {
             if Instant::now() >= at {
-                self.redecode_at = None;
+                // start_async_decode clears redecode_at on success or re-arms it
+                // for a short retry while a previous worker is still composing —
+                // never drop the schedule here, or the wallpaper never lands.
                 self.start_async_decode();
             }
         }
         self.poll_decode();
-        self.redecode_at.is_some()
-            || self.decode_in_flight()
-            || (self.cpu_pixels.is_some() && self.buffer.is_none())
+        // Only schedule frames when a re-decode is queued or decoded pixels still
+        // need a GPU upload. Polling while a worker is running caused a 60fps
+        // render spin that blocked the nested compositor during startup.
+        self.redecode_at.is_some() || (self.cpu_pixels.is_some() && self.buffer.is_none())
     }
 
     /// Compose the full-desktop wallpaper on a background thread (one cover-crop
     /// per output, blitted into the shared framebuffer) so init/resize stay
     /// responsive.
     pub fn start_async_decode(&mut self) {
-        if !self.enabled() || self.cpu_pixels.is_some() || self.decode_thread.is_some() {
+        if !self.enabled() || self.cpu_pixels.is_some() {
+            self.redecode_at = None;
             return;
         }
+        if let Some(handle) = self.decode_thread.as_ref() {
+            if !handle.is_finished() {
+                // A worker is still composing the previous layout. Retry shortly
+                // rather than dropping the request, so the latest layout still
+                // gets decoded once the worker frees up.
+                self.redecode_at = Some(Instant::now() + Duration::from_millis(30));
+                return;
+            }
+        }
+        if let Some(handle) = self.decode_thread.take() {
+            let _ = handle.join();
+        }
         if self.full_size.w <= 0 || self.full_size.h <= 0 || self.regions.is_empty() {
+            self.redecode_at = None;
             return;
         }
         self.redecode_at = None;
 
         let full = self.full_size;
+        let generation = self.decode_generation;
         // Resolve every region's (mode, path) up front so the worker is fully
         // self-contained and never touches `self`.
         let jobs: Vec<(OutputRegion, BackgroundMode, PathBuf)> = self
@@ -218,7 +241,7 @@ impl Wallpaper {
             })
             .collect();
         let cached = self.sources.clone();
-        let slot = Arc::new(Mutex::new(None));
+        let slot = Arc::clone(&self.decode_slot);
         let slot_worker = Arc::clone(&slot);
 
         tracing::debug!(width = full.w, height = full.h, outputs = jobs.len(), "composing wallpaper");
@@ -276,13 +299,18 @@ impl Wallpaper {
                 }
 
                 if let Ok(mut guard) = slot_worker.lock() {
-                    *guard = Some(DecodeOutput { pixels: buf, sources: new_sources });
+                    if guard.0 == generation {
+                        guard.1 = Some(DecodeOutput { pixels: buf, sources: new_sources });
+                    }
                 }
             })
             .ok();
 
         if let Some(handle) = handle {
-            self.decode_result = Some(slot);
+            if let Ok(mut guard) = self.decode_slot.lock() {
+                guard.0 = generation;
+                guard.1 = None;
+            }
             self.decode_thread = Some(handle);
         }
     }
@@ -292,9 +320,9 @@ impl Wallpaper {
         if self.cpu_pixels.is_some() {
             return;
         }
-        if let Some(slot) = &self.decode_result {
-            if let Ok(mut guard) = slot.lock() {
-                if let Some(out) = guard.take() {
+        if let Ok(mut guard) = self.decode_slot.lock() {
+            if guard.0 == self.decode_generation {
+                if let Some(out) = guard.1.take() {
                     tracing::info!(
                         width = self.full_size.w,
                         height = self.full_size.h,
@@ -374,7 +402,7 @@ impl Wallpaper {
     pub fn decode_in_flight(&self) -> bool {
         self.enabled()
             && self.buffer.is_none()
-            && (self.decode_thread.is_some() || self.decode_result.is_some())
+            && (self.decode_thread.is_some() || self.redecode_at.is_some())
     }
 }
 

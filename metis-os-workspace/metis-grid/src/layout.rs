@@ -64,6 +64,22 @@ impl PixelRect {
             height: lerp_i32(self.height, other.height, t),
         }
     }
+
+    pub fn right(&self) -> i32 {
+        self.x + self.width
+    }
+
+    pub fn bottom(&self) -> i32 {
+        self.y + self.height
+    }
+
+    /// True when this rectangle overlaps `other` with positive area.
+    pub fn intersects(&self, other: &Self) -> bool {
+        self.x < other.right()
+            && self.right() > other.x
+            && self.y < other.bottom()
+            && self.bottom() > other.y
+    }
 }
 
 /// Pixel rect relative to the desk layer (monitor origin at 0,0).
@@ -85,6 +101,20 @@ pub fn app_tile_chrome_rect(full: PixelRect) -> PixelRect {
         y: full.y,
         width: full.width.max(1),
         height,
+    }
+}
+
+/// Client region for auto-hide chrome: the window fills the tile and the
+/// titlebar is drawn as a hover overlay on the top strip.
+pub fn app_tile_auto_hide_body_rect(full: PixelRect) -> PixelRect {
+    let b = app_tile_border_px();
+    let border = b.min((full.width / 2).max(0));
+    let bottom_border = b.min(full.height.max(0));
+    PixelRect {
+        x: full.x + border,
+        y: full.y + border,
+        width: (full.width - border * 2).max(1),
+        height: (full.height - border - bottom_border).max(1),
     }
 }
 

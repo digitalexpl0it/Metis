@@ -33,6 +33,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   (or switching back to a workspace) re-splits the area below desk widgets among
   visible tiled windows; the focused window takes the primary slot when three or
   more share the workspace.
+- **Scrolling layout polish** — column focus pans with a smooth viewport animation;
+  off-screen scroll columns are unmapped so they no longer bleed onto adjacent
+  outputs; vertical stacks distribute height evenly; scroll offset is clamped to
+  the strip width. `ListOutputs` now marks the primary monitor and sorts outputs
+  left-to-right.
+- **Scroll layout lockup fix** — changing the default layout to Scrolling now
+  actually seeds scroll strips (the early-return path used to skip that when
+  `bar.json` already matched), `Mod+\` is debounced against key-repeat, and
+  scroll animation only reconfigures scroll-layout windows instead of the whole
+  session each frame.
 
 ## [2026-06-25]
 

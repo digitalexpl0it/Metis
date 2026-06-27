@@ -178,6 +178,14 @@ impl XdgShellHandler for MetisState {
             return;
         };
 
+        // Bar popovers are non-autohide and dismissed via toggle + the compositor
+        // "close-popovers" signal. `xdg_popup` grabs rooted on a layer-shell
+        // surface (KeyboardMode::None) deadlock GTK in a nested session — the menu
+        // would freeze the whole Metis session while trying to establish the grab.
+        if matches!(root, KeyboardFocusTarget::LayerSurface(_)) {
+            return;
+        }
+
         if let Ok(mut grab) = self.popups.grab_popup(root, kind, &seat, serial) {
             if let Some(keyboard) = seat.get_keyboard() {
                 if keyboard.is_grabbed()

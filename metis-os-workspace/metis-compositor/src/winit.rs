@@ -191,6 +191,10 @@ pub fn init_winit(
     let mut frame_age = 0usize;
 
     let backend_winit = backend.clone();
+    backend
+        .borrow()
+        .window()
+        .set_title("Metis");
     state.set_redraw_trigger(Rc::new(move || {
         backend_winit.borrow().window().request_redraw();
     }));
@@ -248,8 +252,12 @@ pub fn init_winit(
                     state.apply_window_rect(id);
                 }
                 state.sync_all_app_windows();
+                state.refresh_all_scroll_offsets();
                 state.damaged = true;
             }
+
+            // Scroll viewport snaps immediately (no animation), so nothing to do here.
+            let _ = state.tick_scroll_animations();
 
             // Frame callbacks are delivered after each render (see Redraw), not
             // on a fixed clock — that keeps GTK's frame clock from spinning when
@@ -301,10 +309,13 @@ pub fn init_winit(
                 state.emit_monitor_changed();
                 frame_age = 0;
                 let ids: Vec<u32> = state.windows.ids();
-                for id in ids {
-                    state.apply_window_rect(id);
+                if !ids.is_empty() {
+                    for id in ids {
+                        state.apply_window_rect(id);
+                    }
+                    state.sync_all_app_windows();
+                    state.refresh_all_scroll_offsets();
                 }
-                state.sync_all_app_windows();
                 state.arrange_layers();
             }
             WinitEvent::Input(event) => {
@@ -356,14 +367,21 @@ pub fn init_winit(
                                 })
                                 .collect();
                             state.blur.ensure_program(renderer);
-                            let blur_elements: Vec<crate::blur::BlurElement> = bar_rects
-                                .into_iter()
-                                .filter_map(|r| {
-                                    let rect = state.blur.confine_to_pill(r);
-                                    let (tex, tex_size) = state.wallpaper.texture()?;
-                                    state.blur.element(rect, tex, tex_size)
-                                })
-                                .collect();
+                            let draw_blur = state.blur.enabled
+                                && !state.splash_overlay_visible()
+                                && state.wallpaper.texture().is_some();
+                            let blur_elements: Vec<crate::blur::BlurElement> = if draw_blur {
+                                bar_rects
+                                    .into_iter()
+                                    .filter_map(|r| {
+                                        let rect = state.blur.confine_to_pill(r);
+                                        let (tex, tex_size) = state.wallpaper.texture()?;
+                                        state.blur.element(rect, tex, tex_size)
+                                    })
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            };
 
                             // Snap-zone drop preview (translucent fill at the
                             // destination), drawn on top of everything during a

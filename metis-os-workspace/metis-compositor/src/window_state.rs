@@ -5,9 +5,10 @@
 //! by Wayland `app_id`. The store is written to `~/.config/metis/windows.json`
 //! and reloaded on the next compositor start so apps reopen where they were left.
 //!
-//! Geometry is always re-validated against the current screen on restore (see
-//! `MetisState::clamp_rect_on_screen`) so a saved window can never reopen
-//! off-screen — for instance after a resolution change.
+//! Geometry is re-validated on restore: saved position and size are kept when
+//! still visible on a connected output; otherwise the window is pulled back
+//! on-screen. Saved geometry is only applied in free or scroll layout mode;
+//! grid workspaces tile.
 
 use std::collections::HashMap;
 use std::path::PathBuf;

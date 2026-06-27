@@ -33,6 +33,9 @@ pub struct WindowRecord {
     pub output: String,
     /// True after the first buffer commit; probe toplevels that never commit are dropped quietly.
     pub ready: bool,
+    /// True once [`MetisState::place_new_window`] has decided float-vs-tile for this
+    /// window. Prevents layout toggles (which clear `floating`) from re-centering.
+    pub placement_chosen: bool,
 }
 
 pub struct WindowRegistry {
@@ -82,9 +85,20 @@ impl WindowRegistry {
                 workspace: 1,
                 output: String::new(),
                 ready: false,
+                placement_chosen: false,
             },
         );
         id
+    }
+
+    pub fn placement_chosen(&self, id: u32) -> bool {
+        self.by_id.get(&id).is_some_and(|r| r.placement_chosen)
+    }
+
+    pub fn set_placement_chosen(&mut self, id: u32, chosen: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.placement_chosen = chosen;
+        }
     }
 
     pub fn set_ready(&mut self, id: u32, ready: bool) {

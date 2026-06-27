@@ -78,9 +78,13 @@ pub struct ScrollState {
     pub columns: Vec<ScrollColumn>,
     #[serde(default)]
     pub focus_col: usize,
-    /// Current viewport offset (px) into the strip; 0 shows the leftmost column.
+    /// Current viewport offset (px) into the strip; animated toward
+    /// [`ScrollState::scroll_x_target`].
     #[serde(default)]
     pub scroll_x: i32,
+    /// Target viewport offset; updated by focus changes and clamped to the strip.
+    #[serde(default)]
+    pub scroll_x_target: i32,
 }
 
 impl ScrollState {
@@ -274,29 +278,91 @@ impl ScrollState {
         let mut cursor = zone.x - self.scroll_x;
         for col in &self.columns {
             let w = col_width_px(col.width, zone.width);
-            let n = col.windows.len().max(1) as i32;
-            let total_gut = gutter * (n - 1);
-            let cell_h = ((zone.height - total_gut) / n).max(1);
+            let n = col.windows.len();
+            if n == 0 {
+                cursor += w + gutter;
+                continue;
+            }
+            let total_gut = gutter * (n as i32 - 1);
+            let available = (zone.height - total_gut).max(n as i32);
+            let base = available / n as i32;
+            let rem = available % n as i32;
+            let mut y = zone.y;
             for (i, &window) in col.windows.iter().enumerate() {
-                let y = zone.y + i as i32 * (cell_h + gutter);
+                let cell_h = base + if (i as i32) < rem { 1 } else { 0 };
                 out.push((
                     window,
                     PixelRect {
                         x: cursor,
                         y,
                         width: w,
-                        height: cell_h,
+                        height: cell_h.max(1),
                     },
                 ));
+                y += cell_h + gutter;
             }
             cursor += w + gutter;
         }
         out
     }
 
+    /// Total width of the horizontal strip in pixels (columns + gutters).
+    pub fn strip_width(&self, zone: PixelRect, gutter: i32) -> i32 {
+        if self.columns.is_empty() {
+            return 0;
+        }
+        let mut w = 0;
+        for (i, col) in self.columns.iter().enumerate() {
+            if i > 0 {
+                w += gutter;
+            }
+            w += col_width_px(col.width, zone.width);
+        }
+        w
+    }
+
+    /// Maximum scroll offset that keeps the strip's right edge aligned with the
+    /// viewport when the strip is wider than the zone.
+    pub fn max_scroll_x(&self, zone: PixelRect, gutter: i32) -> i32 {
+        (self.strip_width(zone, gutter) - zone.width).max(0)
+    }
+
+    /// Advance the animated viewport toward [`Self::scroll_x_target`]. Returns
+    /// `true` when `scroll_x` moved this step.
+    pub fn advance_scroll_animation(&mut self, dt_secs: f32) -> bool {
+        if self.scroll_x == self.scroll_x_target {
+            return false;
+        }
+        const SPEED_PX_PER_SEC: f32 = 3200.0;
+        let step = (SPEED_PX_PER_SEC * dt_secs).round() as i32;
+        let step = step.max(1);
+        let delta = self.scroll_x_target - self.scroll_x;
+        let before = self.scroll_x;
+        if delta.abs() <= step {
+            self.scroll_x = self.scroll_x_target;
+        } else {
+            self.scroll_x += step * delta.signum();
+        }
+        self.scroll_x != before
+    }
+
+    /// Snap the viewport to the target immediately (no animation).
+    pub fn snap_scroll(&mut self) {
+        self.scroll_x = self.scroll_x_target;
+    }
+
+    /// Set the scroll target, clamped to the strip width for `zone`.
+    pub fn set_scroll_target(&mut self, target: i32, zone: PixelRect, gutter: i32) {
+        let max = self.max_scroll_x(zone, gutter);
+        self.scroll_x_target = target.clamp(0, max);
+        if self.scroll_x > max {
+            self.scroll_x = max;
+        }
+    }
+
     /// The `scroll_x` value that brings the focused column fully into view (left
-    /// aligned when it's wider than the viewport). Callers store the result back
-    /// into [`ScrollState::scroll_x`].
+    /// aligned when it's wider than the viewport). Callers store the result in
+    /// [`ScrollState::scroll_x_target`] (and optionally animate `scroll_x`).
     pub fn desired_scroll_x(&self, zone: PixelRect, gutter: i32) -> i32 {
         if self.columns.is_empty() {
             return 0;
@@ -317,7 +383,7 @@ impl ScrollState {
         } else if start + width > scroll + zone.width {
             scroll = start + width - zone.width;
         }
-        scroll.max(0)
+        scroll.clamp(0, self.max_scroll_x(zone, gutter))
     }
 }
 
@@ -429,12 +495,36 @@ mod tests {
         let mut s = ScrollState::new();
         for id in 1..=4 {
             s.insert_window_after_focus(id);
-            s.cycle_focus_width(); // Half -> TwoThirds for variety not needed; keep
             s.columns[s.focus_col].width = ColumnWidth::Half;
         }
-        // Four half-width (600px) columns => strip much wider than 1200 viewport.
-        // Focused is the last column; scroll should reveal it.
         let scroll = s.desired_scroll_x(ZONE, 10);
         assert!(scroll > 0);
+    }
+
+    #[test]
+    fn max_scroll_clamps_desired() {
+        let mut s = ScrollState::new();
+        for id in 1..=4 {
+            s.insert_window_after_focus(id);
+            s.columns[s.focus_col].width = ColumnWidth::Half;
+        }
+        let max = s.max_scroll_x(ZONE, 10);
+        assert!(max > 0);
+        let desired = s.desired_scroll_x(ZONE, 10);
+        assert!(desired <= max);
+    }
+
+    #[test]
+    fn vertical_stack_distributes_remainder() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        s.consume_into_prev();
+        s.insert_window_after_focus(3);
+        s.consume_into_prev();
+        let frames = s.layout(ZONE, 10);
+        assert_eq!(frames.len(), 3);
+        let total_h: i32 = frames.iter().map(|(_, r)| r.height).sum::<i32>() + 10 * 2;
+        assert_eq!(total_h, ZONE.height);
     }
 }

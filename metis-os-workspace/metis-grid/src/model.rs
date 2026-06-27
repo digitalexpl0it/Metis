@@ -38,8 +38,11 @@ impl TileRect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LayoutKind {
-    /// The manual reflowing tile grid (default).
+    /// Regular floating desktop — windows open centered and stay free until the
+    /// user toggles grid or scroll mode.
     #[default]
+    Free,
+    /// Auto-tiling grid below desk widgets.
     Grid,
     /// A horizontally scrolling strip of columns (niri / PaperWM style).
     Scroll,
@@ -93,60 +96,9 @@ impl Default for GridLayout {
 }
 
 fn default_desk_tiles() -> Vec<GridTile> {
-    vec![
-        GridTile {
-            id: "clock".into(),
-            rect: TileRect::new(0, 0, 3, 2),
-            kind: TileKind::Widget {
-                module: "clock".into(),
-            },
-            glow: "cool".into(),
-            pinned: false,
-            min_w: None,
-            max_w: None,
-            min_h: None,
-            max_h: None,
-        },
-        GridTile {
-            id: "weather".into(),
-            rect: TileRect::new(3, 0, 3, 2),
-            kind: TileKind::Widget {
-                module: "weather".into(),
-            },
-            glow: "warm".into(),
-            pinned: false,
-            min_w: None,
-            max_w: None,
-            min_h: None,
-            max_h: None,
-        },
-        GridTile {
-            id: "rss".into(),
-            rect: TileRect::new(6, 0, 6, 4),
-            kind: TileKind::Widget {
-                module: "rss".into(),
-            },
-            glow: "violet".into(),
-            pinned: false,
-            min_w: None,
-            max_w: None,
-            min_h: None,
-            max_h: None,
-        },
-        GridTile {
-            id: "settings".into(),
-            rect: TileRect::new(0, 2, 6, 2),
-            kind: TileKind::Widget {
-                module: "settings".into(),
-            },
-            glow: "cool".into(),
-            pinned: false,
-            min_w: None,
-            max_w: None,
-            min_h: None,
-            max_h: None,
-        },
-    ]
+    // Desk widgets (clock, weather, RSS, etc.) live in the edge bar for now.
+    // On-desktop widget tiles will be added here when that UI ships.
+    Vec::new()
 }
 
 #[derive(Debug, Error)]
@@ -181,11 +133,28 @@ impl GridLayout {
         layout
     }
 
-    /// Default slot for a newly opened app window (bottom-left band).
+    /// Full grid band for app auto-tiling (the compositor grid already sits below
+    /// the edge bar). Legacy widget tiles in `desk.json` do not shrink this region.
+    pub fn app_tiling_region(&self) -> TileRect {
+        TileRect::new(0, 0, self.columns, self.rows)
+    }
+
+    /// Whether the computed app band has enough vertical space to tile windows.
+    pub fn app_tiling_region_viable(&self) -> bool {
+        self.rows >= 3
+    }
+
+    /// Default slot for a newly opened app window (bottom of the app tiling band).
     pub fn default_app_tile_rect(&self) -> TileRect {
-        let rows = self.rows.max(8);
-        let cols = self.columns.max(12);
-        TileRect::new(0, rows.saturating_sub(4).max(2), cols.min(6).max(4), 4)
+        let region = self.app_tiling_region();
+        let h = region.h.min(4).max(2);
+        let w = region.w.min(6).max(4);
+        TileRect::new(
+            region.col,
+            region.row + region.h.saturating_sub(h),
+            w,
+            h,
+        )
     }
 
     pub fn save_to_path(&self, path: &Path) -> std::io::Result<()> {
@@ -364,17 +333,15 @@ mod tests {
 
     #[test]
     fn move_tile_to_free_cell() {
-        let mut layout = GridLayout::default();
-        let rect = layout
-            .tiles
-            .iter()
-            .find(|t| t.id == "clock")
-            .expect("clock")
-            .rect;
+        let mut layout = GridLayout {
+            columns: 12,
+            rows: 8,
+            tiles: vec![app("app-1", TileRect::new(0, 4, 3, 4))],
+        };
         layout
-            .resize_and_move("clock", TileRect::new(9, 4, rect.w, rect.h))
+            .resize_and_move("app-1", TileRect::new(9, 4, 3, 4))
             .expect("move");
-        let tile = layout.tiles.iter().find(|t| t.id == "clock").expect("clock");
+        let tile = layout.tiles.iter().find(|t| t.id == "app-1").expect("app-1");
         assert_eq!(tile.rect.col, 9);
         assert_eq!(tile.rect.row, 4);
     }

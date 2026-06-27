@@ -163,14 +163,21 @@ impl MetisState {
                                         return FilterResult::Intercept(());
                                     }
                                 }
-                                // Toggle grid <-> scroll for the active workspace
-                                // under the pointer.
-                                if sym == keysyms::KEY_backslash {
+                                // Alt+/ turns grid tiling on; Alt+\ returns to free desktop.
+                                if mod_active(modifiers) && sym == keysyms::KEY_slash {
                                     let key = state
                                         .output_under_pointer()
                                         .map(|o| o.name())
                                         .unwrap_or_else(|| state.primary_key());
-                                    state.toggle_layout_kind(&key);
+                                    state.enable_grid_tiling(&key);
+                                    return FilterResult::Intercept(());
+                                }
+                                if mod_active(modifiers) && sym == keysyms::KEY_backslash {
+                                    let key = state
+                                        .output_under_pointer()
+                                        .map(|o| o.name())
+                                        .unwrap_or_else(|| state.primary_key());
+                                    state.disable_grid_tiling(&key);
                                     return FilterResult::Intercept(());
                                 }
                             }
@@ -392,6 +399,7 @@ impl MetisState {
                 // Tell the shell (taskbar) which window now has focus — focus
                 // changes are otherwise only reported as a reply to FocusWindow.
                 if let Some(id) = self.windows.id_for_window(window) {
+                    self.sync_scroll_focus_for_window(id);
                     self.event_bus
                         .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
                 }

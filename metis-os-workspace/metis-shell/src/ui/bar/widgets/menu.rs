@@ -17,6 +17,9 @@ use crate::services::{applications, AppEntry};
 const APP_ICON_SIZE: i32 = 24;
 const PIN_ICON_SIZE: i32 = 34;
 const FREQUENT_LIMIT: usize = 8;
+/// Alphabetical rows appended per idle slice so opening the menu never blocks the
+/// GTK main loop (and the nested compositor Wayland socket) for one giant rebuild.
+const MENU_ALPHA_CHUNK: usize = 32;
 
 /// Build the menu popover and wire it to `button` (the brand launcher button).
 pub fn install(button: &gtk::Button) {
@@ -156,16 +159,17 @@ pub fn install(button: &gtk::Button) {
         let refresh = refresh.clone();
         Rc::new(move || {
             let query = search.text().to_string();
-            populate_center(&apps_container, &header, &query, &refresh);
-            populate_pinned(&pinned_flow, &pinned_hint, &refresh);
+            let apps = applications::list_apps();
+            populate_center(&apps_container, &header, &query, &apps, &refresh);
+            populate_pinned(&pinned_flow, &pinned_hint, &apps, &refresh);
         })
     };
     *rebuild_slot.borrow_mut() = Some(rebuild.clone());
 
-    {
+    let search_changed = {
         let rebuild = rebuild.clone();
-        search.connect_search_changed(move |_| rebuild());
-    }
+        search.connect_search_changed(move |_| rebuild())
+    };
 
     // ---- Popover (non-autohide; mirrors dropdown::wire_toggle) ----
     let popover = gtk::Popover::builder()
@@ -190,9 +194,14 @@ pub fn install(button: &gtk::Button) {
         let search = search.clone();
         popover.connect_map(move |_| {
             btn.add_css_class("metis-bar-dropdown-active");
-            // Reset to the default (Frequent) view each open.
+            // Clearing the search entry fires `search_changed`, which would
+            // synchronously rebuild the entire app list during `map` and freeze
+            // the nested session — block it and defer one rebuild on idle instead.
+            search.block_signal(&search_changed);
             search.set_text("");
-            rebuild();
+            search.unblock_signal(&search_changed);
+            let rebuild = rebuild.clone();
+            glib::idle_add_local_once(move || rebuild());
         });
     }
     {
@@ -349,32 +358,20 @@ fn populate_center(
     container: &gtk::Box,
     header: &gtk::Label,
     query: &str,
+    apps: &[AppEntry],
     refresh: &Rc<dyn Fn()>,
 ) {
     clear_box(container);
     let q = query.trim();
     if q.is_empty() {
         header.set_text("Frequent Apps");
-        for entry in applications::frequent(FREQUENT_LIMIT) {
+        for entry in applications::frequent_from(apps, FREQUENT_LIMIT) {
             container.append(&app_row(&entry, refresh));
         }
-        let mut last_letter = '\0';
-        for entry in applications::list_apps() {
-            let letter = entry
-                .name
-                .chars()
-                .next()
-                .map(|c| c.to_ascii_uppercase())
-                .unwrap_or('#');
-            if letter != last_letter {
-                last_letter = letter;
-                container.append(&letter_header(letter));
-            }
-            container.append(&app_row(&entry, refresh));
-        }
+        append_alpha_chunk(container, apps, refresh, 0, '\0');
     } else {
         header.set_text("Search Results");
-        let results = applications::search(q);
+        let results = applications::search_in(apps, q);
         if results.is_empty() {
             let empty = gtk::Label::new(Some("No matching applications"));
             empty.add_css_class("metis-menu-empty");
@@ -387,11 +384,44 @@ fn populate_center(
     }
 }
 
-fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, refresh: &Rc<dyn Fn()>) {
+/// Append a slice of the alphabetical app list, scheduling the rest on idle.
+fn append_alpha_chunk(
+    container: &gtk::Box,
+    apps: &[AppEntry],
+    refresh: &Rc<dyn Fn()>,
+    start: usize,
+    mut last_letter: char,
+) {
+    if start >= apps.len() {
+        return;
+    }
+    let end = (start + MENU_ALPHA_CHUNK).min(apps.len());
+    for entry in &apps[start..end] {
+        let letter = entry
+            .name
+            .chars()
+            .next()
+            .map(|c| c.to_ascii_uppercase())
+            .unwrap_or('#');
+        if letter != last_letter {
+            last_letter = letter;
+            container.append(&letter_header(letter));
+        }
+        container.append(&app_row(entry, refresh));
+    }
+    if end < apps.len() {
+        let container = container.clone();
+        let apps = apps.to_vec();
+        let refresh = refresh.clone();
+        glib::idle_add_local_once(move || append_alpha_chunk(&container, &apps, &refresh, end, last_letter));
+    }
+}
+
+fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, apps: &[AppEntry], refresh: &Rc<dyn Fn()>) {
     while let Some(child) = flow.first_child() {
         flow.remove(&child);
     }
-    let pinned = applications::pinned_entries();
+    let pinned = applications::pinned_entries_from(apps);
     if pinned.is_empty() {
         hint.set_visible(true);
         flow.set_visible(false);

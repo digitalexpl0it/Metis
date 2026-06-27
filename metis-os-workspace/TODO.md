@@ -1,17 +1,11 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 1 (edge bar, incl. the ArcMenu-style app launcher) and
-Phase 2 (`metis-settings` app + server-side window decorations) are complete —
-decoration polish, theme-aware + translucent auto-hiding titlebars, edge snapping,
-XWayland, and a taskbar / running-apps dock. Phase 3 (multi-monitor, workspaces &
-tiling) is largely done: the output-agnostic refactor, per-output edge bars +
-wallpaper + usable areas, independent **or** linked per-output virtual workspaces
-(live bar dots + `Super`+`n`), a dock that follows the output + workspace, an
-optional niri/PaperWM-style **scrolling layout** selectable per workspace
-(`Super`+`\`), and **cross-output window moves** (drag/snap adopt, `Super`+`Shift`+`←`/`→`,
-`MoveWindowToOutput` IPC). Remaining in Phase 3: the DRM/udev backend (deferred). Next: Phase 4
-(settings-app expansion into a full control center) and Phase 5 (display pipeline:
-VRR, colour management, HDR).
+**Current phase:** Phase 3 (multi-monitor, workspaces & tiling) is complete for the
+nested dev session — per-output bars/workspaces/wallpaper, cross-output moves,
+automatic grid tiling, and scrolling layout polish. Deferred: DRM/udev backend and
+the settings portal (standalone DE only). Next: Phase 4 (settings-app expansion
+into a full control center) and Phase 5 (display pipeline: VRR, colour management,
+HDR).
 
 ---
 
@@ -168,20 +162,12 @@ so each milestone is shippable on its own:
       event; `Super`+`1..9` / `Super`+`Shift`+`1..9` keybinds; bar dots wired
       through IPC; `WindowInfo.workspace` populated. Count from `bar.json`
       `workspace_count`. (Per-output split comes with the refactor below.)
-- [~] **Output-agnostic refactor** — remove the `space.outputs().next()` /
+- [x] **Output-agnostic refactor** — remove the `space.outputs().next()` /
       single-monitor assumptions; thread an output id through placement, grid,
-      snapping, decorations, and IPC. _Started:_ centralized output-geometry
-      helpers (`primary_output`/`output_rect`/`primary_monitor_rect`) now back
-      `grid_metrics`/`usable_zone`/`placement_zone`/`set_fullscreen`/
-      `arrange_layers`. _Done:_ absolute-pointer mapping spans all outputs
-      (`desktop_bounds`) and titlebar drags clamp to the whole desktop; per-output
-      placement/snap routing — new windows open on the output under the cursor,
-      drag-to-edge snaps tile on the hovered output, maximize fills the window's
-      own output, and floating windows clamp within their own monitor
-      (`output_at`/`output_under_pointer`/`output_for_window` +
-      `*_zone_for(output)` zone helpers). _Remaining:_ per-output grid/tiling
-      (lands with per-output workspaces), `GetMonitors`-style protocol surface.
-- [~] **Virtual outputs under winit** — `METIS_VIRTUAL_OUTPUTS=2` tiles the
+      snapping, decorations, and IPC. Per-output placement/snap routing, absolute-
+      pointer mapping across outputs, `ListOutputs` IPC (name, geometry, primary
+      flag, sorted left-to-right).
+- [x] **Virtual outputs under winit** — `METIS_VIRTUAL_OUTPUTS=2` tiles the
       nested window into two side-by-side logical outputs (dedicated full-window
       render output + multi-output layer/blur/frame loop). The test rig for the
       rest of the refactor; cursor + cross-output drag now work on it.
@@ -226,8 +212,9 @@ so each milestone is shippable on its own:
       for new workspaces via `bar.json#default_layout`. Keybinds (scroll workspace
       only): `Super`+arrows focus, `Super`+`Shift`+arrows move, `Super`+`,`/`.`
       consume/expel a window into/out of a column stack, `Super`+`-`/`=` cycle column
-      width. `SetWorkspaceLayout` IPC. _Remaining (later):_ scroll animation, cross-
-      output clamping of off-screen columns, vertical stacking polish.
+      width. `SetWorkspaceLayout` IPC. Scroll polish: animated viewport pan on
+      column focus, off-screen columns unmapped (no bleed onto adjacent outputs),
+      vertical stacks distribute height evenly, scroll offset clamped to strip width.
 - [x] **Taskbar follows** — each output's dock shows only the windows on that
       output's currently-visible workspace (pinned launchers persist everywhere).
       `WindowInfo.output` carries the monitor name; the dock filters by

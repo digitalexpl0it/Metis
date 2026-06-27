@@ -256,27 +256,14 @@ fn first_overlap(layout: &GridLayout) -> Option<(String, TileRect)> {
     None
 }
 
-const DEFAULT_WIDGET_IDS: &[&str] = &["clock", "weather", "rss", "settings"];
-
 fn layout_needs_reset(layout: &GridLayout) -> bool {
     if validate_layout(layout).is_err() {
         return true;
     }
-    if layout.tiles.iter().any(|t| {
+    layout.tiles.iter().any(|t| {
         matches!(t.kind, crate::model::TileKind::Widget { .. })
             && (t.rect.w < 2 || t.rect.h < 2)
-    }) {
-        return true;
-    }
-    let widget_ids: std::collections::HashSet<&str> = layout
-        .tiles
-        .iter()
-        .filter(|t| matches!(t.kind, crate::model::TileKind::Widget { .. }))
-        .map(|t| t.id.as_str())
-        .collect();
-    DEFAULT_WIDGET_IDS
-        .iter()
-        .any(|id| !widget_ids.contains(id))
+    }) || !layout.app_tiling_region_viable()
 }
 
 fn reset_to_default_preserving_apps(layout: &mut GridLayout) {
@@ -310,8 +297,10 @@ fn reset_to_default_preserving_apps(layout: &mut GridLayout) {
     }
 }
 
-/// Repair overlaps; reset widget tiles to defaults if the layout is degenerate/corrupt.
+/// Repair overlaps; reset degenerate saved layouts. Strips legacy on-desktop
+/// widget tiles — those modules live in the edge bar until desk widgets ship.
 pub fn sanitize_layout(layout: &mut GridLayout) {
+    layout.tiles.retain(|t| !matches!(t.kind, crate::model::TileKind::Widget { .. }));
     repair_layout(layout);
     if layout_needs_reset(layout) {
         reset_to_default_preserving_apps(layout);
@@ -641,18 +630,12 @@ mod tests {
         sanitize_layout(&mut layout);
         validate_layout(&layout).expect("sanitized layout must be valid");
         assert!(
-            layout.tiles.iter().any(|t| t.id == "clock"),
-            "missing clock tile after sanitize"
+            layout.tiles.iter().any(|t| t.id == "app-1"),
+            "app tile preserved after sanitize"
         );
-        let settings = layout
-            .tiles
-            .iter()
-            .find(|t| t.id == "settings")
-            .expect("settings tile");
         assert!(
-            settings.rect.w >= 2 && settings.rect.h >= 2,
-            "settings still degenerate: {:?}",
-            settings.rect
+            !layout.tiles.iter().any(|t| matches!(t.kind, TileKind::Widget { .. })),
+            "legacy widget tiles stripped"
         );
         no_overlap(&layout);
     }

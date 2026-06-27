@@ -1,9 +1,8 @@
 //! Automatic app tiling — split the workspace among open grid-managed windows.
 
-use crate::layout_engine::move_item;
 use crate::model::{GridLayout, ReflowError, TileKind, TileRect};
 
-/// Re-tile the given app tiles into the region below desk widgets.
+/// Re-tile the given app tiles across the full workspace grid.
 ///
 /// Only tile ids listed in `include_ids` are repositioned; pinned apps and apps
 /// omitted from the list keep their current rects. The focused tile (if any) is
@@ -46,34 +45,37 @@ pub fn auto_tile_apps(
         order.sort();
     }
 
-    let region = app_tiling_region(layout);
-    let mut assignments = split_region(region, &order);
-    // Smallest slots first so overlapping starting rects get pushed aside cleanly.
-    assignments.sort_by(|(_, a), (_, b)| (a.w * a.h).cmp(&(b.w * b.h)));
+    let region = layout.app_tiling_region();
+    if region.h == 0 {
+        return Err(ReflowError::NoSpace {
+            col: region.col,
+            row: region.row,
+        });
+    }
+
+    let assignments = split_region(region, &order);
+    for (_, target) in &assignments {
+        if !region_contains(region, *target) {
+            return Err(ReflowError::NoSpace {
+                col: target.col,
+                row: target.row,
+            });
+        }
+    }
 
     for (id, target) in assignments {
-        move_item(layout, &id, target)?;
+        if let Some(tile) = layout.tile_mut(&id) {
+            tile.rect = target;
+        }
     }
     Ok(())
 }
 
-/// Rows at and below the lowest desk-widget edge, full width.
-fn app_tiling_region(layout: &GridLayout) -> TileRect {
-    let widget_bottom = layout
-        .tiles
-        .iter()
-        .filter(|t| matches!(t.kind, TileKind::Widget { .. }))
-        .map(|t| t.rect.bottom())
-        .max()
-        .unwrap_or(0);
-
-    let start_row = if widget_bottom >= layout.rows {
-        0
-    } else {
-        widget_bottom
-    };
-    let h = layout.rows.saturating_sub(start_row).max(1);
-    TileRect::new(0, start_row, layout.columns, h)
+fn region_contains(outer: TileRect, inner: TileRect) -> bool {
+    inner.col >= outer.col
+        && inner.row >= outer.row
+        && inner.right() <= outer.right()
+        && inner.bottom() <= outer.bottom()
 }
 
 fn split_region(region: TileRect, order: &[String]) -> Vec<(String, TileRect)> {
@@ -160,22 +162,6 @@ mod tests {
     use super::*;
     use crate::model::GridTile;
 
-    fn widget(id: &str, rect: TileRect) -> GridTile {
-        GridTile {
-            id: id.into(),
-            rect,
-            kind: TileKind::Widget {
-                module: id.into(),
-            },
-            glow: "cool".into(),
-            pinned: false,
-            min_w: None,
-            max_w: None,
-            min_h: None,
-            max_h: None,
-        }
-    }
-
     fn app(id: &str) -> GridTile {
         GridTile {
             id: id.into(),
@@ -209,16 +195,11 @@ mod tests {
     }
 
     #[test]
-    fn two_apps_split_below_widgets() {
+    fn two_apps_split_full_grid() {
         let mut layout = GridLayout {
             columns: 12,
             rows: 8,
-            tiles: vec![
-                widget("clock", TileRect::new(0, 0, 3, 2)),
-                widget("weather", TileRect::new(3, 0, 3, 2)),
-                app("app-1"),
-                app("app-2"),
-            ],
+            tiles: vec![app("app-1"), app("app-2")],
         };
         auto_tile_apps(
             &mut layout,
@@ -229,8 +210,9 @@ mod tests {
 
         let a = layout.tiles.iter().find(|t| t.id == "app-1").unwrap();
         let b = layout.tiles.iter().find(|t| t.id == "app-2").unwrap();
-        assert_eq!(a.rect.row, 2);
-        assert_eq!(b.rect.row, 2);
+        assert_eq!(a.rect.row, 0);
+        assert_eq!(b.rect.row, 0);
+        assert_eq!(a.rect.h, 8);
         assert_eq!(a.rect.w + b.rect.w, 12);
         no_overlap(&layout);
     }
@@ -251,6 +233,31 @@ mod tests {
 
         let master = layout.tiles.iter().find(|t| t.id == "app-2").unwrap();
         assert_eq!(master.rect, TileRect::new(0, 0, 6, 8));
+        no_overlap(&layout);
+    }
+
+    #[test]
+    fn legacy_widget_tiles_stripped_on_sanitize() {
+        let raw = r#"{
+            "columns": 12,
+            "rows": 8,
+            "tiles": [
+                {"id": "clock", "rect": {"col": 0, "row": 6, "w": 3, "h": 2}, "kind": {"type": "widget", "module": "clock"}, "glow": "cool"},
+                {"id": "weather", "rect": {"col": 3, "row": 6, "w": 3, "h": 2}, "kind": {"type": "widget", "module": "weather"}, "glow": "warm"},
+                {"id": "rss", "rect": {"col": 6, "row": 6, "w": 6, "h": 2}, "kind": {"type": "widget", "module": "rss"}, "glow": "violet"},
+                {"id": "settings", "rect": {"col": 10, "row": 2, "w": 2, "h": 2}, "kind": {"type": "widget", "module": "settings"}, "glow": "cool"},
+                {"id": "app-8", "rect": {"col": 2, "row": 1, "w": 8, "h": 5}, "kind": {"type": "app", "window_id": 8, "class": "kitty"}, "glow": "cool"}
+            ]
+        }"#;
+        let mut layout: GridLayout = serde_json::from_str(raw).expect("parse desk.json fixture");
+        crate::layout_engine::sanitize_layout(&mut layout);
+        assert!(
+            !layout.tiles.iter().any(|t| matches!(t.kind, TileKind::Widget { .. })),
+            "legacy widget tiles should be stripped"
+        );
+        auto_tile_apps(&mut layout, None, &["app-8".into()]).expect("auto tile after sanitize");
+        let app = layout.tiles.iter().find(|t| t.id == "app-8").unwrap();
+        assert_eq!(app.rect, TileRect::new(0, 0, 12, 8));
         no_overlap(&layout);
     }
 }

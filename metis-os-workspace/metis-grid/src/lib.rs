@@ -11,7 +11,7 @@ mod tile_mode;
 pub use auto_tile::auto_tile_apps;
 pub use immersive::{ImmersiveController, ImmersiveSnapshot};
 pub use layout::{
-    app_tile_body_rect, app_tile_border_px, app_tile_chrome_rect, cell_to_pixels, desk_pixel_rect,
+    app_tile_auto_hide_body_rect, app_tile_body_rect, app_tile_border_px, app_tile_chrome_rect, cell_to_pixels, desk_pixel_rect,
     ease_out_cubic, pixel_to_grid_cell, set_app_tile_border_px, GridMetrics, MonitorRect, PixelRect,
     APP_TILE_BORDER_PX, APP_TILE_HEADER_PX, MAX_APP_TILE_BORDER_PX,
 };

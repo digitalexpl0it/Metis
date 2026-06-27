@@ -54,8 +54,10 @@ impl Default for WorkspaceMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum DefaultLayout {
-    /// The manual reflowing tile grid (default).
+    /// Regular floating desktop (default).
     #[default]
+    Free,
+    /// Auto-tiling grid below desk widgets.
     Grid,
     /// A horizontally scrolling strip of columns (niri / PaperWM style).
     Scroll,

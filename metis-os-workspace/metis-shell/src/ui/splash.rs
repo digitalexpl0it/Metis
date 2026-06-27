@@ -109,7 +109,8 @@ fn materialize_sound() -> Option<std::path::PathBuf> {
 
 /// Build and show the splash overlay, then start the progress/fade animation.
 pub fn show(app: &gtk::Application) {
-    play_startup_sound();
+    // Defer audio so GStreamer/plugin init cannot block GTK setup on the main thread.
+    glib::idle_add_local_once(play_startup_sound);
 
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -147,10 +148,14 @@ pub fn show(app: &gtk::Application) {
     let progress = gtk::ProgressBar::new();
     progress.add_css_class("metis-splash-progress");
     progress.set_fraction(0.04);
-    progress.set_hexpand(false);
-    progress.set_size_request(280, -1);
-    progress.set_halign(gtk::Align::Center);
-    card.append(&progress);
+    progress.set_hexpand(true);
+    progress.set_vexpand(false);
+    progress.set_halign(gtk::Align::Fill);
+    let progress_frame = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    progress_frame.set_size_request(280, 8);
+    progress_frame.set_halign(gtk::Align::Center);
+    progress_frame.append(&progress);
+    card.append(&progress_frame);
 
     let label = gtk::Label::new(Some("Starting Metis…"));
     label.add_css_class("metis-splash-label");

@@ -189,8 +189,9 @@ scroll layout state.
 
 Any workspace can be a **grid** (the default tiling) or a **scrolling** layout —
 a horizontal strip of columns, where each column holds a vertical stack of
-windows. The viewport scrolls to keep the focused column in view, so you never
-run out of room.
+windows. The viewport scrolls smoothly to keep the focused column in view, and
+windows in off-screen columns stay unmapped so they do not bleed onto adjacent
+monitors in a multi-display setup.
 
 ### Turning it on
 

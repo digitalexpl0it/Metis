@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::sync::{Arc, Mutex};
 
 use metis_protocol::CompositorEvent;
@@ -11,6 +11,7 @@ pub struct EventBus {
 
 impl EventBus {
     pub fn subscribe(&self, stream: std::os::unix::net::UnixStream) {
+        let _ = stream.set_nonblocking(true);
         if let Ok(mut subs) = self.subscribers.lock() {
             subs.push(stream);
         }
@@ -24,8 +25,14 @@ impl EventBus {
         payload.push('\n');
 
         if let Ok(mut subs) = self.subscribers.lock() {
-            subs.retain_mut(|stream| {
-                stream.write_all(payload.as_bytes()).is_ok()
+            subs.retain_mut(|stream| match stream.write_all(payload.as_bytes()) {
+                Ok(()) => true,
+                Err(e)
+                    if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::Interrupted) =>
+                {
+                    true
+                }
+                Err(_) => false,
             });
         }
     }

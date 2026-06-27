@@ -130,7 +130,11 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
                     // Drop on a different monitor: re-home the window's desk tile
                     // before snapping a grid window back to its tile.
                     data.maybe_adopt_window_output(id);
-                    data.enforce_grid_window_geometry(id);
+                    if data.is_window_grid_managed(id) {
+                        data.enforce_grid_window_geometry(id);
+                    } else {
+                        data.save_window_geometry(id);
+                    }
                 }
             }
             data.damaged = true;

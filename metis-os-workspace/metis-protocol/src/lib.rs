@@ -153,6 +153,9 @@ pub struct OutputInfo {
     /// Compositor output name (e.g. `metis-0`). This is the key used in
     /// `wallpaper.json`'s `per_output` map.
     pub name: String,
+    /// Whether this is the primary (first) output.
+    #[serde(default)]
+    pub primary: bool,
     /// Output position and size in global logical pixels.
     pub rect: MonitorRect,
 }

@@ -101,6 +101,17 @@ fn urgency_kind(hints: &HashMap<String, OwnedValue>) -> NotificationKind {
 /// the bar polls on the GTK main thread.
 pub fn spawn_notification_service() -> Receiver<BarNotification> {
     let (tx, rx) = channel::<BarNotification>();
+    let nested = std::env::var("METIS_NESTED")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
+    let disabled = std::env::var("METIS_NO_NOTIFY")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
+    if nested || disabled {
+        tracing::info!("notify: skipped (nested dev session or METIS_NO_NOTIFY)");
+        drop(tx);
+        return rx;
+    }
     if let Err(err) = std::thread::Builder::new()
         .name("metis-notify-dbus".to_string())
         .spawn(move || {

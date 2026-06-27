@@ -88,6 +88,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = MetisState::new(&mut event_loop, display);
 
     winit::init_winit(&mut event_loop, &mut state)?;
+    // Nested winit dev session — shell skips dbus notification takeover and other
+    // host-session side effects that fight GNOME during startup.
+    unsafe {
+        std::env::set_var("METIS_NESTED", "1");
+    }
     ipc::init_ipc(&mut state)?;
     state.start_xwayland(event_loop.handle());
 

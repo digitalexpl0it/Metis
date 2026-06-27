@@ -510,12 +510,15 @@ pub fn build() -> gtk::Widget {
         &workspace_mode_dd,
     ));
 
-    let default_layout_dd =
-        gtk::DropDown::from_strings(&["Grid tiling", "Scrolling"]);
+    let default_layout_dd = gtk::DropDown::from_strings(&[
+        "Free desktop",
+        "Grid tiling",
+        "Scrolling",
+    ]);
     default_layout_dd.set_selected(default_layout_to_index(bar.borrow().default_layout));
     default_layout_dd.set_tooltip_text(Some(
         "Applies to every workspace right away.\n\
-         Toggle a single workspace with Super + \\.",
+         Toggle the active workspace with Super + \\ (cycles free → grid → scroll).",
     ));
     bar_body.append(&ui::row_with_icon(
         "view-columns-symbolic",
@@ -829,6 +832,7 @@ pub fn build() -> gtk::Widget {
             // Apply live to every workspace so the dropdown is a real on/off switch,
             // not just a seed for future workspaces.
             runtime::apply_default_layout(match layout {
+                metis_config::DefaultLayout::Free => metis_protocol::LayoutKind::Free,
                 metis_config::DefaultLayout::Grid => metis_protocol::LayoutKind::Grid,
                 metis_config::DefaultLayout::Scroll => metis_protocol::LayoutKind::Scroll,
             });
@@ -1362,15 +1366,17 @@ fn index_to_workspace_mode(idx: u32) -> metis_config::WorkspaceMode {
 
 fn default_layout_to_index(layout: metis_config::DefaultLayout) -> u32 {
     match layout {
-        metis_config::DefaultLayout::Grid => 0,
-        metis_config::DefaultLayout::Scroll => 1,
+        metis_config::DefaultLayout::Free => 0,
+        metis_config::DefaultLayout::Grid => 1,
+        metis_config::DefaultLayout::Scroll => 2,
     }
 }
 
 fn index_to_default_layout(idx: u32) -> metis_config::DefaultLayout {
     match idx {
-        1 => metis_config::DefaultLayout::Scroll,
-        _ => metis_config::DefaultLayout::Grid,
+        1 => metis_config::DefaultLayout::Grid,
+        2 => metis_config::DefaultLayout::Scroll,
+        _ => metis_config::DefaultLayout::Free,
     }
 }
 

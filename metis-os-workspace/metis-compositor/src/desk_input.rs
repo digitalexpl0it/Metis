@@ -300,8 +300,16 @@ impl MetisState {
         })?;
         let output_geo = self.space.output_geometry(output).unwrap();
         let rel = pos - output_geo.loc.to_f64();
-        let layers = layer_map_for_output(output);
         let (x, y) = (pos.x as i32, pos.y as i32);
+
+        // Classify the desk hit BEFORE locking this output's layer map below.
+        // `classify_hit` resolves grid metrics, which lock the same output's layer
+        // map (via `usable_zone_for` → `non_exclusive_zone`). Smithay's layer map
+        // is a non-reentrant Mutex, so computing this while holding `layers` would
+        // self-deadlock the compositor thread on the next pointer motion.
+        let desk_hit = self.classify_hit(x, y);
+
+        let layers = layer_map_for_output(output);
 
         // The bar strip and its popovers (e.g. the start menu) take priority over
         // everything below — including the desk-grid app-body passthrough. Without
@@ -330,7 +338,7 @@ impl MetisState {
             return None;
         }
 
-        if let DeskHit::AppBody { window_id } = self.classify_hit(x, y) {
+        if let DeskHit::AppBody { window_id } = desk_hit {
             if self.window_id_at(pos) == Some(window_id) {
                 if let Some(hit) = self.window_surface_at(pos) {
                     return Some(hit);
@@ -385,8 +393,14 @@ impl MetisState {
 
         let output_geo = self.space.output_geometry(&output).unwrap();
         let rel = location - output_geo.loc.to_f64();
-        let layers = layer_map_for_output(&output);
         let (x, y) = (location.x as i32, location.y as i32);
+
+        // Resolve the desk hit BEFORE locking the layer map below — `classify_hit`
+        // locks this output's (non-reentrant) layer map internally, so doing it
+        // while holding `layers` would self-deadlock the compositor thread.
+        let desk_hit = self.classify_hit(x, y);
+
+        let layers = layer_map_for_output(&output);
 
         for layer_kind in [WlrLayer::Overlay] {
             if let Some(layer) = layers.layer_under(layer_kind, rel) {
@@ -414,7 +428,7 @@ impl MetisState {
             }
         }
 
-        match self.classify_hit(x, y) {
+        match desk_hit {
             DeskHit::AppBody { window_id } => {
                 if self.window_id_at(location) == Some(window_id) {
                     if let Some((window, _)) = self.space.element_under(location) {
