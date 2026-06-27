@@ -161,6 +161,21 @@ Settings → Appearance → Edge bar → *Workspaces*:
 
 The taskbar dock always follows its own bar's output and active workspace.
 
+### Moving windows between monitors
+
+With multiple displays (or `METIS_VIRTUAL_OUTPUTS=2` in a dev session):
+
+- **Drag** — titlebar-drag a window onto another monitor and release; Metis
+  re-homes its desk tile to that output automatically (snapping on a secondary
+  monitor does the same).
+- **Keyboard** — on a **grid** workspace, `Super`+`Shift`+`←` / `→` moves the
+  focused window to the adjacent monitor (left-to-right order). On a **scrolling**
+  workspace those keys still move columns instead.
+
+The window keeps its workspace number on the destination output (e.g. workspace 2
+on monitor A becomes workspace 2 on monitor B). If that workspace is not active
+on the destination, the window is stashed until you switch to it there.
+
 ---
 
 ## 7. Scrolling layout (niri / PaperWM style)
@@ -202,6 +217,7 @@ scrolling mode; in grid mode they're inert.
 |----------|--------|
 | `Super`+`1`..`9` | Switch to workspace 1–9 (monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move the focused window to workspace 1–9 |
+| `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor |
 | `Super`+`F` | Toggle fullscreen for the focused window |
 | `Super`+`Q` | Close the focused window |
 | `Escape` | Exit fullscreen / immersive |

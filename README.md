@@ -78,6 +78,9 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   (half / quarter / maximize); drag a border to resize.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
   focused window. Each monitor has its own workspaces (configurable).
+- **Cross-output moves** — drag a window onto another monitor (or snap it there)
+  and it follows that display's desk; on grid workspaces `Super`+`Shift`+`←`/`→`
+  sends the focused window to the adjacent monitor.
 - **Scrolling layout** — toggle any workspace into a niri/PaperWM-style scrolling
   strip with `Super`+`\`; navigate with `Super`+arrows.
 - **Settings** — launch from the app launcher, or `metis-cmd settings`.
@@ -86,6 +89,7 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 |----------|--------|
 | `Super`+`1`..`9` | Switch workspace (on the monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move focused window to a workspace |
+| `Super`+`Shift`+`←` / `→` | (grid) Move focused window to adjacent monitor |
 | `Super`+`F` | Toggle fullscreen for the focused window |
 | `Super`+`Q` | Close the focused window |
 | `Escape` | Exit fullscreen / immersive |

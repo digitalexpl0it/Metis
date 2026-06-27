@@ -127,6 +127,9 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
                 if let Some((rect, label)) = snap {
                     data.apply_snap(id, rect, label);
                 } else {
+                    // Drop on a different monitor: re-home the window's desk tile
+                    // before snapping a grid window back to its tile.
+                    data.maybe_adopt_window_output(id);
                     data.enforce_grid_window_geometry(id);
                 }
             }

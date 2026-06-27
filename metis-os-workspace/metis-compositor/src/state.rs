@@ -429,6 +429,18 @@ impl MetisState {
             return;
         }
 
+        // Re-home desk membership to the monitor this snap targets *before*
+        // applying geometry. Doing this after the snap (via `maybe_adopt`) used
+        // to run `clamp_floating_rect`, adding a spurious titlebar inset on
+        // auto-hide edge snaps dragged across outputs.
+        let snap_center = Point::from((rect.x + rect.width / 2, rect.y + rect.height / 2));
+        if let Some(output) = self.output_at(snap_center) {
+            let key = output.name();
+            if key != self.desk_key_for_window(id) {
+                self.move_window_to_output_inner(id, &key, false);
+            }
+        }
+
         self.capture_pre_snap_geometry(id);
 
         let Some(record) = self.windows.get(id).cloned() else {
@@ -2843,6 +2855,202 @@ impl MetisState {
         self.emit_workspace_changed(output_key);
     }
 
+    /// Output names sorted left-to-right (then top-to-bottom) for adjacent-monitor
+    /// navigation.
+    fn output_keys_left_to_right(&self) -> Vec<String> {
+        let mut outputs: Vec<_> = self.space.outputs().collect();
+        outputs.sort_by_key(|o| {
+            self.space
+                .output_geometry(o)
+                .map(|g| (g.loc.x, g.loc.y))
+                .unwrap_or((0, 0))
+        });
+        outputs.into_iter().map(|o| o.name()).collect()
+    }
+
+    fn adjacent_output_key(&self, from: &str, direction: i32) -> Option<String> {
+        let keys = self.output_keys_left_to_right();
+        let idx = keys.iter().position(|k| k == from)?;
+        let next = idx as i32 + direction;
+        if next < 0 || next >= keys.len() as i32 {
+            return None;
+        }
+        Some(keys[next as usize].clone())
+    }
+
+    /// Remove a window's app tile from one output desk (visible layout or stash).
+    fn take_app_tile_from_desk(
+        &mut self,
+        desk_key: &str,
+        window_id: u32,
+        workspace: u32,
+    ) -> Option<metis_grid::GridTile> {
+        let tile_id = format!("app-{window_id}");
+        let desk = self.desk_mut_or_default(desk_key);
+        if let Some(pos) = desk.layout.tiles.iter().position(|t| t.id == tile_id) {
+            return Some(desk.layout.tiles.remove(pos));
+        }
+        if let Some(tiles) = desk.stashed_app_tiles.get_mut(&workspace) {
+            if let Some(pos) = tiles.iter().position(|t| t.id == tile_id) {
+                return Some(tiles.remove(pos));
+            }
+        }
+        for tiles in desk.stashed_app_tiles.values_mut() {
+            if let Some(pos) = tiles.iter().position(|t| t.id == tile_id) {
+                return Some(tiles.remove(pos));
+            }
+        }
+        None
+    }
+
+    fn remove_window_from_desk_scroll(&mut self, desk_key: &str, window_id: u32, workspace: u32) {
+        if let Some(desk) = self.desks.get_mut(desk_key) {
+            if let Some(scroll) = desk.scroll.get_mut(&workspace) {
+                scroll.remove_window(window_id);
+            }
+        }
+    }
+
+    /// Move a window to another output, keeping its workspace number. Desk tiles
+    /// and scroll membership follow the window; visibility follows the destination
+    /// output's active workspace.
+    pub fn move_window_to_output(&mut self, window_id: u32, target_key: &str) {
+        self.move_window_to_output_inner(window_id, target_key, true);
+    }
+
+    /// Like [`move_window_to_output`](Self::move_window_to_output) but optionally
+    /// skips geometry clamp/reposition (used when a snap immediately follows).
+    fn move_window_to_output_inner(
+        &mut self,
+        window_id: u32,
+        target_key: &str,
+        reposition: bool,
+    ) {
+        if target_key.is_empty() {
+            return;
+        }
+        if self.output_by_name(target_key).is_none() && !self.desks.contains_key(target_key) {
+            return;
+        }
+        self.desk_mut_or_default(target_key);
+
+        let source_key = self.desk_key_for_window(window_id);
+        if source_key == target_key {
+            return;
+        }
+
+        let workspace = self.windows.workspace(window_id).unwrap_or(1);
+        let source_active = self.active_workspace_for(&source_key);
+        let target_active = self.active_workspace_for(target_key);
+        let was_visible = workspace == source_active;
+        let will_be_visible = workspace == target_active;
+
+        let mut tile = self.take_app_tile_from_desk(&source_key, window_id, workspace);
+        self.remove_window_from_desk_scroll(&source_key, window_id, workspace);
+
+        if tile.is_none() {
+            let class = self.windows.get(window_id).and_then(|r| r.app_id.clone());
+            tile = Some(metis_grid::GridTile {
+                id: format!("app-{window_id}"),
+                rect: default_app_tile_rect(&self.desk(target_key).map(|d| &d.layout).unwrap_or(&self.default_layout)),
+                kind: TileKind::App {
+                    window_id: Some(window_id),
+                    class,
+                },
+                glow: "cool".into(),
+                pinned: false,
+                min_w: None,
+                max_w: None,
+                min_h: None,
+                max_h: None,
+            });
+        }
+
+        self.windows
+            .set_output(window_id, target_key.to_string());
+
+        if let Some(tile) = tile {
+            let desk = self.desk_mut_or_default(target_key);
+            if will_be_visible {
+                desk.layout.tiles.push(tile);
+            } else {
+                desk.stashed_app_tiles
+                    .entry(workspace)
+                    .or_default()
+                    .push(tile);
+            }
+        }
+
+        if self.layout_kind_for(target_key, workspace) == metis_grid::LayoutKind::Scroll {
+            self.scroll_state_mut(target_key, workspace)
+                .insert_window_after_focus(window_id);
+            self.refresh_scroll_offset(target_key);
+        }
+
+        if was_visible && !will_be_visible {
+            if let Some(record) = self.windows.get(window_id).cloned() {
+                self.space.unmap_elem(&record.window);
+            }
+            self.focus_topmost_on_active_workspace();
+        } else if will_be_visible && reposition {
+            if self.floating.contains(&window_id) {
+                // Auto-hide / snapped windows keep their footprint — never apply
+                // the ordinary floating titlebar inset (`APP_TILE_HEADER_PX`).
+                if !self.auto_hide_titlebar.contains(&window_id)
+                    && !self.windows.is_snapped(window_id)
+                {
+                    if let Some(rect) = self.windows.target_rect(window_id) {
+                        let clamped = self.clamp_floating_rect(rect);
+                        if clamped != rect {
+                            self.windows.set_target_rect(window_id, clamped);
+                        }
+                    }
+                }
+                self.apply_window_rect(window_id);
+            } else {
+                self.apply_window_rect(window_id);
+            }
+            self.focus_window_id(window_id);
+        }
+
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+        self.emit_workspace_changed(&source_key);
+        self.emit_workspace_changed(target_key);
+    }
+
+    /// If a window's center sits on a different output than its assigned desk,
+    /// re-home it there. Called after a drag-drop or snap on another monitor.
+    pub fn maybe_adopt_window_output(&mut self, window_id: u32) {
+        let Some(target) = self.output_for_window(window_id).map(|o| o.name()) else {
+            return;
+        };
+        if target == self.desk_key_for_window(window_id) {
+            return;
+        }
+        self.move_window_to_output(window_id, &target);
+    }
+
+    /// Move the focused window one output to the left (`direction` = -1) or right (+1).
+    pub fn move_window_to_adjacent_output(&mut self, window_id: u32, direction: i32) {
+        let from = self.desk_key_for_window(window_id);
+        let Some(target) = self.adjacent_output_key(&from, direction) else {
+            return;
+        };
+        self.move_window_to_output(window_id, &target);
+    }
+
+    /// True when the workspace under the pointer uses the scrolling layout (so
+    /// Super+Shift+arrow is reserved for scroll navigation).
+    pub fn scroll_navigation_active(&self) -> bool {
+        let key = self
+            .output_under_pointer()
+            .map(|o| o.name())
+            .unwrap_or_else(|| self.primary_key());
+        self.active_layout_kind(&key) == metis_grid::LayoutKind::Scroll
+    }
+
     /// Move a window to another workspace on its own output. When it leaves or
     /// joins that output's visible workspace its tile is stashed/restored and the
     /// window is hidden/shown.
@@ -3087,6 +3295,21 @@ impl MetisState {
                     }
                 } else {
                     self.move_window_to_workspace(window_id, workspace);
+                    CompositorEvent::LayoutApplied
+                }
+            }
+            CompositorCommand::MoveWindowToOutput { window_id, output } => {
+                if self.windows.get(window_id).is_none() {
+                    CompositorEvent::Error {
+                        message: format!("window {window_id} not found"),
+                    }
+                } else {
+                    let key = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
+                        self.output_under_pointer()
+                            .map(|o| o.name())
+                            .unwrap_or_else(|| self.primary_key())
+                    });
+                    self.move_window_to_output(window_id, &key);
                     CompositorEvent::LayoutApplied
                 }
             }

@@ -104,6 +104,26 @@ impl MetisState {
                                 if handled {
                                     return FilterResult::Intercept(());
                                 }
+                                // Cross-output move on grid workspaces (scroll mode
+                                // reserves Super+Shift+arrows for column/window moves).
+                                if modifiers.shift && !state.scroll_navigation_active() {
+                                    let cross = match sym {
+                                        keysyms::KEY_Left => state
+                                            .focused_window_id()
+                                            .map(|id| {
+                                                state.move_window_to_adjacent_output(id, -1);
+                                            }),
+                                        keysyms::KEY_Right => state
+                                            .focused_window_id()
+                                            .map(|id| {
+                                                state.move_window_to_adjacent_output(id, 1);
+                                            }),
+                                        _ => None,
+                                    };
+                                    if cross.is_some() {
+                                        return FilterResult::Intercept(());
+                                    }
+                                }
                                 // Toggle grid <-> scroll for the active workspace
                                 // under the pointer.
                                 if sym == keysyms::KEY_backslash {

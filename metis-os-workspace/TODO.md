@@ -6,12 +6,13 @@ decoration polish, theme-aware + translucent auto-hiding titlebars, edge snappin
 XWayland, and a taskbar / running-apps dock. Phase 3 (multi-monitor, workspaces &
 tiling) is largely done: the output-agnostic refactor, per-output edge bars +
 wallpaper + usable areas, independent **or** linked per-output virtual workspaces
-(live bar dots + `Super`+`n`), a dock that follows the output + workspace, and an
+(live bar dots + `Super`+`n`), a dock that follows the output + workspace, an
 optional niri/PaperWM-style **scrolling layout** selectable per workspace
-(`Super`+`\`). Remaining in Phase 3: cross-output window/workspace moves, richer
-automatic tiling, and the DRM/udev backend (deferred). Next: Phase 4 (settings-app
-expansion into a full control center) and Phase 5 (display pipeline: VRR, colour
-management, HDR).
+(`Super`+`\`), and **cross-output window moves** (drag/snap adopt, `Super`+`Shift`+`←`/`→`,
+`MoveWindowToOutput` IPC). Remaining in Phase 3: whole-workspace cross-output
+moves, richer automatic tiling, and the DRM/udev backend (deferred). Next: Phase 4
+(settings-app expansion into a full control center) and Phase 5 (display pipeline:
+VRR, colour management, HDR).
 
 ---
 
@@ -208,7 +209,12 @@ so each milestone is shippable on its own:
       switches to the same workspace at once). `bar.json#workspace_mode`; the
       compositor routes `Super`+`n` / `SwitchWorkspace` through `switch_workspace_routed`,
       fanning out to all outputs in linked mode (each emits its own `WorkspaceChanged`).
-- [ ] **Cross-output moves** — move windows (and whole workspaces) between outputs
+- [x] **Cross-output moves** — drag a window onto another monitor (or snap it
+      there) and its desk tile + scroll membership follow automatically
+      (`maybe_adopt_window_output` on drag-drop / snap). `Super`+`Shift`+`←`/`→`
+      moves the focused window to the adjacent output on grid workspaces
+      (scroll mode keeps those keys for column moves). `MoveWindowToOutput` IPC.
+      _Remaining (later):_ move a whole workspace between outputs.
 - [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
 - [x] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
       workspace, selectable per-workspace as a second mode in `metis-grid`

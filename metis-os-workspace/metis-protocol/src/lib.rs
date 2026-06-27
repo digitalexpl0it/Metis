@@ -34,6 +34,24 @@ pub enum CompositorCommand {
     /// Move a window to another virtual workspace (1-based). If the target is not
     /// the active workspace the window is hidden until that workspace is shown.
     MoveWindowToWorkspace { window_id: u32, workspace: u32 },
+    /// Move a window to another output (monitor). Keeps its workspace number on
+    /// the destination output. `output` is an output name from `ListOutputs`;
+    /// `None`/empty targets the output under the pointer.
+    MoveWindowToOutput {
+        window_id: u32,
+        #[serde(default)]
+        output: Option<String>,
+    },
+    /// Move every window on a workspace to another output (same workspace number).
+    /// `output`/`workspace` default to the output under the pointer and its active
+    /// workspace. Requires independent per-output workspace mode.
+    MoveWorkspaceToOutput {
+        #[serde(default)]
+        output: Option<String>,
+        #[serde(default)]
+        workspace: Option<u32>,
+        target_output: String,
+    },
     /// Set the layout mode (grid vs. scrolling) of a workspace. `output` is an
     /// output name (`None`/empty targets the output under the pointer); `workspace`
     /// `None` targets that output's currently-active workspace.

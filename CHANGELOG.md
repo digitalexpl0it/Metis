@@ -5,6 +5,16 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-26]
+
+### Added
+
+- **Cross-output window moves** — dragging a window onto another monitor (or
+  snapping it there) re-homes its desk tile and scroll membership to that output
+  automatically. On grid workspaces, `Super`+`Shift`+`←`/`→` moves the focused
+  window to the adjacent output; scroll workspaces keep those keys for column
+  navigation. New `MoveWindowToOutput` compositor IPC command.
+
 ## [2026-06-25]
 
 ### Added
