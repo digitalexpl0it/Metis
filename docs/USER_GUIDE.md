@@ -192,10 +192,22 @@ scroll layout state.
 ## 7. Scrolling layout (niri / PaperWM style)
 
 Any workspace can be a **grid** (the default tiling) or a **scrolling** layout —
-a horizontal strip of columns, where each column holds a vertical stack of
-windows. The viewport scrolls smoothly to keep the focused column in view, and
-windows in off-screen columns stay unmapped so they do not bleed onto adjacent
-monitors in a multi-display setup.
+an infinite horizontal strip of full-height columns (niri / PaperWM / paneru
+style). Each column is one window (or a vertical stack), and the strip extends to
+the right as you open more. The viewport scrolls to keep the focused column in
+view; off-screen columns are clipped to the current display, so a column scrolled
+past the edge never bleeds onto an adjacent monitor.
+
+Opening a new window **never resizes the windows already on the strip** — it just
+appends a column. New windows open at half-width.
+
+### Resizing columns
+
+- **Mouse** — drag a window's **right** border to set its width; everything to the
+  right slides over to make room. Dragging the **left** border resizes the
+  previous window. Columns are full-height, so there's no vertical resize.
+- **Keyboard** — `Super`+`-` / `Super`+`=` snaps the focused column to full width,
+  then back to half.
 
 ### Turning it on
 
@@ -215,7 +227,7 @@ monitors in a multi-display setup.
 | `Super`+`Shift`+`↑` / `↓` | Move the focused window up / down in its stack |
 | `Super`+`,` | Consume: pull the next window into the focused column |
 | `Super`+`.` | Expel: push the focused window out into its own column |
-| `Super`+`-` / `Super`+`=` | Cycle the focused column width (⅓ → ½ → ⅔ → full) |
+| `Super`+`-` / `Super`+`=` | Snap the focused column to full width / back to half (or drag a border to resize) |
 | `Super`+`\` | Toggle this workspace back to grid |
 
 These scrolling keybinds are only active while the focused workspace is in
@@ -238,7 +250,7 @@ scrolling mode; in grid mode they're inert.
 | `Super`+`←` `→` `↑` `↓` | (scrolling) Move focus between/within columns |
 | `Super`+`Shift`+arrows | (scrolling) Move the column / window |
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
-| `Super`+`-` / `Super`+`=` | (scrolling) Cycle the focused column width |
+| `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
 
 **Nested in GNOME?** `./run-metis.sh --session` sets `METIS_MOD=alt` — read **Super** as **Alt** in the table above, and click the Metis window first so it has keyboard focus. On a real Metis session, **Super** is the logo / Windows key.
 

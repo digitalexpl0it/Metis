@@ -5,6 +5,36 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-27]
+
+### Changed
+
+- **Scrolling layout reworked (niri / paneru style)** — the strip is now an
+  infinite row of full-height columns with continuous, mouse-resizable widths:
+  - Drag a window's **right** border to set its width; columns to the right slide
+    over to make room. Dragging the **left** border resizes the previous window.
+    Columns are full-height, so there is no vertical resize. New
+    `ScrollResizeGrab` drives the resize and reflows live.
+  - Column width is stored as a fraction of the viewport (continuous), replacing
+    the fixed ⅓/½/⅔/full presets. `Super`+`-` / `Super`+`=` now snaps the focused
+    column to full width, then back to half.
+  - Opening a new window never resizes the windows already on the strip — it just
+    appends a column (new windows open at half-width).
+
+### Fixed
+
+- **New windows join the scroll strip** — in a scrolling workspace, opening a
+  window used to drop it as a centered floating window on top of the strip
+  (`place_new_window` floated scroll-mode windows). They are now strip-managed
+  like grid tiles, so they form their own column.
+- **Scroll strip reflows on open/close** — adding or removing a window now slides
+  the existing columns into their new positions instead of leaving the newcomer
+  painted on top of its neighbour (the scroll path had no equivalent of the grid
+  auto-reflow).
+- **Scroll columns clipped to their display** — a column scrolled past the screen
+  edge is now clipped to its own output (via `CropRenderElement`) instead of
+  bleeding onto the adjacent monitor; fully off-screen columns stay unmapped.
+
 ## [2026-06-26]
 
 ### Added

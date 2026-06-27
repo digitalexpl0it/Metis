@@ -207,17 +207,27 @@ so each milestone is shippable on its own:
 - [x] **Automatic dynamic tiling** — grid workspaces auto-split among open app
       windows on open/close and workspace switch (below desk widgets; master stack
       for three; focused window gets the primary slot)
-- [x] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
-      workspace, selectable per-workspace as a second mode in `metis-grid`
+- [x] **Scrolling layout option** — niri/PaperWM/paneru-style horizontally
+      scrolling workspace, selectable per-workspace as a second mode in `metis-grid`
       (`scroll.rs`: `ScrollState` of columns, each a vertical window stack). App
       tiles stay the membership/stash source of truth; scroll mode only overrides
       pixel placement + hit-testing. Toggle live with `Super`+`\`; settings default
       for new workspaces via `bar.json#default_layout`. Keybinds (scroll workspace
       only): `Super`+arrows focus, `Super`+`Shift`+arrows move, `Super`+`,`/`.`
-      consume/expel a window into/out of a column stack, `Super`+`-`/`=` cycle column
-      width. `SetWorkspaceLayout` IPC. Scroll polish: animated viewport pan on
-      column focus, off-screen columns unmapped (no bleed onto adjacent outputs),
-      vertical stacks distribute height evenly, scroll offset clamped to strip width.
+      consume/expel a window into/out of a column stack, `Super`+`-`/`=` snap the
+      column to full/half width. `SetWorkspaceLayout` IPC.
+  - Full-height columns with **continuous, mouse-resizable widths** (drag the
+        right border to grow a window and push the rest over; left border resizes
+        the previous column — `ScrollResizeGrab`). Width is a fraction of the
+        viewport, not fixed presets.
+  - Opening a window appends a column and **never resizes existing windows**;
+        the strip reflows on open/close so columns slide into place.
+  - Off-screen columns are clipped to their own output (`CropRenderElement`) so a
+        column scrolled past the edge never bleeds onto an adjacent monitor; fully
+        off-screen columns stay unmapped; scroll offset is clamped to strip width.
+  - Known gap: the viewport pan is currently a snap (the easing path is disabled
+        to avoid per-frame client reconfigure storms); revive via render-time
+        translation.
 - [x] **Taskbar follows** — each output's dock shows only the windows on that
       output's currently-visible workspace (pinned launchers persist everywhere).
       `WindowInfo.output` carries the monitor name; the dock filters by
