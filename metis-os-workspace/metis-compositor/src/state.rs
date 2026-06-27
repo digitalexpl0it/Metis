@@ -2631,12 +2631,17 @@ impl MetisState {
         }
     }
 
-    /// Auto-place a window if it hasn't been positioned yet. Safe to call again
-    /// whenever the app_id becomes known (GTK often sets it just *after* its first
-    /// buffer commit, so the initial activation may not see it). No-ops once the
-    /// window is floating — i.e. already auto-placed or moved by the user.
+    /// Auto-place a window if it hasn't been finally positioned yet. Safe to call
+    /// again whenever the app_id becomes known (GTK often sets it just *after* its
+    /// first buffer commit, so the initial activation may not see it). No-ops once
+    /// placement is locked in (`placement_chosen`) — i.e. positioned with a known
+    /// app_id, or moved/resized by the user.
     pub(crate) fn maybe_autoplace_window(&mut self, id: u32) {
-        if self.floating.contains(&id) || self.windows.placement_chosen(id) {
+        // `placement_chosen` is the authoritative "we're done positioning" flag.
+        // A free window may already be in `floating` with a provisional centered
+        // rect (placed before its app_id was known) — that must still be allowed to
+        // re-run here so the saved geometry can be restored once app_id arrives.
+        if self.windows.placement_chosen(id) {
             return;
         }
         let app_id = self.windows.get(id).and_then(|r| r.app_id.clone());
@@ -2683,6 +2688,9 @@ impl MetisState {
 
         // Free desktop: restore saved geometry when known, else centered default.
         if kind == metis_grid::LayoutKind::Free {
+            // Free windows must be floating to map at all (apply_window_rect unmaps
+            // non-floating free windows), so claim it up front on every path.
+            self.floating.insert(id);
             if let Some(app_id) = app_id {
                 if let Some(saved) = self.window_state.get(app_id) {
                     let saved_rect = saved.to_rect();
@@ -2690,7 +2698,6 @@ impl MetisState {
                         && saved_rect.height >= MIN_SAVED_WINDOW_PX
                     {
                         let rect = self.restore_body_for_window(saved_rect);
-                        self.floating.insert(id);
                         self.windows.set_target_rect(id, rect);
                         self.windows.set_placement_chosen(id, true);
                         tracing::info!(id, ?rect, "place_new_window: restored saved geometry");
@@ -2698,12 +2705,26 @@ impl MetisState {
                     }
                     self.window_state.remove(app_id);
                 }
+                // app_id known but nothing saved: first launch, center and lock.
+                let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+                self.windows.set_target_rect(id, rect);
+                self.windows.set_placement_chosen(id, true);
+                tracing::info!(id, "place_new_window: free desktop centered on launch output");
+                return true;
             }
-            let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
-            self.floating.insert(id);
-            self.windows.set_target_rect(id, rect);
-            self.windows.set_placement_chosen(id, true);
-            tracing::info!(id, "place_new_window: free desktop centered on launch output");
+            // app_id not set yet (GTK usually assigns it just after the first
+            // commit). Give the window a provisional centered rect so it maps, but
+            // do NOT lock placement — a later pass, once the app_id is known, must
+            // still be able to restore the saved geometry instead of leaving the
+            // window stuck centered at the default size.
+            if self.windows.target_rect(id).is_none() {
+                let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
+                self.windows.set_target_rect(id, rect);
+            }
+            tracing::info!(
+                id,
+                "place_new_window: free desktop provisional center (awaiting app_id)"
+            );
             return true;
         }
 
