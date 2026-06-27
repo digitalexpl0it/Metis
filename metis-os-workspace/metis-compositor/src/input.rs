@@ -12,9 +12,10 @@ use smithay::{
 };
 
 use crate::focus::KeyboardFocusTarget;
+use crate::keybinds::mod_active;
 use crate::state::MetisState;
 
-/// Map a number-row keysym (1..9) to a 1-based workspace id, for Super+<n> bindings.
+/// Map a number-row keysym (1..9) to a 1-based workspace id, for Mod+<n> bindings.
 fn workspace_from_keysym(sym: u32) -> Option<u32> {
     match sym {
         keysyms::KEY_1 => Some(1),
@@ -49,13 +50,13 @@ impl MetisState {
                     |state, modifiers, keysym| {
                         if key_state == KeyState::Pressed {
                             let sym = u32::from(keysym.modified_sym());
-                            // Use the layout's raw Latin sym so Super+Shift+<n>
+                            // Use the layout's raw Latin sym so Mod+Shift+<n>
                             // (whose modified sym is punctuation) still maps to a digit.
                             let digit_sym = keysym
                                 .raw_latin_sym_or_raw_current_sym()
                                 .map(u32::from)
                                 .unwrap_or(sym);
-                            if modifiers.logo {
+                            if mod_active(modifiers) {
                                 if let Some(ws) = workspace_from_keysym(digit_sym) {
                                     if modifiers.shift {
                                         if let Some(id) = state.focused_window_id() {
@@ -73,21 +74,21 @@ impl MetisState {
                                     }
                                     return FilterResult::Intercept(());
                                 }
-                            }
-                            if modifiers.logo {
                                 // Scrolling-layout navigation. Each helper only acts
                                 // (and reports `true`) when the workspace under the
                                 // pointer is in scroll mode, so these keys still
                                 // forward to apps on grid workspaces.
                                 let handled = match sym {
-                                    keysyms::KEY_Left if modifiers.shift => {
+                                    keysyms::KEY_Left if modifiers.shift && !modifiers.ctrl => {
                                         state.scroll_move_left()
                                     }
-                                    keysyms::KEY_Right if modifiers.shift => {
+                                    keysyms::KEY_Right if modifiers.shift && !modifiers.ctrl => {
                                         state.scroll_move_right()
                                     }
-                                    keysyms::KEY_Up if modifiers.shift => state.scroll_move_up(),
-                                    keysyms::KEY_Down if modifiers.shift => {
+                                    keysyms::KEY_Up if modifiers.shift && !modifiers.ctrl => {
+                                        state.scroll_move_up()
+                                    }
+                                    keysyms::KEY_Down if modifiers.shift && !modifiers.ctrl => {
                                         state.scroll_move_down()
                                     }
                                     keysyms::KEY_Left => state.scroll_focus_left(),
@@ -106,7 +107,10 @@ impl MetisState {
                                 }
                                 // Cross-output move on grid workspaces (scroll mode
                                 // reserves Super+Shift+arrows for column/window moves).
-                                if modifiers.shift && !state.scroll_navigation_active() {
+                                if modifiers.shift
+                                    && !modifiers.ctrl
+                                    && !state.scroll_navigation_active()
+                                {
                                     let cross = match sym {
                                         keysyms::KEY_Left => state
                                             .focused_window_id()
@@ -124,6 +128,41 @@ impl MetisState {
                                         return FilterResult::Intercept(());
                                     }
                                 }
+                                // Move the active workspace to an adjacent output
+                                // (independent per-output mode only).
+                                if modifiers.ctrl
+                                    && modifiers.shift
+                                    && state.workspace_mode()
+                                        == metis_config::WorkspaceMode::Separate
+                                {
+                                    let key = state
+                                        .output_under_pointer()
+                                        .map(|o| o.name())
+                                        .unwrap_or_else(|| state.primary_key());
+                                    let moved = matches!(
+                                        sym,
+                                        keysyms::KEY_Left | keysyms::KEY_Right
+                                    ) && {
+                                        match sym {
+                                            keysyms::KEY_Left => {
+                                                state.move_active_workspace_to_adjacent_output(
+                                                    &key, -1,
+                                                );
+                                                true
+                                            }
+                                            keysyms::KEY_Right => {
+                                                state.move_active_workspace_to_adjacent_output(
+                                                    &key, 1,
+                                                );
+                                                true
+                                            }
+                                            _ => false,
+                                        }
+                                    };
+                                    if moved {
+                                        return FilterResult::Intercept(());
+                                    }
+                                }
                                 // Toggle grid <-> scroll for the active workspace
                                 // under the pointer.
                                 if sym == keysyms::KEY_backslash {
@@ -135,43 +174,44 @@ impl MetisState {
                                     return FilterResult::Intercept(());
                                 }
                             }
-                            if modifiers.logo && sym == keysyms::KEY_q {
+                            if mod_active(modifiers) && sym == keysyms::KEY_q {
                                 if let Some(id) = state.focused_window_id() {
                                     state.close_window(id);
                                 }
                                 return FilterResult::Intercept(());
                             }
-                            if modifiers.logo && sym == keysyms::KEY_f {
+                            if mod_active(modifiers) && sym == keysyms::KEY_f {
                                 if let Some(id) = state.focused_window_id() {
-                                    if let Some(tile_id) = state.tile_id_for_window(id) {
-                                        let fs = !state
-                                            .windows
-                                            .get(id)
-                                            .map(|w| w.fullscreen)
-                                            .unwrap_or(false);
-                                        let mode = if fs {
-                                            metis_protocol::TileMode::AppFullscreen
-                                        } else {
-                                            metis_protocol::TileMode::Grid
-                                        };
-                                        state.set_tile_mode(&tile_id, mode);
-                                    } else {
-                                        let fs = state
-                                            .windows
-                                            .get(id)
-                                            .map(|w| !w.fullscreen)
-                                            .unwrap_or(false);
-                                        state.set_fullscreen(id, fs);
-                                    }
+                                    let maxed = state
+                                        .windows
+                                        .get(id)
+                                        .map(|w| w.maximized)
+                                        .unwrap_or(false);
+                                    state.set_maximized(id, !maxed);
                                 }
                                 return FilterResult::Intercept(());
                             }
                             if sym == keysyms::KEY_Escape {
                                 if let Some(id) = state.focused_window_id() {
-                                    if let Some(tile_id) = state.tile_id_for_window(id) {
-                                        state.set_tile_mode(&tile_id, metis_protocol::TileMode::Grid);
-                                    } else {
+                                    if state
+                                        .windows
+                                        .get(id)
+                                        .is_some_and(|w| w.fullscreen)
+                                    {
                                         state.set_fullscreen(id, false);
+                                    } else if state
+                                        .windows
+                                        .get(id)
+                                        .is_some_and(|w| w.maximized)
+                                    {
+                                        state.set_maximized(id, false);
+                                    } else if let Some(tile_id) =
+                                        state.tile_id_for_window(id)
+                                    {
+                                        state.set_tile_mode(
+                                            &tile_id,
+                                            metis_protocol::TileMode::Grid,
+                                        );
                                     }
                                 }
                                 return FilterResult::Intercept(());

@@ -90,7 +90,8 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 | `Super`+`1`..`9` | Switch workspace (on the monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move focused window to a workspace |
 | `Super`+`Shift`+`←` / `→` | (grid) Move focused window to adjacent monitor |
-| `Super`+`F` | Toggle fullscreen for the focused window |
+| `Super`+`Ctrl`+`Shift`+`←` / `→` | Move active workspace to adjacent monitor (independent mode) |
+| `Super`+`F` | Toggle maximize for the focused window (below the edge bar) |
 | `Super`+`Q` | Close the focused window |
 | `Escape` | Exit fullscreen / immersive |
 | `Super`+`\` | Toggle the active workspace between grid and scrolling |

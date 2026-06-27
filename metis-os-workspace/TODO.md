@@ -214,7 +214,8 @@ so each milestone is shippable on its own:
       (`maybe_adopt_window_output` on drag-drop / snap). `Super`+`Shift`+`←`/`→`
       moves the focused window to the adjacent output on grid workspaces
       (scroll mode keeps those keys for column moves). `MoveWindowToOutput` IPC.
-      _Remaining (later):_ move a whole workspace between outputs.
+      Move a whole workspace with `Super`+`Ctrl`+`Shift`+`←`/`→` (independent
+      per-output mode) or `MoveWorkspaceToOutput` IPC.
 - [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
 - [x] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
       workspace, selectable per-workspace as a second mode in `metis-grid`

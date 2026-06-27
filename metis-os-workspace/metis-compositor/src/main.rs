@@ -9,6 +9,7 @@ mod grabs;
 mod handlers;
 mod input;
 mod ipc;
+mod keybinds;
 mod state;
 mod winit;
 mod wallpaper;
@@ -134,6 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!(
         socket = ?state.socket_name,
+        keybind_mod = crate::keybinds::keybind_mod_label(),
         "Metis compositor running — apps, layer-shell overlays, and notifications supported"
     );
 

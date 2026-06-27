@@ -14,6 +14,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   automatically. On grid workspaces, `Super`+`Shift`+`←`/`→` moves the focused
   window to the adjacent output; scroll workspaces keep those keys for column
   navigation. New `MoveWindowToOutput` compositor IPC command.
+- **Move workspace to another output** — `Super`+`Ctrl`+`Shift`+`←`/`→` moves
+  every window on the active workspace (under the pointer) to the same workspace
+  number on the adjacent monitor, including scroll state and layout mode.
+  Independent per-output workspace mode only. `MoveWorkspaceToOutput` IPC.
+
+### Fixed
+
+- **Nested session keybinds** — GNOME grabs Super globally; nested dev sessions now
+  default to `METIS_MOD=alt` so shortcuts work as Alt+… (override with
+  `METIS_MOD=super` when desired).
+- **Edge snap top gap** — left/right half snaps on the outermost monitor no longer
+  pick up a spurious titlebar inset after cross-output adoption.
+- **Mod+F maximize** — the shortcut now toggles maximize (usable area below the
+  edge bar), matching the titlebar maximize button and top-edge snap, instead of
+  true XDG fullscreen that drew under the bar.
 
 ## [2026-06-25]
 

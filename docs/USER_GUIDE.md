@@ -125,8 +125,9 @@ gets a consistent titlebar and border that follow your theme.
 - **Snap zones** — drag a window to a screen edge for a live translucent preview,
   then drop to snap into half / quarter / maximize regions. Snapping respects the
   bar, so the top zone clears it.
-- **Fullscreen** — `Super`+`F` toggles fullscreen for the focused window;
-  `Escape` exits.
+- **Maximize** — `Super`+`F` toggles maximize for the focused window (fills the
+  area below the edge bar, same as the titlebar + button or top-edge snap);
+  `Escape` exits maximize, fullscreen, or grid tile mode.
 - **Close** — `Super`+`Q`.
 
 **Auto-hiding titlebars.** Maximized and edge-snapped windows hide their titlebar
@@ -176,6 +177,11 @@ The window keeps its workspace number on the destination output (e.g. workspace 
 on monitor A becomes workspace 2 on monitor B). If that workspace is not active
 on the destination, the window is stashed until you switch to it there.
 
+**Move the whole workspace** — with independent per-output workspaces,
+`Super`+`Ctrl`+`Shift`+`←` / `→` moves every window on the active workspace
+(under the pointer) to the same workspace number on the adjacent monitor, including
+scroll layout state.
+
 ---
 
 ## 7. Scrolling layout (niri / PaperWM style)
@@ -218,7 +224,8 @@ scrolling mode; in grid mode they're inert.
 | `Super`+`1`..`9` | Switch to workspace 1–9 (monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move the focused window to workspace 1–9 |
 | `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor |
-| `Super`+`F` | Toggle fullscreen for the focused window |
+| `Super`+`Ctrl`+`Shift`+`←` / `→` | Move the active workspace to the adjacent monitor (independent mode) |
+| `Super`+`F` | Toggle maximize for the focused window (fills the area below the edge bar) |
 | `Super`+`Q` | Close the focused window |
 | `Escape` | Exit fullscreen / immersive |
 | `Super`+`\` | Toggle the active workspace between grid and scrolling |
@@ -227,7 +234,7 @@ scrolling mode; in grid mode they're inert.
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Cycle the focused column width |
 
-`Super` is the logo / Windows key.
+**Nested in GNOME?** `./run-metis.sh --session` sets `METIS_MOD=alt` — read **Super** as **Alt** in the table above, and click the Metis window first so it has keyboard focus. On a real Metis session, **Super** is the logo / Windows key.
 
 ---
 
@@ -269,6 +276,20 @@ full effect under a real (DRM) session.
 
 All configuration lives in `~/.config/metis/` as JSON. You can edit files by
 hand — `bar.json` and `themes/*.json` reload while Metis runs.
+
+### Nested dev sessions (GNOME / host compositor)
+
+When Metis runs inside another desktop (the default `./run-metis.sh --session`
+winit window), the **host grabs Super** for its own shortcuts. Metis shortcuts
+won't fire with Super unless you reconfigure the host.
+
+**Default:** nested sessions set `METIS_MOD=alt`, so every shortcut below that
+says **Super** means **Alt** instead — e.g. **Alt+1** switches workspace,
+**Alt+Shift+←** moves a window to the adjacent monitor. **Click the Metis
+session window first** so it has keyboard focus.
+
+Override with `METIS_MOD=super` or `METIS_MOD=ctrl` if you prefer. On a real
+Metis session (future DRM backend), the default is Super.
 
 | File | Purpose |
 |------|---------|

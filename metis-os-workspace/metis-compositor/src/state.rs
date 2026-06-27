@@ -3041,6 +3041,143 @@ impl MetisState {
         self.move_window_to_output(window_id, &target);
     }
 
+    /// Move every window on `workspace` from `source_key` to `target_key` (keeping
+    /// the same workspace number). Layout mode and scroll state for that workspace
+    /// move with the windows. Only valid in independent per-output workspace mode.
+    pub fn move_workspace_to_output(
+        &mut self,
+        source_key: &str,
+        workspace: u32,
+        target_key: &str,
+    ) {
+        if source_key.is_empty() || target_key.is_empty() || source_key == target_key {
+            return;
+        }
+        if self.workspace_mode() != metis_config::WorkspaceMode::Separate {
+            return;
+        }
+        if self.output_by_name(target_key).is_none() && !self.desks.contains_key(target_key) {
+            return;
+        }
+        self.desk_mut_or_default(target_key);
+
+        let ws = workspace.clamp(1, self.workspace_count());
+        let source_active = self.active_workspace_for(source_key);
+        let target_active = self.active_workspace_for(target_key);
+        let was_visible_on_source = ws == source_active;
+        let will_be_visible_on_target = ws == target_active;
+
+        let window_ids: Vec<u32> = self
+            .windows
+            .ids()
+            .into_iter()
+            .filter(|&id| {
+                self.desk_key_for_window(id) == source_key
+                    && self.windows.workspace(id) == Some(ws)
+            })
+            .collect();
+
+        let (kind, scroll, mut tiles) = {
+            let desk = self.desk_mut_or_default(source_key);
+            let kind = desk.layout_kind.remove(&ws);
+            let scroll = desk.scroll.remove(&ws);
+            let mut tiles = desk.stashed_app_tiles.remove(&ws).unwrap_or_default();
+            if was_visible_on_source {
+                let on_ws: std::collections::HashSet<u32> = window_ids.iter().copied().collect();
+                desk.layout.tiles.retain(|t| {
+                    if let TileKind::App { window_id: Some(wid), .. } = &t.kind {
+                        if on_ws.contains(wid) {
+                            tiles.push(t.clone());
+                            return false;
+                        }
+                    }
+                    true
+                });
+            }
+            (kind, scroll, tiles)
+        };
+
+        let default_layout = self
+            .desk(target_key)
+            .map(|d| &d.layout)
+            .unwrap_or(&self.default_layout);
+        for &id in &window_ids {
+            let tile_id = format!("app-{id}");
+            if tiles.iter().any(|t| t.id == tile_id) {
+                continue;
+            }
+            let class = self.windows.get(id).and_then(|r| r.app_id.clone());
+            tiles.push(metis_grid::GridTile {
+                id: tile_id,
+                rect: default_app_tile_rect(default_layout),
+                kind: TileKind::App {
+                    window_id: Some(id),
+                    class,
+                },
+                glow: "cool".into(),
+                pinned: false,
+                min_w: None,
+                max_w: None,
+                min_h: None,
+                max_h: None,
+            });
+        }
+
+        if was_visible_on_source {
+            for &id in &window_ids {
+                if let Some(record) = self.windows.get(id).cloned() {
+                    self.space.unmap_elem(&record.window);
+                }
+            }
+        }
+
+        for &id in &window_ids {
+            self.windows.set_output(id, target_key.to_string());
+        }
+
+        {
+            let desk = self.desk_mut_or_default(target_key);
+            if let Some(k) = kind {
+                desk.layout_kind.insert(ws, k);
+            }
+            if let Some(s) = scroll {
+                desk.scroll.insert(ws, s);
+            }
+            if will_be_visible_on_target {
+                desk.layout.tiles.extend(tiles);
+            } else {
+                desk.stashed_app_tiles.entry(ws).or_default().extend(tiles);
+            }
+        }
+
+        if will_be_visible_on_target {
+            self.refresh_scroll_offset(target_key);
+            for &id in &window_ids {
+                if !self.windows.is_minimized(id) {
+                    self.apply_window_rect(id);
+                }
+            }
+            self.focus_topmost_on_active_workspace();
+        } else if was_visible_on_source {
+            self.focus_topmost_on_active_workspace();
+        }
+
+        self.damaged = true;
+        self.request_redraw();
+        self.emit_layout_changed();
+        self.emit_workspace_changed(source_key);
+        self.emit_workspace_changed(target_key);
+    }
+
+    /// Move the active workspace on `source_key` one output left/right.
+    pub fn move_active_workspace_to_adjacent_output(&mut self, source_key: &str, direction: i32) {
+        let ws = self.active_workspace_for(source_key);
+        let Some(target) = self.adjacent_output_key(source_key, direction) else {
+            return;
+        };
+        self.move_workspace_to_output(source_key, ws, &target);
+    }
+
     /// True when the workspace under the pointer uses the scrolling layout (so
     /// Super+Shift+arrow is reserved for scroll navigation).
     pub fn scroll_navigation_active(&self) -> bool {
@@ -3313,6 +3450,32 @@ impl MetisState {
                     CompositorEvent::LayoutApplied
                 }
             }
+            CompositorCommand::MoveWorkspaceToOutput {
+                output,
+                workspace,
+                target_output,
+            } => {
+                if target_output.is_empty() {
+                    CompositorEvent::Error {
+                        message: "target_output is required".into(),
+                    }
+                } else if self.workspace_mode() != metis_config::WorkspaceMode::Separate {
+                    CompositorEvent::Error {
+                        message: "MoveWorkspaceToOutput requires independent per-output workspaces"
+                            .into(),
+                    }
+                } else {
+                    let source = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
+                        self.output_under_pointer()
+                            .map(|o| o.name())
+                            .unwrap_or_else(|| self.primary_key())
+                    });
+                    let ws = workspace
+                        .unwrap_or_else(|| self.active_workspace_for(&source));
+                    self.move_workspace_to_output(&source, ws, &target_output);
+                    CompositorEvent::LayoutApplied
+                }
+            }
             CompositorCommand::SetWorkspaceLayout { output, workspace, kind } => {
                 let key = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
                     self.output_under_pointer()
@@ -3570,6 +3733,7 @@ impl MetisState {
                         self.unminimize_window(id);
                     }
                     self.set_fullscreen(id, false);
+                    self.set_maximized(id, false);
                 }
             }
             TileMode::AppFullscreen => {
@@ -3578,7 +3742,7 @@ impl MetisState {
                         .enter(&layout, tile_id, metis_grid::TileMode::AppFullscreen);
                 }
                 if let Some(id) = window_id {
-                    self.set_fullscreen(id, true);
+                    self.set_maximized(id, true);
                 }
             }
             TileMode::Minimized => {

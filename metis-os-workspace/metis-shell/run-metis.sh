@@ -403,11 +403,21 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         elif [[ -z "$METIS_NO_BRIEFING" ]]; then
             unset METIS_NO_BRIEFING        # explicit empty → enable
         fi
+
+        # GNOME (and most host compositors) grab Super globally, so nested dev
+        # sessions default to Alt for compositor shortcuts. Override with
+        # METIS_MOD=super if you've disabled the conflicting host bindings.
+        if [[ -z "${METIS_MOD+set}" ]]; then
+            export METIS_MOD=alt
+        fi
     fi
     log "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unset}"
     log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
     log "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
     log "DESKTOP_SESSION=${DESKTOP_SESSION:-unset}"
+    if [[ -n "${METIS_MOD:-}" ]]; then
+        log "METIS_MOD=${METIS_MOD} (compositor shortcuts use this modifier)"
+    fi
     if [[ -n "${METIS_WALLPAPER:-}" ]]; then
         log "Wallpaper: $METIS_WALLPAPER"
     elif [[ -n "${METIS_NO_WALLPAPER:-}" ]]; then
@@ -499,7 +509,7 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     fi
 
     run_section "Run"
-    log "Controls: Metis edge bar · Super+F fullscreen · Super+Q close"
+    log "Controls: Metis edge bar · Mod+F maximize · Mod+Q close (see METIS_MOD)"
     log "Stop shell: ./run-metis.sh --stop"
     echo
 

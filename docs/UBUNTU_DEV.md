@@ -59,6 +59,7 @@ Created later, on demand:
 
 | Issue | Fix |
 |-------|-----|
+| Compositor shortcuts don't work (nested in GNOME) | GNOME grabs **Super** globally. Nested sessions default to **`METIS_MOD=alt`** — use **Alt+1**…**Alt+9**, **Alt+Shift+←/→**, etc. Click the Metis window first so it has keyboard focus. To force Super: `METIS_MOD=super ./run-metis.sh --session` after disabling conflicting GNOME shortcuts (Settings → Keyboard → Keyboard Shortcuts). |
 | Layer surfaces invisible | Confirm Wayland session + `echo $WAYLAND_DISPLAY` |
 | Missing layer-shell | Install `libgtk-4-layer-shell-dev` |
 | Shell hangs on startup | Rebuild compositor + shell (`./run-metis.sh --build --session`) |
