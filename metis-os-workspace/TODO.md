@@ -87,6 +87,9 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Border resize — compositor-side edge/corner hit-test (`RESIZE_MARGIN_PX`)
       starts `ResizeSurfaceGrab`, floats tiled windows out of the grid, persists
       the new geometry, and shows directional resize cursors on hover
+- [x] Per-app geometry memory — free-layout windows save their position/size per
+      `app_id` to `~/.config/metis/windows.json` and restore it on reopen (placement
+      defers until `app_id` is known so the restore isn't lost to a centered default)
 - [x] Polish — rounded, anti-aliased control buttons with glyphs (× / + / −) and
       focus-aware dimming (traffic-light colors when focused, gray when not)
 - [x] Snap zones / hot-spots — drag a window to a screen edge for a live

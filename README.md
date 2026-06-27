@@ -75,7 +75,8 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   pin/close.
 - **Windows** — every app gets a server-side titlebar with close / minimize /
   maximize. Drag the titlebar to move; drag to a screen edge to snap
-  (half / quarter / maximize); drag a border to resize.
+  (half / quarter / maximize); drag a border to resize. On the default desktop
+  layout, windows reopen at the position and size you last left them.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
   focused window. Each monitor has its own workspaces (configurable).
 - **Cross-output moves** — drag a window onto another monitor (or snap it there)

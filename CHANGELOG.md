@@ -21,6 +21,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Session lockup on pointer input** — fixed a self-deadlock where moving the
+  pointer over a window could freeze the whole session. Input hit-testing
+  (`surface_under` / `focus_target_at`) acquired the per-output layer map and then
+  re-entered it via grid-zone resolution; Smithay's layer map is a non-reentrant
+  mutex, so the compositor thread deadlocked. The desk hit is now classified before
+  the layer map is locked.
+- **Free-mode window geometry restore** — in the default desktop layout, moving or
+  resizing a window and then closing and reopening it now restores the saved
+  position and size instead of always reopening centered at the default size.
+  Placement is no longer locked in before the app's `app_id` is known (GTK assigns
+  it just after the first commit), so the saved geometry lookup is no longer
+  skipped.
 - **Nested session keybinds** — GNOME grabs Super globally; nested dev sessions now
   default to `METIS_MOD=alt` so shortcuts work as Alt+… (override with
   `METIS_MOD=super` when desired).

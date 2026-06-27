@@ -130,6 +130,10 @@ gets a consistent titlebar and border that follow your theme.
   area below the edge bar, same as the titlebar + button or top-edge snap);
   `Escape` exits maximize, fullscreen, or grid tile mode.
 - **Close** — `Super`+`Q`.
+- **Geometry memory** — on the default desktop layout, a window you've moved or
+  resized reopens at the same position and size next time you launch it (saved per
+  app in `~/.config/metis/windows.json`). Off-screen saved positions are pulled
+  back on-screen; grid/scrolling workspaces tile instead.
 
 **Auto-hiding titlebars.** Maximized and edge-snapped windows hide their titlebar
 so the client fills the space; hover the top strip to reveal it as a translucent
