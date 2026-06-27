@@ -1,3 +1,4 @@
+mod auto_tile;
 mod immersive;
 mod layout;
 mod layout_engine;
@@ -7,6 +8,7 @@ mod scroll;
 mod snap_zones;
 mod tile_mode;
 
+pub use auto_tile::auto_tile_apps;
 pub use immersive::{ImmersiveController, ImmersiveSnapshot};
 pub use layout::{
     app_tile_body_rect, app_tile_border_px, app_tile_chrome_rect, cell_to_pixels, desk_pixel_rect,

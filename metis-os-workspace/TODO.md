@@ -9,8 +9,7 @@ wallpaper + usable areas, independent **or** linked per-output virtual workspace
 (live bar dots + `Super`+`n`), a dock that follows the output + workspace, an
 optional niri/PaperWM-style **scrolling layout** selectable per workspace
 (`Super`+`\`), and **cross-output window moves** (drag/snap adopt, `Super`+`Shift`+`←`/`→`,
-`MoveWindowToOutput` IPC). Remaining in Phase 3: whole-workspace cross-output
-moves, richer automatic tiling, and the DRM/udev backend (deferred). Next: Phase 4
+`MoveWindowToOutput` IPC). Remaining in Phase 3: the DRM/udev backend (deferred). Next: Phase 4
 (settings-app expansion into a full control center) and Phase 5 (display pipeline:
 VRR, colour management, HDR).
 
@@ -216,7 +215,9 @@ so each milestone is shippable on its own:
       (scroll mode keeps those keys for column moves). `MoveWindowToOutput` IPC.
       Move a whole workspace with `Super`+`Ctrl`+`Shift`+`←`/`→` (independent
       per-output mode) or `MoveWorkspaceToOutput` IPC.
-- [ ] **Automatic dynamic tiling** — richer reflow beyond the manual grid
+- [x] **Automatic dynamic tiling** — grid workspaces auto-split among open app
+      windows on open/close and workspace switch (below desk widgets; master stack
+      for three; focused window gets the primary slot)
 - [x] **Scrolling layout option** — niri/PaperWM/mango-style horizontally scrolling
       workspace, selectable per-workspace as a second mode in `metis-grid`
       (`scroll.rs`: `ScrollState` of columns, each a vertical window stack). App

@@ -29,6 +29,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Mod+F maximize** — the shortcut now toggles maximize (usable area below the
   edge bar), matching the titlebar maximize button and top-edge snap, instead of
   true XDG fullscreen that drew under the bar.
+- **Automatic grid tiling** — on grid workspaces, opening or closing an app window
+  (or switching back to a workspace) re-splits the area below desk widgets among
+  visible tiled windows; the focused window takes the primary slot when three or
+  more share the workspace.
 
 ## [2026-06-25]
 

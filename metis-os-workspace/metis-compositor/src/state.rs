@@ -2708,7 +2708,54 @@ impl MetisState {
         if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll {
             self.scroll_state_mut(&key, ws).insert_window_after_focus(id);
             self.refresh_scroll_offset(&key);
+        } else {
+            self.auto_reflow_grid_apps(&key, Some(id));
         }
+    }
+
+    /// Split the active grid workspace among grid-managed app windows.
+    fn auto_reflow_grid_apps(&mut self, output_key: &str, focus_window_id: Option<u32>) {
+        let ws = self.active_workspace_for(output_key);
+        if self.layout_kind_for(output_key, ws) != metis_grid::LayoutKind::Grid {
+            return;
+        }
+
+        let include: Vec<String> = self
+            .desk(output_key)
+            .map(|desk| {
+                desk.layout
+                    .tiles
+                    .iter()
+                    .filter_map(|t| {
+                        if let TileKind::App {
+                            window_id: Some(wid),
+                            ..
+                        } = &t.kind
+                        {
+                            self.is_window_grid_managed(*wid).then(|| t.id.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if include.is_empty() {
+            return;
+        }
+
+        let focus_tile_id = focus_window_id.and_then(|id| self.tile_id_for_window(id));
+
+        let desk = self.desk_mut_or_default(output_key);
+        if let Err(err) =
+            metis_grid::auto_tile_apps(&mut desk.layout, focus_tile_id.as_deref(), &include)
+        {
+            tracing::warn!(%err, output = output_key, "auto_tile_apps failed");
+        }
+        self.reposition_all_windows();
+        self.persist_layout();
+        self.emit_layout_changed();
     }
 
     pub fn sync_all_app_windows(&mut self) {
@@ -2846,6 +2893,9 @@ impl MetisState {
             }
         }
         self.refresh_scroll_offset(output_key);
+        if self.layout_kind_for(output_key, target) == metis_grid::LayoutKind::Grid {
+            self.auto_reflow_grid_apps(output_key, self.focused_window_id());
+        }
         self.reposition_all_windows();
         self.focus_topmost_on_active_workspace();
 
@@ -3769,9 +3819,9 @@ impl MetisState {
 
         self.floating.remove(&id);
         self.clear_auto_hide(id);
+        let desk_key = self.desk_key_for_window(id);
         self.remove_app_tile_everywhere(id);
-        self.persist_layout();
-        self.emit_layout_changed();
+        self.auto_reflow_grid_apps(&desk_key, self.focused_window_id());
         self.event_bus.emit(&CompositorEvent::WindowClosed { id });
     }
 

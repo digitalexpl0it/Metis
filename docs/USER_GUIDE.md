@@ -51,7 +51,8 @@ your settings).
   status widgets (weather, battery, network, volume, notifications, clock).
 - **Windows** — every app gets a compositor-drawn **titlebar** with close,
   minimize, and maximize buttons, plus a border. Windows tile into a grid by
-  default; you can float, snap, fullscreen, or switch a workspace into a
+  default — opening or closing an app re-splits the area below desk widgets among
+  visible tiled windows. You can float, snap, maximize, or switch a workspace into a
   scrolling layout.
 - **Popovers** — clicking a bar widget opens an on-demand popover (calendar,
   Wi-Fi, volume, notifications, weather forecast, app launcher). Clicking
