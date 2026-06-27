@@ -1398,6 +1398,72 @@ impl MetisState {
             && self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll
     }
 
+    /// Physical-space clip rect for a scroll-managed window so its column can
+    /// scroll off its own display's edge (carousel) without bleeding onto an
+    /// adjacent output. Returns `None` for windows that aren't scroll-managed —
+    /// those must not be clipped (e.g. a floating window dragged across outputs).
+    pub(crate) fn scroll_window_clip(
+        &self,
+        id: u32,
+        scale: impl Into<smithay::utils::Scale<f64>>,
+    ) -> Option<smithay::utils::Rectangle<i32, smithay::utils::Physical>> {
+        if !self.is_active_scroll_window(id) {
+            return None;
+        }
+        let key = self.desk_key_for_window(id);
+        let output = self.output_by_name(&key)?;
+        let geo = self.space.output_geometry(&output)?;
+        Some(geo.to_physical_precise_round(scale))
+    }
+
+    /// Resolve a border drag on scroll window `id` to the column it should resize.
+    /// The right edge grows this window's column; the left edge grows the previous
+    /// column (the shared border). Returns a representative window of the target
+    /// column plus that column's current pixel width, or `None` when the drag isn't
+    /// a horizontal resize of a scroll column (e.g. left edge of the first column).
+    pub(crate) fn scroll_resize_target(
+        &self,
+        id: u32,
+        edges: crate::grabs::ResizeEdge,
+    ) -> Option<(u32, i32)> {
+        use crate::grabs::ResizeEdge;
+        if !self.is_active_scroll_window(id) {
+            return None;
+        }
+        let key = self.desk_key_for_window(id);
+        let ws = self.active_workspace_for(&key);
+        let scroll = self.desk(&key)?.scroll.get(&ws)?;
+        let ci = scroll.column_index_of(id)?;
+        let target_ci = if edges.contains(ResizeEdge::RIGHT) {
+            ci
+        } else if edges.contains(ResizeEdge::LEFT) {
+            ci.checked_sub(1)?
+        } else {
+            return None;
+        };
+        let zone = self.scroll_zone_for(&key);
+        let target_window = *scroll.columns.get(target_ci)?.windows.first()?;
+        Some((target_window, scroll.column_width_px(target_ci, zone)))
+    }
+
+    /// Set the pixel width of the scroll column holding `target_window` and reflow
+    /// the strip so the columns to its right slide over to make room. Driven live
+    /// from [`crate::grabs::ScrollResizeGrab`] during a mouse resize.
+    pub(crate) fn scroll_set_column_width_px(&mut self, target_window: u32, width_px: i32) {
+        let key = self.desk_key_for_window(target_window);
+        let ws = self.active_workspace_for(&key);
+        let zone = self.scroll_zone_for(&key);
+        if let Some(scroll) = self.desk_mut_or_default(&key).scroll.get_mut(&ws) {
+            if !scroll.set_column_width_px_for(target_window, width_px, zone) {
+                return;
+            }
+        }
+        self.refresh_scroll_offset(&key, false);
+        self.reposition_scroll_windows();
+        self.damaged = true;
+        self.request_redraw();
+    }
+
     /// Drop a window from every output's scroll state (used on destroy / move).
     fn remove_from_scroll_everywhere(&mut self, id: u32) {
         for desk in self.desks.values_mut() {
@@ -2728,40 +2794,17 @@ impl MetisState {
             return true;
         }
 
-        // Scroll layout needs an app_id before we can classify first vs returning.
-        let Some(app_id) = app_id else {
-            return false;
-        };
-
-        // Returning app: restore saved width/height centered on the launch output.
-        if let Some(saved) = self.window_state.get(app_id) {
-            let saved_rect = saved.to_rect();
-            if saved_rect.width < MIN_SAVED_WINDOW_PX
-                || saved_rect.height < MIN_SAVED_WINDOW_PX
-            {
-                self.window_state.remove(app_id);
-            } else {
-                let rect = self.restore_body_for_window(saved_rect);
-                self.floating.insert(id);
-                self.windows.set_target_rect(id, rect);
-                self.windows.set_placement_chosen(id, true);
-                tracing::info!(
-                    id,
-                    ?rect,
-                    ?kind,
-                    "place_new_window: restored saved geometry"
-                );
-                return true;
-            }
-        }
-
-        // First launch: centered default on the output it was opened from.
-        let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
-        self.floating.insert(id);
-        self.windows.set_target_rect(id, rect);
+        // Scroll layout: the window belongs to the strip, not a free float. Like
+        // the grid branch, just mark placement decided and let the scroll strip own
+        // it — `ensure_app_tile_for_window` adds it to the strip (seed_scroll_state)
+        // and `apply_window_rect` positions it from its scroll frame
+        // (`rect_for_window_tile` → `scroll_frame_for_window`). Floating it here
+        // would exclude it from `scroll_managed_app_ids` (which filters out floating
+        // windows), leaving a centered window stranded on top of the strip. Column
+        // widths are presets (⅓/½/⅔/full), so saved pixel geometry doesn't apply.
         self.windows.set_placement_chosen(id, true);
-        tracing::info!(id, ?kind, "place_new_window: first launch centered on launch output");
-        true
+        tracing::info!(id, ?kind, "place_new_window: scroll strip-managed");
+        false
     }
 
     /// Persist a floating window's current on-screen geometry under its app_id,
@@ -3053,6 +3096,12 @@ impl MetisState {
         let Some((id, edges)) = self.resize_edge_at(loc) else {
             return false;
         };
+        // Scroll-managed windows resize their column horizontally (pushing the rest
+        // of the strip over) instead of floating out; they're full-height, so the
+        // top/bottom edges do nothing.
+        if self.is_active_scroll_window(id) {
+            return self.start_scroll_resize(id, edges, loc, serial);
+        }
         let Some(record) = self.windows.get(id).cloned() else {
             return false;
         };
@@ -3093,6 +3142,52 @@ impl MetisState {
             window,
             edges,
             smithay::utils::Rectangle::new(initial_window_location, initial_window_size),
+        );
+        pointer.set_grab(self, grab, serial, Focus::Clear);
+        true
+    }
+
+    /// Begin a horizontal resize of a scroll column from a left/right border drag.
+    /// The grab adjusts the target column's width live and reflows the strip.
+    fn start_scroll_resize(
+        &mut self,
+        id: u32,
+        edges: crate::grabs::ResizeEdge,
+        loc: Point<f64, Logical>,
+        serial: smithay::utils::Serial,
+    ) -> bool {
+        use crate::grabs::ResizeEdge;
+        use smithay::input::pointer::{Focus, GrabStartData};
+
+        if !edges.intersects(ResizeEdge::LEFT | ResizeEdge::RIGHT) {
+            return false;
+        }
+        let Some((target_window, initial_width_px)) = self.scroll_resize_target(id, edges) else {
+            return false;
+        };
+        let Some(pointer) = self.seat.get_pointer() else {
+            return false;
+        };
+        if pointer.is_grabbed() {
+            return false;
+        }
+        // Focus the window the user grabbed so the resize reads as acting on it.
+        if let Some(record) = self.windows.get(id).cloned() {
+            self.space.raise_element(&record.window, true);
+            if let Some(keyboard) = self.seat.get_keyboard() {
+                keyboard.set_focus(self, Some(record.window.into()), serial);
+            }
+        }
+        let start_data = GrabStartData {
+            focus: None,
+            button: 0x110,
+            location: loc,
+        };
+        let grab = crate::grabs::ScrollResizeGrab::start(
+            start_data,
+            target_window,
+            initial_width_px,
+            loc.x,
         );
         pointer.set_grab(self, grab, serial, Focus::Clear);
         true
@@ -3300,6 +3395,10 @@ impl MetisState {
         if self.layout_kind_for(&key, ws) == metis_grid::LayoutKind::Scroll {
             self.seed_scroll_state(&key, ws);
             self.refresh_scroll_offset(&key, false);
+            // Slide the windows already in the strip into their new frames — a fresh
+            // column shifts every column to its right, so the prior window must move
+            // instead of the newcomer just painting on top of it.
+            self.reposition_scroll_windows();
         } else {
             self.auto_reflow_grid_apps(&key, Some(id), true);
         }
@@ -4468,6 +4567,10 @@ impl MetisState {
         let desk_key = self.desk_key_for_window(id);
         self.remove_app_tile_everywhere(id);
         self.auto_reflow_grid_apps(&desk_key, self.focused_window_id(), false);
+        // Grid reflow above is a no-op on scroll workspaces; re-snap the offset and
+        // slide the surviving columns over to close the gap the closed window left.
+        self.refresh_all_scroll_offsets();
+        self.reposition_scroll_windows();
         self.persist_layout();
         self.event_bus.emit(&CompositorEvent::WindowClosed { id });
     }

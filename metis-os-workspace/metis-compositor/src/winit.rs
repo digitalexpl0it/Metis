@@ -11,6 +11,7 @@ use smithay::{
                 solid::SolidColorRenderElement,
                 surface::WaylandSurfaceRenderElement,
                 texture::TextureRenderElement,
+                utils::CropRenderElement,
                 AsRenderElements, Id, Kind,
             },
             gles::{GlesRenderer, GlesTexture},
@@ -39,6 +40,10 @@ render_elements! {
     Deco=crate::decoration::DecorationElement,
     Blur=crate::blur::BlurElement,
     Snap=SolidColorRenderElement,
+    // Scroll-managed windows + their chrome, clipped to their own output so a
+    // half-scrolled column never bleeds onto the adjacent display.
+    CropSurface=CropRenderElement<WaylandSurfaceRenderElement<GlesRenderer>>,
+    CropDeco=CropRenderElement<crate::decoration::DecorationElement>,
 }
 
 /// Translucent fill for the snap-zone drop preview (accent blue @ ~30% alpha).
@@ -525,17 +530,48 @@ pub fn init_winit(
                                     .unwrap_or_default()
                                     - window.geometry().loc)
                                     .to_physical_precise_round(output_scale);
+                                let id = state.windows.id_for_window(window);
+                                // Scroll columns may overhang their display edge; clip
+                                // them to their own output so they never paint onto the
+                                // neighbouring monitor. Other windows render uncropped.
+                                let clip = id
+                                    .and_then(|id| state.scroll_window_clip(id, output_scale));
                                 let elems = AsRenderElements::<GlesRenderer>::render_elements::<
                                     WaylandSurfaceRenderElement<GlesRenderer>,
                                 >(
                                     window, renderer, loc, output_scale, 1.0
                                 );
-                                render_elements
-                                    .extend(elems.into_iter().map(OutputStack::Surface));
-                                if let Some(id) = state.windows.id_for_window(window) {
+                                if let Some(clip) = clip {
+                                    for e in elems {
+                                        if let Some(c) = CropRenderElement::from_element(
+                                            e,
+                                            output_scale,
+                                            clip,
+                                        ) {
+                                            render_elements.push(OutputStack::CropSurface(c));
+                                        }
+                                    }
+                                } else {
+                                    render_elements
+                                        .extend(elems.into_iter().map(OutputStack::Surface));
+                                }
+                                if let Some(id) = id {
                                     if let Some(decos) = deco_below.remove(&id) {
-                                        render_elements
-                                            .extend(decos.into_iter().map(OutputStack::Deco));
+                                        if let Some(clip) = clip {
+                                            for d in decos {
+                                                if let Some(c) = CropRenderElement::from_element(
+                                                    d,
+                                                    output_scale,
+                                                    clip,
+                                                ) {
+                                                    render_elements
+                                                        .push(OutputStack::CropDeco(c));
+                                                }
+                                            }
+                                        } else {
+                                            render_elements
+                                                .extend(decos.into_iter().map(OutputStack::Deco));
+                                        }
                                     }
                                 }
                             }

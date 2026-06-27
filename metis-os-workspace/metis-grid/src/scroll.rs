@@ -10,38 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::PixelRect;
 
-/// Preset column widths, as a fraction of the usable viewport width. Cycled with
-/// [`ColumnWidth::cycle`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum ColumnWidth {
-    OneThird,
-    #[default]
-    Half,
-    TwoThirds,
-    Full,
-}
-
-impl ColumnWidth {
-    pub fn frac(self) -> f32 {
-        match self {
-            ColumnWidth::OneThird => 1.0 / 3.0,
-            ColumnWidth::Half => 0.5,
-            ColumnWidth::TwoThirds => 2.0 / 3.0,
-            ColumnWidth::Full => 1.0,
-        }
-    }
-
-    /// Step to the next preset, wrapping OneThird -> Half -> TwoThirds -> Full -> OneThird.
-    pub fn cycle(self) -> Self {
-        match self {
-            ColumnWidth::OneThird => ColumnWidth::Half,
-            ColumnWidth::Half => ColumnWidth::TwoThirds,
-            ColumnWidth::TwoThirds => ColumnWidth::Full,
-            ColumnWidth::Full => ColumnWidth::OneThird,
-        }
-    }
-}
+/// Column widths are a fraction of the usable viewport width so they survive
+/// output-size / bar changes. Mouse-resizing sets an arbitrary fraction within
+/// [`MIN_COL_FRAC`]..=[`FULL_COL_FRAC`]; the keyboard cycle snaps to half/full.
+pub const MIN_COL_FRAC: f32 = 0.15;
+pub const HALF_COL_FRAC: f32 = 0.5;
+pub const FULL_COL_FRAC: f32 = 1.0;
+/// Width a brand-new column opens at (half the viewport, niri/paneru style).
+pub const DEFAULT_COL_FRAC: f32 = HALF_COL_FRAC;
 
 /// A single column in the scroll strip: a vertical stack of windows (top to
 /// bottom) plus the column's width preset and which window in the stack is focused.
@@ -50,8 +26,13 @@ pub struct ScrollColumn {
     pub windows: Vec<u32>,
     #[serde(default)]
     pub focus_row: usize,
-    #[serde(default)]
-    pub width: ColumnWidth,
+    /// Column width as a fraction of the usable viewport width.
+    #[serde(default = "default_col_frac")]
+    pub width_frac: f32,
+}
+
+fn default_col_frac() -> f32 {
+    DEFAULT_COL_FRAC
 }
 
 impl ScrollColumn {
@@ -59,7 +40,7 @@ impl ScrollColumn {
         Self {
             windows: vec![window],
             focus_row: 0,
-            width: ColumnWidth::default(),
+            width_frac: DEFAULT_COL_FRAC,
         }
     }
 
@@ -253,10 +234,44 @@ impl ScrollState {
         self.focus_col = at;
     }
 
+    /// Keyboard width toggle: snap the focused column to full, or back to half
+    /// once it's already (near) full — works from any mouse-set custom width.
     pub fn cycle_focus_width(&mut self) {
         if let Some(col) = self.columns.get_mut(self.focus_col) {
-            col.width = col.width.cycle();
+            col.width_frac = if col.width_frac >= FULL_COL_FRAC - 0.01 {
+                HALF_COL_FRAC
+            } else {
+                FULL_COL_FRAC
+            };
         }
+    }
+
+    /// Index of the column holding `window`, if any.
+    pub fn column_index_of(&self, window: u32) -> Option<usize> {
+        self.columns
+            .iter()
+            .position(|c| c.windows.contains(&window))
+    }
+
+    /// Current pixel width of column `ci` for `zone`.
+    pub fn column_width_px(&self, ci: usize, zone: PixelRect) -> i32 {
+        self.columns
+            .get(ci)
+            .map(|c| col_width_px(c.width_frac, zone.width))
+            .unwrap_or(0)
+    }
+
+    /// Set the pixel width of the column holding `window`, clamped to sane
+    /// fractions of `zone`. Columns to its right reflow automatically in
+    /// [`Self::layout`]. Returns true when a column was found and updated.
+    pub fn set_column_width_px_for(&mut self, window: u32, width_px: i32, zone: PixelRect) -> bool {
+        let Some(ci) = self.column_index_of(window) else {
+            return false;
+        };
+        let denom = zone.width.max(1) as f32;
+        self.columns[ci].width_frac =
+            (width_px as f32 / denom).clamp(MIN_COL_FRAC, FULL_COL_FRAC);
+        true
     }
 
     /// Focus the column/row that holds `window`, if present.
@@ -277,7 +292,7 @@ impl ScrollState {
         let mut out = Vec::new();
         let mut cursor = zone.x - self.scroll_x;
         for col in &self.columns {
-            let w = col_width_px(col.width, zone.width);
+            let w = col_width_px(col.width_frac, zone.width);
             let n = col.windows.len();
             if n == 0 {
                 cursor += w + gutter;
@@ -316,7 +331,7 @@ impl ScrollState {
             if i > 0 {
                 w += gutter;
             }
-            w += col_width_px(col.width, zone.width);
+            w += col_width_px(col.width_frac, zone.width);
         }
         w
     }
@@ -369,12 +384,12 @@ impl ScrollState {
         }
         let mut start = 0;
         for col in self.columns.iter().take(self.focus_col) {
-            start += col_width_px(col.width, zone.width) + gutter;
+            start += col_width_px(col.width_frac, zone.width) + gutter;
         }
         let width = self
             .columns
             .get(self.focus_col)
-            .map(|c| col_width_px(c.width, zone.width))
+            .map(|c| col_width_px(c.width_frac, zone.width))
             .unwrap_or(zone.width);
 
         let mut scroll = self.scroll_x;
@@ -387,8 +402,9 @@ impl ScrollState {
     }
 }
 
-fn col_width_px(width: ColumnWidth, zone_width: i32) -> i32 {
-    ((zone_width as f32) * width.frac()).round() as i32
+fn col_width_px(width_frac: f32, zone_width: i32) -> i32 {
+    let frac = width_frac.clamp(MIN_COL_FRAC, FULL_COL_FRAC);
+    ((zone_width as f32) * frac).round().max(1.0) as i32
 }
 
 #[cfg(test)]
@@ -456,9 +472,11 @@ mod tests {
     fn cycle_width_changes_focus_column() {
         let mut s = ScrollState::new();
         s.insert_window_after_focus(1);
-        assert_eq!(s.columns[0].width, ColumnWidth::Half);
+        assert_eq!(s.columns[0].width_frac, HALF_COL_FRAC);
         s.cycle_focus_width();
-        assert_eq!(s.columns[0].width, ColumnWidth::TwoThirds);
+        assert_eq!(s.columns[0].width_frac, FULL_COL_FRAC);
+        s.cycle_focus_width();
+        assert_eq!(s.columns[0].width_frac, HALF_COL_FRAC);
     }
 
     #[test]
@@ -495,7 +513,7 @@ mod tests {
         let mut s = ScrollState::new();
         for id in 1..=4 {
             s.insert_window_after_focus(id);
-            s.columns[s.focus_col].width = ColumnWidth::Half;
+            s.columns[s.focus_col].width_frac = HALF_COL_FRAC;
         }
         let scroll = s.desired_scroll_x(ZONE, 10);
         assert!(scroll > 0);
@@ -506,12 +524,38 @@ mod tests {
         let mut s = ScrollState::new();
         for id in 1..=4 {
             s.insert_window_after_focus(id);
-            s.columns[s.focus_col].width = ColumnWidth::Half;
+            s.columns[s.focus_col].width_frac = HALF_COL_FRAC;
         }
         let max = s.max_scroll_x(ZONE, 10);
         assert!(max > 0);
         let desired = s.desired_scroll_x(ZONE, 10);
         assert!(desired <= max);
+    }
+
+    #[test]
+    fn mouse_resize_sets_column_width_and_reflows() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        // Grow column 0 (window 1) to ~800px of the 1200px zone.
+        assert!(s.set_column_width_px_for(1, 800, ZONE));
+        let frames = s.layout(ZONE, 10);
+        assert_eq!(frames[0].1.width, 800);
+        // The right neighbour slides over by the new width + gutter.
+        assert_eq!(frames[1].1.x, 810);
+    }
+
+    #[test]
+    fn mouse_resize_clamps_to_min_and_full() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        // Absurdly wide clamps to full viewport.
+        s.set_column_width_px_for(1, 999_999, ZONE);
+        assert_eq!(s.layout(ZONE, 10)[0].1.width, ZONE.width);
+        // Absurdly narrow clamps to the minimum fraction.
+        s.set_column_width_px_for(1, 1, ZONE);
+        let expect_min = (ZONE.width as f32 * MIN_COL_FRAC).round() as i32;
+        assert_eq!(s.layout(ZONE, 10)[0].1.width, expect_min);
     }
 
     #[test]

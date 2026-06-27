@@ -21,7 +21,7 @@ pub use layout_engine::{
 };
 pub use model::{GridLayout, GridTile, LayoutKind, ReflowError, TileKind, TileRect};
 pub use presets::{apply_preset, remove_tile, TilePreset};
-pub use scroll::{ColumnWidth, ScrollColumn, ScrollState};
+pub use scroll::{ScrollColumn, ScrollState};
 pub use snap_zones::{
     drop_target_for_tile, monitor_point_from_grid_local, pixel_snap_target, snap_label,
     snap_target_at_point,
