@@ -269,8 +269,17 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
     text.append(&title);
     text.append(&message);
 
+    // Dismiss this card from the bar list once the user acts on it. Deferred to
+    // an idle tick so we don't mutate/rebuild the list from inside a button's own
+    // click handler. Keyed on the process-local uid so it works even for id-0
+    // internal notifications.
+    let uid = entry.uid;
+    let dismiss = move || {
+        glib::idle_add_local_once(move || crate::services::dismiss_notification(uid));
+    };
+
     // Action / Open buttons, driven purely by what the sender provided.
-    if let Some(row) = build_action_row(notif) {
+    if let Some(row) = build_action_row(notif, dismiss.clone()) {
         text.append(&row);
     }
 
@@ -282,10 +291,12 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
         card.add_css_class("metis-notif-card-clickable");
         let gesture = gtk::GestureClick::new();
         let id = notif.id;
+        let dismiss = dismiss.clone();
         gesture.connect_released(move |gesture, _, _, _| {
             gesture.set_state(gtk::EventSequenceState::Claimed);
             crate::services::invoke_action(id, "default");
             crate::services::close_notification(id, 2);
+            dismiss();
         });
         card.add_controller(gesture);
     }
@@ -304,7 +315,15 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
 /// labeled actions become one button each; otherwise a `desktop-entry` becomes a
 /// single "Open" button. Returns `None` when the notification has neither (plain
 /// informational notification — buttons are never inferred from text).
-pub(crate) fn build_action_row(notif: &BarNotification) -> Option<gtk::Box> {
+///
+/// `on_done` runs after a button's effect (action signal / app launch) so the
+/// caller can dismiss its own surface (remove the popover card, close the toast)
+/// — giving immediate local feedback even for internal notifications whose
+/// freedesktop id is 0 and therefore carry no `ActionInvoked` round-trip.
+pub(crate) fn build_action_row<F>(notif: &BarNotification, on_done: F) -> Option<gtk::Box>
+where
+    F: Fn() + Clone + 'static,
+{
     let row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(8)
@@ -319,9 +338,11 @@ pub(crate) fn build_action_row(notif: &BarNotification) -> Option<gtk::Box> {
         button.add_css_class("metis-notif-action");
         let id = notif.id;
         let key = key.clone();
+        let on_done = on_done.clone();
         button.connect_clicked(move |_| {
             crate::services::invoke_action(id, &key);
             crate::services::close_notification(id, 2);
+            on_done();
         });
         row.append(&button);
         any = true;
@@ -333,9 +354,11 @@ pub(crate) fn build_action_row(notif: &BarNotification) -> Option<gtk::Box> {
             button.add_css_class("metis-notif-action");
             button.add_css_class("suggested-action");
             let id = notif.id;
+            let on_done = on_done.clone();
             button.connect_clicked(move |_| {
                 launch_desktop_entry(&entry);
                 crate::services::close_notification(id, 2);
+                on_done();
             });
             row.append(&button);
             any = true;

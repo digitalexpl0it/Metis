@@ -71,7 +71,21 @@ fn overlay() -> Rc<RefCell<Toast>> {
 /// user-visible content. Callers gate this on Do Not Disturb.
 pub fn show(note: &BarNotification) {
     let toast = overlay();
-    let card = build_toast_card(note);
+
+    // Slot lets a button's `on_done` dismiss *this* banner: it's filled with the
+    // revealer right after construction, before any click can fire.
+    let slot: Rc<RefCell<Option<gtk::Revealer>>> = Rc::new(RefCell::new(None));
+    let on_done = {
+        let toast = toast.clone();
+        let slot = slot.clone();
+        move || {
+            if let Some(rev) = slot.borrow().clone() {
+                dismiss(&toast, &rev);
+            }
+        }
+    };
+
+    let card = build_toast_card(note, on_done);
 
     let revealer = gtk::Revealer::builder()
         .transition_type(gtk::RevealerTransitionType::SlideDown)
@@ -79,6 +93,7 @@ pub fn show(note: &BarNotification) {
         .reveal_child(false)
         .child(&card)
         .build();
+    *slot.borrow_mut() = Some(revealer.clone());
 
     {
         let t = toast.borrow();
@@ -136,8 +151,11 @@ fn dismiss(toast: &Rc<RefCell<Toast>>, revealer: &gtk::Revealer) {
 }
 
 /// Build a toast card mirroring the popover card layout (icon, title, body,
-/// action buttons) plus a small close affordance.
-fn build_toast_card(note: &BarNotification) -> gtk::Box {
+/// action buttons). `on_done` dismisses this banner once an action fires.
+fn build_toast_card<F>(note: &BarNotification, on_done: F) -> gtk::Box
+where
+    F: Fn() + Clone + 'static,
+{
     let card = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
         .spacing(12)
@@ -181,7 +199,7 @@ fn build_toast_card(note: &BarNotification) -> gtk::Box {
         text.append(&message);
     }
 
-    if let Some(row) = crate::ui::bar::widgets::build_action_row(note) {
+    if let Some(row) = crate::ui::bar::widgets::build_action_row(note, on_done) {
         text.append(&row);
     }
 

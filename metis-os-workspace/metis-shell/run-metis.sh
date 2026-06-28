@@ -465,6 +465,13 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         export METIS_BACKEND=drm
         : "${METIS_MOD:=super}"
         export METIS_MOD
+        # Standalone session has no host desktop: set the Metis identity (with a
+        # trailing :GNOME so Chromium/Electron apps pick the gnome-libsecret
+        # keyring backend) unless the caller already chose one.
+        : "${XDG_CURRENT_DESKTOP:=Metis:GNOME}"
+        export XDG_CURRENT_DESKTOP
+        : "${XDG_SESSION_DESKTOP:=metis}"
+        export XDG_SESSION_DESKTOP
         log "Backend: DRM/KMS (standalone) — METIS_BACKEND=drm"
         log "Escape:  Ctrl+Alt+Backspace quits · Ctrl+Alt+F<n> switches VT"
     elif [[ "$SESSION" -eq 1 ]]; then
@@ -656,6 +663,16 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
                 log "       Who launched this run is recorded in: $AUDIT_LOG"
                 exit 1
             fi
+        fi
+
+        # Standalone DRM/TTY session owns the seat outright, so (like the
+        # installed metis-session) it must provide the Secret Service itself.
+        # A nested dev session is skipped — the host desktop's gnome-keyring
+        # already serves org.freedesktop.secrets on the shared user bus.
+        if [[ "$DRM" -eq 1 ]] && command -v gnome-keyring-daemon >/dev/null 2>&1; then
+            eval "$(gnome-keyring-daemon --start --components=secrets,ssh 2>/dev/null)"
+            export SSH_AUTH_SOCK
+            log "Keyring: gnome-keyring-daemon started (org.freedesktop.secrets + ssh-agent)"
         fi
 
         log "Starting Metis compositor session (spawns shell automatically) …"

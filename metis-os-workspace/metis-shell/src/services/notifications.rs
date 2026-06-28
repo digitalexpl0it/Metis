@@ -7,6 +7,10 @@ use tokio::sync::mpsc::UnboundedSender;
 /// grouping with a count badge).
 #[derive(Debug, Clone)]
 pub struct NotificationEntry {
+    /// Process-local id for store management (dismiss/grouping). Distinct from
+    /// the freedesktop `BarNotification::id`, which can be 0 for internal alerts
+    /// and is only meaningful for the `ActionInvoked` round-trip.
+    pub uid: u64,
     pub notification: BarNotification,
     pub count: u32,
 }
@@ -28,6 +32,8 @@ thread_local! {
     /// Notifications raised at runtime (timers, alarms, calendar reminders),
     /// newest-first, with identical messages coalesced into a single entry.
     static RUNTIME: RefCell<Vec<NotificationEntry>> = const { RefCell::new(Vec::new()) };
+    /// Monotonic source of process-local entry ids (see `NotificationEntry::uid`).
+    static NEXT_UID: std::cell::Cell<u64> = const { std::cell::Cell::new(1) };
     /// Repaint hooks installed by each bar's notifications widget (one per output
     /// in a multi-monitor session). Weak so a torn-down bar's hook drops itself.
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
@@ -148,9 +154,24 @@ pub fn push_notification(notification: BarNotification) {
         {
             let mut entry = list.remove(pos);
             entry.count = entry.count.saturating_add(1);
+            // Refresh the carried notification so a re-sent firmware/update note
+            // keeps its latest D-Bus id and action set while reusing the uid.
+            entry.notification = notification;
             list.insert(0, entry);
         } else {
-            list.insert(0, NotificationEntry { notification, count: 1 });
+            let uid = NEXT_UID.with(|c| {
+                let next = c.get();
+                c.set(next.wrapping_add(1).max(1));
+                next
+            });
+            list.insert(
+                0,
+                NotificationEntry {
+                    uid,
+                    notification,
+                    count: 1,
+                },
+            );
             list.truncate(RUNTIME_CAP);
         }
     });
@@ -161,6 +182,21 @@ pub fn push_notification(notification: BarNotification) {
 pub fn clear_notifications() {
     RUNTIME.with(|r| r.borrow_mut().clear());
     fire_refresh();
+}
+
+/// Remove a single notification by its process-local `uid` (see
+/// `NotificationEntry::uid`). Used when the user acts on or dismisses a card so
+/// it disappears from the bar list regardless of its freedesktop id.
+pub fn dismiss_notification(uid: u64) {
+    let removed = RUNTIME.with(|r| {
+        let mut list = r.borrow_mut();
+        let before = list.len();
+        list.retain(|e| e.uid != uid);
+        list.len() != before
+    });
+    if removed {
+        fire_refresh();
+    }
 }
 
 /// Snapshot of the runtime notification queue (newest first), grouped.

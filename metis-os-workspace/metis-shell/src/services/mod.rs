@@ -13,9 +13,9 @@ pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };
 pub use notifications::{
-    clear_notifications, close_notification, invoke_action, notification_count,
-    play_notification_sound, push_notification, register_refresh, runtime_notifications,
-    set_action_sender, BarNotification, NotificationEntry, NotificationKind, NotifyOutgoing,
+    clear_notifications, close_notification, dismiss_notification, invoke_action,
+    notification_count, play_notification_sound, push_notification, register_refresh,
+    runtime_notifications, set_action_sender, BarNotification, NotificationEntry, NotificationKind,
 };
 pub use notify_dbus::{spawn_notification_service, NotifyChannels};
 pub use poll::{
