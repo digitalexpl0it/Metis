@@ -1676,6 +1676,9 @@ impl MetisState {
     }
 
     fn start_maximize_fx(&mut self, id: u32) {
+        if !crate::window_fx::animations_enabled() {
+            return;
+        }
         self.maximize_fx_started
             .insert(id, std::time::Instant::now());
         self.apply_maximize_wobble(id);
@@ -1706,6 +1709,99 @@ impl MetisState {
             .get(id)
             .and_then(|r| r.app_id.as_deref())
             .is_some_and(crate::decoration_policy::id_uses_compact_overlay)
+    }
+
+    fn minimize_visual_bounds(&self, id: u32) -> Option<PixelRect> {
+        let record = self.windows.get(id)?;
+        let loc = self.space.element_location(&record.window)?;
+        if let Some(frame) = self.ssd_frame_for_mapped_window(id, &record.window) {
+            return Some(frame);
+        }
+        let geo = record.window.geometry();
+        Some(PixelRect {
+            x: loc.x,
+            y: loc.y,
+            width: geo.size.w.max(1),
+            height: geo.size.h.max(1),
+        })
+    }
+
+    fn genie_minimize_target(&self, anchor: &PixelRect, id: u32) -> Option<Point<i32, Logical>> {
+        let output = self
+            .output_for_window(id)
+            .or_else(|| self.primary_output())?;
+        if !self.output_has_bar(&output) {
+            return None;
+        }
+        let cfg = metis_config::load_bar_config();
+        let margin = cfg.margin_top as i32;
+        let half = cfg.height as i32 / 2;
+        let zone = self.placement_zone_for(&output);
+        let usable = self.usable_zone_for(&output).unwrap_or(zone);
+        let cx = (anchor.x + anchor.width / 2).clamp(zone.x + 40, zone.x + zone.width - 40);
+        let cy = anchor.y + anchor.height / 2;
+        Some(match cfg.position {
+            metis_config::BarPosition::Top => Point::from((cx, usable.y - margin - half)),
+            metis_config::BarPosition::Bottom => {
+                Point::from((cx, zone.y + zone.height - margin - half))
+            }
+            metis_config::BarPosition::Left => {
+                Point::from((zone.x + margin + half, cy))
+            }
+            metis_config::BarPosition::Right => {
+                Point::from((zone.x + zone.width - margin - half, cy))
+            }
+        })
+    }
+
+    fn begin_minimize_genie(&mut self, id: u32) -> bool {
+        if self.windows.is_minimized(id) {
+            return false;
+        }
+        let anchor = if self.windows.get(id).is_some_and(|r| r.maximized) {
+            self.maximized_client_geometry(id).map(|(c, _)| c)
+        } else {
+            self.minimize_visual_bounds(id)
+        };
+        let Some(anchor) = anchor else {
+            return false;
+        };
+        let Some(target) = self.genie_minimize_target(&anchor, id) else {
+            return false;
+        };
+        self.minimize_genie_fx.insert(
+            id,
+            crate::window_fx::MinimizeGenieFx {
+                started: std::time::Instant::now(),
+                anchor,
+                target,
+            },
+        );
+        self.schedule_redraw();
+        true
+    }
+
+    fn tick_minimize_genie_fx(&mut self) -> bool {
+        let finished: Vec<u32> = self
+            .minimize_genie_fx
+            .iter()
+            .filter(|(_, fx)| fx.finished())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in finished {
+            self.minimize_genie_fx.remove(&id);
+            self.minimize_window_now(id);
+        }
+        !self.minimize_genie_fx.is_empty()
+    }
+
+    /// Render clip + alpha for an in-flight minimize genie, if any.
+    pub(crate) fn minimize_genie_render(&self, id: u32) -> Option<(PixelRect, f32)> {
+        self.minimize_genie_fx.get(&id).map(|fx| fx.frame())
+    }
+
+    pub(crate) fn is_minimize_genie_active(&self, id: u32) -> bool {
+        self.minimize_genie_fx.contains_key(&id)
     }
 
     /// Window ids slotted on a specific (output, workspace), in tile order.
@@ -2447,6 +2543,7 @@ impl MetisState {
 
     pub fn close_window(&mut self, id: u32) {
         self.maximize_fx_started.remove(&id);
+        self.minimize_genie_fx.remove(&id);
         if let Some(record) = self.windows.get(id).cloned() {
             record.toplevel.send_close();
         }
@@ -2662,6 +2759,16 @@ impl MetisState {
     }
 
     pub fn minimize_window(&mut self, id: u32) {
+        if self.minimize_genie_fx.contains_key(&id) {
+            return;
+        }
+        if crate::window_fx::animations_enabled() && self.begin_minimize_genie(id) {
+            return;
+        }
+        self.minimize_window_now(id);
+    }
+
+    fn minimize_window_now(&mut self, id: u32) {
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 
         let Some(record) = self.windows.get(id).cloned() else {
@@ -3034,6 +3141,9 @@ impl MetisState {
                 continue;
             };
             if record.fullscreen || self.windows.is_minimized(id) {
+                continue;
+            }
+            if self.is_minimize_genie_active(id) {
                 continue;
             }
             if !self.should_draw_metis_ssd(id) {

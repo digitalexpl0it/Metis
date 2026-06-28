@@ -307,6 +307,10 @@ pub struct BarConfig {
     /// the bar when `blur` is enabled. Consumed by the compositor via bar.json.
     #[serde(default = "default_blur_radius")]
     pub blur_radius: f32,
+    /// When false, compositor window effects (minimize genie, maximize wobble,
+    /// titlebar slide) run instantly.
+    #[serde(default = "default_true")]
+    pub window_animations: bool,
     #[serde(default = "default_widgets")]
     pub widgets: Vec<BarWidgetId>,
     #[serde(default)]
@@ -403,6 +407,7 @@ impl Default for BarConfig {
             bar_border: BarBorder::default(),
             blur: default_true(),
             blur_radius: default_blur_radius(),
+            window_animations: default_true(),
             widgets: default_widgets(),
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),

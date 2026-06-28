@@ -18,6 +18,7 @@ mod state;
 mod udev;
 mod winit;
 mod wallpaper;
+mod window_fx;
 mod window_state;
 mod windows;
 mod xwayland;
