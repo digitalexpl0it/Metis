@@ -526,6 +526,21 @@ pub fn build() -> gtk::Widget {
         &default_layout_dd,
     ));
 
+    let tray_mode_dd = gtk::DropDown::from_strings(&[
+        "Collapsed (popup list)",
+        "Pinned on bar",
+    ]);
+    tray_mode_dd.set_selected(tray_icon_mode_to_index(bar.borrow().tray_icon_mode));
+    tray_mode_dd.set_tooltip_text(Some(
+        "Collapsed: one tray button opens a popover with all background app icons.\n\
+         Pinned: tray icons stay visible on the bar, left of the tray button.",
+    ));
+    bar_body.append(&ui::row_with_icon(
+        "view-more-horizontal-symbolic",
+        "System tray icons",
+        &tray_mode_dd,
+    ));
+
     let edge_margin = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 64.0, 1.0);
     edge_margin.set_value(bar.borrow().margin_top as f64);
     edge_margin.set_size_request(200, -1);
@@ -859,6 +874,14 @@ pub fn build() -> gtk::Widget {
     }
     {
         let bar = bar.clone();
+        tray_mode_dd.connect_selected_notify(move |dd| {
+            bar.borrow_mut().tray_icon_mode =
+                index_to_tray_icon_mode(dd.selected());
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
         edge_margin.connect_value_changed(move |s| {
             bar.borrow_mut().margin_top = s.value().round() as u32;
             save_bar(&bar.borrow());
@@ -1030,6 +1053,7 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     on_disk.displays = cfg.displays;
     on_disk.workspace_mode = cfg.workspace_mode;
     on_disk.default_layout = cfg.default_layout;
+    on_disk.tray_icon_mode = cfg.tray_icon_mode;
     on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
@@ -1388,6 +1412,20 @@ fn index_to_workspace_mode(idx: u32) -> metis_config::WorkspaceMode {
     match idx {
         1 => metis_config::WorkspaceMode::Linked,
         _ => metis_config::WorkspaceMode::Separate,
+    }
+}
+
+fn tray_icon_mode_to_index(mode: metis_config::TrayIconMode) -> u32 {
+    match mode {
+        metis_config::TrayIconMode::Collapsed => 0,
+        metis_config::TrayIconMode::Pinned => 1,
+    }
+}
+
+fn index_to_tray_icon_mode(idx: u32) -> metis_config::TrayIconMode {
+    match idx {
+        1 => metis_config::TrayIconMode::Pinned,
+        _ => metis_config::TrayIconMode::Collapsed,
     }
 }
 

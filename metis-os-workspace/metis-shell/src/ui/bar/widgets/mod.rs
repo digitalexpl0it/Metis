@@ -4,6 +4,7 @@ mod menu;
 mod notifications;
 pub mod sys;
 mod tasks;
+mod tray;
 mod weather;
 pub mod workspaces;
 
@@ -22,6 +23,7 @@ pub use notifications::do_not_disturb;
 pub(crate) use notifications::build_action_row;
 use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
 use tasks::TasksWidget;
+use tray::TrayWidget;
 use weather::WeatherWidget;
 use workspaces::WorkspacesWidget;
 
@@ -35,6 +37,7 @@ pub struct WidgetRefs {
     volume: RefCell<Option<VolumeWidget>>,
     notifications: RefCell<Option<NotificationsWidget>>,
     weather: RefCell<Option<WeatherWidget>>,
+    tray: RefCell<Option<TrayWidget>>,
 }
 
 impl WidgetRefs {
@@ -113,6 +116,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
         volume: RefCell::new(None),
         notifications: RefCell::new(None),
         weather: RefCell::new(None),
+        tray: RefCell::new(None),
     };
 
     let cfg = config.borrow().clone();
@@ -153,6 +157,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
                 let w = TasksWidget::new(compact, output.clone());
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.tasks.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Tray => {
+                let w = TrayWidget::new(cfg.tray_icon_mode);
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.tray.borrow_mut() = Some(w);
             }
             BarWidgetId::Clock => {
                 let w = ClockWidget::new(&cfg.clock, compact);

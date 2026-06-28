@@ -149,6 +149,18 @@ impl TasksWidget {
         };
 
         windows::register_refresh(refresh.clone());
+
+        let app_index_refresh: Rc<dyn Fn()> = {
+            let refresh = refresh.clone();
+            let last_sig = last_sig.clone();
+            Rc::new(move || {
+                // Force a dock repaint so running apps pick up newly installed icons.
+                *last_sig.borrow_mut() = None;
+                refresh();
+            })
+        };
+        applications::register_refresh(app_index_refresh);
+
         refresh();
 
         Self { root, refresh }

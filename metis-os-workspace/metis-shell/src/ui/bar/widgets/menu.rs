@@ -165,6 +165,7 @@ pub fn install(button: &gtk::Button) {
         })
     };
     *rebuild_slot.borrow_mut() = Some(rebuild.clone());
+    applications::register_refresh(rebuild.clone());
 
     let search_changed = {
         let rebuild = rebuild.clone();
@@ -200,6 +201,7 @@ pub fn install(button: &gtk::Button) {
             search.block_signal(&search_changed);
             search.set_text("");
             search.unblock_signal(&search_changed);
+            applications::invalidate_app_cache();
             let rebuild = rebuild.clone();
             glib::idle_add_local_once(move || rebuild());
         });

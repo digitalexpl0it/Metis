@@ -6,6 +6,7 @@
 //! the nested Wayland environment and are tracked for cleanup.
 
 use std::cell::RefCell;
+use std::rc::Rc;
 use gio::prelude::*;
 
 use metis_config::{load_menu_config, save_menu_config};
@@ -27,11 +28,55 @@ pub struct AppEntry {
 
 thread_local! {
     static APP_CACHE: RefCell<Option<Vec<AppEntry>>> = const { RefCell::new(None) };
+    /// Repaint hooks for widgets that enumerate installed apps (menu, taskbar).
+    static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
+    static APP_MONITOR_ARMED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Drop the in-process app index so the next read rescans `.desktop` entries.
 pub fn invalidate_app_cache() {
     APP_CACHE.with(|cache| *cache.borrow_mut() = None);
+}
+
+/// Register a callback invoked when the freedesktop app index changes (install,
+/// remove, `.desktop` edit). Each consumer registers its own hook; dead hooks from
+/// rebuilt bars are pruned on the next register/fire.
+pub fn register_refresh(cb: Rc<dyn Fn()>) {
+    REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.push(Rc::downgrade(&cb));
+    });
+}
+
+fn fire_refresh() {
+    let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|r| {
+        let mut list = r.borrow_mut();
+        list.retain(|w| w.strong_count() > 0);
+        list.iter().filter_map(std::rc::Weak::upgrade).collect()
+    });
+    for cb in callbacks {
+        cb();
+    }
+}
+
+fn on_app_index_changed() {
+    tracing::debug!("desktop app index changed, refreshing app list");
+    invalidate_app_cache();
+    fire_refresh();
+}
+
+/// Watch `GAppInfoMonitor` so newly installed apps appear without restarting the
+/// shell. Safe to call more than once; only the first call wires the monitor.
+pub fn watch_app_index() {
+    APP_MONITOR_ARMED.with(|armed| {
+        if armed.get() {
+            return;
+        }
+        armed.set(true);
+        let monitor = gio::AppInfoMonitor::get();
+        monitor.connect_changed(|_| on_app_index_changed());
+    });
 }
 
 /// Enumerate all visible installed applications, sorted alphabetically by name.

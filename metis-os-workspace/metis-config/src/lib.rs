@@ -173,7 +173,7 @@ pub use input::{
 pub use bar::{
     bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarBorder,
     BarConfig, BarDisplays, BarPosition, BarWidgetId, BorderMode, ClockConfig, DefaultLayout,
-    TitlebarPillBorder, WindowBorder, WorkspaceMode,
+    TitlebarPillBorder, TrayIconMode, WindowBorder, WorkspaceMode,
 };
 pub use calendars::{
     calendars_config_path, default_local_dir, load_calendars_config, save_calendars_config,

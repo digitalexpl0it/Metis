@@ -104,6 +104,19 @@ pub enum BarWidgetId {
     Volume,
     Notifications,
     Weather,
+    /// System tray (StatusNotifierItem) host.
+    Tray,
+}
+
+/// How system tray app icons appear on the edge bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TrayIconMode {
+    /// One tray button opens a popover listing all tray app icons (default).
+    #[default]
+    Collapsed,
+    /// Tray app icons are pinned inline on the bar, to the left of the tray button.
+    Pinned,
 }
 
 /// Transparent padding baked into the bar's layer surface (beyond the visible
@@ -311,6 +324,9 @@ pub struct BarConfig {
     /// titlebar slide) run instantly.
     #[serde(default = "default_true")]
     pub window_animations: bool,
+    /// How StatusNotifier tray icons are shown on the edge bar.
+    #[serde(default)]
+    pub tray_icon_mode: TrayIconMode,
     #[serde(default = "default_widgets")]
     pub widgets: Vec<BarWidgetId>,
     #[serde(default)]
@@ -379,6 +395,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Workspaces,
         BarWidgetId::Tasks,
         BarWidgetId::Spacer,
+        BarWidgetId::Tray,
         BarWidgetId::Weather,
         BarWidgetId::Battery,
         BarWidgetId::Network,
@@ -408,6 +425,7 @@ impl Default for BarConfig {
             blur: default_true(),
             blur_radius: default_blur_radius(),
             window_animations: default_true(),
+            tray_icon_mode: TrayIconMode::default(),
             widgets: default_widgets(),
             clock: ClockConfig::default(),
             workspace_count: default_workspace_count(),
@@ -535,6 +553,37 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
         cfg.widgets.insert(pos, BarWidgetId::Bluetooth);
         if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
             let _ = std::fs::write(bar_config_path(), json);
+        }
+    }
+
+    // Insert the system tray widget immediately left of the weather cluster.
+    if !cfg.widgets.contains(&BarWidgetId::Tray) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Weather))
+            .unwrap_or(cfg.widgets.len());
+        cfg.widgets.insert(pos, BarWidgetId::Tray);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    } else {
+        // Reposition tray if it was placed elsewhere in an older layout.
+        let weather_pos = cfg.widgets.iter().position(|w| matches!(w, BarWidgetId::Weather));
+        let tray_pos = cfg.widgets.iter().position(|w| matches!(w, BarWidgetId::Tray));
+        if let (Some(wpos), Some(tpos)) = (weather_pos, tray_pos) {
+            if tpos != wpos.saturating_sub(1) {
+                cfg.widgets.remove(tpos);
+                let insert_at = cfg
+                    .widgets
+                    .iter()
+                    .position(|w| matches!(w, BarWidgetId::Weather))
+                    .unwrap_or(cfg.widgets.len());
+                cfg.widgets.insert(insert_at, BarWidgetId::Tray);
+                if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+                    let _ = std::fs::write(bar_config_path(), json);
+                }
+            }
         }
     }
 }

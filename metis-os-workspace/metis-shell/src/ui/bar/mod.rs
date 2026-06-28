@@ -10,8 +10,8 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
 use crate::services::{
-    spawn_bar_pollers, spawn_notification_service, spawn_weather_service, workspace_snapshot,
-    BarSnapshot, WeatherSnapshot,
+    spawn_bar_pollers, spawn_notification_service, spawn_weather_service, apply_event,
+    workspace_snapshot, BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
@@ -45,6 +45,10 @@ pub fn init_and_show() {
         tracing::warn!(%err, "failed to write default bar.json");
     }
 
+    let tray = crate::services::spawn_tray_service();
+    crate::services::set_command_sender(tray.commands);
+    attach_tray_channel(tray.events);
+
     let config = Rc::new(RefCell::new(load_bar_config()));
     let cfg = config.borrow().clone();
 
@@ -68,6 +72,7 @@ pub fn init_and_show() {
         watch_theme_files();
         watch_compositor_dismiss();
         watch_monitors();
+        crate::services::watch_app_index();
         glib::ControlFlow::Break
     });
 
@@ -645,10 +650,6 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
     });
 }
 
-/// Drain notifications delivered by the freedesktop D-Bus daemon thread and push
-/// them into the (thread-local) in-bar notification store on the UI thread. Also
-/// registers the outgoing action channel and, for each arrival (unless Do Not
-/// Disturb is on), plays a sound and shows a transient toast banner.
 fn attach_notification_channel(channels: crate::services::NotifyChannels) {
     let crate::services::NotifyChannels { incoming, actions } = channels;
     // Register the outgoing sender so popover/toast buttons can round-trip
@@ -665,6 +666,15 @@ fn attach_notification_channel(channels: crate::services::NotifyChannels) {
                 crate::ui::toast::show(&note);
             }
             crate::services::push_notification(note);
+        }
+        glib::ControlFlow::Continue
+    });
+}
+
+fn attach_tray_channel(events: std::sync::mpsc::Receiver<crate::services::TrayEvent>) {
+    glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+        while let Ok(event) = events.try_recv() {
+            apply_event(event);
         }
         glib::ControlFlow::Continue
     });
