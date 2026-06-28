@@ -44,7 +44,15 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
             let size = self.window.geometry().size;
             let gaps = data.zone_edge_gaps();
             let keep = crate::state::MIN_VISIBLE_PX as f64;
-            let header = metis_grid::APP_TILE_HEADER_PX as f64;
+            let header = if data
+                .windows
+                .id_for_window(&self.window)
+                .is_some_and(|id| data.window_uses_ssd(id))
+            {
+                metis_grid::APP_TILE_HEADER_PX as f64
+            } else {
+                0.0
+            };
             let pos = metis_config::load_bar_config().position;
 
             let (min_y, max_y) = match pos {

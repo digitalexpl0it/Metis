@@ -1,6 +1,6 @@
 use crate::focus::KeyboardFocusTarget;
 use crate::grabs::{MoveSurfaceGrab, ResizeSurfaceGrab};
-use crate::state::MetisState;
+use crate::state::{read_toplevel_decoration_mode, MetisState};
 use smithay::{
     desktop::{
         PopupKeyboardGrab, PopupKind, PopupManager, PopupPointerGrab, PopupUngrabStrategy, Space,
@@ -263,33 +263,29 @@ impl XdgShellHandler for MetisState {
 
 impl XdgDecorationHandler for MetisState {
     fn new_decoration(&mut self, toplevel: ToplevelSurface) {
-        // Metis draws server-side decorations (border + titlebar) itself, so force
-        // SSD on every toplevel — GTK then omits its client-side headerbar.
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(DecorationMode::ServerSide);
-        });
+        if let Some(id) = self.window_id_for_toplevel(&toplevel) {
+            self.windows.set_decoration_bound(id, true);
+            // Do not flip `uses_ssd` here — wait for app_id or request_mode.
+            // Grant ClientSide in pending state until the client picks a mode.
+            toplevel.with_pending_state(|state| {
+                state.decoration_mode = Some(DecorationMode::ClientSide);
+            });
+        } else {
+            toplevel.with_pending_state(|state| {
+                state.decoration_mode = Some(DecorationMode::ClientSide);
+            });
+        }
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
         }
     }
 
-    fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: DecorationMode) {
-        // Ignore the client's preference; we always decorate server-side.
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(DecorationMode::ServerSide);
-        });
-        if toplevel.is_initial_configure_sent() {
-            toplevel.send_pending_configure();
-        }
+    fn request_mode(&mut self, toplevel: ToplevelSurface, mode: DecorationMode) {
+        self.apply_xdg_decoration_request(toplevel, Some(mode));
     }
 
     fn unset_mode(&mut self, toplevel: ToplevelSurface) {
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(DecorationMode::ServerSide);
-        });
-        if toplevel.is_initial_configure_sent() {
-            toplevel.send_pending_configure();
-        }
+        self.apply_xdg_decoration_request(toplevel, Some(DecorationMode::ClientSide));
     }
 }
 
@@ -339,6 +335,60 @@ pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: 
 }
 
 impl MetisState {
+    fn apply_xdg_decoration_request(
+        &mut self,
+        toplevel: ToplevelSurface,
+        requested: Option<DecorationMode>,
+    ) {
+        let Some(id) = self.window_id_for_toplevel(&toplevel) else {
+            let mode = requested.unwrap_or(DecorationMode::ClientSide);
+            toplevel.with_pending_state(|state| {
+                state.decoration_mode = Some(mode);
+            });
+            if toplevel.is_initial_configure_sent() {
+                toplevel.send_pending_configure();
+            }
+            return;
+        };
+
+        self.windows.set_decoration_negotiated(id, true);
+        self.windows.set_decoration_bound(id, true);
+        let app_id = self.windows.get(id).and_then(|r| r.app_id.clone());
+        let negotiated_mode = requested.or_else(|| read_toplevel_decoration_mode(&toplevel));
+        let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
+            app_id.as_deref(),
+            negotiated_mode,
+        );
+        let granted = crate::decoration_policy::grant_decoration_mode(uses_ssd);
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(granted);
+        });
+        if toplevel.is_initial_configure_sent() {
+            toplevel.send_pending_configure();
+        }
+
+        let prev = self.windows.uses_ssd(id);
+        let was_draw = self.should_draw_metis_ssd(id);
+        self.windows.set_uses_ssd(id, uses_ssd);
+        if prev != uses_ssd {
+            tracing::info!(
+                id,
+                uses_ssd,
+                ?app_id,
+                ?requested,
+                "xdg-decoration negotiated"
+            );
+            if uses_ssd {
+                self.clear_auto_hide(id);
+            }
+        }
+        let now_draw = self.should_draw_metis_ssd(id);
+        if prev != uses_ssd || was_draw != now_draw {
+            self.apply_window_rect(id);
+            self.schedule_redraw();
+        }
+    }
+
     fn sync_toplevel_metadata(&mut self, surface: &ToplevelSurface) {
         let Some(id) = self.window_id_for_toplevel(surface) else {
             return;
@@ -346,6 +396,7 @@ impl MetisState {
         let (title, app_id) = crate::state::read_toplevel_metadata(surface);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
+        self.refresh_window_decoration_mode(id);
         // GTK frequently sets app_id just after its first buffer commit, so the
         // initial activation can miss it. Now that it's known, place the window
         // (center default-floating apps / restore saved geometry) if it hasn't

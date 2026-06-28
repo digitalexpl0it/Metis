@@ -3,6 +3,7 @@
 mod blur;
 mod cursor;
 mod decoration;
+mod decoration_policy;
 mod desk_input;
 mod device_input;
 mod events;

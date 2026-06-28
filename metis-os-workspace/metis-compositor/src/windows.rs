@@ -36,6 +36,14 @@ pub struct WindowRecord {
     /// True once [`MetisState::place_new_window`] has decided float-vs-tile for this
     /// window. Prevents layout toggles (which clear `floating`) from re-centering.
     pub placement_chosen: bool,
+    /// When true, Metis draws server-side titlebar/border chrome and insets the
+    /// client surface. When false, the client owns its decorations (Chrome, Cursor,
+    /// GTK headerbars, …) and is mapped to the full tile footprint.
+    pub uses_ssd: bool,
+    /// Set once the client binds `xdg-decoration` and we have exchanged a mode.
+    pub decoration_negotiated: bool,
+    /// Set when the client creates an `xdg-decoration` object (before mode pick).
+    pub decoration_bound: bool,
 }
 
 pub struct WindowRegistry {
@@ -86,9 +94,42 @@ impl WindowRegistry {
                 output: String::new(),
                 ready: false,
                 placement_chosen: false,
+                uses_ssd: true,
+                decoration_negotiated: false,
+                decoration_bound: false,
             },
         );
         id
+    }
+
+    pub fn decoration_bound(&self, id: u32) -> bool {
+        self.by_id.get(&id).is_some_and(|r| r.decoration_bound)
+    }
+
+    pub fn set_decoration_bound(&mut self, id: u32, bound: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.decoration_bound = bound;
+        }
+    }
+
+    pub fn uses_ssd(&self, id: u32) -> bool {
+        self.by_id.get(&id).is_some_and(|r| r.uses_ssd)
+    }
+
+    pub fn set_uses_ssd(&mut self, id: u32, uses_ssd: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.uses_ssd = uses_ssd;
+        }
+    }
+
+    pub fn decoration_negotiated(&self, id: u32) -> bool {
+        self.by_id.get(&id).is_some_and(|r| r.decoration_negotiated)
+    }
+
+    pub fn set_decoration_negotiated(&mut self, id: u32, negotiated: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.decoration_negotiated = negotiated;
+        }
     }
 
     pub fn placement_chosen(&self, id: u32) -> bool {

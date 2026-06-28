@@ -107,13 +107,21 @@ impl MetisState {
                 if !point_in_rect(x, y, full) {
                     continue;
                 }
-                if point_in_rect(x, y, app_tile_body_rect(full)) {
+                let body = if self.window_uses_ssd(wid) {
+                    app_tile_body_rect(full)
+                } else {
+                    full
+                };
+                if point_in_rect(x, y, body) {
                     return DeskHit::AppBody { window_id: wid };
                 }
-                return DeskHit::AppHeader {
-                    tile_id: format!("app-{wid}"),
-                    window_id: wid,
-                };
+                if self.window_uses_ssd(wid) {
+                    return DeskHit::AppHeader {
+                        tile_id: format!("app-{wid}"),
+                        window_id: wid,
+                    };
+                }
+                return DeskHit::AppBody { window_id: wid };
             }
             for tile in &desk.layout.tiles {
                 if let TileKind::Widget { .. } = &tile.kind {
@@ -143,13 +151,21 @@ impl MetisState {
                     window_id: Some(wid),
                     ..
                 } => {
-                    if point_in_rect(x, y, app_tile_body_rect(full)) {
+                    let body = if self.window_uses_ssd(*wid) {
+                        app_tile_body_rect(full)
+                    } else {
+                        full
+                    };
+                    if point_in_rect(x, y, body) {
                         return DeskHit::AppBody { window_id: *wid };
                     }
-                    return DeskHit::AppHeader {
-                        tile_id: tile.id.clone(),
-                        window_id: *wid,
-                    };
+                    if self.window_uses_ssd(*wid) {
+                        return DeskHit::AppHeader {
+                            tile_id: tile.id.clone(),
+                            window_id: *wid,
+                        };
+                    }
+                    return DeskHit::AppBody { window_id: *wid };
                 }
                 TileKind::App { window_id: None, .. } => {
                     return DeskHit::AppHeader {
@@ -206,7 +222,7 @@ impl MetisState {
     pub fn app_tile_body_rect(&self, window_id: u32) -> Option<PixelRect> {
         // Scrolling workspace: the body comes from the strip frame.
         if let Some(frame) = self.scroll_frame_for_window(window_id) {
-            return Some(app_tile_body_rect(frame));
+            return Some(self.tile_client_rect(window_id, frame));
         }
         let key = self.desk_key_for_window(window_id);
         let metrics = match self.output_by_name(&key) {
@@ -226,7 +242,7 @@ impl MetisState {
                 continue;
             }
             let full = cell_to_pixels(&metrics, &tile.rect);
-            return Some(app_tile_body_rect(full));
+            return Some(self.tile_client_rect(window_id, full));
         }
         None
     }

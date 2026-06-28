@@ -591,6 +591,87 @@ impl MetisState {
         self.windows.id_for_surface(surface.wl_surface())
     }
 
+    /// True when Metis should draw server-side titlebar/border chrome for this window.
+    pub(crate) fn window_uses_ssd(&self, id: u32) -> bool {
+        self.windows.uses_ssd(id)
+    }
+
+    /// True when Metis should render or hit-test server-side window chrome.
+    pub(crate) fn should_draw_metis_ssd(&self, id: u32) -> bool {
+        if !self.window_uses_ssd(id) {
+            return false;
+        }
+        let Some(record) = self.windows.get(id) else {
+            return false;
+        };
+        let negotiated_mode = read_toplevel_decoration_mode(&record.toplevel);
+        !crate::decoration_policy::defer_ssd_paint(
+            record.app_id.as_deref(),
+            negotiated_mode,
+            record.decoration_bound,
+        )
+    }
+
+    /// Client surface rect within a tile footprint — body inset for SSD, full tile for CSD.
+    pub(crate) fn tile_client_rect(&self, id: u32, full: PixelRect) -> PixelRect {
+        if !self.should_draw_metis_ssd(id) {
+            return full;
+        }
+        if self.auto_hide_titlebar.contains(&id) {
+            metis_grid::app_tile_auto_hide_body_rect(full)
+        } else {
+            app_tile_body_rect(full)
+        }
+    }
+
+    /// Reconcile `uses_ssd` with xdg-decoration negotiation and app-id heuristics.
+    pub(crate) fn refresh_window_decoration_mode(&mut self, id: u32) {
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        let was_draw = self.should_draw_metis_ssd(id);
+        let negotiated_mode = read_toplevel_decoration_mode(&record.toplevel);
+        let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
+            record.app_id.as_deref(),
+            negotiated_mode,
+        );
+        let mode_changed = uses_ssd != record.uses_ssd;
+        if mode_changed {
+            tracing::info!(
+                id,
+                uses_ssd,
+                app_id = ?record.app_id,
+                ?negotiated_mode,
+                decoration_negotiated = record.decoration_negotiated,
+                "window decoration policy updated"
+            );
+            self.windows.set_uses_ssd(id, uses_ssd);
+            if uses_ssd {
+                self.clear_auto_hide(id);
+            }
+            self.push_preferred_decoration_mode(&record.toplevel, uses_ssd);
+        }
+        let now_draw = self.should_draw_metis_ssd(id);
+        if mode_changed || was_draw != now_draw {
+            self.apply_window_rect(id);
+            self.schedule_redraw();
+        }
+    }
+
+    fn push_preferred_decoration_mode(
+        &self,
+        toplevel: &smithay::wayland::shell::xdg::ToplevelSurface,
+        uses_ssd: bool,
+    ) {
+        let mode = crate::decoration_policy::grant_decoration_mode(uses_ssd);
+        toplevel.with_pending_state(|state| {
+            state.decoration_mode = Some(mode);
+        });
+        if toplevel.is_initial_configure_sent() {
+            toplevel.send_pending_configure();
+        }
+    }
+
     pub fn tile_id_for_window(&self, window_id: u32) -> Option<String> {
         self.find_app_tile(window_id).map(|(_, t)| t.id)
     }
@@ -616,7 +697,7 @@ impl MetisState {
         }
         let Some(expected) = self
             .rect_for_window_tile(id)
-            .map(app_tile_body_rect)
+            .map(|full| self.tile_client_rect(id, full))
         else {
             return;
         };
@@ -709,7 +790,8 @@ impl MetisState {
         // whole snap footprint. Bottom snaps keep a persistent titlebar, so their
         // client is inset to the body to leave the reserved chrome strip.
         let top_touching = matches!(label, "Left half" | "Right half" | "Top-left" | "Top-right");
-        let body = if top_touching {
+        let uses_ssd = self.window_uses_ssd(id);
+        let body = if !uses_ssd || top_touching {
             rect
         } else {
             app_tile_body_rect(rect)
@@ -728,7 +810,7 @@ impl MetisState {
             .map_element(record.window.clone(), Point::from((body.x, body.y)), true);
         record.toplevel.send_pending_configure();
         self.windows.set_target_rect(id, body);
-        if top_touching {
+        if uses_ssd && top_touching {
             self.auto_hide_titlebar.insert(id);
         } else {
             self.clear_auto_hide(id);
@@ -834,7 +916,7 @@ impl MetisState {
             width: restore.width.max(1),
             height: restore.height.max(1),
         };
-        body = self.clamp_floating_rect(body);
+        body = self.clamp_floating_rect_for(id, body);
 
         record.toplevel.with_pending_state(|state| {
             state.states.unset(xdg_toplevel::State::Maximized);
@@ -1474,7 +1556,10 @@ impl MetisState {
         }
         self.windows
             .target_rect(id)
-            .or_else(|| self.rect_for_window_tile(id).map(app_tile_body_rect))
+            .or_else(|| {
+                self.rect_for_window_tile(id)
+                    .map(|full| self.tile_client_rect(id, full))
+            })
     }
 
     /// Drop grid/scroll management for a workspace — windows keep their on-screen
@@ -1992,7 +2077,10 @@ impl MetisState {
             return;
         }
         for id in self.window_ids_on_workspace(output_key, ws) {
-            if self.tile_id_for_window(id).is_some() && !self.floating.contains(&id) {
+            if self.tile_id_for_window(id).is_some()
+                && !self.floating.contains(&id)
+                && self.should_draw_metis_ssd(id)
+            {
                 self.auto_hide_titlebar.insert(id);
             } else {
                 self.auto_hide_titlebar.remove(&id);
@@ -2210,9 +2298,13 @@ impl MetisState {
             self.space
                 .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
             self.windows.set_rect(id, client);
-            self.auto_hide_titlebar.insert(id);
+            if self.window_uses_ssd(id) {
+                self.auto_hide_titlebar.insert(id);
+                self.reclamp_auto_hide(id);
+            } else {
+                self.clear_auto_hide(id);
+            }
             self.windows.set_snapped(id, true);
-            self.reclamp_auto_hide(id);
         } else {
             self.demote_maximized(id);
             // Match the maximize path: remapping with `activate: true` forces the
@@ -2262,8 +2354,12 @@ impl MetisState {
             self.space.map_element(record.window.clone(), loc, false);
         }
         self.windows.set_rect(id, client);
-        self.auto_hide_titlebar.insert(id);
-        self.reclamp_auto_hide(id);
+        if self.window_uses_ssd(id) {
+            self.auto_hide_titlebar.insert(id);
+            self.reclamp_auto_hide(id);
+        } else {
+            self.clear_auto_hide(id);
+        }
         record.toplevel.send_pending_configure();
     }
 
@@ -2311,7 +2407,12 @@ impl MetisState {
         } else {
             self.floating.insert(id);
             if let Some(restore) = self.windows.take_restore_rect(id) {
-                let restore = self.clamp_body_below_bar(self.recover_offscreen_rect(restore));
+                let restore = self.recover_offscreen_rect(restore);
+                let restore = if self.should_draw_metis_ssd(id) {
+                    self.clamp_body_below_bar(restore)
+                } else {
+                    self.clamp_floating_rect_for(id, restore)
+                };
                 self.windows.set_target_rect(id, restore);
             }
         }
@@ -2533,17 +2634,15 @@ impl MetisState {
                 let r = self.recover_offscreen_rect(r);
                 if auto_hide {
                     r
-                } else {
+                } else if self.should_draw_metis_ssd(id) {
                     self.clamp_body_below_bar(r)
+                } else {
+                    self.clamp_floating_rect_for(id, r)
                 }
             })
         } else {
             self.rect_for_window_tile(id).and_then(|full| {
-                let body = if self.auto_hide_titlebar.contains(&id) {
-                    metis_grid::app_tile_auto_hide_body_rect(full)
-                } else {
-                    app_tile_body_rect(full)
-                };
+                let body = self.tile_client_rect(id, full);
                 if self.is_active_scroll_window(id) {
                     let key = self.desk_key_for_window(id);
                     let zone = self.scroll_zone_for(&key);
@@ -2693,6 +2792,9 @@ impl MetisState {
                 continue;
             };
             if record.fullscreen || self.windows.is_minimized(id) {
+                continue;
+            }
+            if !self.should_draw_metis_ssd(id) {
                 continue;
             }
             // Gate on the window actually being mapped in the space with real
@@ -2939,8 +3041,15 @@ impl MetisState {
             .or_else(|| self.primary_output())
     }
 
-    /// Center a client body of `body_w`×`body_h` in the launch output's usable zone.
+    /// Center a client rect for a window, accounting for SSD chrome insets.
     fn centered_body_for_window(&self, id: u32, body_w: i32, body_h: i32) -> PixelRect {
+        if !self.should_draw_metis_ssd(id) {
+            let rect = match self.launch_output_for(id) {
+                Some(output) => self.centered_rect_in(&output, body_w, body_h),
+                None => self.centered_rect(body_w, body_h),
+            };
+            return self.clamp_floating_rect_for(id, rect);
+        }
         let border = metis_grid::app_tile_border_px() as i32;
         let header = metis_grid::APP_TILE_HEADER_PX;
         let footprint_w = body_w + border * 2;
@@ -2952,9 +3061,14 @@ impl MetisState {
         self.clamp_body_below_bar(app_tile_body_rect(footprint))
     }
 
-    /// Restore a saved client body rect, keeping position and size when possible.
-    fn restore_body_for_window(&self, saved: PixelRect) -> PixelRect {
-        self.clamp_floating_rect(self.recover_offscreen_rect(saved))
+    /// Restore a saved client rect, keeping position and size when possible.
+    fn restore_body_for_window(&self, id: u32, saved: PixelRect) -> PixelRect {
+        let rect = self.recover_offscreen_rect(saved);
+        if self.should_draw_metis_ssd(id) {
+            self.clamp_floating_rect(rect)
+        } else {
+            self.clamp_floating_rect_for(id, rect)
+        }
     }
 
     /// A rect of `width`x`height` centered in the primary output's usable area.
@@ -3057,6 +3171,38 @@ impl MetisState {
     }
 
     /// Keep a floating window on-screen. Overlay edge bars do not inset the bounds
+    /// (windows may slide underneath); only the top bar reserves space for SSD windows.
+    fn clamp_floating_rect_for(&self, id: u32, rect: PixelRect) -> PixelRect {
+        if self.should_draw_metis_ssd(id) {
+            self.clamp_floating_rect(rect)
+        } else {
+            self.clamp_floating_rect_no_header(rect)
+        }
+    }
+
+    /// Like [`Self::clamp_floating_rect`] but without reserving space for Metis SSD chrome.
+    fn clamp_floating_rect_no_header(&self, rect: PixelRect) -> PixelRect {
+        let center = Point::from((rect.x + rect.width / 2, rect.y + rect.height / 2));
+        let zone = match self.output_at(center) {
+            Some(output) => self.placement_zone_for(&output),
+            None => self.placement_zone(),
+        };
+        let g = WINDOW_GAP_PX;
+        let width = rect.width.clamp(1, (zone.width - g * 2).max(1));
+        let height = rect.height.clamp(1, (zone.height - g * 2).max(1));
+        let min_x = zone.x + g;
+        let min_y = zone.y + g;
+        let max_x = (zone.x + zone.width - width - g).max(min_x);
+        let max_y = (zone.y + zone.height - height - g).max(min_y);
+        PixelRect {
+            x: rect.x.clamp(min_x, max_x),
+            y: rect.y.clamp(min_y, max_y),
+            width,
+            height,
+        }
+    }
+
+    /// Keep a floating window on-screen. Overlay edge bars do not inset the bounds
     /// (windows may slide underneath); only the top bar reserves space.
     fn clamp_floating_rect(&self, rect: PixelRect) -> PixelRect {
         // Clamp within the output the window mostly sits on (by its center), so a
@@ -3152,7 +3298,7 @@ impl MetisState {
                     if saved_rect.width >= MIN_SAVED_WINDOW_PX
                         && saved_rect.height >= MIN_SAVED_WINDOW_PX
                     {
-                        let rect = self.restore_body_for_window(saved_rect);
+                        let rect = self.restore_body_for_window(id, saved_rect);
                         self.windows.set_target_rect(id, rect);
                         self.windows.set_placement_chosen(id, true);
                         tracing::info!(id, ?rect, "place_new_window: restored saved geometry");
@@ -3429,6 +3575,9 @@ impl MetisState {
         id: u32,
         window: &smithay::desktop::Window,
     ) -> Option<PixelRect> {
+        if !self.should_draw_metis_ssd(id) {
+            return None;
+        }
         let record = self.windows.get(id)?;
         if record.fullscreen || self.windows.is_minimized(id) {
             return None;
@@ -3727,10 +3876,9 @@ impl MetisState {
                 .element_location(&window)
                 .unwrap_or_default();
 
-            // A snap/maximize maps the body flush against the bar edge with no
-            // reserved titlebar strip. Floating it restores a persistent titlebar
-            // drawn *above* the body, so re-map clear of the bar up front.
-            if self.usable_zone().is_some() {
+            // SSD windows reserve a titlebar strip above the body when floating;
+            // CSD windows keep their own chrome and need no extra inset.
+            if self.usable_zone().is_some() && self.should_draw_metis_ssd(id) {
                 let rect = metis_grid::PixelRect {
                     x: initial_window_location.x,
                     y: initial_window_location.y,
@@ -4346,7 +4494,7 @@ impl MetisState {
                     && !self.windows.is_snapped(window_id)
                 {
                     if let Some(rect) = self.windows.target_rect(window_id) {
-                        let clamped = self.clamp_floating_rect(rect);
+                        let clamped = self.clamp_floating_rect_for(window_id, rect);
                         if clamped != rect {
                             self.windows.set_target_rect(window_id, clamped);
                         }
@@ -4952,6 +5100,7 @@ impl MetisState {
         if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
             self.place_new_window(id, app_id.as_deref());
         }
+        self.refresh_window_decoration_mode(id);
         self.apply_window_rect(id);
     }
 
@@ -4979,6 +5128,7 @@ impl MetisState {
         let (title, app_id) = read_toplevel_metadata(&record.toplevel);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
+        self.refresh_window_decoration_mode(id);
 
         let already_ready = self.windows.is_ready(id);
         // Choose placement before the first map whenever the window is not yet
@@ -5001,7 +5151,7 @@ impl MetisState {
             .target_rect(id)
             .or_else(|| {
                 self.rect_for_window_tile(id)
-                    .map(metis_grid::app_tile_body_rect)
+                    .map(|full| self.tile_client_rect(id, full))
             })
             .unwrap_or(PixelRect {
                 x: 0,
@@ -5328,6 +5478,12 @@ pub(crate) fn read_toplevel_metadata(
             role.app_id.clone().filter(|id| !id.is_empty()),
         )
     })
+}
+
+pub(crate) fn read_toplevel_decoration_mode(
+    surface: &smithay::wayland::shell::xdg::ToplevelSurface,
+) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode> {
+    surface.with_committed_state(|state| state.and_then(|s| s.decoration_mode))
 }
 
 fn app_display_name(app_id: Option<&str>, title: &str) -> String {
