@@ -1,6 +1,6 @@
 //! Parsed com.canonical.dbusmenu layouts for tray context menus.
 
-use zbus::zvariant::{Dict, OwnedValue, Value};
+use zbus::zvariant::{Dict, OwnedValue, Structure, Value};
 
 use super::tray_dbus_types::MenuLayout;
 
@@ -23,6 +23,8 @@ pub struct MenuItem {
     pub enabled: bool,
     pub visible: bool,
     pub menu_type: MenuType,
+    /// `submenu` when this row is a submenu container (show children only).
+    pub children_display: Option<String>,
     pub submenu: Vec<MenuItem>,
 }
 
@@ -34,6 +36,7 @@ impl Default for MenuItem {
             enabled: true,
             visible: true,
             menu_type: MenuType::Standard,
+            children_display: None,
             submenu: Vec::new(),
         }
     }
@@ -57,17 +60,21 @@ fn parse_menu_item(value: &OwnedValue) -> Option<MenuItem> {
 }
 
 fn parse_menu_value(value: &Value<'_>) -> Option<MenuItem> {
-    let Value::Structure(structure) = value else {
-        return None;
+    let structure = match value.downcast_ref::<Structure>() {
+        Ok(s) => s,
+        Err(_) => return None,
     };
     let mut fields = structure.fields().iter();
     let mut item = MenuItem::default();
+
     if let Some(Value::I32(id)) = fields.next() {
         item.id = *id;
     }
+
     let Value::Dict(dict) = fields.next()? else {
         return Some(item);
     };
+
     if let Some(label) = dict_str(dict, "label") {
         item.label = label;
     }
@@ -77,12 +84,16 @@ fn parse_menu_value(value: &Value<'_>) -> Option<MenuItem> {
     if let Some(visible) = dict_bool(dict, "visible") {
         item.visible = visible;
     }
+    if let Some(display) = dict_str(dict, "children-display") {
+        item.children_display = Some(display);
+    }
     if let Some(kind) = dict_str(dict, "type") {
         item.menu_type = match kind.as_str() {
             "separator" => MenuType::Separator,
             _ => MenuType::Standard,
         };
     }
+
     if let Some(Value::Array(arr)) = fields.next() {
         for child in arr.iter() {
             if let Some(sub) = parse_menu_value(child) {
@@ -90,37 +101,17 @@ fn parse_menu_value(value: &Value<'_>) -> Option<MenuItem> {
             }
         }
     }
+
     Some(item)
 }
 
 fn dict_str(dict: &Dict<'_, '_>, key: &str) -> Option<String> {
-    for (k, v) in dict.iter() {
-        let Value::Str(k) = k else {
-            continue;
-        };
-        if k.as_str() != key {
-            continue;
-        }
-        let Value::Str(s) = v else {
-            return None;
-        };
-        return Some(s.as_str().replace('_', ""));
-    }
-    None
+    dict.get::<&str, &str>(&key)
+        .ok()
+        .flatten()
+        .map(|label| label.replace('_', ""))
 }
 
 fn dict_bool(dict: &Dict<'_, '_>, key: &str) -> Option<bool> {
-    for (k, v) in dict.iter() {
-        let Value::Str(k) = k else {
-            continue;
-        };
-        if k.as_str() != key {
-            continue;
-        }
-        let Value::Bool(b) = v else {
-            return None;
-        };
-        return Some(*b);
-    }
-    None
+    dict.get::<&str, bool>(&key).ok().flatten()
 }

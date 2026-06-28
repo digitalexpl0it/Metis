@@ -29,9 +29,9 @@ pub use poll::{
 };
 pub use tray_menu::{MenuItem as TrayMenuItem, MenuType, TrayMenu};
 pub use tray::{
-    apply_event, register_refresh as register_tray_refresh, send_command, set_command_sender,
-    snapshot as tray_snapshot, spawn_tray_service, sync_tray, IconPixmap, TrayCommand, TrayEvent,
-    TrayItem, TraySnapshot,
+    apply_event, register_context_menu_ready, register_refresh as register_tray_refresh,
+    send_command, set_command_sender, snapshot as tray_snapshot, spawn_tray_service, sync_tray,
+    IconPixmap, TrayCommand, TrayEvent, TrayItem, TraySnapshot,
 };
 pub use weather::{spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
 pub use workspaces::{

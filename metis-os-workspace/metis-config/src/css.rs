@@ -421,7 +421,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     /* Window picker + context menu rows inside task popovers. */
     .metis-bar-task-pick,
-    .metis-bar-task-menu-item {{
+    .metis-bar-task-menu-item,
+    .metis-bar-tray-menu-item {{
         background-color: transparent;
         border-radius: {rs}px;
         padding: 6px 10px;
@@ -429,7 +430,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-bar-task-pick:hover,
-    .metis-bar-task-menu-item:hover {{
+    .metis-bar-task-menu-item:hover,
+    .metis-bar-tray-menu-item:hover {{
         background-color: rgba({accent_rgb}, 0.18);
     }}
 

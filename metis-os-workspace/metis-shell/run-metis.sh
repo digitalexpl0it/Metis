@@ -12,7 +12,8 @@
 #   ./run-metis.sh --stop       # stop background shell process
 #   ./run-metis.sh --verify-grid # compare compositor vs shell grid layouts
 #   ./run-metis.sh --install-session # build release + install the GDM/login
-#                                    # "Metis" session entry (run with sudo)
+#                                    # "Metis" session entry (no sudo — install
+#                                    # steps re-exec sudo when needed)
 #   ./run-metis.sh --session --drm   # run the standalone DRM/TTY backend
 #                                    # (switch to a free VT first; keep SSH open)
 #
@@ -111,6 +112,32 @@ log() {
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
+# `sudo ./run-metis.sh` sets HOME=/root — load the invoking user's rustup cargo.
+resolve_build_user_home() {
+    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+        getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6
+    else
+        printf '%s' "$HOME"
+    fi
+}
+
+ensure_cargo_in_path() {
+    local build_home
+    build_home="$(resolve_build_user_home)"
+    if [[ -f "$build_home/.cargo/env" ]]; then
+        # shellcheck source=/dev/null
+        source "$build_home/.cargo/env"
+    fi
+    if [[ -d "$build_home/.cargo/bin" ]]; then
+        export PATH="$build_home/.cargo/bin${PATH:+:$PATH}"
+    fi
+    # sudo sets HOME=/root; point rustup/cargo at the invoking user's toolchain.
+    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
+        export CARGO_HOME="${CARGO_HOME:-$build_home/.cargo}"
+        export RUSTUP_HOME="${RUSTUP_HOME:-$build_home/.rustup}"
+    fi
+}
+
 run_section() {
     log "--- $* ---"
 }
@@ -198,10 +225,7 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     SESSIONS_DST="${METIS_SESSIONS_DIR:-/usr/local/share/wayland-sessions}"
     ASSETS_DIR="$WORKSPACE/assets"
 
-    if [[ -f "$HOME/.cargo/env" ]]; then
-        # shellcheck source=/dev/null
-        source "$HOME/.cargo/env"
-    fi
+    ensure_cargo_in_path
     for pc_dir in \
         /usr/local/lib/x86_64-linux-gnu/pkgconfig \
         /usr/local/lib/pkgconfig \
@@ -211,6 +235,13 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     export PKG_CONFIG_PATH
 
     echo "Building release binaries …"
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "ERROR: cargo not in PATH." >&2
+        echo "  Install Rust: https://rustup.rs" >&2
+        echo "  Prefer running without sudo — only the install step needs root:" >&2
+        echo "    ./run-metis.sh --install-session" >&2
+        exit 1
+    fi
     if ! cargo build --release -p metis-compositor -p metis-shell -p metis-settings -p metis-portal; then
         echo "ERROR: release build failed." >&2
         exit 1
@@ -508,10 +539,7 @@ metis_start_secret_service() {
 
 # --- environment -----------------------------------------------------------
 
-if [[ -f "$HOME/.cargo/env" ]]; then
-    # shellcheck source=/dev/null
-    source "$HOME/.cargo/env"
-fi
+ensure_cargo_in_path
 
 # gtk4-layer-shell from source (common on Ubuntu 24.04)
 for pc_dir in \

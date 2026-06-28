@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt;
 use tokio::sync::mpsc;
+use tokio::time::{timeout, Duration};
 use zbus::fdo::RequestNameFlags;
 use zbus::interface;
 use zbus::proxy;
@@ -50,6 +51,7 @@ pub async fn run(
     register_host(&conn).await?;
 
     let conn = Arc::new(conn);
+    let event_tx_loop = event_tx.clone();
     let event_loop = {
         let conn = conn.clone();
         async move {
@@ -63,7 +65,7 @@ pub async fn run(
                                     title = %item.title,
                                     "tray: item updated"
                                 );
-                                let _ = event_tx.send(TrayEvent::Update(item));
+                                let _ = event_tx_loop.send(TrayEvent::Update(item));
                             }
                             None => {
                                 tracing::warn!(
@@ -76,7 +78,7 @@ pub async fn run(
                     }
                     ItemMsg::Remove { bus_name } => {
                         tracing::info!(%bus_name, "tray: item removed");
-                        let _ = event_tx.send(TrayEvent::Remove { bus_name });
+                        let _ = event_tx_loop.send(TrayEvent::Remove { bus_name });
                     }
                 }
             }
@@ -85,16 +87,36 @@ pub async fn run(
 
     let item_tx_sync = item_tx.clone();
     let conn_sync = conn.clone();
+    let event_tx_cmd = event_tx.clone();
     let cmd_loop = async move {
         while let Some(cmd) = cmd_rx.recv().await {
             match cmd {
                 TrayCommand::SyncRegistered => {
                     sync_registered_items(&conn_sync, &item_tx_sync).await;
                 }
+                TrayCommand::OpenContextMenu {
+                    bus_name,
+                    object_path,
+                } => {
+                    let conn = conn_sync.clone();
+                    let event_tx = event_tx_cmd.clone();
+                    let parts = ServiceParts {
+                        bus_name,
+                        object_path,
+                    };
+                    tokio::spawn(async move {
+                        if let Err(err) = refresh_context_menu(&conn, &parts, &event_tx).await {
+                            tracing::warn!(%err, "tray: context menu fetch failed");
+                        }
+                    });
+                }
                 other => {
-                    if let Err(err) = dispatch_command(&conn_sync, other).await {
-                        tracing::warn!(%err, "tray: command failed");
-                    }
+                    let conn = conn_sync.clone();
+                    tokio::spawn(async move {
+                        if let Err(err) = dispatch_command(&conn, other).await {
+                            tracing::warn!(%err, "tray: command failed");
+                        }
+                    });
                 }
             }
         }
@@ -293,10 +315,13 @@ async fn fetch_item(conn: &zbus::Connection, parts: &ServiceParts) -> Option<Tra
             height: p.height,
             pixels: p.pixels,
         }),
-        menu_path,
+        menu_path: menu_path.clone(),
         menu,
+        item_is_menu: parsed.item_is_menu,
     })
 }
+
+const MENU_PROPS: &[&str] = &["label", "enabled", "visible", "type", "children-display"];
 
 async fn fetch_menu(
     conn: &zbus::Connection,
@@ -311,8 +336,49 @@ async fn fetch_menu(
         .build()
         .await
         .ok()?;
-    let layout: MenuLayout = proxy.get_layout(0, -1, &[]).await.ok()?;
-    Some(parse_menu_layout(layout))
+
+    if let Ok(need_update) = proxy.about_to_show(0).await {
+        if need_update {
+            tracing::debug!(bus = bus_name, "tray: menu AboutToShow requested refresh");
+        }
+    }
+
+    let layout: MenuLayout = match proxy.get_layout(0, 10, MENU_PROPS).await {
+        Ok(layout) => layout,
+        Err(err) => {
+            tracing::warn!(
+                %err,
+                bus = bus_name,
+                path = menu_path,
+                "tray: failed to fetch context menu layout"
+            );
+            return None;
+        }
+    };
+    let menu = parse_menu_layout(layout);
+    tracing::info!(
+        bus = bus_name,
+        entries = menu.submenus.len(),
+        "tray: parsed context menu"
+    );
+    Some(menu)
+}
+
+async fn refresh_context_menu(
+    conn: &zbus::Connection,
+    parts: &ServiceParts,
+    event_tx: &std::sync::mpsc::Sender<TrayEvent>,
+) -> Result<(), String> {
+    let mut item = fetch_item(conn, parts)
+        .await
+        .ok_or_else(|| "tray item not found".to_string())?;
+    if item.menu_path.is_none() {
+        return Err("tray item has no menu path".into());
+    }
+    let menu_path = item.menu_path.clone().unwrap();
+    item.menu = fetch_menu(conn, &parts.bus_name, menu_path.as_str()).await;
+    let _ = event_tx.send(TrayEvent::ContextMenuReady(item));
+    Ok(())
 }
 
 async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(), String> {
@@ -330,12 +396,14 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
                 .build()
                 .await
                 .map_err(|e| e.to_string())?;
+            let _ = proxy.about_to_show(submenu_id).await;
+            let ts = chrono::Utc::now().timestamp_millis();
             proxy
                 .event(
                     submenu_id,
                     "clicked",
-                    &Value::I32(0),
-                    chrono::Utc::now().timestamp_subsec_millis() as u32,
+                    &Value::from(1u32),
+                    ts as u32,
                 )
                 .await
                 .map_err(|e| e.to_string())
@@ -354,7 +422,11 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
                 .build()
                 .await
                 .map_err(|e| e.to_string())?;
-            proxy.activate(x, y).await.map_err(|e| e.to_string())
+            if proxy.item_is_menu().await.unwrap_or(false) {
+                sni_context_menu(&proxy, x, y).await
+            } else {
+                sni_activate(&proxy, x, y, true).await
+            }
         }
         TrayCommand::SecondaryActivate {
             bus_name,
@@ -370,12 +442,42 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
                 .build()
                 .await
                 .map_err(|e| e.to_string())?;
-            proxy
-                .secondary_activate(x, y)
-                .await
-                .map_err(|e| e.to_string())
+            if sni_context_menu(&proxy, x, y).await.is_err() {
+                sni_activate(&proxy, x, y, false).await?;
+            }
+            Ok(())
         }
-        TrayCommand::SyncRegistered => Ok(()),
+        TrayCommand::SyncRegistered | TrayCommand::OpenContextMenu { .. } => Ok(()),
+    }
+}
+
+async fn sni_context_menu(
+    proxy: &StatusNotifierItemProxy<'_>,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
+    timeout(Duration::from_secs(3), proxy.context_menu(x, y))
+        .await
+        .map_err(|_| "tray context menu timed out".to_string())?
+        .map_err(|e| e.to_string())
+}
+
+async fn sni_activate(
+    proxy: &StatusNotifierItemProxy<'_>,
+    x: i32,
+    y: i32,
+    activate: bool,
+) -> Result<(), String> {
+    if activate {
+        timeout(Duration::from_secs(3), proxy.activate(x, y))
+            .await
+            .map_err(|_| "tray activate timed out".to_string())?
+            .map_err(|e| e.to_string())
+    } else {
+        timeout(Duration::from_secs(3), proxy.secondary_activate(x, y))
+            .await
+            .map_err(|_| "tray secondary activate timed out".to_string())?
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -404,6 +506,7 @@ trait Properties {
 
 #[proxy(interface = "com.canonical.dbusmenu", assume_defaults = true)]
 trait DBusMenu {
+    fn about_to_show(&self, id: i32) -> zbus::Result<bool>;
     fn get_layout(
         &self,
         parent_id: i32,
@@ -424,6 +527,10 @@ trait DBusMenu {
     assume_defaults = true
 )]
 trait StatusNotifierItem {
+    #[zbus(property)]
+    fn item_is_menu(&self) -> zbus::Result<bool>;
     fn activate(&self, x: i32, y: i32) -> zbus::Result<()>;
+    fn context_menu(&self, x: i32, y: i32) -> zbus::Result<()>;
     fn secondary_activate(&self, x: i32, y: i32) -> zbus::Result<()>;
+    fn provide_xdg_activation_token(&self, token: &str) -> zbus::Result<()>;
 }

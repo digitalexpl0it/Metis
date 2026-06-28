@@ -31,6 +31,7 @@ pub struct ParsedItemProps {
     pub icon_theme_path: Option<String>,
     pub icon_pixmap: Option<IconPixmap>,
     pub menu: Option<String>,
+    pub item_is_menu: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -137,7 +138,9 @@ pub fn parse_item_props(props: &HashMap<String, OwnedValue>) -> ParsedItemProps 
         .filter(|s| !s.is_empty())
         .or_else(|| get_string(props, "Title"))
         .unwrap_or_else(|| "tray-item".into());
-    let title = get_string(props, "Title").unwrap_or_else(|| id.clone());
+    let title = get_string(props, "Title")
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| id.clone());
     ParsedItemProps {
         id: id.clone(),
         title,
@@ -145,6 +148,7 @@ pub fn parse_item_props(props: &HashMap<String, OwnedValue>) -> ParsedItemProps 
         icon_theme_path: get_string(props, "IconThemePath"),
         icon_pixmap: get_icon_pixmap(props),
         menu: get_object_path(props, "Menu"),
+        item_is_menu: get_bool(props, "ItemIsMenu").unwrap_or(false),
     }
 }
 
@@ -158,6 +162,14 @@ fn get_string(props: &HashMap<String, OwnedValue>, key: &str) -> Option<String> 
 fn get_object_path(props: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
     props.get(key).and_then(|v| match &**v {
         Value::ObjectPath(p) => Some(p.as_str().to_string()),
+        Value::Str(s) => Some(s.as_str().to_string()),
+        _ => None,
+    })
+}
+
+fn get_bool(props: &HashMap<String, OwnedValue>, key: &str) -> Option<bool> {
+    props.get(key).and_then(|v| match &**v {
+        Value::Bool(b) => Some(*b),
         _ => None,
     })
 }

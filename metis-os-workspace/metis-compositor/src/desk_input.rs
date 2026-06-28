@@ -1,7 +1,7 @@
 use metis_grid::{app_tile_body_rect, cell_to_pixels, PixelRect, TileKind};
 use smithay::{
     backend::renderer::utils::with_renderer_surface_state,
-    desktop::{layer_map_for_output, PopupManager, WindowSurfaceType},
+    desktop::{layer_map_for_output, PopupKind, PopupManager, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Logical, Point, Rectangle},
     wayland::seat::WaylandFocus,
@@ -21,6 +21,39 @@ fn surface_has_buffer(surface: &WlSurface) -> bool {
     with_renderer_surface_state(surface, |state| state.buffer().is_some()).unwrap_or(false)
 }
 
+fn popup_geometry_contains(
+    local: Point<f64, Logical>,
+    popup: &PopupKind,
+    location: Point<i32, Logical>,
+) -> bool {
+    let geo = popup.geometry();
+    if geo.size.w <= 0 || geo.size.h <= 0 {
+        return false;
+    }
+    let origin = Point::from(location) + geo.loc;
+    Rectangle::new(origin, geo.size).to_f64().contains(local)
+}
+
+/// Innermost popup under `root` whose geometry contains `local`.
+fn metis_bar_deepest_popup(
+    root: &WlSurface,
+    local: Point<f64, Logical>,
+) -> Option<(PopupKind, Point<i32, Logical>)> {
+    for (popup, location) in PopupManager::popups_for_surface(root) {
+        if !popup_geometry_contains(local, &popup, location) {
+            continue;
+        }
+        if let Some(nested) = metis_bar_deepest_popup(popup.wl_surface(), local) {
+            return Some(nested);
+        }
+        return Some((popup, location));
+    }
+    None
+}
+fn metis_bar_popup_tree_contains(root: &WlSurface, local: Point<f64, Logical>) -> bool {
+    metis_bar_deepest_popup(root, local).is_some()
+}
+
 fn metis_bar_region_contains(
     layer: &smithay::desktop::LayerSurface,
     layers: &smithay::desktop::LayerMap,
@@ -30,18 +63,12 @@ fn metis_bar_region_contains(
         return false;
     };
     // Popovers can extend below the bar strip — always honor their geometry even
-    // when the root layer surface has not committed a buffer yet.
+    // when the root layer surface has not committed a buffer yet. Include nested
+    // popovers (e.g. tray icon context menus parented to a bar popover).
     let local = rel - layer_geo.loc.to_f64();
     let root = layer.wl_surface();
-    for (popup, location) in PopupManager::popups_for_surface(root) {
-        let geo = popup.geometry();
-        if geo.size.w <= 0 || geo.size.h <= 0 {
-            continue;
-        }
-        let origin = Point::from(location) + geo.loc;
-        if Rectangle::new(origin, geo.size).to_f64().contains(local) {
-            return true;
-        }
+    if metis_bar_popup_tree_contains(root, local) {
+        return true;
     }
 
     if !surface_has_buffer(layer.wl_surface()) {
@@ -627,19 +654,11 @@ fn metis_bar_layer_surface_at(
     }
 
     // Transparent popover gutters have no input region — deliver to the popup whose
-    // geometry contains the point, using its global origin (smithay's focus tuple
-    // expects the surface origin, not the cursor position).
+    // geometry contains the point, searching nested popovers (tray menus, etc.).
     let root = layer.wl_surface();
-    for (popup, location) in PopupManager::popups_for_surface(root) {
-        let geo = popup.geometry();
-        if geo.size.w <= 0 || geo.size.h <= 0 {
-            continue;
-        }
-        let origin = Point::from(location) + geo.loc;
-        if Rectangle::new(origin, geo.size).to_f64().contains(local) {
-            let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
-            return Some((popup.wl_surface().clone(), popup_origin_global));
-        }
+    if let Some((popup, location)) = metis_bar_deepest_popup(root, local) {
+        let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
+        return Some((popup.wl_surface().clone(), popup_origin_global));
     }
 
     None

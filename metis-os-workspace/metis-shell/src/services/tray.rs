@@ -28,12 +28,16 @@ pub struct TrayItem {
     pub icon_pixmap: Option<IconPixmap>,
     pub menu_path: Option<String>,
     pub menu: Option<TrayMenu>,
+    /// When true, left click should prefer `ContextMenu` over `Activate`.
+    pub item_is_menu: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Update(TrayItem),
     Remove { bus_name: String },
+    /// Fresh DBusMenu layout fetched on demand (e.g. before opening a context menu).
+    ContextMenuReady(TrayItem),
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +61,11 @@ pub enum TrayCommand {
     },
     /// Re-query the watcher for all registered items (e.g. before opening the popover).
     SyncRegistered,
+    /// Fetch a fresh DBusMenu layout and emit [`TrayEvent::ContextMenuReady`].
+    OpenContextMenu {
+        bus_name: String,
+        object_path: String,
+    },
 }
 
 pub struct TrayChannels {
@@ -67,6 +76,13 @@ pub struct TrayChannels {
 thread_local! {
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> =
         const { RefCell::new(Vec::new()) };
+    static CONTEXT_MENU_READY: RefCell<Option<std::rc::Rc<dyn Fn(&TrayItem) -> bool>>> =
+        const { RefCell::new(None) };
+}
+
+/// GTK hook: return `true` when the pending context menu was shown (skip bar rebuild).
+pub fn register_context_menu_ready(cb: std::rc::Rc<dyn Fn(&TrayItem) -> bool>) {
+    CONTEXT_MENU_READY.with(|c| *c.borrow_mut() = Some(cb));
 }
 
 pub fn register_refresh(cb: std::rc::Rc<dyn Fn()>) {
@@ -155,32 +171,51 @@ pub fn snapshot() -> TraySnapshot {
     STORE.with(|s| s.borrow().clone())
 }
 
+fn upsert_item(snap: &mut TraySnapshot, item: TrayItem) {
+    if let Some(pos) = snap
+        .items
+        .iter()
+        .position(|i| i.bus_name == item.bus_name && i.object_path == item.object_path)
+    {
+        snap.items[pos] = item;
+    } else {
+        snap.items.push(item);
+    }
+    snap.items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+}
+
 pub fn apply_event(event: TrayEvent) {
-    STORE.with(|s| {
-        let mut snap = s.borrow_mut();
-        match event {
-            TrayEvent::Update(item) => {
-                if let Some(pos) = snap
-                    .items
-                    .iter()
-                    .position(|i| i.bus_name == item.bus_name && i.object_path == item.object_path)
-                {
-                    snap.items[pos] = item;
-                } else {
-                    snap.items.push(item);
-                }
-                snap.items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-            }
-            TrayEvent::Remove { bus_name } => {
-                snap.items.retain(|i| {
-                    i.bus_name != bus_name
-                        && i.object_path != bus_name
-                        && !i.id.contains(&bus_name)
-                });
+    match event {
+        TrayEvent::ContextMenuReady(item) => {
+            STORE.with(|s| upsert_item(&mut s.borrow_mut(), item.clone()));
+            let consumed = CONTEXT_MENU_READY.with(|c| {
+                c.borrow()
+                    .as_ref()
+                    .map(|handler| handler(&item))
+                    .unwrap_or(false)
+            });
+            if !consumed {
+                fire_refresh();
             }
         }
-    });
-    fire_refresh();
+        other => {
+            STORE.with(|s| {
+                let mut snap = s.borrow_mut();
+                match other {
+                    TrayEvent::Update(item) => upsert_item(&mut snap, item),
+                    TrayEvent::Remove { bus_name } => {
+                        snap.items.retain(|i| {
+                            i.bus_name != bus_name
+                                && i.object_path != bus_name
+                                && !i.id.contains(&bus_name)
+                        });
+                    }
+                    TrayEvent::ContextMenuReady(_) => unreachable!(),
+                }
+            });
+            fire_refresh();
+        }
+    }
 }
 
 pub fn sync_tray() {

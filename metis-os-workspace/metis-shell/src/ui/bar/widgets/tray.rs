@@ -9,12 +9,22 @@ use gtk::prelude::*;
 use crate::config::TrayIconMode;
 use crate::services::{self, send_command, TrayCommand, TrayItem, TrayMenu, TrayMenuItem, MenuType, TraySnapshot};
 
-const TRAY_ICON_SIZE: i32 = 20;
+const TRAY_ICON_SIZE: i32 = 18;
 
 thread_local! {
     /// Nested context menu opened from a tray icon while the tray popover stays up.
     static TRAY_ITEM_MENU: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
+    /// Right-click target waiting for a fresh DBusMenu layout from the dbus thread.
+    static PENDING_CONTEXT_MENU: RefCell<Option<(String, String, glib::WeakRef<gtk::Button>)>> =
+        const { RefCell::new(None) };
+    /// After a context-menu row click, ignore tray Activate briefly so popover
+    /// teardown does not re-trigger screenshot on the icon underneath.
+    static SUPPRESS_TRAY_ACTIVATE_UNTIL: RefCell<Option<std::time::Instant>> =
+        const { RefCell::new(None) };
 }
+
+const TRAY_ACTIVATE_SUPPRESS_MS: u64 = 500;
+const TRAY_MENU_CLOSE_DELAY_MS: u32 = 400;
 
 struct TrayTooltipCtx {
     overlay: gtk::Overlay,
@@ -77,8 +87,10 @@ impl TrayWidget {
         let overlay = gtk::Overlay::new();
         overlay.set_child(Some(&panel));
         overlay.add_overlay(&tip);
+        overlay.set_clip_overlay(&tip, false);
         tip.set_halign(gtk::Align::Start);
         tip.set_valign(gtk::Align::Start);
+        tip.set_can_target(false);
         let tooltip_ctx = Rc::new(TrayTooltipCtx {
             overlay: overlay.clone(),
             tip: tip.clone(),
@@ -103,6 +115,7 @@ impl TrayWidget {
         };
 
         services::register_tray_refresh(rebuild.clone());
+        services::register_context_menu_ready(Rc::new(on_context_menu_ready));
         wire_tray_toggle(&toggle, &toggle_icon, &overlay, {
             let rebuild = rebuild.clone();
             move || {
@@ -157,7 +170,7 @@ fn rebuild_tray(
         }
         panel_flow.append(&build_tray_button(
             item,
-            TRAY_ICON_SIZE + 4,
+            TRAY_ICON_SIZE,
             panel_tooltip,
         ));
     }
@@ -177,21 +190,22 @@ fn build_tray_button(
     let btn = gtk::Button::builder().has_frame(false).build();
     btn.add_css_class("metis-bar-widget");
     btn.add_css_class("metis-bar-tray-item");
+    btn.set_size_request(icon_size + 8, icon_size + 8);
 
     let image = gtk::Image::new();
+    image.set_can_target(false);
     image.set_pixel_size(icon_size);
-    if let Some(texture) = pixmap_texture(item) {
-        image.set_from_paintable(Some(&texture));
-    } else if let Some(name) = &item.icon_name {
-        image.set_from_icon_name(Some(name));
-    } else {
-        image.set_from_icon_name(Some("application-x-executable-symbolic"));
-    }
+    set_tray_icon_image(&image, item);
     btn.set_child(Some(&image));
 
+    let tip_text = if item.title.is_empty() {
+        item.id.as_str()
+    } else {
+        item.title.as_str()
+    };
     match panel_tooltip {
-        Some(ctx) => attach_tray_tooltip(&btn, &item.title, &ctx.overlay, &ctx.tip),
-        None => btn.set_tooltip_text(Some(&item.title)),
+        Some(ctx) => attach_tray_tooltip(&btn, tip_text, &ctx.overlay, &ctx.tip),
+        None => btn.set_tooltip_text(Some(tip_text)),
     }
 
     wire_tray_button(&btn, item);
@@ -200,67 +214,192 @@ fn build_tray_button(
 
 fn wire_tray_button(btn: &gtk::Button, item: &TrayItem) {
     let item = item.clone();
+    let btn_weak = btn.downgrade();
 
     {
         let item = item.clone();
         btn.connect_clicked(move |b| {
-            let (x, y) = button_coords(b);
-            send_command(TrayCommand::Activate {
-                bus_name: item.bus_name.clone(),
-                object_path: item.object_path.clone(),
-                x,
-                y,
+            if tray_activate_suppressed() {
+                tracing::debug!(bus = %item.bus_name, "tray: ignoring spurious activate");
+                return;
+            }
+            let coords = tray_screen_coords(b, b.width() as f64 / 2.0, b.height() as f64 / 2.0);
+            tracing::debug!(
+                bus = %item.bus_name,
+                x = coords.0,
+                y = coords.1,
+                "tray: left click activate"
+            );
+            let bus_name = item.bus_name.clone();
+            let object_path = item.object_path.clone();
+            glib::idle_add_local_once(move || {
+                send_command(TrayCommand::Activate {
+                    bus_name,
+                    object_path,
+                    x: coords.0,
+                    y: coords.1,
+                });
             });
+            glib::timeout_add_local_once(
+                std::time::Duration::from_millis(TRAY_MENU_CLOSE_DELAY_MS as u64),
+                super::super::dropdown::close_all,
+            );
         });
     }
 
     let gesture = gtk::GestureClick::builder()
         .button(gdk::BUTTON_SECONDARY)
+        .propagation_phase(gtk::PropagationPhase::Capture)
         .build();
     {
         let item = item.clone();
-        let btn = btn.clone();
-        gesture.connect_pressed(move |gesture, _, _, _| {
-            gesture.set_state(gtk::EventSequenceState::Claimed);
-            if let Some(menu) = &item.menu {
-                if !menu.submenus.is_empty() {
-                    show_context_menu(&btn, &item, menu);
-                    return;
-                }
-            }
-            let (x, y) = button_coords(&btn);
-            send_command(TrayCommand::SecondaryActivate {
-                bus_name: item.bus_name.clone(),
-                object_path: item.object_path.clone(),
-                x,
-                y,
-            });
+        gesture.connect_pressed(move |_, _, x, y| {
+            let Some(btn) = btn_weak.upgrade() else {
+                return;
+            };
+            let coords = tray_screen_coords(&btn, x, y);
+            handle_tray_secondary_click(&btn, &item, coords);
         });
     }
     btn.add_controller(gesture);
 }
 
-fn button_coords(btn: &gtk::Button) -> (i32, i32) {
-    let alloc = btn.allocation();
-    (alloc.x() + alloc.width() / 2, alloc.y() + alloc.height() / 2)
+fn handle_tray_secondary_click(btn: &gtk::Button, item: &TrayItem, coords: (i32, i32)) {
+    // Prefer a freshly synced snapshot in case the menu arrived after the panel opened.
+    let live = services::tray_snapshot()
+        .items
+        .into_iter()
+        .find(|i| i.bus_name == item.bus_name && i.object_path == item.object_path)
+        .unwrap_or_else(|| item.clone());
+
+    if let Some(menu) = &live.menu {
+        if !menu.submenus.is_empty() {
+            tracing::debug!(bus = %live.bus_name, entries = menu.submenus.len(), "tray: open context menu");
+            show_context_menu(btn, &live, menu);
+            return;
+        }
+    }
+
+    if live.menu_path.is_some() {
+        tracing::debug!(bus = %live.bus_name, "tray: fetching context menu");
+        PENDING_CONTEXT_MENU.with(|cell| {
+            *cell.borrow_mut() = Some((
+                live.bus_name.clone(),
+                live.object_path.clone(),
+                btn.downgrade(),
+            ));
+        });
+        send_command(TrayCommand::OpenContextMenu {
+            bus_name: live.bus_name.clone(),
+            object_path: live.object_path.clone(),
+        });
+        return;
+    }
+
+    tracing::debug!(bus = %live.bus_name, "tray: secondary activate / context_menu");
+    send_command(TrayCommand::SecondaryActivate {
+        bus_name: live.bus_name,
+        object_path: live.object_path,
+        x: coords.0,
+        y: coords.1,
+    });
+}
+
+fn on_context_menu_ready(item: &TrayItem) -> bool {
+    let pending = PENDING_CONTEXT_MENU.with(|cell| cell.borrow().clone());
+    let Some((bus_name, object_path, btn_weak)) = pending else {
+        return false;
+    };
+    if item.bus_name != bus_name || item.object_path != object_path {
+        return false;
+    }
+    PENDING_CONTEXT_MENU.with(|cell| *cell.borrow_mut() = None);
+    let Some(menu) = item.menu.as_ref().filter(|m| !m.submenus.is_empty()) else {
+        tracing::warn!(bus = %item.bus_name, "tray: context menu fetch returned no entries");
+        return false;
+    };
+    let Some(btn) = btn_weak.upgrade() else {
+        return false;
+    };
+    tracing::info!(bus = %item.bus_name, entries = menu.submenus.len(), "tray: showing fetched context menu");
+    show_context_menu(&btn, item, menu);
+    true
+}
+fn tray_activate_suppressed() -> bool {
+    SUPPRESS_TRAY_ACTIVATE_UNTIL.with(|cell| {
+        cell.borrow()
+            .is_some_and(|until| until > std::time::Instant::now())
+    })
+}
+
+fn suppress_tray_activate_briefly() {
+    SUPPRESS_TRAY_ACTIVATE_UNTIL.with(|cell| {
+        *cell.borrow_mut() = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(TRAY_ACTIVATE_SUPPRESS_MS),
+        );
+    });
+}
+
+fn schedule_tray_popover_close() {
+    glib::timeout_add_local_once(
+        std::time::Duration::from_millis(TRAY_MENU_CLOSE_DELAY_MS as u64),
+        || {
+            dismiss_tray_item_menu();
+            super::super::dropdown::close_all();
+        },
+    );
+}
+
+fn send_tray_menu_click(item: &TrayItem, submenu_id: i32) {
+    suppress_tray_activate_briefly();
+    let Some(menu_path) = item.menu_path.clone() else {
+        return;
+    };
+    let cmd = TrayCommand::MenuClicked {
+        bus_name: item.bus_name.clone(),
+        menu_path,
+        submenu_id,
+    };
+    glib::idle_add_local_once(move || send_command(cmd));
+    schedule_tray_popover_close();
+}
+
+fn tray_screen_coords(widget: &impl IsA<gtk::Widget>, wx: f64, wy: f64) -> (i32, i32) {
+    let widget = widget.as_ref();
+    if let Some(native) = widget.native() {
+        if let Some((x, y)) = widget.translate_coordinates(&native, wx, wy) {
+            return (x.round() as i32, y.round() as i32);
+        }
+    }
+    (wx.round() as i32, wy.round() as i32)
 }
 
 fn show_context_menu(anchor: &gtk::Button, item: &TrayItem, menu: &TrayMenu) {
     dismiss_tray_item_menu();
 
-    let popover = gtk::Popover::builder()
-        .autohide(false)
-        .has_arrow(true)
-        .position(super::super::popover_position())
-        .build();
-    popover.add_css_class("metis-bar-popover");
-    popover.add_css_class("metis-bar-tray-menu");
-    popover.set_parent(anchor);
+    let panel = super::super::dropdown::build_panel();
+    panel.add_css_class("metis-bar-tray-menu");
+    panel.set_spacing(2);
+    panel.set_width_request(200);
+    panel.set_margin_top(4);
+    panel.set_margin_bottom(4);
+    panel.set_margin_start(4);
+    panel.set_margin_end(4);
 
     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
     list.add_css_class("metis-bar-tray-menu-list");
     append_menu_items(&list, item, &menu.submenus);
-    popover.set_child(Some(&list));
+    panel.append(&list);
+
+    let popover = gtk::Popover::builder()
+        .autohide(false)
+        .has_arrow(true)
+        .position(super::super::popover_position())
+        .child(&panel)
+        .build();
+    popover.add_css_class("metis-bar-popover");
+    popover.set_parent(anchor);
 
     super::super::dropdown::register(&popover);
     TRAY_ITEM_MENU.with(|cell| *cell.borrow_mut() = Some(popover.clone()));
@@ -326,12 +465,14 @@ fn attach_tray_tooltip(
                 };
                 tip.set_label(&text);
                 if let Some((x, y)) =
-                    w.translate_coordinates(&ov, w.width() as f64 / 2.0, w.height() as f64)
+                    w.translate_coordinates(&ov, w.width() as f64 / 2.0, 0.0)
                 {
-                    tip.set_margin_start((x as i32 - 24).max(0));
-                    tip.set_margin_top((y as i32 + 6).max(0));
+                    tip.set_margin_start((x as i32 - 28).max(0));
+                    tip.set_margin_top((y as i32 - 30).max(0));
                 }
                 tip.set_visible(true);
+                tip.parent().and_then(|p| p.downcast::<gtk::Overlay>().ok())
+                    .map(|overlay| overlay.set_clip_overlay(&tip, false));
             });
             *timer.borrow_mut() = Some(id);
         });
@@ -362,6 +503,16 @@ fn append_menu_items(list: &gtk::Box, item: &TrayItem, entries: &[TrayMenuItem])
                 list.append(&sep);
             }
             MenuType::Standard => {
+                let is_submenu_container = !entry.submenu.is_empty()
+                    && entry
+                        .children_display
+                        .as_deref()
+                        .is_some_and(|d| d.eq_ignore_ascii_case("submenu"));
+                if is_submenu_container {
+                    append_menu_items(list, item, &entry.submenu);
+                    continue;
+                }
+
                 let row = gtk::Button::builder()
                     .label(&entry.label)
                     .has_frame(false)
@@ -370,17 +521,12 @@ fn append_menu_items(list: &gtk::Box, item: &TrayItem, entries: &[TrayMenuItem])
                 row.set_sensitive(entry.enabled);
                 row.set_halign(gtk::Align::Fill);
                 let click_item = item.clone();
-                let menu_path = click_item.menu_path.clone().unwrap_or_default();
                 let submenu_id = entry.id;
                 row.connect_clicked(move |_| {
-                    dismiss_tray_item_menu();
-                    send_command(TrayCommand::MenuClicked {
-                        bus_name: click_item.bus_name.clone(),
-                        menu_path: menu_path.clone(),
-                        submenu_id,
-                    });
+                    send_tray_menu_click(&click_item, submenu_id);
                 });
                 list.append(&row);
+
                 if !entry.submenu.is_empty() {
                     append_menu_items(list, item, &entry.submenu);
                 }
@@ -389,10 +535,46 @@ fn append_menu_items(list: &gtk::Box, item: &TrayItem, entries: &[TrayMenuItem])
     }
 }
 
+fn set_tray_icon_image(image: &gtk::Image, item: &TrayItem) {
+    if let Some(texture) = pixmap_texture(item) {
+        image.set_from_paintable(Some(&texture));
+        return;
+    }
+    if let Some(texture) = theme_path_texture(item) {
+        image.set_from_paintable(Some(&texture));
+        return;
+    }
+    if let Some(name) = item.icon_name.as_deref().filter(|n| !n.is_empty()) {
+        image.set_from_icon_name(Some(name));
+        return;
+    }
+    image.set_from_icon_name(Some("application-x-executable-symbolic"));
+}
+
+/// Chromium/Electron tray icons ship PNG files under `IconThemePath`.
+fn theme_path_texture(item: &TrayItem) -> Option<gdk::Texture> {
+    let theme = item.icon_theme_path.as_ref()?;
+    let name = item.icon_name.as_ref()?;
+    for path in [
+        format!("{theme}/{name}.png"),
+        format!("{theme}/{name}"),
+        format!("{theme}/{name}@2x.png"),
+    ] {
+        if std::path::Path::new(&path).is_file() {
+            match gdk::Texture::from_filename(&path) {
+                Ok(texture) => return Some(texture),
+                Err(err) => tracing::warn!(%err, path, "tray: failed to load theme-path icon"),
+            }
+        }
+    }
+    None
+}
+
 fn pixmap_texture(item: &TrayItem) -> Option<gdk::Texture> {
     item.icon_pixmap.as_ref().map(|pixmap| pixmap_to_texture(pixmap))
 }
 
+/// Decode SNI IconPixmap bytes (BGRA / little-endian ARGB32) to a GTK texture.
 fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
     let w = pixmap.width as usize;
     let h = pixmap.height as usize;
@@ -412,10 +594,10 @@ fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
             if src + 3 >= pixmap.pixels.len() {
                 continue;
             }
-            let a = pixmap.pixels[src];
-            let r = pixmap.pixels[src + 1];
-            let g = pixmap.pixels[src + 2];
-            let b = pixmap.pixels[src + 3];
+            let b = pixmap.pixels[src];
+            let g = pixmap.pixels[src + 1];
+            let r = pixmap.pixels[src + 2];
+            let a = pixmap.pixels[src + 3];
             let dst = (y * w + x) * 4;
             rgba[dst] = r;
             rgba[dst + 1] = g;
