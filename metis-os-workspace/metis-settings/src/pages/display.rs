@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk::prelude::*;
-use metis_config::{load_outputs_config, output_prefs, save_outputs_config, OutputsConfig};
+use metis_config::{load_outputs_config, output_prefs, save_outputs_config};
 
 use crate::runtime;
 use crate::ui;

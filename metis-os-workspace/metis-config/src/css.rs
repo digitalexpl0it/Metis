@@ -851,6 +851,38 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 4px 12px;
     }}
 
+    .metis-bt-device-list {{
+        padding: 2px 0 4px 0;
+    }}
+
+    .metis-bt-device-row {{
+        padding: 6px 4px;
+        border-radius: {rs}px;
+        color: {text};
+    }}
+
+    .metis-bt-device-row:hover {{
+        background-color: rgba({accent_rgb}, 0.10);
+    }}
+
+    .metis-bt-battery-icon {{
+        color: {muted};
+    }}
+
+    .metis-bt-battery-label {{
+        color: {muted};
+        font-size: 12px;
+        font-feature-settings: "tnum";
+    }}
+
+    .metis-bt-battery-low {{
+        color: {c_warning};
+    }}
+
+    .metis-bt-device-row:hover .metis-bt-battery-low {{
+        color: {c_warning};
+    }}
+
     .metis-bar-weather {{
         padding: 0 8px;
     }}

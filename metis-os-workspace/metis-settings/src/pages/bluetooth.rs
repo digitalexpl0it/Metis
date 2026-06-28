@@ -14,6 +14,9 @@ struct Sections {
     scan_btn: gtk::Button,
     status: gtk::Label,
     list: gtk::Box,
+    /// Mirrors the adapter's `Discovering` flag so the scan button can toggle
+    /// between starting and stopping a scan without re-reading a snapshot.
+    scanning: std::cell::Cell<bool>,
 }
 
 pub fn build() -> gtk::Widget {
@@ -41,6 +44,7 @@ pub fn build() -> gtk::Widget {
         scan_btn: scan_btn.clone(),
         status,
         list,
+        scanning: std::cell::Cell::new(false),
     });
 
     let (tx, rx) = mpsc::channel::<BluetoothSnapshot>();
@@ -55,11 +59,11 @@ pub fn build() -> gtk::Widget {
     };
 
     {
-        let sections = sections.clone();
+        let sections_poll = sections.clone();
         let refresh_poll = refresh.clone();
         glib::timeout_add_local(Duration::from_millis(250), move || {
             if let Ok(snap) = rx.try_recv() {
-                render(&sections, &snap, &refresh_poll);
+                render(&sections_poll, &snap, &refresh_poll);
             }
             glib::ControlFlow::Continue
         });
@@ -72,9 +76,22 @@ pub fn build() -> gtk::Widget {
         });
         scan_btn.connect_clicked({
             let refresh = refresh.clone();
+            let sections = sections.clone();
             move |_| {
-                bluetooth::start_scan();
-                schedule_refresh(&refresh, 3000);
+                if sections.scanning.get() {
+                    bluetooth::stop_scan();
+                    sections.scanning.set(false);
+                    sections.scan_btn.set_label("Scan for devices");
+                    schedule_refresh(&refresh, 600);
+                } else {
+                    bluetooth::start_scan();
+                    sections.scanning.set(true);
+                    sections.scan_btn.set_label("Stop scanning");
+                    schedule_refresh(&refresh, 1500);
+                    // Discovery keeps the radio busy and drains battery — stop it
+                    // automatically if the user wanders off without stopping.
+                    schedule_auto_stop_scan(&sections, &refresh, 30_000);
+                }
             }
         });
     }
@@ -94,6 +111,14 @@ fn render(sections: &Sections, snap: &BluetoothSnapshot, refresh: &Rc<impl Fn() 
     sections.powered.set_sensitive(true);
     sections.scan_btn.set_sensitive(snap.powered);
     sections.powered.set_active(snap.powered);
+    // Keep the toggle in lockstep with the adapter's real discovery state, so an
+    // externally started/stopped scan (or a completed one) is reflected here.
+    sections.scanning.set(snap.discovering && snap.powered);
+    sections.scan_btn.set_label(if sections.scanning.get() {
+        "Stop scanning"
+    } else {
+        "Scan for devices"
+    });
     let status_text = if snap.discovering {
         "Scanning for nearby devices…".to_string()
     } else if snap.powered {
@@ -186,4 +211,23 @@ fn clear_list(list: &gtk::Box) {
 fn schedule_refresh(refresh: &Rc<impl Fn() + 'static>, delay_ms: u64) {
     let refresh = refresh.clone();
     glib::timeout_add_local_once(Duration::from_millis(delay_ms), move || refresh());
+}
+
+/// Stop an in-progress scan after `delay_ms` (no-op if the user already stopped
+/// it or it ended), then refresh so the button + status return to idle.
+fn schedule_auto_stop_scan(
+    sections: &Rc<Sections>,
+    refresh: &Rc<impl Fn() + 'static>,
+    delay_ms: u64,
+) {
+    let sections = sections.clone();
+    let refresh = refresh.clone();
+    glib::timeout_add_local_once(Duration::from_millis(delay_ms), move || {
+        if sections.scanning.get() {
+            bluetooth::stop_scan();
+            sections.scanning.set(false);
+            sections.scan_btn.set_label("Scan for devices");
+            refresh();
+        }
+    });
 }

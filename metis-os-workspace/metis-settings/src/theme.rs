@@ -105,6 +105,7 @@ fn settings_css(t: &ThemeTokens) -> String {
     let accent = t.accent_primary();
     let on_accent = &t.text_on_accent;
     let error = &t.semantic.error;
+    let warning = &t.semantic.warning;
     let rl = t.radius_lg;
     let rs = t.radius_sm;
     let accent2 = t.accent_secondary();
@@ -196,6 +197,8 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-row label {{ color: {text}; }}
         .metis-settings-row-icon {{ color: {muted}; }}
         .metis-settings-hint {{ color: {muted}; font-size: 12px; }}
+        .metis-settings-value {{ color: {text}; font-weight: 600; font-feature-settings: "tnum"; }}
+        .metis-bt-battery-low {{ color: {warning}; font-weight: 700; }}
         .metis-settings-list {{
             background-color: {raised};
             border: 1px solid {border};

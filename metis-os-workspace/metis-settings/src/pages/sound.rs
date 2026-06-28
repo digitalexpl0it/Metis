@@ -71,7 +71,6 @@ pub fn build() -> gtk::Widget {
 
     {
         let sections_poll = sections.clone();
-        let refresh_poll = refresh.clone();
         glib::timeout_add_local(Duration::from_millis(200), move || {
             if let Ok(snap) = rx.try_recv() {
                 render(&sections_poll, &snap);

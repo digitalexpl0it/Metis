@@ -20,8 +20,8 @@ pub use notifications::{
 pub use notify_dbus::{spawn_notification_service, NotifyChannels};
 pub use poll::{
     set_mic_mute, set_mic_volume_absolute, set_mute, set_volume_absolute, set_volume_relative,
-    spawn_bar_pollers, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, BluetoothStatus,
-    EthernetStatus, WifiNetwork,
+    spawn_bar_pollers, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, BluetoothDevice,
+    BluetoothStatus, EthernetStatus, WifiNetwork,
 };
 pub use weather::{spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
 pub use workspaces::{

@@ -678,6 +678,7 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
                 continue;
             }
             last = snapshot.clone();
+            check_bluetooth_battery_alerts(&snapshot.bluetooth);
             BARS.with(|bars| {
                 for handle in bars.borrow().iter() {
                     handle.widget_refs.apply_snapshot(&snapshot);
@@ -686,6 +687,69 @@ fn attach_poll_channel(rx: Receiver<BarSnapshot>) {
         }
         glib::ControlFlow::Continue
     });
+}
+
+/// Charge level (inclusive) at or below which a connected Bluetooth device is
+/// considered "low" and worth a charge reminder.
+const BT_BATTERY_LOW: u8 = 20;
+/// Charge level a device must climb back above before it can alert again, so a
+/// reading hovering around the threshold can't spam repeated notifications.
+const BT_BATTERY_CLEAR: u8 = 25;
+
+thread_local! {
+    /// Per-device (by MAC) latch: `true` once we've fired a low-battery alert,
+    /// cleared when the device recharges past `BT_BATTERY_CLEAR` or disconnects.
+    static BT_LOW_ALERTED: std::cell::RefCell<std::collections::HashMap<String, bool>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Fire a one-shot charge reminder when a connected Bluetooth device's battery
+/// drops to a low level. Uses hysteresis + a per-device latch so each low
+/// episode notifies exactly once, and prunes state for disconnected devices.
+fn check_bluetooth_battery_alerts(status: &crate::services::BluetoothStatus) {
+    use crate::services::{BarNotification, NotificationKind};
+
+    BT_LOW_ALERTED.with(|cell| {
+        let mut latched = cell.borrow_mut();
+        latched.retain(|addr, _| status.devices.iter().any(|d| &d.address == addr));
+
+        for dev in &status.devices {
+            let Some(pct) = dev.battery_percent else {
+                continue;
+            };
+            // Don't nag to charge a device that's already charging.
+            if dev.battery_charging == Some(true) {
+                latched.insert(dev.address.clone(), false);
+                continue;
+            }
+            let already = latched.get(&dev.address).copied().unwrap_or(false);
+            if pct <= BT_BATTERY_LOW && !already {
+                latched.insert(dev.address.clone(), true);
+                let mut note = BarNotification::internal(
+                    NotificationKind::Error,
+                    format!("{} battery low", dev.name),
+                    format!("{pct}% remaining — charge it soon."),
+                );
+                note.sound_name = Some("battery-low".to_string());
+                emit_internal_notification(note);
+            } else if pct >= BT_BATTERY_CLEAR && already {
+                latched.insert(dev.address.clone(), false);
+            }
+        }
+    });
+}
+
+/// Deliver a Metis-originated notification through the same path as incoming
+/// D-Bus ones: play a sound and show a toast (unless Do Not Disturb is on), then
+/// store it in the in-bar notification list.
+fn emit_internal_notification(note: crate::services::BarNotification) {
+    if !widgets::do_not_disturb() {
+        if !note.suppress_sound {
+            crate::services::play_notification_sound(&note);
+        }
+        crate::ui::toast::show(&note);
+    }
+    crate::services::push_notification(note);
 }
 
 /// Mirror a user audio change (volume/mic/mute) onto every bar immediately, so a

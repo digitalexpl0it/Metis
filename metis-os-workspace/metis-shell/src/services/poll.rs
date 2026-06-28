@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::services::notifications::BarNotification;
 use crate::services::workspaces;
@@ -47,6 +48,21 @@ pub struct EthernetStatus {
     pub label: String,
 }
 
+/// A single connected Bluetooth device, with battery level when the device
+/// reports one (mice, keyboards, headsets via the BlueZ `Battery1` interface).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BluetoothDevice {
+    /// Device MAC address (`AA:BB:CC:DD:EE:FF`) — stable key for battery alerts.
+    pub address: String,
+    pub name: String,
+    /// Battery charge 0–100 when the device exposes it, else `None`.
+    pub battery_percent: Option<u8>,
+    /// Charging state when the source reports it (kernel HID `status` or UPower
+    /// `state`). `None` means unknown — most devices over plain Bluetooth cannot
+    /// signal charging, since the BT Battery Service has no such characteristic.
+    pub battery_charging: Option<bool>,
+}
+
 /// Bluetooth adapter status for the conditional bar indicator.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BluetoothStatus {
@@ -54,7 +70,10 @@ pub struct BluetoothStatus {
     pub adapter_present: bool,
     pub powered: bool,
     pub connected: bool,
+    /// First connected device's name, kept for the compact bar tooltip.
     pub device_name: Option<String>,
+    /// All currently-connected devices (with battery where reported).
+    pub devices: Vec<BluetoothDevice>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -449,32 +468,317 @@ fn read_bluetooth_status() -> BluetoothStatus {
         return BluetoothStatus::default();
     }
     let powered = text.contains("Powered: yes");
-    let mut device_name = None;
-    let mut connected = false;
+    let mut devices = Vec::new();
     if powered {
         let mut devices_cmd = std::process::Command::new("bluetoothctl");
         devices_cmd.args(["devices", "Connected"]);
         if let Some(o) = run_command(&mut devices_cmd) {
+            // Enumerate UPower once per poll so each device is a cheap map lookup
+            // rather than a fresh `upower -i` spawn.
+            let upower = read_upower_bt_batteries();
             let dev_text = String::from_utf8_lossy(&o.stdout);
             for line in dev_text.lines() {
                 if let Some(rest) = line.strip_prefix("Device ") {
                     let mut parts = rest.splitn(2, ' ');
-                    let _addr = parts.next();
-                    if let Some(name) = parts.next() {
-                        device_name = Some(name.to_string());
-                        connected = true;
-                        break;
-                    }
+                    let Some(address) = parts.next() else {
+                        continue;
+                    };
+                    let name = parts.next().unwrap_or(address).to_string();
+                    let battery = read_bluetooth_device_battery(address, &upower);
+                    devices.push(BluetoothDevice {
+                        address: address.to_string(),
+                        name,
+                        battery_percent: battery.percent,
+                        battery_charging: battery.charging,
+                    });
                 }
             }
         }
+        apply_solaar_overrides(&mut devices);
     }
+    let device_name = devices.first().map(|d| d.name.clone());
     BluetoothStatus {
         adapter_present: true,
         powered,
-        connected,
+        connected: !devices.is_empty(),
         device_name,
+        devices,
     }
+}
+
+/// Battery reading for a single peripheral: charge level plus charging state
+/// when the underlying source can report it.
+#[derive(Debug, Clone, Copy, Default)]
+struct DeviceBattery {
+    /// Charge 0–100, or `None` when no source reports a level.
+    percent: Option<u8>,
+    /// `Some(true/false)` when charging is known, `None` when unknown.
+    charging: Option<bool>,
+}
+
+/// Read a connected device's battery (and charging state, where available).
+///
+/// Source priority, most→least accurate:
+/// 1. Kernel HID battery (`/sys/class/power_supply/hid-<mac>-battery`) — exposes
+///    `capacity` and a `status` we can map to charging; no extra BlueZ config.
+/// 2. UPower — aggregates peripheral batteries and reports a `state` (charging /
+///    discharging / fully-charged) for devices/drivers that support it.
+/// 3. BlueZ `Battery1` via `bluetoothctl info` ("Battery Percentage: 0xNN (NN)")
+///    — percentage only; the BT Battery Service has no charging characteristic.
+fn read_bluetooth_device_battery(
+    address: &str,
+    upower: &HashMap<String, DeviceBattery>,
+) -> DeviceBattery {
+    if let Some(batt) = read_hid_battery_for_address(address) {
+        return batt;
+    }
+    if let Some(batt) = upower.get(&address.to_ascii_uppercase()) {
+        if batt.percent.is_some() {
+            return *batt;
+        }
+    }
+    let mut cmd = std::process::Command::new("bluetoothctl");
+    cmd.args(["info", address]);
+    let percent = run_command(&mut cmd).and_then(|output| {
+        let text = String::from_utf8_lossy(&output.stdout);
+        text.lines().find_map(|line| {
+            line.trim()
+                .strip_prefix("Battery Percentage:")
+                .and_then(parse_battery_percentage)
+        })
+    });
+    DeviceBattery {
+        percent,
+        charging: None,
+    }
+}
+
+/// Enumerate UPower peripheral batteries once, keyed by uppercased MAC.
+///
+/// UPower device paths embed the address as `…_dev_AA_BB_CC_DD_EE_FF`; we use
+/// that to filter to Bluetooth/peripheral devices (skipping the laptop battery,
+/// AC line, and DisplayDevice) and to map each back to its BlueZ address.
+fn read_upower_bt_batteries() -> HashMap<String, DeviceBattery> {
+    let mut map = HashMap::new();
+    let mut enum_cmd = std::process::Command::new("upower");
+    enum_cmd.arg("-e");
+    let Some(output) = run_command(&mut enum_cmd) else {
+        return map;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    for path in text.lines() {
+        let path = path.trim();
+        let Some(idx) = path.find("_dev_") else {
+            continue;
+        };
+        let mac = path[idx + "_dev_".len()..]
+            .replace('_', ":")
+            .to_ascii_uppercase();
+        if !mac.contains(':') {
+            continue;
+        }
+        if let Some(batt) = read_upower_device(path) {
+            map.insert(mac, batt);
+        }
+    }
+    map
+}
+
+/// Parse `percentage:`/`state:` out of `upower -i <path>` for one device.
+fn read_upower_device(path: &str) -> Option<DeviceBattery> {
+    let mut cmd = std::process::Command::new("upower");
+    cmd.args(["-i", path]);
+    let output = run_command(&mut cmd)?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut batt = DeviceBattery::default();
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("percentage:") {
+            if let Ok(v) = rest.trim().trim_end_matches('%').parse::<f32>() {
+                batt.percent = Some(v.round().clamp(0.0, 100.0) as u8);
+            }
+        } else if let Some(rest) = line.strip_prefix("state:") {
+            batt.charging = match rest.trim() {
+                "charging" | "fully-charged" => Some(true),
+                "discharging" | "pending-discharge" => Some(false),
+                // "unknown" / "pending-charge" carry no reliable signal.
+                _ => None,
+            };
+        }
+    }
+    (batt.percent.is_some() || batt.charging.is_some()).then_some(batt)
+}
+
+/// Cached Solaar (`solaar show`) battery readings, keyed by lowercased device
+/// name. Solaar talks Logitech HID++ directly and is the only source that knows
+/// charging state for Logitech peripherals over Bluetooth — but `solaar show`
+/// takes ~2s, so we cache it and refresh off the poll thread.
+struct SolaarCache {
+    fetched_at: Option<Instant>,
+    refreshing: bool,
+    by_name: HashMap<String, DeviceBattery>,
+}
+
+static SOLAAR_CACHE: OnceLock<Mutex<SolaarCache>> = OnceLock::new();
+
+/// How long a cached Solaar reading stays fresh before a background refresh.
+const SOLAAR_TTL: Duration = Duration::from_secs(20);
+
+/// Overlay Solaar's charging state (and level when BlueZ/UPower lacked one) onto
+/// connected devices, matched by name. Best-effort: a no-op if Solaar is absent.
+fn apply_solaar_overrides(devices: &mut [BluetoothDevice]) {
+    if devices.is_empty() {
+        return;
+    }
+    let solaar = solaar_overrides();
+    if solaar.is_empty() {
+        return;
+    }
+    for dev in devices.iter_mut() {
+        let key = dev.name.to_ascii_lowercase();
+        let matched = solaar.iter().find(|(name, _)| {
+            // Solaar's name ("Wireless Mobile Mouse MX Anywhere 2S") is usually a
+            // superset of the BlueZ name ("MX Anywhere 2S"); accept either way.
+            name.contains(&key) || key.contains(name.as_str())
+        });
+        if let Some((_, batt)) = matched {
+            if batt.charging.is_some() {
+                dev.battery_charging = batt.charging;
+            }
+            if dev.battery_percent.is_none() {
+                dev.battery_percent = batt.percent;
+            }
+        }
+    }
+}
+
+/// Return the cached Solaar map, kicking off a background refresh when stale.
+fn solaar_overrides() -> HashMap<String, DeviceBattery> {
+    let cache = SOLAAR_CACHE.get_or_init(|| {
+        Mutex::new(SolaarCache {
+            fetched_at: None,
+            refreshing: false,
+            by_name: HashMap::new(),
+        })
+    });
+    let Ok(mut guard) = cache.lock() else {
+        return HashMap::new();
+    };
+    let stale = guard.fetched_at.is_none_or(|at| at.elapsed() >= SOLAAR_TTL);
+    if stale && !guard.refreshing {
+        guard.refreshing = true;
+        thread::spawn(move || {
+            let map = read_solaar_batteries();
+            if let Ok(mut guard) = cache.lock() {
+                guard.by_name = map;
+                guard.fetched_at = Some(Instant::now());
+                guard.refreshing = false;
+            }
+        });
+    }
+    guard.by_name.clone()
+}
+
+/// Run `solaar show` and parse each device's battery line, keyed by lowercased
+/// name. Returns empty if Solaar isn't installed or times out.
+fn read_solaar_batteries() -> HashMap<String, DeviceBattery> {
+    let mut map = HashMap::new();
+    let mut cmd = std::process::Command::new("solaar");
+    cmd.arg("show");
+    let Some(output) = run_command_with_timeout(&mut cmd, Duration::from_secs(4)) else {
+        return map;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut current: Option<String> = None;
+    for line in text.lines() {
+        // Device blocks start with a column-0, non-empty header line.
+        let is_header = !line.is_empty()
+            && !line.starts_with(char::is_whitespace)
+            && !line.starts_with("solaar version");
+        if is_header {
+            current = Some(line.trim().to_ascii_lowercase());
+            continue;
+        }
+        if let Some(rest) = line.trim().strip_prefix("Battery:") {
+            if let Some(name) = &current {
+                map.insert(name.clone(), parse_solaar_battery(rest));
+            }
+        }
+    }
+    map
+}
+
+/// Parse a Solaar battery line body like ` N/A, full, next level 0%.` or
+/// ` 90%, discharging, next level 50%.` into level + charging state.
+fn parse_solaar_battery(rest: &str) -> DeviceBattery {
+    let mut batt = DeviceBattery::default();
+    let mut segs = rest.split(',');
+    if let Some(level) = segs.next() {
+        let level = level.trim().trim_end_matches('.');
+        if let Some(pct) = level.strip_suffix('%') {
+            if let Ok(v) = pct.trim().parse::<f32>() {
+                batt.percent = Some(v.round().clamp(0.0, 100.0) as u8);
+            }
+        }
+    }
+    if let Some(status) = segs.next() {
+        let status = status.trim().to_ascii_lowercase();
+        // Order matters: "discharging" contains "charging".
+        batt.charging = if status.contains("discharg") {
+            Some(false)
+        } else if status.contains("recharg") || status.contains("charging") || status == "full" {
+            // HID++ reports "full" only while topped up on a charger.
+            Some(true)
+        } else {
+            None
+        };
+    }
+    batt
+}
+
+/// Parse a BlueZ battery field like `0x40 (64)` — prefer the decimal in parens,
+/// falling back to decoding the `0xNN` hex value.
+fn parse_battery_percentage(field: &str) -> Option<u8> {
+    let field = field.trim();
+    if let (Some(start), Some(end)) = (field.find('('), field.find(')')) {
+        if start < end {
+            if let Ok(v) = field[start + 1..end].trim().parse::<u16>() {
+                return Some(v.min(100) as u8);
+            }
+        }
+    }
+    let token = field.split_whitespace().next()?;
+    let hex = token.strip_prefix("0x").or_else(|| token.strip_prefix("0X"))?;
+    u16::from_str_radix(hex, 16).ok().map(|v| v.min(100) as u8)
+}
+
+/// Match a BlueZ MAC against kernel HID power-supply entries, whose names embed
+/// the address as `hid-AA:BB:CC:DD:EE:FF-battery` (case-insensitive). Reads the
+/// `capacity` and maps `status` (Charging/Full/Discharging) to a charging flag.
+fn read_hid_battery_for_address(address: &str) -> Option<DeviceBattery> {
+    let target = address.to_ascii_lowercase();
+    let entries = std::fs::read_dir("/sys/class/power_supply").ok()?;
+    for entry in entries.filter_map(Result::ok) {
+        let file_name = entry.file_name();
+        let name = file_name.to_string_lossy().to_ascii_lowercase();
+        if name.starts_with("hid-") && name.contains(&target) {
+            let cap = std::fs::read_to_string(entry.path().join("capacity")).ok()?;
+            let percent = cap.trim().parse::<u16>().ok().map(|v| v.min(100) as u8)?;
+            let charging = match std::fs::read_to_string(entry.path().join("status")) {
+                Ok(s) => match s.trim().to_ascii_lowercase().as_str() {
+                    "charging" | "full" => Some(true),
+                    "discharging" | "not charging" => Some(false),
+                    _ => None,
+                },
+                Err(_) => None,
+            };
+            return Some(DeviceBattery {
+                percent: Some(percent),
+                charging,
+            });
+        }
+    }
+    None
 }
 
 fn bluetooth_adapter_present() -> bool {

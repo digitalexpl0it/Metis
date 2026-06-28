@@ -7,6 +7,7 @@ use std::time::Duration;
 use gtk::prelude::*;
 use metis_config::{LidCloseAction, PowerConfig, PowerProfile};
 
+use crate::bluetooth::{self, BluetoothSnapshot, DeviceState};
 use crate::power::{self, PowerSnapshot};
 use crate::ui;
 
@@ -17,6 +18,8 @@ struct Sections {
     suspend: gtk::SpinButton,
     lid: gtk::DropDown,
     dim: gtk::Switch,
+    devices_body: gtk::Box,
+    devices_empty: gtk::Label,
 }
 
 pub fn build() -> gtk::Widget {
@@ -46,6 +49,13 @@ pub fn build() -> gtk::Widget {
     idle_body.append(&ui::row("Dim on battery", &dim));
     content.append(&idle_card);
 
+    let (dev_card, devices_body) = ui::section("Connected devices");
+    let devices_empty = gtk::Label::new(Some("No wireless devices connected"));
+    devices_empty.set_xalign(0.0);
+    devices_empty.add_css_class("metis-settings-hint");
+    devices_body.append(&devices_empty);
+    content.append(&dev_card);
+
     let sections = Rc::new(Sections {
         battery_label,
         profile,
@@ -53,6 +63,8 @@ pub fn build() -> gtk::Widget {
         suspend,
         lid,
         dim,
+        devices_body,
+        devices_empty,
     });
 
     let (tx, rx) = mpsc::channel::<PowerSnapshot>();
@@ -66,13 +78,38 @@ pub fn build() -> gtk::Widget {
         })
     };
 
+    // Bluetooth device battery list — refreshed on its own background thread
+    // because bluetoothctl can take seconds; never block the settings UI thread.
+    let (bt_tx, bt_rx) = mpsc::channel::<BluetoothSnapshot>();
+    let refresh_devices = {
+        let bt_tx = bt_tx.clone();
+        Rc::new(move || {
+            let bt_tx = bt_tx.clone();
+            std::thread::spawn(move || {
+                let _ = bt_tx.send(bluetooth::load_snapshot());
+            });
+        })
+    };
+
     {
         let sections_poll = sections.clone();
-        let refresh_poll = refresh.clone();
         glib::timeout_add_local(Duration::from_millis(200), move || {
             if let Ok(snap) = rx.try_recv() {
                 render(&sections_poll, &snap);
             }
+            if let Ok(bt) = bt_rx.try_recv() {
+                render_devices(&sections_poll, &bt);
+            }
+            glib::ControlFlow::Continue
+        });
+
+        // Periodically re-read battery + device state so the page stays live
+        // while open (device battery changes slowly; 10s is plenty).
+        let refresh_periodic = refresh.clone();
+        let refresh_devices_periodic = refresh_devices.clone();
+        glib::timeout_add_seconds_local(10, move || {
+            refresh_periodic();
+            refresh_devices_periodic();
             glib::ControlFlow::Continue
         });
 
@@ -107,6 +144,7 @@ pub fn build() -> gtk::Widget {
     }
 
     refresh();
+    refresh_devices();
     scroller.upcast()
 }
 
@@ -126,6 +164,80 @@ fn render(sections: &Sections, snap: &PowerSnapshot) {
     sections.suspend.set_value(snap.config.suspend_after_minutes as f64);
     sections.lid.set_selected(lid_index(snap.config.lid_close));
     sections.dim.set_active(snap.config.dim_on_battery);
+}
+
+fn render_devices(sections: &Sections, bt: &BluetoothSnapshot) {
+    // Clear previous rows (keep the empty-state label, which we toggle).
+    while let Some(child) = sections.devices_body.first_child() {
+        sections.devices_body.remove(&child);
+    }
+
+    let connected: Vec<_> = bt
+        .devices
+        .iter()
+        .filter(|d| d.state == DeviceState::Connected)
+        .collect();
+
+    if connected.is_empty() {
+        sections.devices_empty.set_text(if bt.adapter_present {
+            "No wireless devices connected"
+        } else {
+            "No Bluetooth adapter"
+        });
+        sections.devices_body.append(&sections.devices_empty);
+        return;
+    }
+
+    for dev in connected {
+        let battery = match dev.battery_percent {
+            Some(pct) => {
+                let charging = dev.battery_charging == Some(true);
+                let icon = battery_icon_name(pct, charging);
+                let text = if charging {
+                    format!("{pct}% (charging)")
+                } else {
+                    format!("{pct}%")
+                };
+                let value = gtk::Label::new(Some(&text));
+                value.add_css_class("metis-settings-value");
+                // Charging devices aren't "low" regardless of level.
+                if pct <= 20 && !charging {
+                    value.add_css_class("metis-bt-battery-low");
+                }
+                let row = ui::row_with_icon(icon, &dev.name, &value);
+                row
+            }
+            None => {
+                let value = gtk::Label::new(Some("No battery info"));
+                value.add_css_class("metis-settings-hint");
+                ui::row_with_icon("bluetooth-active-symbolic", &dev.name, &value)
+            }
+        };
+        sections.devices_body.append(&battery);
+    }
+}
+
+/// Pick a symbolic battery icon bucket for a charge level, preferring the
+/// charging variant when the device reports it's charging.
+fn battery_icon_name(pct: u8, charging: bool) -> &'static str {
+    if charging {
+        return match pct {
+            0..=10 => "battery-level-10-charging-symbolic",
+            11..=30 => "battery-level-30-charging-symbolic",
+            31..=50 => "battery-level-50-charging-symbolic",
+            51..=70 => "battery-level-70-charging-symbolic",
+            71..=90 => "battery-level-90-charging-symbolic",
+            _ => "battery-level-100-charged-symbolic",
+        };
+    }
+    match pct {
+        0..=10 => "battery-level-10-symbolic",
+        11..=30 => "battery-level-30-symbolic",
+        31..=50 => "battery-level-50-symbolic",
+        51..=70 => "battery-level-70-symbolic",
+        71..=90 => "battery-level-90-symbolic",
+        _ => "battery-level-100-symbolic",
+    }
 }
 
 fn read_config(sections: &Sections) -> PowerConfig {

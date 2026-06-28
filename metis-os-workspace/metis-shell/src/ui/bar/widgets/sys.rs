@@ -2,7 +2,7 @@ use gtk::prelude::*;
 
 use crate::ui::icons::{self, names};
 
-use crate::services::{BluetoothStatus, EthernetStatus, WifiNetwork};
+use crate::services::{BluetoothDevice, BluetoothStatus, EthernetStatus, WifiNetwork};
 
 pub struct BatteryWidget {
     root: gtk::Button,
@@ -80,6 +80,11 @@ impl BatteryWidget {
 pub struct BluetoothWidget {
     root: gtk::Button,
     icon: gtk::Image,
+    /// Status line shown when no devices are connected ("On" / "Off").
+    status_label: gtk::Label,
+    /// Container the connected-device rows are rebuilt into on each update.
+    device_list: gtk::Box,
+    last_status: std::cell::RefCell<Option<BluetoothStatus>>,
 }
 
 impl BluetoothWidget {
@@ -95,10 +100,21 @@ impl BluetoothWidget {
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(8);
+        panel.set_width_request(260);
         let title = gtk::Label::new(Some("Bluetooth"));
         title.set_xalign(0.0);
         title.add_css_class("metis-bar-section-title");
         panel.append(&title);
+
+        let status_label = gtk::Label::new(Some("Off"));
+        status_label.set_xalign(0.0);
+        status_label.add_css_class("metis-net-status");
+        panel.append(&status_label);
+
+        let device_list = gtk::Box::new(gtk::Orientation::Vertical, 4);
+        device_list.add_css_class("metis-bt-device-list");
+        panel.append(&device_list);
+
         let settings_btn = gtk::Button::with_label("Bluetooth settings…");
         settings_btn.connect_clicked(|_| {
             if let Err(err) = crate::compositor::launch_program("metis-settings --page bluetooth")
@@ -109,7 +125,13 @@ impl BluetoothWidget {
         panel.append(&settings_btn);
         super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
 
-        Self { root, icon }
+        Self {
+            root,
+            icon,
+            status_label,
+            device_list,
+            last_status: std::cell::RefCell::new(None),
+        }
     }
 
     pub fn root(&self) -> &gtk::Button {
@@ -121,21 +143,87 @@ impl BluetoothWidget {
         if !status.adapter_present {
             return;
         }
+        if self.last_status.borrow().as_ref() == Some(status) {
+            return;
+        }
+        self.last_status.replace(Some(status.clone()));
+
         icons::set_icon(
             &self.icon,
             names::bluetooth(status.powered, status.connected),
         );
+
         let tip = if !status.powered {
             "Bluetooth off".to_string()
         } else if let Some(name) = &status.device_name {
             format!("Connected to {name}")
-        } else if status.connected {
-            "Bluetooth connected".to_string()
         } else {
             "Bluetooth on".to_string()
         };
         self.root.set_tooltip_text(Some(&tip));
+
+        self.rebuild_devices(status);
     }
+
+    fn rebuild_devices(&self, status: &BluetoothStatus) {
+        while let Some(child) = self.device_list.first_child() {
+            self.device_list.remove(&child);
+        }
+
+        if !status.powered {
+            self.status_label.set_text("Off");
+            self.status_label.set_visible(true);
+            self.device_list.set_visible(false);
+            return;
+        }
+        if status.devices.is_empty() {
+            self.status_label.set_text("On — no devices connected");
+            self.status_label.set_visible(true);
+            self.device_list.set_visible(false);
+            return;
+        }
+
+        self.status_label.set_visible(false);
+        self.device_list.set_visible(true);
+        for dev in &status.devices {
+            self.device_list.append(&build_bt_device_row(dev));
+        }
+    }
+}
+
+fn build_bt_device_row(dev: &BluetoothDevice) -> gtk::Box {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    row.add_css_class("metis-bt-device-row");
+
+    let name = gtk::Label::new(Some(&dev.name));
+    name.set_xalign(0.0);
+    name.set_hexpand(true);
+    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    row.append(&name);
+
+    if let Some(pct) = dev.battery_percent {
+        let charging = dev.battery_charging == Some(true);
+        // A charging device isn't "low" even at a low percentage.
+        let low = pct <= 20 && !charging;
+        let batt_icon = icons::image(names::battery(pct, charging));
+        batt_icon.add_css_class("metis-bt-battery-icon");
+        if low {
+            batt_icon.add_css_class("metis-bt-battery-low");
+        }
+        row.append(&batt_icon);
+        let text = if charging {
+            format!("{pct}% (charging)")
+        } else {
+            format!("{pct}%")
+        };
+        let batt = gtk::Label::new(Some(&text));
+        batt.add_css_class("metis-bt-battery-label");
+        if low {
+            batt.add_css_class("metis-bt-battery-low");
+        }
+        row.append(&batt);
+    }
+    row
 }
 
 
