@@ -13,7 +13,7 @@ use smithay::input::pointer::Focus;
 use smithay::input::{Seat, SeatHandler, SeatState};
 use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::utils::Serial;
+use smithay::utils::{Logical, Point, Serial};
 use smithay::wayland::output::OutputHandler;
 use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
 use smithay::wayland::selection::primary_selection::{
@@ -50,6 +50,20 @@ impl SeatHandler for MetisState {
             .and_then(|surface| dh.get_client(surface.id()).ok());
         set_data_device_focus(dh, seat, client.clone());
         set_primary_focus(dh, seat, client);
+    }
+}
+
+impl MetisState {
+    /// Point the seat's clipboard + primary-selection devices at the client under
+    /// `loc` so paste (right/middle-click, Shift+Insert) works even when keyboard
+    /// focus was previously elsewhere.
+    pub(crate) fn sync_selection_focus_at(&mut self, loc: Point<f64, Logical>) {
+        let dh = &self.display_handle;
+        let client = self
+            .pointer_target_at(loc)
+            .and_then(|(surface, _)| dh.get_client(surface.id()).ok());
+        set_data_device_focus(dh, &self.seat, client.clone());
+        set_primary_focus(dh, &self.seat, client);
     }
 }
 

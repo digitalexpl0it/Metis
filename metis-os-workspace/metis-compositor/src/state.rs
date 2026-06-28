@@ -185,6 +185,7 @@ pub struct MetisState {
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
+    pub input_runtime: crate::device_input::InputRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
     /// When true, the next winit Redraw performs GL compositing + layer frame delivery.
@@ -363,7 +364,20 @@ impl MetisState {
 
         let mut seat_state = SeatState::<MetisState>::new();
         let mut seat = seat_state.new_wl_seat(&dh, "metis");
-        seat.add_keyboard(Default::default(), 200, 25).unwrap();
+        let input_cfg = crate::device_input::InputRuntime::initial_keyboard_config();
+        let kb = &input_cfg.keyboard;
+        seat.add_keyboard(
+            smithay::input::keyboard::XkbConfig {
+                rules: "",
+                model: "",
+                layout: &kb.layout,
+                variant: &kb.variant,
+                options: kb.merged_xkb_options(),
+            },
+            kb.repeat_delay_ms,
+            kb.repeat_rate_hz,
+        )
+        .unwrap();
         seat.add_pointer();
 
         let space = Space::<Window>::default();
@@ -432,6 +446,7 @@ impl MetisState {
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
+            input_runtime: crate::device_input::InputRuntime::new(),
             redraw_trigger: None,
             damaged: true,
             defer_client_flush: false,
@@ -492,6 +507,10 @@ impl MetisState {
             self.sync_all_app_windows();
             self.refresh_all_scroll_offsets();
             self.damaged = true;
+        }
+
+        if let Some(cfg) = self.input_runtime.maybe_refresh() {
+            crate::device_input::apply_keyboard(self, &cfg);
         }
 
         if self.tick_scroll_animations() {
@@ -4856,6 +4875,11 @@ impl MetisState {
                 self.wallpaper.start_async_decode();
                 self.damaged = true;
                 self.request_redraw();
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadInput => {
+                let cfg = self.input_runtime.reload_from_disk();
+                crate::device_input::apply_keyboard(self, &cfg);
                 CompositorEvent::Pong
             }
         }

@@ -270,14 +270,16 @@ nested winit dev session they degrade to read-only or no-op. Group the sidebar i
 Compositor applies device config from a new `input.json`; settings writes it and the
 compositor live-reloads (mirrors the `bar.json` watcher pattern).
 
-- [ ] **Mouse** — pointer speed / acceleration, acceleration profile (flat vs
-      adaptive), natural scroll, primary button (left/right-handed), scroll speed
-- [ ] **Touchpad** — shown only when a touchpad device is present: tap-to-click,
-      tap-and-drag, two-finger / edge scroll, natural scroll, disable-while-typing,
-      palm rejection, pointer speed
-- [ ] **Keyboard** — layout(s) + switch shortcut (xkb), repeat delay + rate, compose
-      key, Caps/Esc remap; applied via Smithay's xkb config + `wl_keyboard`
-      `repeat_info`
+- [x] **Mouse** — pointer speed / acceleration, acceleration profile (flat vs
+      adaptive), natural scroll, primary button (left/right-handed), scroll
+      wheel speed multiplier; compositor applies via libinput + axis scaling from
+      `input.json` with live reload
+- [x] **Touchpad** — tap-to-click, tap-and-drag, natural scroll,
+      disable-while-typing, pointer speed + acceleration profile, scroll speed;
+      stored in `input.json`, applied when a touchpad is present
+- [x] **Keyboard** — layout(s) + variant, repeat delay + rate, compose key,
+      Caps/Esc/Control remap via xkb options; applied via Smithay xkb config +
+      `wl_keyboard` `repeat_info`
 
 ### Devices (D-Bus services)
 - [ ] **Bluetooth** — adapter on/off, scan, pair / connect / trust / remove, battery
@@ -338,6 +340,7 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
+| `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 
 ### `bar.json` (defaults)
 

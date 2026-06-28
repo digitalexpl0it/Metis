@@ -6,6 +6,7 @@ pub mod bar;
 pub mod calendars;
 pub mod clocks;
 pub mod css;
+pub mod input;
 pub mod menu;
 pub mod theme;
 pub mod wallpaper;
@@ -155,6 +156,10 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
     }
 }
 
+pub use input::{
+    load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
+    ComposeKey, InputConfig, KeyboardConfig, MouseConfig, TouchpadConfig,
+};
 pub use bar::{
     bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarBorder,
     BarConfig, BarDisplays, BarPosition, BarWidgetId, BorderMode, ClockConfig, DefaultLayout,

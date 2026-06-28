@@ -74,6 +74,8 @@ pub enum CompositorCommand {
     /// Re-read `wallpaper.json` and apply the desktop background live (picture,
     /// solid colour, or gradient).
     ApplyBackground,
+    /// Re-read `input.json` and apply mouse/touchpad/keyboard settings live.
+    ReloadInput,
     SubscribeEvents,
 }
 

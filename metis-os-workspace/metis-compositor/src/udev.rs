@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use input::DeviceCapability;
 use smithay::{
     backend::{
         allocator::{
@@ -215,11 +216,21 @@ pub fn init_udev(
     udev.libinput = Some(libinput_context.clone());
     let libinput_backend = LibinputInputBackend::new(libinput_context);
     loop_handle
-        .insert_source(libinput_backend, move |event, _, state| {
-            // Track keyboards for LED updates; forward everything to the shared
-            // input handler.
-            if let InputEvent::DeviceAdded { device: _ } = &event {
-                // (LED sync is a future nicety; nothing required here yet.)
+        .insert_source(libinput_backend, move |mut event, _, state| {
+            if let InputEvent::DeviceAdded { device } = &mut event {
+                if device.has_capability(DeviceCapability::Keyboard) {
+                    if let Some(led_state) =
+                        state.seat.get_keyboard().map(|keyboard| keyboard.led_state())
+                    {
+                        let _ = device.led_update(led_state.into());
+                    }
+                }
+                state.input_runtime.on_device_added(device.clone());
+            } else             if let InputEvent::DeviceRemoved { device } = &event {
+                state.input_runtime.on_device_removed(device);
+            }
+            if let Some(device) = crate::device_input::libinput_device_from_event(&event) {
+                state.input_runtime.note_pointer_device(&device);
             }
             state.process_input_event(event);
         })

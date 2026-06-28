@@ -1,5 +1,9 @@
 pub mod appearance;
 pub mod calendars;
+pub mod input_common;
+pub mod keyboard;
 pub mod menu;
+pub mod mouse;
 pub mod network;
+pub mod touchpad;
 pub mod weather;

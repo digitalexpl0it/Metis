@@ -26,6 +26,14 @@ pub fn apply_background() {
     }
 }
 
+/// Ask the compositor to re-read `input.json` and apply pointer/keyboard settings
+/// immediately. Best-effort.
+pub fn reload_input() {
+    if let Err(err) = send_command(CompositorCommand::ReloadInput) {
+        tracing::warn!(%err, "failed to reload input via compositor IPC");
+    }
+}
+
 /// Apply a layout mode (grid vs. scrolling) to every workspace on every output
 /// immediately, so changing the "New workspace layout" default acts as a live
 /// global on/off rather than only affecting future workspaces. Best-effort.

@@ -1586,6 +1586,7 @@ dependencies = [
  "bitflags",
  "input-sys",
  "libc",
+ "log",
  "udev",
 ]
 
@@ -1930,6 +1931,7 @@ dependencies = [
  "directories",
  "fontdue",
  "image",
+ "input",
  "metis-config",
  "metis-grid",
  "metis-protocol",

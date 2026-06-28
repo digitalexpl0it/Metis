@@ -166,6 +166,14 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-sidebar row:selected {{ background-color: {accent}; }}
         .metis-settings-sidebar row:selected label {{ color: {on_accent}; font-weight: 700; }}
         .metis-settings-sidebar row:selected image {{ color: {on_accent}; }}
+        .metis-settings-nav-section {{
+            color: {muted};
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 12px 12px 4px;
+        }}
 
         .metis-settings-page {{ background-color: {bg}; }}
         .metis-settings-title {{ font-size: 26px; font-weight: 800; color: {text}; }}

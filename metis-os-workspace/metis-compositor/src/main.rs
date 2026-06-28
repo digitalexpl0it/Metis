@@ -4,6 +4,7 @@ mod blur;
 mod cursor;
 mod decoration;
 mod desk_input;
+mod device_input;
 mod events;
 mod focus;
 mod grabs;

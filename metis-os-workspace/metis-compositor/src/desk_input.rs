@@ -4,6 +4,7 @@ use smithay::{
     desktop::{layer_map_for_output, PopupManager, WindowSurfaceType},
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{Logical, Point, Rectangle},
+    wayland::seat::WaylandFocus,
     wayland::shell::wlr_layer::Layer as WlrLayer,
 };
 
@@ -241,9 +242,31 @@ impl MetisState {
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
         let (window, location) = self.space.element_under(pos)?;
-        window
-            .surface_under(pos - location.to_f64(), WindowSurfaceType::ALL)
+        let rel = pos - location.to_f64();
+        if let Some((surface, loc)) = window
+            .surface_under(rel, WindowSurfaceType::ALL)
             .map(|(surface, loc)| (surface, (loc + location).to_f64()))
+        {
+            return Some((surface, loc));
+        }
+        // Clicks on compositor-drawn titlebar/border land outside the client
+        // subsurface tree — still deliver them to the window so paste, primary
+        // selection, and context menus (e.g. kitty right-click) work.
+        if let Some(toplevel) = window.toplevel() {
+            return Some((toplevel.wl_surface().clone(), pos));
+        }
+        window
+            .wl_surface()
+            .map(|surface| (surface.into_owned(), pos))
+    }
+
+    /// Best-effort pointer target for button events and clipboard focus.
+    pub(crate) fn pointer_target_at(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        self.surface_under(pos)
+            .or_else(|| self.window_surface_at(pos))
     }
 
     fn layer_surface_at(

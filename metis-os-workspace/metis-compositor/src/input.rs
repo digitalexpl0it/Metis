@@ -273,7 +273,7 @@ impl MetisState {
                     return;
                 }
                 let serial = SERIAL_COUNTER.next_serial();
-                let under = self.surface_under(location);
+                let under = self.pointer_target_at(location);
                 pointer.motion(
                     self,
                     under,
@@ -302,7 +302,7 @@ impl MetisState {
                     return;
                 }
                 let serial = SERIAL_COUNTER.next_serial();
-                let under = self.surface_under(pos);
+                let under = self.pointer_target_at(pos);
                 pointer.motion(
                     self,
                     under,
@@ -321,7 +321,7 @@ impl MetisState {
                 let button = event.button_code();
                 let button_state = event.state();
                 let loc = pointer.current_location();
-                let under = self.surface_under(loc);
+                let under = self.pointer_target_at(loc);
 
                 // Sync motion target before button so layer-shell clients receive enter/press.
                 pointer.motion(
@@ -375,6 +375,9 @@ impl MetisState {
                         // only receive keystrokes if the bar layer surface holds
                         // wl_keyboard focus; GTK then routes keys to the focused widget.
                         self.update_keyboard_focus(loc, serial);
+                        // Right/middle-click paste reads the seat's data-device and
+                        // primary-selection focus — align them with the click target.
+                        self.sync_selection_focus_at(loc);
                     }
                 }
 
@@ -392,12 +395,15 @@ impl MetisState {
             InputEvent::PointerAxis { event, .. } => {
                 needs_redraw = true;
                 let source = event.source();
+                let mult = self.input_runtime.scroll_multiplier();
                 let horizontal_amount = event
                     .amount(Axis::Horizontal)
-                    .unwrap_or_else(|| event.amount_v120(Axis::Horizontal).unwrap_or(0.0) * 15.0 / 120.);
+                    .unwrap_or_else(|| event.amount_v120(Axis::Horizontal).unwrap_or(0.0) * 15.0 / 120.)
+                    * mult;
                 let vertical_amount = event
                     .amount(Axis::Vertical)
-                    .unwrap_or_else(|| event.amount_v120(Axis::Vertical).unwrap_or(0.0) * 15.0 / 120.);
+                    .unwrap_or_else(|| event.amount_v120(Axis::Vertical).unwrap_or(0.0) * 15.0 / 120.)
+                    * mult;
 
                 let mut frame = AxisFrame::new(event.time_msec()).source(source);
                 if horizontal_amount != 0.0 {

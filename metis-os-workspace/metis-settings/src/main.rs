@@ -13,15 +13,71 @@ mod ui;
 use gtk::glib;
 use gtk::prelude::*;
 
-/// Sidebar pages, in display order: `(id, title, symbolic icon)`. The
-/// `--page <name>` flag preselects one.
-const PAGES: &[(&str, &str, &str)] = &[
-    ("appearance", "Appearance", "preferences-desktop-appearance-symbolic"),
-    ("menu", "Metis Menu", "view-app-grid-symbolic"),
-    ("weather", "Weather", "weather-few-clouds-symbolic"),
-    ("network", "Network", "network-wireless-symbolic"),
-    ("calendars", "Calendars", "x-office-calendar-symbolic"),
+/// One sidebar row: either a section header or a navigable page.
+struct NavItem {
+    page_id: Option<&'static str>,
+    title: &'static str,
+    icon: Option<&'static str>,
+}
+
+const NAV: &[NavItem] = &[
+    NavItem {
+        page_id: None,
+        title: "Personalization",
+        icon: None,
+    },
+    NavItem {
+        page_id: Some("appearance"),
+        title: "Appearance",
+        icon: Some("preferences-desktop-appearance-symbolic"),
+    },
+    NavItem {
+        page_id: Some("menu"),
+        title: "Metis Menu",
+        icon: Some("view-app-grid-symbolic"),
+    },
+    NavItem {
+        page_id: Some("weather"),
+        title: "Weather",
+        icon: Some("weather-few-clouds-symbolic"),
+    },
+    NavItem {
+        page_id: Some("network"),
+        title: "Network",
+        icon: Some("network-wireless-symbolic"),
+    },
+    NavItem {
+        page_id: Some("calendars"),
+        title: "Calendars",
+        icon: Some("x-office-calendar-symbolic"),
+    },
+    NavItem {
+        page_id: None,
+        title: "Input",
+        icon: None,
+    },
+    NavItem {
+        page_id: Some("mouse"),
+        title: "Mouse",
+        icon: Some("input-mouse-symbolic"),
+    },
+    NavItem {
+        page_id: Some("touchpad"),
+        title: "Touchpad",
+        icon: Some("input-touchpad-symbolic"),
+    },
+    NavItem {
+        page_id: Some("keyboard"),
+        title: "Keyboard",
+        icon: Some("input-keyboard-symbolic"),
+    },
 ];
+
+fn page_ids() -> Vec<&'static str> {
+    NAV.iter()
+        .filter_map(|item| item.page_id)
+        .collect()
+}
 
 fn main() {
     tracing_subscriber::fmt()
@@ -61,10 +117,10 @@ fn parse_page_arg() -> Option<String> {
 
 fn normalize_page(name: &str) -> Option<String> {
     let name = name.trim().to_lowercase();
-    PAGES
-        .iter()
-        .find(|(id, _, _)| *id == name)
-        .map(|(id, _, _)| id.to_string())
+    page_ids()
+        .into_iter()
+        .find(|id| *id == name)
+        .map(str::to_string)
 }
 
 fn build_ui(page: Option<String>) {
@@ -80,37 +136,65 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
     stack.add_titled(&pages::network::build(), Some("network"), "Network");
     stack.add_titled(&pages::calendars::build(), Some("calendars"), "Calendars");
+    stack.add_titled(&pages::mouse::build(), Some("mouse"), "Mouse");
+    stack.add_titled(&pages::touchpad::build(), Some("touchpad"), "Touchpad");
+    stack.add_titled(&pages::keyboard::build(), Some("keyboard"), "Keyboard");
 
-    // Custom icon + label sidebar (GtkStackSidebar is title-only). A GtkListBox
-    // drives the stack; row index maps 1:1 to `PAGES`.
     let nav = gtk::ListBox::new();
     nav.set_selection_mode(gtk::SelectionMode::Single);
-    for (_, title, icon) in PAGES {
-        let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-        let img = gtk::Image::from_icon_name(icon);
-        let label = gtk::Label::new(Some(title));
-        label.set_xalign(0.0);
-        row_box.append(&img);
-        row_box.append(&label);
-        let row = gtk::ListBoxRow::new();
-        row.set_child(Some(&row_box));
+    for item in NAV {
+        let row = if let Some(icon) = item.icon {
+            let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+            let img = gtk::Image::from_icon_name(icon);
+            let label = gtk::Label::new(Some(item.title));
+            label.set_xalign(0.0);
+            row_box.append(&img);
+            row_box.append(&label);
+            let row = gtk::ListBoxRow::new();
+            row.set_child(Some(&row_box));
+            row
+        } else {
+            let label = gtk::Label::new(Some(item.title));
+            label.set_xalign(0.0);
+            label.add_css_class("metis-settings-nav-section");
+            let row = gtk::ListBoxRow::new();
+            row.set_selectable(false);
+            row.set_activatable(false);
+            row.set_child(Some(&label));
+            row
+        };
         nav.append(&row);
     }
     {
         let stack = stack.clone();
-        nav.connect_row_selected(move |_, row| {
-            if let Some(row) = row {
-                if let Some((id, _, _)) = PAGES.get(row.index() as usize) {
-                    stack.set_visible_child_name(id);
-                }
+        nav.connect_row_selected(move |list, row| {
+            let Some(row) = row else {
+                return;
+            };
+            let index = row.index() as usize;
+            let Some(item) = NAV.get(index) else {
+                return;
+            };
+            if let Some(id) = item.page_id {
+                stack.set_visible_child_name(id);
+            } else if let Some(next) = list.row_at_index(row.index() + 1) {
+                list.select_row(Some(&next));
             }
         });
     }
 
+    let nav_scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .vexpand(true)
+        .child(&nav)
+        .build();
+
     let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     sidebar.add_css_class("metis-settings-sidebar");
-    sidebar.set_width_request(180);
-    sidebar.append(&nav);
+    sidebar.set_width_request(200);
+    sidebar.set_vexpand(true);
+    sidebar.append(&nav_scroll);
 
     let layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     layout.append(&sidebar);
@@ -118,19 +202,14 @@ fn build_ui(page: Option<String>) {
     layout.append(&stack);
     layout.add_css_class("metis-settings-root");
 
-    // Preselect the requested (or first) page; selecting the row switches the stack.
-    let initial = page
+    let initial_row = page
         .as_deref()
-        .and_then(|p| PAGES.iter().position(|(id, _, _)| *id == p))
-        .unwrap_or(0);
-    if let Some(row) = nav.row_at_index(initial as i32) {
+        .and_then(|p| NAV.iter().position(|item| item.page_id == Some(p)))
+        .unwrap_or(1);
+    if let Some(row) = nav.row_at_index(initial_row as i32) {
         nav.select_row(Some(&row));
     }
 
-    // Inside a Metis session the compositor draws the server-side titlebar +
-    // window controls, so suppress GTK's own client-side titlebar to avoid a
-    // doubled-up frame. On the host (no Metis), keep GTK's titlebar so the window
-    // stays movable/closable.
     let under_metis = std::env::var_os("METIS_SESSION").is_some();
     let window = gtk::Window::builder()
         .title("Metis Settings")
