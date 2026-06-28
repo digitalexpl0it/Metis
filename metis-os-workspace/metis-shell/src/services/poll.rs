@@ -104,7 +104,7 @@ fn poll_loop(
         let audio_changed = drain_audio_commands(&audio_rx);
         drain_network_commands(&network_rx);
 
-        if tick % 4 == 0 {
+        if tick % 15 == 0 {
             cached.battery_percent = read_battery_percent();
             cached.battery_charging = read_battery_charging();
             cached.bluetooth = read_bluetooth_status();
@@ -377,10 +377,17 @@ fn read_battery_charging() -> bool {
 }
 
 fn read_bluetooth_status() -> BluetoothStatus {
-    let mut cmd = std::process::Command::new("bluetoothctl");
-    cmd.args(["show"]).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
-    let Some(output) = run_command(&mut cmd) else {
+    if !bluetooth_adapter_present() {
         return BluetoothStatus::default();
+    }
+
+    let mut cmd = std::process::Command::new("bluetoothctl");
+    cmd.args(["show"]);
+    let Some(output) = run_command(&mut cmd) else {
+        return BluetoothStatus {
+            adapter_present: true,
+            ..BluetoothStatus::default()
+        };
     };
     let text = String::from_utf8_lossy(&output.stdout);
     if !text.contains("Controller") || text.contains("No default controller") {
@@ -389,20 +396,20 @@ fn read_bluetooth_status() -> BluetoothStatus {
     let powered = text.contains("Powered: yes");
     let mut device_name = None;
     let mut connected = false;
-    let devices_out = std::process::Command::new("bluetoothctl")
-        .args(["devices", "Connected"])
-        .output()
-        .ok();
-    if let Some(o) = devices_out {
-        let dev_text = String::from_utf8_lossy(&o.stdout);
-        for line in dev_text.lines() {
-            if let Some(rest) = line.strip_prefix("Device ") {
-                let mut parts = rest.splitn(2, ' ');
-                let _addr = parts.next();
-                if let Some(name) = parts.next() {
-                    device_name = Some(name.to_string());
-                    connected = true;
-                    break;
+    if powered {
+        let mut devices_cmd = std::process::Command::new("bluetoothctl");
+        devices_cmd.args(["devices", "Connected"]);
+        if let Some(o) = run_command(&mut devices_cmd) {
+            let dev_text = String::from_utf8_lossy(&o.stdout);
+            for line in dev_text.lines() {
+                if let Some(rest) = line.strip_prefix("Device ") {
+                    let mut parts = rest.splitn(2, ' ');
+                    let _addr = parts.next();
+                    if let Some(name) = parts.next() {
+                        device_name = Some(name.to_string());
+                        connected = true;
+                        break;
+                    }
                 }
             }
         }
@@ -413,6 +420,18 @@ fn read_bluetooth_status() -> BluetoothStatus {
         connected,
         device_name,
     }
+}
+
+fn bluetooth_adapter_present() -> bool {
+    std::fs::read_dir("/sys/class/bluetooth")
+        .map(|entries| {
+            entries.filter_map(Result::ok).any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("hci")
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn run_command(cmd: &mut std::process::Command) -> Option<std::process::Output> {

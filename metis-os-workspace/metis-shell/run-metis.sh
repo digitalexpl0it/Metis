@@ -217,7 +217,10 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     fi
 
     REL="$CARGO_TARGET_DIR/release"
-    PORTALS_DST="${METIS_PORTALS_DIR:-/usr/local/share/xdg-desktop-portal}"
+    # xdg-desktop-portal only loads backend descriptors from
+    # /usr/share/xdg-desktop-portal/portals/ — installing under /usr/local alone
+    # makes apps wait ~25s per portal call while xdp times out on GNOME backends.
+    PORTALS_DST="${METIS_PORTALS_DIR:-/usr/share/xdg-desktop-portal}"
     # Privileged copies: re-exec the install steps under sudo if not already root.
     SUDO=""
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -243,6 +246,11 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     echo "Installing portal registration to $PORTALS_DST …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.portal" "$PORTALS_DST/portals/metis.portal"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-portals.conf" "$PORTALS_DST/metis-portals.conf"
+    # Legacy path used by early installs — keep both in sync.
+    if [[ "$PORTALS_DST" != /usr/local/share/xdg-desktop-portal ]]; then
+        $SUDO install -Dm644 "$ASSETS_DIR/metis.portal" /usr/local/share/xdg-desktop-portal/portals/metis.portal
+        $SUDO install -Dm644 "$ASSETS_DIR/metis-portals.conf" /usr/local/share/xdg-desktop-portal/metis-portals.conf
+    fi
 
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"

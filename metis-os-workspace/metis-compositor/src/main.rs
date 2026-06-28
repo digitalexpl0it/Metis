@@ -273,16 +273,38 @@ fn update_standalone_activation_env(display: &str) {
         "GTK_A11Y=none",
         "NO_AT_BRIDGE=1",
         "GDK_BACKEND=wayland",
-        &format!("GSK_RENDERER={gsk_renderer}"),
+        // Do not push GSK_RENDERER into the activation environment — it forced
+        // Cairo (software) rendering on every D-Bus-launched GTK app. The shell
+        // alone opts into Cairo via apply_spawned_client_env when spawned.
+        &format!("METIS_SHELL_GSK_RENDERER={gsk_renderer}"),
+        "XDG_CURRENT_DESKTOP=Metis:GNOME",
+        "XDG_SESSION_DESKTOP=metis",
     ]);
 }
 
 /// Start the Metis Settings portal backend, then the xdp front-end.
 fn start_portal_stack() {
     spawn_metis_portal();
-    // metis-portal must own its D-Bus name before xdp enumerates backends.
-    std::thread::sleep(std::time::Duration::from_millis(250));
+    if !wait_for_session_bus_name(
+        "org.freedesktop.impl.portal.desktop.metis",
+        std::time::Duration::from_secs(5),
+    ) {
+        tracing::warn!(
+            "metis-portal did not claim its D-Bus name — xdg-desktop-portal Settings may be unavailable"
+        );
+    }
     prewarm_desktop_portal();
+    prewarm_portal_gtk();
+    if wait_for_session_bus_name(
+        "org.freedesktop.portal.Desktop",
+        std::time::Duration::from_secs(12),
+    ) {
+        tracing::info!("xdg-desktop-portal is ready on the session bus");
+    } else {
+        tracing::warn!(
+            "xdg-desktop-portal did not become ready — GTK/Chromium apps may block ~25s on first launch"
+        );
+    }
 }
 
 fn spawn_metis_portal() {
@@ -313,21 +335,81 @@ fn spawn_metis_portal() {
     }
 }
 
+/// Resolve a portal helper installed under `/usr/libexec` (not always on PATH).
+fn resolve_libexec_binary(name: &str) -> Option<std::path::PathBuf> {
+    let candidates = [
+        std::path::PathBuf::from(format!("/usr/libexec/{name}")),
+        std::path::PathBuf::from(name),
+    ];
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+fn session_bus_name_active(name: &str) -> bool {
+    std::process::Command::new("busctl")
+        .args(["--user", "status", name])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+fn wait_for_session_bus_name(name: &str, timeout: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    while std::time::Instant::now() < deadline {
+        if session_bus_name_active(name) {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    false
+}
+
+fn spawn_portal_daemon(name: &str) -> bool {
+    let Some(bin) = resolve_libexec_binary(name) else {
+        tracing::warn!(daemon = name, "portal binary not found under /usr/libexec");
+        return false;
+    };
+    if session_bus_name_active(match name {
+        "xdg-desktop-portal" => "org.freedesktop.portal.Desktop",
+        "xdg-desktop-portal-gtk" => "org.freedesktop.impl.portal.desktop.gtk",
+        _ => return false,
+    }) {
+        return true;
+    }
+    match std::process::Command::new(&bin)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(_) => {
+            tracing::info!(daemon = name, path = %bin.display(), "started portal daemon");
+            true
+        }
+        Err(err) => {
+            tracing::warn!(%err, daemon = name, path = %bin.display(), "failed to start portal daemon");
+            false
+        }
+    }
+}
+
 /// Best-effort: start xdg-desktop-portal once our Wayland socket exists so the
 /// first GtkApplication launch does not cold-start the whole portal stack.
 fn prewarm_desktop_portal() {
     if std::env::var_os("METIS_NO_PORTAL_PREWARM").is_some() {
         return;
     }
-    match std::process::Command::new("xdg-desktop-portal")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
-        Ok(_) => tracing::info!("pre-started xdg-desktop-portal"),
-        Err(err) => tracing::debug!(%err, "xdg-desktop-portal unavailable"),
+    let _ = spawn_portal_daemon("xdg-desktop-portal");
+}
+
+/// GTK apps block on the FileChooser/OpenURI portal during startup unless the
+/// gtk backend is already running. Pre-start it alongside the main portal.
+fn prewarm_portal_gtk() {
+    if std::env::var_os("METIS_NO_PORTAL_PREWARM").is_some() {
+        return;
     }
+    let _ = spawn_portal_daemon("xdg-desktop-portal-gtk");
 }
 
 fn parse_client_command() -> Option<String> {

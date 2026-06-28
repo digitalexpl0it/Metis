@@ -30,9 +30,10 @@ export METIS_BACKEND="drm"
 # GTK shell: prefer the Wayland backend.
 export GDK_BACKEND="${GDK_BACKEND:-wayland}"
 # Some GPU/driver combos hang GTK's GL renderer under a fresh compositor; the
-# Cairo renderer is a safe default. Override by exporting GSK_RENDERER before
-# launch if your stack is happy with GL.
-export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+# Cairo renderer is a safe default for Metis shell. Override via
+# METIS_SHELL_GSK_RENDERER (or GSK_RENDERER) before launch if GL is reliable.
+export METIS_SHELL_GSK_RENDERER="${METIS_SHELL_GSK_RENDERER:-${GSK_RENDERER:-cairo}}"
+export GSK_RENDERER="${GSK_RENDERER:-$METIS_SHELL_GSK_RENDERER}"
 
 # --- GTK startup hardening for a standalone (non-GNOME) session ------------
 # Metis serves org.freedesktop.portal.Settings via metis-portal (started by the
@@ -135,8 +136,8 @@ fi
 # run inside Metis. Best-effort: a session may not have a user bus yet.
 SESSION_VARS=(
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
-    XDG_SESSION_ID DISPLAY GDK_BACKEND GSK_RENDERER GTK_A11Y NO_AT_BRIDGE
-    SSH_AUTH_SOCK
+    XDG_SESSION_ID DISPLAY GDK_BACKEND METIS_SHELL_GSK_RENDERER GTK_A11Y NO_AT_BRIDGE
+    SSH_AUTH_SOCK XDG_DATA_DIRS XDG_CONFIG_DIRS
 )
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
     dbus-update-activation-environment --systemd "${SESSION_VARS[@]}" 2>/dev/null || true

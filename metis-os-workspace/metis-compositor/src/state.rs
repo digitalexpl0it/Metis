@@ -307,6 +307,7 @@ fn resolve_client_cursor_env() -> (String, String) {
 /// menu launches). GTK hardening avoids portal/a11y stalls in a bare session.
 fn apply_spawned_client_env(
     cmd: &mut std::process::Command,
+    program: &str,
     socket: &std::ffi::OsStr,
     xdisplay: Option<u32>,
 ) {
@@ -321,10 +322,17 @@ fn apply_spawned_client_env(
         }
     }
     cmd.env("GDK_BACKEND", "wayland");
-    cmd.env(
-        "GSK_RENDERER",
-        std::env::var("GSK_RENDERER").unwrap_or_else(|_| "cairo".into()),
-    );
+    // Only force the Cairo GSK backend for our own shell — it avoids GL hangs on
+    // some drivers during layer-shell setup. Other GTK apps should pick GL so they
+    // stay responsive; do not inherit the session-wide GSK_RENDERER default.
+    if program.contains("metis-shell") {
+        let renderer = std::env::var("METIS_SHELL_GSK_RENDERER")
+            .or_else(|_| std::env::var("GSK_RENDERER"))
+            .unwrap_or_else(|_| "cairo".into());
+        cmd.env("GSK_RENDERER", renderer);
+    } else {
+        cmd.env_remove("GSK_RENDERER");
+    }
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
         cmd.env("XDG_RUNTIME_DIR", runtime);
     }
@@ -1008,7 +1016,7 @@ impl MetisState {
             std::process::Command::new(program)
         };
 
-        apply_spawned_client_env(&mut cmd, &self.socket_name, self.xdisplay);
+        apply_spawned_client_env(&mut cmd, program, &self.socket_name, self.xdisplay);
         cmd.env("XCURSOR_THEME", &self.client_cursor_theme);
         cmd.env("XCURSOR_SIZE", &self.client_cursor_size);
 
