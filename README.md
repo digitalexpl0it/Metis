@@ -1,5 +1,9 @@
 # Metis
 
+> **Beta** — Metis is under active development. Expect rough edges: session setup,
+> window management, and configuration formats may change between releases. Bug
+> reports and feedback are welcome.
+
 > **Metis** is a next-generation Wayland desktop environment built in Rust. The
 > **Metis compositor** owns the Wayland session, the window grid, and the
 > wallpaper; the **Metis shell** is a GTK4 layer-shell edge bar (plus on-demand

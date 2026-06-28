@@ -14,6 +14,7 @@ rustc-ice-*.txt
 .idea/
 .vscode/
 .cursor/
+.cursorrules
 *.swp
 *.swo
 *~
