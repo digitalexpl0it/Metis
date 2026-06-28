@@ -48,7 +48,7 @@ your settings).
 
 - **Edge bar** — a thin bar anchored to one screen edge (top by default). It
   holds the app launcher, a taskbar dock of running apps, workspace dots, and
-  status widgets (weather, battery, network, volume, notifications, clock).
+  status widgets (weather, battery, Bluetooth, network, volume, notifications, clock).
 - **Windows** — every app gets a compositor-drawn **titlebar** with close,
   minimize, and maximize buttons, plus a border. Windows tile into a grid by
   default — opening or closing an app re-splits the area below desk widgets among
@@ -70,8 +70,9 @@ Widgets appear in the order set by `bar.json#widgets`. The defaults:
 | **Tasks (dock)** | Icons for running (and pinned) apps on this output's current workspace. Click to focus/minimize; right-click to pin/close. |
 | **Workspaces** | One dot per workspace; the active one is highlighted. Click a dot to switch (see §6). |
 | **Weather** | Condition icon + temperature. Click for a forecast popover with hourly strip and saved locations. |
-| **Battery** | Charge level and state (hidden on desktops without a battery). |
-| **Network** | Wired/Wi-Fi status. Click for a Wi-Fi popover (scan, connect, forget). |
+| **Battery** | Charge level and state (hidden on desktops without a battery). Click to open Power settings. |
+| **Bluetooth** | Shown when a Bluetooth adapter is present. Click for connected devices (with battery level and charging icon when reported), plus a shortcut to Bluetooth settings. |
+| **Network** | Wired/Wi-Fi status. Click for a Wi-Fi popover (scan, connect, forget). The signal icon stays stable during background rescans. |
 | **Volume** | Current output volume. Click for a slider + mute. |
 | **Notifications** | Bell with an unread badge. Click for grouped notifications; clear all with a slide-out. |
 | **Clock** | Date/time. Click for a tabbed popover: calendar, world clocks, stopwatch, timer, and alarms. |
@@ -284,6 +285,27 @@ Pages:
 - **Network** — wired/NIC config (DHCP vs static) and Wi-Fi scan/connect/forget.
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
   365) used by the clock popover.
+- **Input** — mouse, touchpad, and keyboard settings (pointer speed, natural
+  scroll, tap-to-click, layout, repeat rate, etc.); written to `input.json` and
+  applied live by the compositor.
+- **Bluetooth** — adapter on/off, scan for devices (toggle stop, auto-stops after
+  30s), pair / connect / trust / remove. Battery percentage and charging state
+  appear when the device or driver reports them.
+- **Printers** — list CUPS queues; open the system printer config when needed.
+- **Power** — power profile (power-saver / balanced / performance), laptop battery
+  details, idle blank/suspend timeouts, lid-close action, and a **Connected
+  devices** list for Bluetooth peripherals with battery status.
+- **Sound** — default output and input device selection (bar volume widget
+  unchanged).
+- **Display** — per-output scale and night-light preferences (resolution / refresh
+  / VRR remain future work).
+
+**Bluetooth battery notes.** Many devices only expose a coarse percentage over
+plain Bluetooth (often updating on reconnect). Charging state requires a driver
+that reports it — kernel HID batteries, UPower, or **Solaar** for Logitech
+peripherals (optional; Metis ignores Solaar silently when it is not installed).
+For the most accurate Logitech battery and charging info, use a Unifying/Bolt USB
+receiver or install Solaar.
 
 Most appearance and bar changes apply live; some device-backed settings only take
 full effect under a real (DRM) session.
@@ -322,6 +344,9 @@ Metis session (future DRM backend), the default is Super.
 | `desk.json` | Compositor window-grid layout (widget tiles) |
 | `dismissed.json` | Dismissed calendar reminder IDs |
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
+| `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
+| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
+| `outputs.json` | Per-output scale, night-light prefs |
 
 ### Key `bar.json` fields
 
@@ -352,6 +377,8 @@ changes live.
 | Symptom | Try |
 |---------|-----|
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk-4-layer-shell` is installed |
+| Apps slow to open / black screen on login | Ensure portal files are installed (`./run-metis.sh --install-session` or rebuild with `--session`); see [`CHANGELOG.md`](../CHANGELOG.md) 2026-06-28 |
+| Bluetooth shows stale battery | Many devices only refresh over BT on reconnect; install **Solaar** for Logitech charging state, or use a Unifying/Bolt receiver |
 | Session won't start / behaves oddly | `./run-metis.sh --stop` then `./run-metis.sh --build --session` |
 | Theme looks wrong | Delete `~/.config/metis/themes/*.json` and restart to regenerate |
 | Verify the shell is reachable | `./run-metis.sh --verify` |

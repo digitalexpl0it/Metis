@@ -24,7 +24,7 @@ New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 ├── metis-os-workspace/          # Cargo workspace
 │   ├── metis-compositor/        # Smithay Wayland compositor (winit nested backend for dev)
 │   ├── metis-shell/             # Metis shell — GTK4 layer-shell edge bar + popovers
-│   ├── metis-settings/          # GTK4 settings app (appearance, menu, weather, network, calendars)
+│   ├── metis-settings/          # GTK4 control center (appearance, devices, system)
 │   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
 │   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
 │   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
@@ -90,8 +90,8 @@ Or test it directly from a free VT with `./run-metis.sh --session --drm`. See
 Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 
 - **Edge bar** — app launcher, taskbar dock, workspaces, weather, battery,
-  network, volume, notifications, and a tabbed clock. Right-click dock icons to
-  pin/close.
+  Bluetooth (when an adapter is present), network, volume, notifications, and a
+  tabbed clock. Right-click dock icons to pin/close.
 - **Windows** — every app gets a server-side titlebar with close / minimize /
   maximize. Drag the titlebar to move; drag to a screen edge to snap
   (half / quarter / maximize); drag a border to resize. On the default desktop
@@ -103,7 +103,9 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   sends the focused window to the adjacent monitor.
 - **Scrolling layout** — toggle any workspace into a niri/PaperWM-style scrolling
   strip with `Super`+`\`; navigate with `Super`+arrows.
-- **Settings** — launch from the app launcher, or `metis-cmd settings`.
+- **Settings** — launch from the app launcher, or `metis-cmd settings`. Control
+  center pages include Appearance, Metis Menu, Weather, Network, Calendars,
+  Input, Bluetooth, Printers, Power, Sound, and Display.
 
 | Shortcut | Action |
 |----------|--------|
@@ -143,6 +145,9 @@ Other files are created on demand:
 | `desk.json` | The compositor persists its layout | Compositor window-grid layout (widget tiles) |
 | `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
+| `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
+| `power.json` | You configure power settings | Power profile, idle timeouts, lid-close action |
+| `outputs.json` | You configure displays | Per-output scale, night-light prefs |
 
 Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
 within ~1s and theme edits re-apply live. Set `opacity` < 1 for a see-through
@@ -164,8 +169,11 @@ reference.
   edge bars, wallpaper, and usable areas; independent or linked per-output
   workspaces; a taskbar dock that follows the output + workspace; and an optional
   niri/PaperWM-style scrolling layout selectable per workspace.
-- **Phase 4 — System settings expansion** and **Phase 5 — display pipeline
-  (VRR / colour / HDR):** upcoming.
+- **Phase 4 — System settings expansion:** complete for the planned Device +
+  System pages (Input, Bluetooth, Printers, Power, Sound, Display). Bluetooth
+  battery/charging in the bar and Power settings; optional Solaar integration
+  for Logitech peripherals.
+- **Phase 5 — display pipeline (VRR / colour / HDR):** upcoming.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap and [`CHANGELOG.md`](CHANGELOG.md) for recent changes.

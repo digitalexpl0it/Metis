@@ -24,6 +24,11 @@ Power, Display). Input (mouse/touchpad/keyboard) was already done. Next: **Phase
 - [x] Timer — movable, always-on-top layer-shell HUD with pause/close
 - [x] Alarms — segmented sound selector
 - [x] Battery, network, volume indicators
+- [x] Bluetooth bar widget — appears when an adapter is present; popover lists
+      connected devices with battery level and charging icon (UPower / HID sysfs /
+      optional Solaar for Logitech HID++; BlueZ fallback); low-battery alerts
+- [x] Wi-Fi icon stability — holds the last known active network during rescans so
+      the signal icon does not flicker offline
 - [x] Notifications popup — badge, grouped duplicates + count badge, per-kind icons,
       clear-all with slide-out animation, scrollbar, in-bar alert routing
 - [x] WiFi / audio popover controls
@@ -280,9 +285,13 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
       `wl_keyboard` `repeat_info`
 
 ### Devices (D-Bus services)
-- [x] **Bluetooth** — adapter on/off, scan, pair / connect / trust / remove, battery
-      level where reported; via BlueZ (`bluetoothctl`). Bar indicator appears only
-      when an adapter is present (`BarWidgetId::Bluetooth`)
+- [x] **Bluetooth** — adapter on/off, scan (toggle + auto-stop), pair / connect /
+      trust / remove, battery level and charging state where reported; via BlueZ
+      (`bluetoothctl`) with UPower and optional Solaar (Logitech HID++) overlays.
+      Bar indicator appears only when an adapter is present
+      (`BarWidgetId::Bluetooth`); popover lists connected devices with battery
+      icons; low-battery in-bar alerts (≤20%, hysteresis, suppressed while
+      charging)
 - [x] **Printers** — list queues via CUPS (`lpstat`); launcher for
       `system-config-printer` / CUPS web UI
 
@@ -290,7 +299,8 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
 - [x] **Power / Battery** — power profiles (power-saver / balanced / performance) via
       `powerprofilesctl`, battery details via sysfs, idle-dim / blank /
       suspend timeouts + lid-close action persisted to `power.json` (logind
-      best-effort); battery widget links to Power settings
+      best-effort); battery widget links to Power settings; **Connected devices**
+      section lists Bluetooth peripherals with battery + charging status
 - [x] **Sound** — output / input device selection via `pactl` default sink/source;
       volume readout on the settings page (bar volume widget unchanged)
 - [x] **Display** — per-output scale + night-light prefs in `outputs.json`; lists
@@ -473,7 +483,8 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Tasks | Running-apps dock — live compositor window state (`services/windows.rs`), per-app grouping, pin/minimize |
 | Clock | `chrono` + `GtkCalendar`, tabbed popover (world clocks, stopwatch, timer, alarms) |
 | Battery | `/sys/class/power_supply/BAT*` |
-| Network | `nmcli` or sysfs fallback |
+| Bluetooth | BlueZ (`bluetoothctl`) + UPower + optional Solaar (Logitech HID++); bar popover lists connected devices |
+| Network | `nmcli` (timeouts + scan grace for stable Wi-Fi icon) |
 | Volume | `pactl` (scroll on widget to adjust) |
 | Notifications | Freedesktop D-Bus daemon → runtime in-bar store (grouped, icons) |
 | Weather | Open-Meteo (keyless); IP-geolocation auto-detect (timezone fallback), override in Settings |

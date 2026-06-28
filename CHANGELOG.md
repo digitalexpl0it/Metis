@@ -5,6 +5,75 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-28]
+
+### Added
+
+- **Bluetooth device battery in the edge bar** — the Bluetooth popover now lists
+  every connected device with a battery icon and percentage when the device reports
+  one. Low levels (≤20%) use an amber warning style; charging devices show a
+  charging icon and `(charging)` label. A **Bluetooth settings** shortcut remains
+  at the bottom of the popover.
+- **Multi-source peripheral battery reads** — connected-device battery level and
+  charging state are assembled from several sources, in priority order:
+  1. Kernel HID battery (`/sys/class/power_supply/hid-<mac>-battery`) — capacity
+     plus a `status` field mapped to charging/discharging.
+  2. **UPower** — peripheral devices enumerated once per poll; percentage and
+     `state` (charging / discharging / fully-charged) when the driver reports them.
+  3. **Solaar** (optional) — when installed, `solaar show` is parsed for Logitech
+     HID++ charging state (and percentage when BlueZ/UPower lack one). Results are
+     cached (~20s) on a background thread in the shell so the ~2s CLI call never
+     blocks the bar poller; if Solaar is absent the path is a silent no-op.
+  4. BlueZ `Battery1` via `bluetoothctl info` — percentage only (the standard BT
+     Battery Service has no charging characteristic).
+- **Bluetooth low-battery alerts** — when a connected device's battery drops to
+  ≤20%, Metis fires a one-shot in-bar notification (with sound, unless Do Not
+  Disturb is on). Alerts use per-device hysteresis and are suppressed while the
+  device is charging; the latch clears at ≥25% or on disconnect.
+- **Power settings — connected devices** — Settings → Power now has a
+  **Connected devices** section listing paired Bluetooth peripherals with battery
+  percentage, charging icon, and low-battery styling (same source stack as the
+  bar).
+- **Bluetooth scan toggle** — Settings → Bluetooth **Scan for devices** toggles
+  to **Stop scanning** while discovery is active and auto-stops after 30 seconds
+  if left running.
+
+### Changed
+
+- **Bluetooth polling** — `bluetoothctl` reads in the bar poller run every ~6s
+  (was ~1.6s) and all external commands (`bluetoothctl`, `nmcli`, `upower`,
+  `solaar`) go through bounded timeouts so a stuck daemon cannot stall the UI.
+- **Wi-Fi bar icon stability** — during an `nmcli` rescan the active network can
+  briefly disappear or report zero signal; the poller now holds the last known
+  connection through a short grace window so the icon does not flash to "no bars"
+  and back.
+- **Portal stack startup** — `xdg-desktop-portal` and `xdg-desktop-portal-gtk`
+  are started on a detached background thread so portal cold-start no longer
+  blocks the compositor event loop (which caused a 10+ second black screen on
+  login).
+- **Client rendering defaults** — `GSK_RENDERER=cairo` is forced only for
+  `metis-shell` (via `METIS_SHELL_GSK_RENDERER`); other spawned apps no longer
+  inherit a global software-rendering override, restoring hardware-accelerated GTK
+  for Chromium and other clients.
+- **Portal backend selection** — `metis-portals.conf` sets `default=gtk` and
+  routes Settings to Metis; `xdg-desktop-portal` is spawned with
+  `XDG_CURRENT_DESKTOP=Metis` (GNOME stripped) so unimplemented GNOME portal
+  backends are not probed (each miss used to cost ~25s). Portal files install to
+  `/usr/share/xdg-desktop-portal/`; `XDG_DATA_DIRS` / `XDG_CONFIG_DIRS` propagate
+  through the session activation environment.
+
+### Fixed
+
+- **Slow app launch (Chromium and others)** — root causes were forced Cairo
+  rendering for all clients, synchronous portal startup blocking login, and
+  `xdg-desktop-portal` timing out on missing GNOME backends; all three are
+  addressed above.
+- **Bluetooth battery parsing in Settings** — `Battery Percentage: 0x40 (64)` from
+  BlueZ is now decoded via the decimal in parentheses (or hex fallback), matching
+  the shell poller.
+- **Settings build warnings** — removed unused imports/variables in the Display and
+  Sound pages; wired up the previously unused `stop_scan()` backend.
+
 ## [2026-06-27]
 
 ### Added
