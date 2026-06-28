@@ -153,6 +153,8 @@ pub struct MetisState {
     maximize_fx_started: std::collections::HashMap<u32, std::time::Instant>,
     /// Last titlebar primary-button press for double-click maximize toggle.
     titlebar_last_click: Option<(u32, std::time::Instant)>,
+    /// Maximized titlebar press waiting for drag threshold (no grab until then).
+    titlebar_press_pending: Option<(u32, Point<f64, Logical>, smithay::utils::Serial)>,
     /// Minimize genie animations keyed by window id (window still mapped until done).
     minimize_genie_fx: std::collections::HashMap<u32, crate::window_fx::MinimizeGenieFx>,
     /// Persisted per-app floating geometry, so apps reopen where they were left.
@@ -444,6 +446,7 @@ impl MetisState {
             last_titlebar_reveal_tick: None,
             maximize_fx_started: std::collections::HashMap::new(),
             titlebar_last_click: None,
+            titlebar_press_pending: None,
             minimize_genie_fx: std::collections::HashMap::new(),
             window_state: crate::window_state::WindowStateStore::load(),
             desks: std::collections::HashMap::new(),
@@ -2610,12 +2613,10 @@ impl MetisState {
             // its grid tile mid-transition.
             self.windows.set_maximized(id, true);
 
-            if !self.windows.is_snapped(id) {
-                let current = self
-                    .window_body_rect(id)
-                    .unwrap_or(record.target_rect);
-                self.windows.set_restore_rect(id, current);
-            }
+            let current = self
+                .window_body_rect(id)
+                .unwrap_or(record.target_rect);
+            self.windows.set_restore_rect(id, current);
 
             let Some((client, client_size)) = self.maximized_client_geometry(id) else {
                 return;
@@ -2665,6 +2666,9 @@ impl MetisState {
             return;
         };
         if !record.maximized {
+            return;
+        }
+        if self.maximize_fx_started.contains_key(&id) {
             return;
         }
         let Some((client, client_size)) = self.maximized_client_geometry(id) else {
@@ -3068,6 +3072,11 @@ impl MetisState {
     /// instead of off the screen edge.
     pub fn reclamp_auto_hide(&mut self, id: u32) {
         if !self.auto_hide_titlebar.contains(&id) {
+            return;
+        }
+        // Post-maximize wobble temporarily offsets the map origin; reclamp would
+        // snap it back every client commit and kill the animation.
+        if self.maximize_fx_started.contains_key(&id) {
             return;
         }
         let Some(record) = self.windows.get(id).cloned() else {
@@ -3809,21 +3818,24 @@ impl MetisState {
         });
         for spec in ordered {
             let frame = spec.frame;
-            if !point_in_rect(x, y, frame) {
-                continue;
-            }
             if spec.overlay {
                 let chrome = crate::decoration::overlay_chrome_rect(
                     spec.frame,
                     spec.overlay_reveal,
                     spec.overlay_compact,
                 );
+                // Overlay chrome can sit above the client rect while sliding in.
                 if !point_in_rect(x, y, chrome) {
                     continue;
                 }
-            } else if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
-                // Inside the client body → not a decoration hit; let it pass through.
-                return false;
+            } else {
+                if !point_in_rect(x, y, frame) {
+                    continue;
+                }
+                if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
+                    // Inside the client body → not a decoration hit; let it pass through.
+                    return false;
+                }
             }
             // Clicking any of a window's chrome focuses it, so the taskbar
             // highlight tracks focus immediately instead of waiting for the
@@ -3871,6 +3883,7 @@ impl MetisState {
                         }
                     }
                     DecoControl::Maximize => {
+                        self.titlebar_press_pending = None;
                         let maxed = self
                             .windows
                             .get(spec.id)
@@ -3880,6 +3893,11 @@ impl MetisState {
                     }
                     DecoControl::Titlebar => {
                         if self.titlebar_double_click_toggle(spec.id) {
+                            self.titlebar_press_pending = None;
+                            return true;
+                        }
+                        if self.windows.get(spec.id).is_some_and(|r| r.maximized) {
+                            self.titlebar_press_pending = Some((spec.id, loc, serial));
                             return true;
                         }
                         self.start_titlebar_move(spec.id, loc, serial);
@@ -4043,18 +4061,14 @@ impl MetisState {
         // its popovers — otherwise titlebars below the bar's transparent shadow
         // pad show hover/reveal state when interacting with bar widgets.
         if self.metis_bar_ui_hit(loc) {
-            let mut damage = false;
             if self.hover_cursor.is_some() {
                 self.hover_cursor = None;
-                damage = true;
-            }
-            if self.revealed_titlebar.is_some() {
-                self.revealed_titlebar = None;
-                damage = true;
-            }
-            if damage {
                 self.schedule_redraw();
             }
+            // Still reveal auto-hide titlebars when the pointer is over the edge bar
+            // strip above a maximized window (the strip overlaps the client top).
+            self.update_titlebar_reveal(loc);
+            self.tick_titlebar_press_pending(loc);
             return;
         }
         let edge = self.resize_edge_at(loc).map(|(_, e)| e);
@@ -4063,14 +4077,94 @@ impl MetisState {
             self.schedule_redraw();
         }
         self.update_titlebar_reveal(loc);
+        self.tick_titlebar_press_pending(loc);
+    }
+
+    fn tick_titlebar_press_pending(&mut self, loc: Point<f64, Logical>) {
+        let Some((id, start, serial)) = self.titlebar_press_pending else {
+            return;
+        };
+        if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return;
+        }
+        let dx = loc.x - start.x;
+        let dy = loc.y - start.y;
+        if dx * dx + dy * dy >= 25.0 {
+            self.titlebar_press_pending = None;
+            self.start_titlebar_move(id, loc, serial);
+        }
+    }
+
+    pub fn clear_titlebar_press_pending(&mut self) {
+        self.titlebar_press_pending = None;
+    }
+
+    fn auto_hide_reveal_hit(
+        &self,
+        id: u32,
+        geo: &smithay::utils::Rectangle<i32, Logical>,
+        x: i32,
+        y: i32,
+    ) -> bool {
+        use crate::decoration::overlay_chrome_rect;
+        use crate::desk_input::point_in_rect;
+
+        const STICKY_PAD_PX: i32 = 16;
+        let header = metis_grid::APP_TILE_HEADER_PX;
+        let in_x = x >= geo.loc.x && x < geo.loc.x + geo.size.w;
+        if !in_x {
+            return false;
+        }
+        let compact = self.window_uses_compact_overlay(id);
+        let frame = PixelRect {
+            x: geo.loc.x,
+            y: geo.loc.y,
+            width: geo.size.w,
+            height: geo.size.h,
+        };
+
+        if self.titlebar_reveal_window == Some(id) {
+            let chrome = overlay_chrome_rect(frame, self.titlebar_reveal_progress, compact);
+            return point_in_rect(
+                x,
+                y,
+                PixelRect {
+                    x: chrome.x,
+                    y: chrome.y - 4,
+                    width: chrome.width,
+                    height: chrome.height + STICKY_PAD_PX + 4,
+                },
+            );
+        }
+
+        if compact {
+            let strip_w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(geo.size.w.max(1));
+            return y >= geo.loc.y
+                && y < geo.loc.y + header
+                && x >= geo.loc.x + geo.size.w - strip_w;
+        }
+
+        // Maximized windows sit flush under the edge bar; the bar's shadow pad
+        // overlaps the client top and blocks the thin client-side trigger strip.
+        // Treat horizontal pointer-over-window in the bar strip as a reveal too.
+        if self.windows.get(id).is_some_and(|r| r.maximized) {
+            if let Some(output) = self.output_for_window(id) {
+                if let Some(output_geo) = self.space.output_geometry(&output) {
+                    let strip = Self::bar_config_strip_rect(&output_geo);
+                    if point_in_rect(x, y, strip) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        y >= geo.loc.y && y < geo.loc.y + header
     }
 
     /// Reveal the auto-hide titlebar overlay for the topmost auto-hide window whose
-    /// top strip (the first `APP_TILE_HEADER_PX` of its client) the pointer is in,
-    /// hiding it again once the pointer drops below that strip. Flags a redraw on change.
+    /// pointer is in the reveal trigger or sticky chrome zone.
     fn update_titlebar_reveal(&mut self, loc: Point<f64, Logical>) {
         let (x, y) = (loc.x as i32, loc.y as i32);
-        let header = metis_grid::APP_TILE_HEADER_PX;
         let mut revealed = None;
         // Topmost first: `Space::elements()` is bottom-to-top, so reverse.
         for window in self.space.elements().rev() {
@@ -4083,16 +4177,9 @@ impl MetisState {
                 continue;
             };
             if self.auto_hide_titlebar.contains(&id) {
-                let in_top_strip = in_x && y >= geo.loc.y && y < geo.loc.y + header;
-                let compact = self.window_uses_compact_overlay(id);
-                let in_reveal_zone = if compact {
-                    let strip_w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(geo.size.w.max(1));
-                    in_top_strip && x >= geo.loc.x + geo.size.w - strip_w
-                } else {
-                    in_top_strip
-                };
-                if in_reveal_zone {
+                if self.auto_hide_reveal_hit(id, &geo, x, y) {
                     revealed = Some(id);
+                    break;
                 }
                 if in_window {
                     break;
@@ -4270,6 +4357,13 @@ impl MetisState {
         false
     }
 
+    /// Unmaximize only after the user actually drags the titlebar (not on click).
+    pub fn unmaximize_for_titlebar_drag(&mut self, id: u32) {
+        if self.windows.get(id).is_some_and(|r| r.maximized) {
+            self.set_maximized(id, false);
+        }
+    }
+
     fn start_titlebar_move(
         &mut self,
         id: u32,
@@ -4290,32 +4384,39 @@ impl MetisState {
         let initial_window_location = if self.windows.is_snapped(id) {
             self.restore_floating_from_snap(id, loc)
         } else {
-            self.windows.set_maximized(id, false);
-            let mut initial_window_location = self
-                .space
-                .element_location(&window)
-                .unwrap_or_default();
+            let was_maximized = self.windows.get(id).is_some_and(|r| r.maximized);
+            if !was_maximized {
+                let mut initial_window_location = self
+                    .space
+                    .element_location(&window)
+                    .unwrap_or_default();
 
-            // SSD windows reserve a titlebar strip above the body when floating;
-            // CSD windows keep their own chrome and need no extra inset.
-            if self.usable_zone().is_some() && self.should_draw_metis_ssd(id) {
-                let rect = metis_grid::PixelRect {
-                    x: initial_window_location.x,
-                    y: initial_window_location.y,
-                    width: window.geometry().size.w,
-                    height: window.geometry().size.h,
-                };
-                let clamped = self.clamp_body_below_bar(rect);
-                if clamped.y != initial_window_location.y || clamped.x != initial_window_location.x {
-                    initial_window_location.x = clamped.x;
-                    initial_window_location.y = clamped.y;
-                    self.space
-                        .map_element(window.clone(), initial_window_location, true);
-                    self.windows.set_target_rect(id, clamped);
+                // SSD windows reserve a titlebar strip above the body when floating;
+                // CSD windows keep their own chrome and need no extra inset.
+                if self.usable_zone().is_some() && self.should_draw_metis_ssd(id) {
+                    let rect = metis_grid::PixelRect {
+                        x: initial_window_location.x,
+                        y: initial_window_location.y,
+                        width: window.geometry().size.w,
+                        height: window.geometry().size.h,
+                    };
+                    let clamped = self.clamp_body_below_bar(rect);
+                    if clamped.y != initial_window_location.y || clamped.x != initial_window_location.x {
+                        initial_window_location.x = clamped.x;
+                        initial_window_location.y = clamped.y;
+                        self.space
+                            .map_element(window.clone(), initial_window_location, true);
+                        self.windows.set_target_rect(id, clamped);
+                    }
                 }
+                initial_window_location
+            } else {
+                self.space.element_location(&window).unwrap_or_default()
             }
-            initial_window_location
         };
+
+        let pending_maximized_demote = self.windows.get(id).is_some_and(|r| r.maximized)
+            && !self.windows.is_snapped(id);
 
         // Focus the window so keyboard input follows the titlebar grab.
         if let Some(keyboard) = self.seat.get_keyboard() {
@@ -4334,6 +4435,8 @@ impl MetisState {
             start_data,
             window,
             initial_window_location,
+            drag_active: false,
+            pending_maximized_demote,
         };
         pointer.set_grab(self, grab, serial, Focus::Clear);
     }

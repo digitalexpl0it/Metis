@@ -15,6 +15,10 @@ pub struct MoveSurfaceGrab {
     pub start_data: PointerGrabStartData<MetisState>,
     pub window: Window,
     pub initial_window_location: Point<i32, Logical>,
+    /// Wait for pointer movement before unmaximizing / starting a drag.
+    pub drag_active: bool,
+    /// Set when the grab began on a maximized window — demote only after drag starts.
+    pub pending_maximized_demote: bool,
 }
 
 impl PointerGrab<MetisState> for MoveSurfaceGrab {
@@ -27,6 +31,26 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
     ) {
         handle.motion(data, None, event);
         let delta = event.location - self.start_data.location;
+
+        if !self.drag_active {
+            if delta.x * delta.x + delta.y * delta.y < 25.0 {
+                return;
+            }
+            self.drag_active = true;
+            if self.pending_maximized_demote {
+                if let Some(id) = data
+                    .windows
+                    .id_for_surface(self.window.toplevel().unwrap().wl_surface())
+                {
+                    data.unmaximize_for_titlebar_drag(id);
+                    if let Some(loc) = data.space.element_location(&self.window) {
+                        self.initial_window_location = loc;
+                    }
+                }
+                self.pending_maximized_demote = false;
+            }
+        }
+
         let mut new_location = self.initial_window_location.to_f64() + delta;
 
         // Clamp to the whole virtual desktop (all outputs) so a window can be
@@ -130,11 +154,11 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
                 .windows
                 .id_for_surface(self.window.toplevel().unwrap().wl_surface())
             {
-                // Dropped in a snap zone: tile it there. Otherwise leave it where
-                // the user let go (grid windows already floated on drag start).
-                if let Some((rect, label)) = snap {
+                if !self.drag_active {
+                    // Click without drag — leave maximized windows maximized.
+                } else if let Some((rect, label)) = snap {
                     data.apply_snap(id, rect, label);
-                } else {
+                } else if self.drag_active {
                     // Drop on a different monitor: re-home the window's desk tile
                     // before snapping a grid window back to its tile.
                     data.maybe_adopt_window_output(id);

@@ -37,9 +37,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Bluetooth scan toggle** — Settings → Bluetooth **Scan for devices** toggles
   to **Stop scanning** while discovery is active and auto-stops after 30 seconds
   if left running.
+- **Window animation effects** — optional maximize **wobble** (whole-window position
+  ripple) and **genie** minimize (shrink/fade toward the edge bar before unmap).
+  Toggle in **Settings → Appearance → Windows → Window animations**
+  (`bar.json` → `window_animations`, default on).
+- **Auto-hide titlebar slide-down** — maximized and edge-snapped SSD windows hide
+  the Metis titlebar so the client fills the tile; hovering the top edge slides the
+  chrome down as an animated overlay (~200 ms) with a sticky zone while shown.
+- **Compact titlebar overlay for tabbed browsers** — Chromium-family apps keep SSD
+  but reveal only a top-right control strip (~96 px) so the tab bar stays clickable;
+  other SSD apps (kitty, Settings, …) use the full-width overlay.
+- **Double-click titlebar to maximize** — a double-click on the titlebar (not the
+  traffic-light buttons) toggles maximize/unmaximize; single-click no longer
+  demotes a maximized window until you drag (5 px movement threshold).
 
 ### Changed
 
+- **Client-side vs server-side decoration policy** — Chromium and similar tabbed
+  browsers are forced to Metis server-side chrome; Firefox and GNOME apps keep
+  native client-side decorations where appropriate.
 - **Bluetooth polling** — `bluetoothctl` reads in the bar poller run every ~6s
   (was ~1.6s) and all external commands (`bluetoothctl`, `nmcli`, `upower`,
   `solaar`) go through bounded timeouts so a stuck daemon cannot stall the UI.
@@ -73,6 +89,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   the shell poller.
 - **Settings build warnings** — removed unused imports/variables in the Display and
   Sound pages; wired up the previously unused `stop_scan()` backend.
+- **Maximized auto-hide titlebar would not reveal** — the edge bar's input block
+  (bar + margin + shadow pad) overlaps the top of maximized clients; moving the
+  pointer there was treated as "over the bar," which cleared the reveal and never
+  ran the slide-down logic, leaving apps like kitty stuck maximized with no way to
+  reach the unmaximize control. Reveal now continues while over the bar strip,
+  treats horizontal pointer-over-window in that strip as a trigger, and uses the
+  full titlebar height on the client top edge.
+- **Chromium tab bar blocked by full-width overlay** — the auto-hide titlebar
+  spanned the whole window width; the compact top-right control strip fixes this.
+- **Maximize wobble reset every frame** — post-snap `reclamp_auto_hide` ran on
+  every commit during the wobble FX and snapped the window back; wobble is now
+  skipped until the effect finishes.
+- **Auto-hide titlebar clicks missed during slide** — decoration presses were
+  hit-tested against the client frame instead of the sliding chrome rect.
+- **Single-click unmaximize on maximized windows** — titlebar press now arms a
+  pending drag instead of immediately demoting, so double-click and button clicks
+  work reliably.
 
 ## [2026-06-27]
 

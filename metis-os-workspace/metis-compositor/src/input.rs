@@ -385,6 +385,8 @@ impl MetisState {
                         // primary-selection focus — align them with the click target.
                         self.sync_selection_focus_at(loc);
                     }
+                } else if button_state == ButtonState::Released && button == 0x110 {
+                    self.clear_titlebar_press_pending();
                 }
 
                 pointer.button(

@@ -103,6 +103,8 @@ impl XdgShellHandler for MetisState {
                 start_data,
                 window,
                 initial_window_location,
+                drag_active: true,
+                pending_maximized_demote: false,
             };
             pointer.set_grab(self, grab, serial, Focus::Clear);
         }
