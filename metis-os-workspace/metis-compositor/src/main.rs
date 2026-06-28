@@ -152,8 +152,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if backend == Backend::Drm {
-        // GtkApplication-based apps do a synchronous portal Settings proxy during
-        // startup. Start our Settings backend, then xdp, before any shell spawn.
+        // Warm up the portal stack (metis Settings backend + xdp) in the
+        // background so the first GtkApplication launch doesn't cold-start it.
+        // Must not block: the compositor needs to start rendering immediately.
         start_portal_stack();
         update_standalone_activation_env(&state.socket_name.to_string_lossy());
     }
@@ -283,28 +284,39 @@ fn update_standalone_activation_env(display: &str) {
 }
 
 /// Start the Metis Settings portal backend, then the xdp front-end.
+///
+/// This runs on a detached thread: the daemon spawns are quick, but waiting for
+/// each D-Bus name to appear can take seconds, and the compositor must never
+/// block its event loop on that (doing so leaves the screen black until the
+/// portal stack settles). Apps that need portals launch later anyway, by which
+/// point this background warm-up has finished.
 fn start_portal_stack() {
-    spawn_metis_portal();
-    if !wait_for_session_bus_name(
-        "org.freedesktop.impl.portal.desktop.metis",
-        std::time::Duration::from_secs(5),
-    ) {
-        tracing::warn!(
-            "metis-portal did not claim its D-Bus name — xdg-desktop-portal Settings may be unavailable"
-        );
-    }
-    prewarm_desktop_portal();
-    prewarm_portal_gtk();
-    if wait_for_session_bus_name(
-        "org.freedesktop.portal.Desktop",
-        std::time::Duration::from_secs(12),
-    ) {
-        tracing::info!("xdg-desktop-portal is ready on the session bus");
-    } else {
-        tracing::warn!(
-            "xdg-desktop-portal did not become ready — GTK/Chromium apps may block ~25s on first launch"
-        );
-    }
+    std::thread::Builder::new()
+        .name("metis-portal-warmup".into())
+        .spawn(|| {
+            spawn_metis_portal();
+            if !wait_for_session_bus_name(
+                "org.freedesktop.impl.portal.desktop.metis",
+                std::time::Duration::from_secs(5),
+            ) {
+                tracing::warn!(
+                    "metis-portal did not claim its D-Bus name — xdg-desktop-portal Settings may be unavailable"
+                );
+            }
+            prewarm_desktop_portal();
+            prewarm_portal_gtk();
+            if wait_for_session_bus_name(
+                "org.freedesktop.portal.Desktop",
+                std::time::Duration::from_secs(12),
+            ) {
+                tracing::info!("xdg-desktop-portal is ready on the session bus");
+            } else {
+                tracing::warn!(
+                    "xdg-desktop-portal did not become ready — GTK/Chromium apps may block ~25s on first launch"
+                );
+            }
+        })
+        .expect("spawn portal warm-up thread");
 }
 
 fn spawn_metis_portal() {
@@ -365,6 +377,28 @@ fn wait_for_session_bus_name(name: &str, timeout: std::time::Duration) -> bool {
     false
 }
 
+/// `XDG_CURRENT_DESKTOP` for the portal daemons, with any `GNOME`/other suffix
+/// stripped down to just `Metis`.
+///
+/// The session keeps `XDG_CURRENT_DESKTOP=Metis:GNOME` so Chromium/Electron apps
+/// auto-select the gnome-libsecret keyring backend. But xdg-desktop-portal uses
+/// the deprecated `UseIn` key to pick a backend for any interface its configured
+/// backends (gtk/metis) don't implement — Screenshot, ScreenCast, Wallpaper,
+/// Background, etc. With `GNOME` present it selects the GNOME portal backend and
+/// then blocks ~25s *per interface* trying to D-Bus-activate it (gnome-shell is
+/// not running), so xdp never claims `org.freedesktop.portal.Desktop` and every
+/// GTK/Chromium launch stalls. Stripping the suffix makes those interfaces
+/// resolve to "no backend" instead of hanging, while config-based selection
+/// (gtk/metis/gnome-keyring) is unaffected.
+fn portal_current_desktop() -> String {
+    let current = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    match current.split_once(':') {
+        Some((first, _)) if !first.is_empty() => first.to_string(),
+        _ if current.is_empty() => "Metis".to_string(),
+        _ => current,
+    }
+}
+
 fn spawn_portal_daemon(name: &str) -> bool {
     let Some(bin) = resolve_libexec_binary(name) else {
         tracing::warn!(daemon = name, "portal binary not found under /usr/libexec");
@@ -378,6 +412,7 @@ fn spawn_portal_daemon(name: &str) -> bool {
         return true;
     }
     match std::process::Command::new(&bin)
+        .env("XDG_CURRENT_DESKTOP", portal_current_desktop())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

@@ -95,6 +95,7 @@ fn poll_loop(
     let mut cached = BarSnapshot::default();
     cached.workspaces = workspaces::workspace_snapshot();
     let mut last_sent = cached.clone();
+    let mut wifi_scan_grace_until: Option<std::time::Instant> = None;
 
     loop {
         // A user audio action (slider/mute/scroll) forces an immediate volume
@@ -102,7 +103,7 @@ fn poll_loop(
         // instead of waiting for the next 800ms volume tick — without this, bars
         // other than the one whose popup is open lagged by several seconds.
         let audio_changed = drain_audio_commands(&audio_rx);
-        drain_network_commands(&network_rx);
+        drain_network_commands(&network_rx, &mut wifi_scan_grace_until);
 
         if tick % 15 == 0 {
             cached.battery_percent = read_battery_percent();
@@ -111,12 +112,20 @@ fn poll_loop(
         }
         if tick % 3 == 0 {
             cached.wifi_enabled = read_wifi_radio_enabled();
-            cached.ethernet = read_ethernet_status();
-            cached.wifi = if cached.wifi_enabled {
-                read_wifi_networks()
+            if let Some(eth) = read_ethernet_status() {
+                cached.ethernet = eth;
+            }
+            if cached.wifi_enabled {
+                if let Some(networks) = read_wifi_networks() {
+                    let in_scan_grace = wifi_scan_grace_until
+                        .is_some_and(|until| std::time::Instant::now() < until);
+                    cached.wifi = stabilize_wifi_list(&cached.wifi, networks, in_scan_grace);
+                }
+                // On nmcli timeout keep the last good Wi-Fi list so the bar icon
+                // does not flash offline between poll ticks.
             } else {
-                Vec::new()
-            };
+                cached.wifi.clear();
+            }
         }
         if tick % 2 == 0 || audio_changed {
             // Keep the last good reading when pactl times out / reports nothing,
@@ -170,10 +179,15 @@ fn queue_audio(cmd: AudioCommand) {
     }
 }
 
-fn drain_network_commands(rx: &Receiver<NetworkCommand>) {
+fn drain_network_commands(
+    rx: &Receiver<NetworkCommand>,
+    wifi_scan_grace_until: &mut Option<std::time::Instant>,
+) {
     while let Ok(cmd) = rx.try_recv() {
         match cmd {
             NetworkCommand::Scan => {
+                *wifi_scan_grace_until =
+                    Some(std::time::Instant::now() + Duration::from_secs(4));
                 spawn_nmcli(
                     vec!["dev".into(), "wifi".into(), "rescan".into()],
                     Duration::from_secs(10),
@@ -289,12 +303,10 @@ fn read_wifi_radio_enabled() -> bool {
         .unwrap_or(true)
 }
 
-fn read_wifi_networks() -> Vec<WifiNetwork> {
+fn read_wifi_networks() -> Option<Vec<WifiNetwork>> {
     let mut cmd = std::process::Command::new("nmcli");
     cmd.args(["-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi"]);
-    let Some(output) = run_command(&mut cmd) else {
-        return Vec::new();
-    };
+    let output = run_command_with_timeout(&mut cmd, Duration::from_millis(2_000))?;
     let text = String::from_utf8_lossy(&output.stdout);
     let mut nets: Vec<WifiNetwork> = Vec::new();
     for line in text.lines() {
@@ -327,38 +339,81 @@ fn read_wifi_networks() -> Vec<WifiNetwork> {
         });
     }
     nets.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
-    nets
+    Some(nets)
 }
 
-fn read_ethernet_status() -> EthernetStatus {
+/// During an nmcli rescan the active SSID can briefly disappear or report 0 signal.
+/// Hold the last known connection so the bar icon does not flicker offline.
+fn stabilize_wifi_list(
+    previous: &[WifiNetwork],
+    mut networks: Vec<WifiNetwork>,
+    in_scan_grace: bool,
+) -> Vec<WifiNetwork> {
+    let prev_active = previous.iter().find(|n| n.active);
+
+    if networks.is_empty() {
+        if prev_active.is_some() {
+            return previous.to_vec();
+        }
+        return networks;
+    }
+
+    if !in_scan_grace {
+        return networks;
+    }
+
+    let Some(prev_active) = prev_active else {
+        return networks;
+    };
+    if networks.iter().any(|n| n.active) {
+        return networks;
+    }
+    if let Some(current) = networks.iter_mut().find(|n| n.ssid == prev_active.ssid) {
+        current.active = true;
+        if current.signal == 0 {
+            current.signal = prev_active.signal;
+        }
+        networks.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
+        return networks;
+    }
+    networks.push(WifiNetwork {
+        ssid: prev_active.ssid.clone(),
+        signal: prev_active.signal,
+        secured: prev_active.secured,
+        active: true,
+    });
+    networks.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
+    networks
+}
+
+fn read_ethernet_status() -> Option<EthernetStatus> {
     let mut cmd = std::process::Command::new("nmcli");
     cmd.args(["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev", "status"]);
-    if let Some(output) = run_command(&mut cmd) {
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let fields = nmcli_split(line);
-            if fields.len() < 4 || fields[1] != "ethernet" {
-                continue;
-            }
-            let connected = fields[2].starts_with("connected");
-            let label = if connected {
-                let conn = fields[3].clone();
-                if conn.is_empty() || conn == "--" {
-                    "Connected".to_string()
-                } else {
-                    conn
-                }
-            } else {
-                "Not connected".to_string()
-            };
-            return EthernetStatus {
-                present: true,
-                connected,
-                label,
-            };
+    let output = run_command(&mut cmd)?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        let fields = nmcli_split(line);
+        if fields.len() < 4 || fields[1] != "ethernet" {
+            continue;
         }
+        let connected = fields[2].starts_with("connected");
+        let label = if connected {
+            let conn = fields[3].clone();
+            if conn.is_empty() || conn == "--" {
+                "Connected".to_string()
+            } else {
+                conn
+            }
+        } else {
+            "Not connected".to_string()
+        };
+        return Some(EthernetStatus {
+            present: true,
+            connected,
+            label,
+        });
     }
-    EthernetStatus::default()
+    Some(EthernetStatus::default())
 }
 
 fn read_battery_percent() -> Option<u8> {
@@ -435,10 +490,17 @@ fn bluetooth_adapter_present() -> bool {
 }
 
 fn run_command(cmd: &mut std::process::Command) -> Option<std::process::Output> {
+    run_command_with_timeout(cmd, Duration::from_millis(600))
+}
+
+fn run_command_with_timeout(
+    cmd: &mut std::process::Command,
+    timeout: Duration,
+) -> Option<std::process::Output> {
     cmd.stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null());
     let mut child = cmd.spawn().ok()?;
-    let deadline = std::time::Instant::now() + Duration::from_millis(600);
+    let deadline = std::time::Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(_)) => return child.wait_with_output().ok(),
