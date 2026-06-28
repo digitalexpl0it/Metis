@@ -19,16 +19,19 @@ const SSD_APP_IDS: &[&str] = &[
     "org.kitty",
     "net.kovidgoyal.kitty",
     "com.metis.Settings",
-];
-
-/// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
-/// shipped GNOME apps are covered by [`id_looks_csd`] prefix rules).
-const CSD_APP_IDS: &[&str] = &[
+    // Chromium-based browsers on Wayland often ship only a close button in their
+    // client chrome while the portal tells them the compositor owns decorations.
+    // Metis grants ServerSide over xdg-decoration so they drop CSD entirely.
     "com.google.Chrome",
     "org.chromium.Chromium",
     "com.brave.Browser",
     "com.microsoft.Edge",
     "com.microsoft.EdgeDev",
+];
+
+/// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
+/// shipped GNOME apps are covered by [`id_looks_csd`] prefix rules).
+const CSD_APP_IDS: &[&str] = &[
     "org.mozilla.firefox",
     "org.mozilla.Firefox",
     "dev.zed.Zed",
@@ -57,12 +60,29 @@ fn id_matches_list(app_id: &str, list: &[&str]) -> bool {
     })
 }
 
+/// True when the app id belongs to a Chromium-based browser that should use
+/// Metis SSD (they often report a bare `"chromium"` / `"chrome"` app id).
+pub fn id_looks_chromium_family(app_id: &str) -> bool {
+    let id = norm_app_id(app_id);
+    id.contains("chromium")
+        || id == "chrome"
+        || id.ends_with(".chrome")
+        || id.starts_with("com.google.chrome")
+        || id.starts_with("com.brave.")
+        || id.starts_with("com.microsoft.edge")
+}
+
+/// True when the app has no native titlebar and needs Metis chrome.
+pub fn id_looks_ssd(app_id: &str) -> bool {
+    id_matches_list(app_id, SSD_APP_IDS) || id_looks_chromium_family(app_id)
+}
+
 /// True when the app ships its own titlebar (GNOME/libadwaita, browsers, …).
 pub fn id_looks_csd(app_id: &str) -> bool {
-    let id = norm_app_id(app_id);
-    if id_matches_list(app_id, SSD_APP_IDS) {
+    if id_looks_ssd(app_id) {
         return false;
     }
+    let id = norm_app_id(app_id);
     if id_matches_list(app_id, CSD_APP_IDS) {
         return true;
     }
@@ -75,18 +95,11 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     {
         return true;
     }
-    id.contains("chromium")
-        || id.contains("chrome")
-        || id.contains("firefox")
+    id.contains("firefox")
         || id.contains("electron")
         || id.contains("cursor")
         || id.ends_with(".code")
         || id == "code"
-}
-
-/// True when the app has no native titlebar and needs Metis chrome.
-pub fn id_looks_ssd(app_id: &str) -> bool {
-    id_matches_list(app_id, SSD_APP_IDS)
 }
 
 /// Whether Metis should own window chrome for this client.
@@ -101,7 +114,9 @@ pub fn resolve_uses_ssd(app_id: Option<&str>, negotiated_mode: Option<Decoration
     }
 
     match negotiated_mode {
-        Some(DecorationMode::ClientSide) => false,
+        // Honor client-side preference only for apps we classify as full CSD.
+        // Unknown / not-yet-classified clients keep Metis SSD.
+        Some(DecorationMode::ClientSide) => !app_id.is_some_and(id_looks_csd),
         Some(DecorationMode::ServerSide) => !app_id.is_some_and(id_looks_csd),
         Some(_) => !app_id.is_some_and(id_looks_csd),
         None => true,
@@ -122,6 +137,20 @@ pub fn defer_ssd_paint(
         return false;
     }
     decoration_bound
+}
+
+/// True when auto-hide should reveal only a compact control strip (top-right)
+/// so the client's tab bar stays interactive (Chromium-family browsers).
+pub fn id_uses_compact_overlay(app_id: &str) -> bool {
+    id_looks_chromium_family(app_id)
+}
+
+/// Whether an SSD-decorated window should auto-hide its Metis titlebar when
+/// maximized / snapped / grid-tiled. All Metis-decorated windows use the
+/// hover overlay so the client can fill the footprint; apps with top tabs only
+/// see the titlebar while the pointer is in the reveal strip.
+pub fn id_auto_hides_titlebar(_app_id: &str) -> bool {
+    true
 }
 
 /// Mode to grant over `xdg-decoration` for a window we manage.
@@ -150,13 +179,40 @@ mod tests {
     }
 
     #[test]
+    fn chromium_browsers_use_ssd() {
+        assert!(resolve_uses_ssd(Some("org.chromium.Chromium"), None));
+        assert!(resolve_uses_ssd(Some("com.google.Chrome"), None));
+        assert!(resolve_uses_ssd(Some("chromium"), None));
+        assert!(resolve_uses_ssd(
+            Some("org.chromium.Chromium"),
+            Some(DecorationMode::ClientSide)
+        ));
+        assert!(resolve_uses_ssd(
+            Some("chromium"),
+            Some(DecorationMode::ClientSide)
+        ));
+    }
+
+    #[test]
+    fn client_side_request_ignored_until_app_id_known() {
+        assert!(resolve_uses_ssd(None, Some(DecorationMode::ClientSide)));
+        assert!(!resolve_uses_ssd(
+            Some("org.gnome.Cheese"),
+            Some(DecorationMode::ClientSide)
+        ));
+    }
+
+    #[test]
     fn unknown_defaults_to_ssd() {
         assert!(resolve_uses_ssd(None, None));
     }
 
     #[test]
     fn client_side_protocol_disables_ssd() {
-        assert!(!resolve_uses_ssd(None, Some(DecorationMode::ClientSide)));
+        assert!(!resolve_uses_ssd(
+            Some("org.gnome.Cheese"),
+            Some(DecorationMode::ClientSide)
+        ));
     }
 
     #[test]
@@ -165,6 +221,20 @@ mod tests {
         assert!(!defer_ssd_paint(None, None, false));
         assert!(!defer_ssd_paint(Some("org.kitty"), None, true));
         assert!(!defer_ssd_paint(None, Some(DecorationMode::ClientSide), true));
+    }
+
+    #[test]
+    fn chromium_uses_compact_overlay() {
+        assert!(id_uses_compact_overlay("org.chromium.Chromium"));
+        assert!(id_uses_compact_overlay("chromium"));
+        assert!(!id_uses_compact_overlay("org.kitty"));
+    }
+
+    #[test]
+    fn all_ssd_apps_auto_hide_titlebar() {
+        assert!(id_auto_hides_titlebar("chromium"));
+        assert!(id_auto_hides_titlebar("org.kitty"));
+        assert!(id_auto_hides_titlebar("com.metis.Settings"));
     }
 
     #[test]

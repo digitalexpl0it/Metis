@@ -265,14 +265,10 @@ impl XdgDecorationHandler for MetisState {
     fn new_decoration(&mut self, toplevel: ToplevelSurface) {
         if let Some(id) = self.window_id_for_toplevel(&toplevel) {
             self.windows.set_decoration_bound(id, true);
-            // Do not flip `uses_ssd` here — wait for app_id or request_mode.
-            // Grant ClientSide in pending state until the client picks a mode.
-            toplevel.with_pending_state(|state| {
-                state.decoration_mode = Some(DecorationMode::ClientSide);
-            });
+            self.refresh_window_decoration_mode(id);
         } else {
             toplevel.with_pending_state(|state| {
-                state.decoration_mode = Some(DecorationMode::ClientSide);
+                state.decoration_mode = Some(DecorationMode::ServerSide);
             });
         }
         if toplevel.is_initial_configure_sent() {

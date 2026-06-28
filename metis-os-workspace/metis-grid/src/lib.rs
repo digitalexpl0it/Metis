@@ -13,7 +13,7 @@ pub use immersive::{ImmersiveController, ImmersiveSnapshot};
 pub use layout::{
     app_tile_auto_hide_body_rect, app_tile_body_rect, app_tile_border_px, app_tile_chrome_rect, cell_to_pixels, desk_pixel_rect,
     ease_out_cubic, pixel_to_grid_cell, set_app_tile_border_px, GridMetrics, MonitorRect, PixelRect,
-    APP_TILE_BORDER_PX, APP_TILE_HEADER_PX, MAX_APP_TILE_BORDER_PX,
+    APP_TILE_BORDER_PX, APP_TILE_HEADER_PX, MAX_APP_TILE_BORDER_PX, OVERLAY_CONTROLS_WIDTH_PX,
 };
 pub use layout_engine::{
     move_item, preview_move, repair_layout, resize_item, sanitize_layout, validate_layout,

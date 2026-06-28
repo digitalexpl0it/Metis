@@ -159,6 +159,12 @@ pub struct WindowDeco {
     /// titlebar + title + controls (no surrounding border) and render it *above*
     /// the client surface as a translucent overlay.
     pub overlay: bool,
+    /// Slide progress for overlay titlebars: 0 = hidden above the client top edge,
+    /// 1 = fully shown. Ignored when `overlay` is false.
+    pub overlay_reveal: f32,
+    /// When true the overlay is a compact top-right control strip (for tabbed
+    /// browsers) instead of a full-width titlebar over the client's tab row.
+    pub overlay_compact: bool,
 }
 
 /// Render elements for a frame, split by stacking layer relative to the client
@@ -418,27 +424,17 @@ impl DecorationRuntime {
             if frame.width <= 2 || frame.height <= APP_TILE_HEADER_PX {
                 continue;
             }
-            // Overlay (auto-hide reveal) chrome stacks above the client; normal
-            // chrome is grouped per window so the renderer can stack it directly
-            // beneath that window (and above the windows below it).
             let out = if w.overlay {
                 &mut overlay
             } else {
                 below.entry(w.id).or_default()
             };
-            // Dim only the titlebar fill; the title text and traffic-light buttons
-            // are drawn as separate elements and stay fully opaque.
+
             let titlebar_rgb = if w.focused {
                 self.palette.titlebar_active
             } else {
                 self.palette.titlebar_inactive
             };
-            let titlebar_alpha = self.titlebar_alpha;
-            // Frame border stroke: the focused window uses the configured window
-            // border (accent gradient / solid / custom gradient), independent of the
-            // title pill; unfocused windows use a muted slate. Drawn as a vertical
-            // top→bottom gradient across the whole frame so the titlebar ring, side
-            // edges and bottom edge line up.
             let border_stops: Vec<[f32; 3]> = if w.focused {
                 resolve_border_stops(
                     self.window_border.mode,
@@ -453,10 +449,30 @@ impl DecorationRuntime {
                     self.palette.border_inactive[2],
                 ]]
             };
+
+            // Dim only the titlebar fill; the title text and traffic-light buttons
             let header = APP_TILE_HEADER_PX.min(frame.height);
             // Runtime-configurable thickness (kept in sync with the grid's client
             // inset via `set_app_tile_border_px` in `maybe_refresh`).
             let b = metis_grid::app_tile_border_px();
+            let chrome = if w.overlay {
+                overlay_chrome_rect(frame, w.overlay_reveal, w.overlay_compact)
+            } else {
+                PixelRect {
+                    x: frame.x,
+                    y: frame.y,
+                    width: frame.width,
+                    height: header,
+                }
+            };
+            let bar_x = chrome.x;
+            let bar_y = chrome.y;
+            let bar_w = chrome.width;
+            let titlebar_alpha = if w.overlay {
+                self.titlebar_alpha * metis_grid::ease_out_cubic(w.overlay_reveal.clamp(0.0, 1.0))
+            } else {
+                self.titlebar_alpha
+            };
 
             // Left / right / bottom borders around the client area. Skipped for the
             // overlay reveal — it floats only the titlebar over the client, with no
@@ -489,7 +505,7 @@ impl DecorationRuntime {
 
             // Control buttons, laid out from the right: close, maximize, minimize.
             // Each is a cached rounded texture; unfocused windows get gray buttons.
-            let cy = frame.y + (header - BTN_SIZE) / 2;
+            let cy = bar_y + (header - BTN_SIZE) / 2;
             let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
             let max_x = close_x - (BTN_GAP + BTN_SIZE);
             let min_x = max_x - (BTN_GAP + BTN_SIZE);
@@ -503,34 +519,30 @@ impl DecorationRuntime {
                 }
             }
 
-            // Title text + opaque pill (cached texture), clipped to the space before
-            // the buttons. `TITLE_LEFT_PAD` is the gap from the frame edge to the
-            // pill's left cap.
-            let tx = frame.x + TITLE_LEFT_PAD;
-            let max_text_w = (min_x - BTN_GAP - tx).max(0);
-            if max_text_w > 8 {
-                if let Some(elem) = self.title_element(renderer, w, tx, max_text_w, header) {
-                    out.push(elem);
+            // Title text + opaque pill — skipped for compact overlay (tabbed browsers).
+            if !w.overlay_compact {
+                let tx = frame.x + TITLE_LEFT_PAD;
+                let max_text_w = (min_x - BTN_GAP - tx).max(0);
+                if max_text_w > 8 {
+                    if let Some(elem) = self.title_element(renderer, w, tx, max_text_w, header, bar_y) {
+                        out.push(elem);
+                    }
                 }
             }
 
-            // Titlebar background (full width across the top of the frame). Pushed
-            // LAST so it sits *behind* the title text and control buttons: the
-            // damage renderer draws the first element on top, so an opaque bar would
-            // otherwise hide them (and a translucent bar would let them bleed
-            // through). Drawing it behind keeps text/buttons solid at any opacity.
-            // A normal titlebar gets rounded top corners + a wrapping border; the
-            // auto-hide reveal overlay is a plain square strip (no corners/border).
+            // Titlebar background. Pushed LAST so it sits *behind* text and buttons.
             if let Some(elem) = self.titlebar_element(
                 renderer,
                 w,
-                frame.width,
+                bar_w,
                 header,
                 frame.height,
                 b,
                 titlebar_rgb,
                 titlebar_alpha,
                 &border_stops,
+                bar_x,
+                bar_y,
                 w.overlay,
             ) {
                 out.push(elem);
@@ -635,6 +647,8 @@ impl DecorationRuntime {
         color: [f32; 3],
         alpha: f32,
         border: &[[f32; 3]],
+        bar_x: i32,
+        bar_y: i32,
         overlay: bool,
     ) -> Option<DecorationElement> {
         if width <= 0 || header <= 0 {
@@ -692,7 +706,7 @@ impl DecorationRuntime {
             Point::from((0.0, 0.0)),
             Size::from((width as f64, header as f64)),
         );
-        let loc = Point::<i32, Logical>::from((w.frame.x, w.frame.y)).to_physical(1);
+        let loc = Point::<i32, Logical>::from((bar_x, bar_y)).to_physical(1);
         Some(DecorationElement::Text(
             TextureRenderElement::from_texture_buffer(
                 loc.to_f64(),
@@ -802,6 +816,7 @@ impl DecorationRuntime {
         x: i32,
         max_w: i32,
         header: i32,
+        bar_y: i32,
     ) -> Option<DecorationElement> {
         let font = self.font.as_ref()?;
         let color = if w.focused {
@@ -888,7 +903,7 @@ impl DecorationRuntime {
         let cached = self.titles.get(&w.id)?;
         let (tw, th) = (cached.width, cached.height);
         let draw_w = tw.min(max_w);
-        let y = w.frame.y + (header - th) / 2;
+        let y = bar_y + (header - th) / 2;
         let src = Rectangle::<f64, Logical>::new(
             Point::from((0.0, 0.0)),
             Size::from((draw_w as f64, th as f64)),
@@ -1020,12 +1035,34 @@ impl DecorationRuntime {
     }
 }
 
+/// Chrome strip for a sliding overlay titlebar at `reveal` progress (0..1).
+pub fn overlay_chrome_rect(frame: PixelRect, reveal: f32, compact: bool) -> PixelRect {
+    let header = APP_TILE_HEADER_PX.min(frame.height.max(1));
+    let t = metis_grid::ease_out_cubic(reveal.clamp(0.0, 1.0));
+    let y = frame.y - ((header as f32) * (1.0 - t)).round() as i32;
+    if compact {
+        let w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(frame.width.max(1));
+        PixelRect {
+            x: frame.x + frame.width - w,
+            y,
+            width: w,
+            height: header,
+        }
+    } else {
+        PixelRect {
+            x: frame.x,
+            y,
+            width: frame.width.max(1),
+            height: header,
+        }
+    }
+}
+
 /// Compute hit-test rects (monitor-logical) for a window's controls, given its
 /// full tile frame. Returns `(control, rect)` pairs in priority order (buttons
 /// before the general titlebar drag region).
-pub fn control_hitboxes(frame: PixelRect) -> Vec<(DecoControl, PixelRect)> {
+pub fn control_hitboxes(frame: PixelRect, compact: bool) -> Vec<(DecoControl, PixelRect)> {
     let header = APP_TILE_HEADER_PX.min(frame.height);
-    let cy = frame.y + (header - BTN_SIZE) / 2;
     let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
     let max_x = close_x - (BTN_GAP + BTN_SIZE);
     let min_x = max_x - (BTN_GAP + BTN_SIZE);
@@ -1035,15 +1072,27 @@ pub fn control_hitboxes(frame: PixelRect) -> Vec<(DecoControl, PixelRect)> {
         width: BTN_SIZE + BTN_GAP,
         height: header,
     };
-    let _ = cy;
+    let titlebar = if compact {
+        let strip_w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(frame.width.max(1));
+        PixelRect {
+            x: frame.x + frame.width - strip_w,
+            y: frame.y,
+            width: strip_w,
+            height: header,
+        }
+    } else {
+        PixelRect {
+            x: frame.x,
+            y: frame.y,
+            width: frame.width,
+            height: header,
+        }
+    };
     vec![
         (DecoControl::Close, hit(close_x)),
         (DecoControl::Maximize, hit(max_x)),
         (DecoControl::Minimize, hit(min_x)),
-        (
-            DecoControl::Titlebar,
-            PixelRect { x: frame.x, y: frame.y, width: frame.width, height: header },
-        ),
+        (DecoControl::Titlebar, titlebar),
     ]
 }
 
@@ -1573,6 +1622,9 @@ fn signature(windows: &[WindowDeco]) -> u64 {
         mix(w.frame.width as i64);
         mix(w.frame.height as i64);
         mix(w.focused as i64);
+        mix(w.overlay as i64);
+        mix(w.overlay_compact as i64);
+        mix((w.overlay_reveal * 4096.0) as i64);
         for b in w.title.as_bytes() {
             mix(*b as i64);
         }

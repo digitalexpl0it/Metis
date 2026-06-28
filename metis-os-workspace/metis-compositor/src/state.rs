@@ -137,12 +137,24 @@ pub struct MetisState {
     /// They keep their free position (no grid snap-back) until closed.
     pub floating: std::collections::HashSet<u32>,
     /// Windows whose top edge meets the edge bar (maximized, or snapped left /
-    /// right / top-corner): their titlebar auto-hides and only re-appears as a
-    /// translucent overlay while the pointer is in the window's top strip.
+    /// right / top-corner), plus grid-tiled SSD windows: their titlebar auto-hides
+    /// and re-appears as a translucent overlay on the client's top strip.
     pub auto_hide_titlebar: std::collections::HashSet<u32>,
-    /// The auto-hide window whose overlay titlebar is currently revealed (pointer
-    /// in its top strip), or `None`. Drives both rendering and decoration clicks.
+    /// The auto-hide window whose titlebar is currently revealed (pointer in its
+    /// top strip), or `None`. Drives both rendering and decoration clicks.
     pub revealed_titlebar: Option<u32>,
+    /// Window id whose auto-hide titlebar overlay is sliding in/out (0..1 progress).
+    pub titlebar_reveal_window: Option<u32>,
+    /// Slide progress for [`Self::titlebar_reveal_window`]: 0 = hidden above the
+    /// client, 1 = fully shown over its top strip.
+    pub titlebar_reveal_progress: f32,
+    last_titlebar_reveal_tick: Option<std::time::Instant>,
+    /// Maximize ripple/wobble FX start times keyed by window id.
+    maximize_fx_started: std::collections::HashMap<u32, std::time::Instant>,
+    /// Last titlebar primary-button press for double-click maximize toggle.
+    titlebar_last_click: Option<(u32, std::time::Instant)>,
+    /// Minimize genie animations keyed by window id (window still mapped until done).
+    minimize_genie_fx: std::collections::HashMap<u32, crate::window_fx::MinimizeGenieFx>,
     /// Persisted per-app floating geometry, so apps reopen where they were left.
     pub window_state: crate::window_state::WindowStateStore,
 
@@ -427,6 +439,12 @@ impl MetisState {
             floating: std::collections::HashSet::new(),
             auto_hide_titlebar: std::collections::HashSet::new(),
             revealed_titlebar: None,
+            titlebar_reveal_window: None,
+            titlebar_reveal_progress: 0.0,
+            last_titlebar_reveal_tick: None,
+            maximize_fx_started: std::collections::HashMap::new(),
+            titlebar_last_click: None,
+            minimize_genie_fx: std::collections::HashMap::new(),
             window_state: crate::window_state::WindowStateStore::load(),
             desks: std::collections::HashMap::new(),
             default_layout: grid_layout,
@@ -524,6 +542,18 @@ impl MetisState {
         if self.tick_scroll_animations() {
             self.damaged = true;
         }
+
+        if self.tick_titlebar_reveal_animation() {
+            self.damaged = true;
+        }
+
+        if self.tick_maximize_fx() {
+            self.damaged = true;
+        }
+
+        if self.tick_minimize_genie_fx() {
+            self.damaged = true;
+        }
     }
 
     /// True while the startup splash layer is on-screen (backdrop blur is deferred
@@ -604,6 +634,12 @@ impl MetisState {
         self.windows.uses_ssd(id)
     }
 
+    /// True when this SSD window should auto-hide its titlebar (maximize / snap /
+    /// grid). All Metis-decorated windows use the slide-down hover overlay.
+    pub(crate) fn should_auto_hide_titlebar(&self, id: u32) -> bool {
+        self.window_uses_ssd(id)
+    }
+
     /// True when Metis should render or hit-test server-side window chrome.
     pub(crate) fn should_draw_metis_ssd(&self, id: u32) -> bool {
         if !self.window_uses_ssd(id) {
@@ -632,6 +668,16 @@ impl MetisState {
         }
     }
 
+    /// SSD client placement for a tile footprint: auto-hide windows fill the
+    /// footprint; others keep a persistent titlebar inset.
+    fn ssd_client_rect(&self, id: u32, full: PixelRect) -> PixelRect {
+        if self.should_auto_hide_titlebar(id) {
+            metis_grid::app_tile_auto_hide_body_rect(full)
+        } else {
+            app_tile_body_rect(full)
+        }
+    }
+
     /// Reconcile `uses_ssd` with xdg-decoration negotiation and app-id heuristics.
     pub(crate) fn refresh_window_decoration_mode(&mut self, id: u32) {
         let Some(record) = self.windows.get(id).cloned() else {
@@ -653,10 +699,20 @@ impl MetisState {
                 decoration_negotiated = record.decoration_negotiated,
                 "window decoration policy updated"
             );
-            self.windows.set_uses_ssd(id, uses_ssd);
-            if uses_ssd {
+            if !uses_ssd {
                 self.clear_auto_hide(id);
             }
+        }
+        self.windows.set_uses_ssd(id, uses_ssd);
+        if self.should_auto_hide_titlebar(id)
+            && self
+                .windows
+                .get(id)
+                .is_some_and(|r| r.maximized || r.snapped)
+        {
+            self.auto_hide_titlebar.insert(id);
+        }
+        if record.decoration_bound || record.decoration_negotiated {
             self.push_preferred_decoration_mode(&record.toplevel, uses_ssd);
         }
         let now_draw = self.should_draw_metis_ssd(id);
@@ -793,16 +849,18 @@ impl MetisState {
         self.floating.insert(id);
         self.windows.set_maximized(id, false);
 
-        // Snaps whose top edge meets the bar (left/right halves, top corners)
-        // auto-hide the titlebar like a maximized window, so the client fills the
-        // whole snap footprint. Bottom snaps keep a persistent titlebar, so their
-        // client is inset to the body to leave the reserved chrome strip.
+        // Snaps whose top edge meets the bar auto-hide the titlebar as a hover
+        // overlay on the client's top strip.
         let top_touching = matches!(label, "Left half" | "Right half" | "Top-left" | "Top-right");
         let uses_ssd = self.window_uses_ssd(id);
-        let body = if !uses_ssd || top_touching {
-            rect
+        let body = if uses_ssd {
+            if top_touching && self.should_auto_hide_titlebar(id) {
+                metis_grid::app_tile_auto_hide_body_rect(rect)
+            } else {
+                app_tile_body_rect(rect)
+            }
         } else {
-            app_tile_body_rect(rect)
+            rect
         };
         let size = Size::from((body.width.max(1), body.height.max(1)));
         record.toplevel.with_pending_state(|state| {
@@ -818,7 +876,7 @@ impl MetisState {
             .map_element(record.window.clone(), Point::from((body.x, body.y)), true);
         record.toplevel.send_pending_configure();
         self.windows.set_target_rect(id, body);
-        if uses_ssd && top_touching {
+        if uses_ssd && top_touching && self.should_auto_hide_titlebar(id) {
             self.auto_hide_titlebar.insert(id);
         } else {
             self.clear_auto_hide(id);
@@ -852,6 +910,10 @@ impl MetisState {
         self.auto_hide_titlebar.remove(&id);
         if self.revealed_titlebar == Some(id) {
             self.revealed_titlebar = None;
+        }
+        if self.titlebar_reveal_window == Some(id) {
+            self.titlebar_reveal_window = None;
+            self.titlebar_reveal_progress = 0.0;
         }
     }
 
@@ -1482,6 +1544,170 @@ impl MetisState {
         moved
     }
 
+    /// Advance auto-hide titlebar slide animations. Returns true while a reveal or
+    /// hide is still in progress.
+    pub fn tick_titlebar_reveal_animation(&mut self) -> bool {
+        const DURATION_SECS: f32 = 0.2;
+
+        let now = std::time::Instant::now();
+        let dt = self
+            .last_titlebar_reveal_tick
+            .map(|t| now.duration_since(t).as_secs_f32())
+            .unwrap_or(0.016);
+        self.last_titlebar_reveal_tick = Some(now);
+
+        let target = if self.revealed_titlebar.is_some() {
+            1.0
+        } else {
+            0.0
+        };
+
+        if let Some(id) = self.revealed_titlebar {
+            self.titlebar_reveal_window = Some(id);
+        }
+
+        if self.titlebar_reveal_window.is_none() {
+            return false;
+        }
+
+        let before = self.titlebar_reveal_progress;
+        if (before - target).abs() < 0.001 {
+            self.titlebar_reveal_progress = target;
+            if target <= 0.0 {
+                self.titlebar_reveal_window = None;
+            }
+            return false;
+        }
+
+        let step = dt / DURATION_SECS;
+        self.titlebar_reveal_progress = if !crate::window_fx::animations_enabled() {
+            target
+        } else if target > before {
+            (before + step).min(target)
+        } else {
+            (before - step).max(target)
+        };
+
+        if self.titlebar_reveal_progress <= 0.0 {
+            self.titlebar_reveal_window = None;
+        }
+
+        if (self.titlebar_reveal_progress - before).abs() > f32::EPSILON {
+            self.request_redraw();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Per-edge outward ripple (top, right, bottom, left) in logical px during the
+    /// post-maximize wobble. Zero when the effect has finished.
+    pub(crate) fn maximize_wobble_offset(&self, id: u32) -> (i32, i32) {
+        const DURATION_SECS: f32 = 0.55;
+        const AMP_PX: f32 = 14.0;
+        const FREQ_HZ: f32 = 5.5;
+
+        let Some(start) = self.maximize_fx_started.get(&id) else {
+            return (0, 0);
+        };
+        let elapsed = start.elapsed().as_secs_f32();
+        if elapsed >= DURATION_SECS {
+            return (0, 0);
+        }
+        let decay = (1.0 - elapsed / DURATION_SECS).powi(2);
+        let amp = AMP_PX * decay;
+        let phase = elapsed * FREQ_HZ * std::f32::consts::TAU;
+        (
+            (amp * phase.sin()).round() as i32,
+            (amp * (phase * 1.37).sin()).round() as i32,
+        )
+    }
+
+    fn window_base_location(&self, id: u32) -> Option<Point<i32, Logical>> {
+        let record = self.windows.get(id)?;
+        if record.maximized {
+            return self
+                .maximized_client_geometry(id)
+                .map(|(client, _)| Point::from((client.x, client.y)));
+        }
+        Some(Point::from((record.target_rect.x, record.target_rect.y)))
+    }
+
+    fn apply_maximize_wobble(&mut self, id: u32) {
+        let (dx, dy) = self.maximize_wobble_offset(id);
+        if dx == 0 && dy == 0 && !self.maximize_fx_started.contains_key(&id) {
+            return;
+        }
+        let Some(base) = self.window_base_location(id) else {
+            return;
+        };
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        if !self
+            .space
+            .elements()
+            .any(|w| self.windows.id_for_window(w) == Some(id))
+        {
+            return;
+        }
+        self.space.relocate_element(
+            &record.window,
+            Point::from((base.x + dx, base.y + dy)),
+        );
+        self.schedule_redraw();
+    }
+
+    fn snap_maximize_wobble(&mut self, id: u32) {
+        let Some(base) = self.window_base_location(id) else {
+            return;
+        };
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        if self
+            .space
+            .elements()
+            .any(|w| self.windows.id_for_window(w) == Some(id))
+        {
+            self.space.relocate_element(&record.window, base);
+            self.schedule_redraw();
+        }
+    }
+
+    fn start_maximize_fx(&mut self, id: u32) {
+        self.maximize_fx_started
+            .insert(id, std::time::Instant::now());
+        self.apply_maximize_wobble(id);
+    }
+
+    /// Advance post-maximize wobble animations. Returns true while any are active.
+    pub fn tick_maximize_fx(&mut self) -> bool {
+        const DURATION_SECS: f32 = 0.55;
+        let active_ids: Vec<u32> = self.maximize_fx_started.keys().copied().collect();
+        for id in active_ids {
+            self.apply_maximize_wobble(id);
+        }
+        let ended: Vec<u32> = self
+            .maximize_fx_started
+            .iter()
+            .filter(|(_, t)| t.elapsed().as_secs_f32() >= DURATION_SECS)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in ended {
+            self.maximize_fx_started.remove(&id);
+            self.snap_maximize_wobble(id);
+        }
+        !self.maximize_fx_started.is_empty()
+    }
+
+    pub(crate) fn window_uses_compact_overlay(&self, id: u32) -> bool {
+        self.windows
+            .get(id)
+            .and_then(|r| r.app_id.as_deref())
+            .is_some_and(crate::decoration_policy::id_uses_compact_overlay)
+    }
+
     /// Window ids slotted on a specific (output, workspace), in tile order.
     fn app_ids_for_workspace(&self, key: &str, ws: u32) -> Vec<u32> {
         let active = self.active_workspace_for(key);
@@ -2087,7 +2313,7 @@ impl MetisState {
         for id in self.window_ids_on_workspace(output_key, ws) {
             if self.tile_id_for_window(id).is_some()
                 && !self.floating.contains(&id)
-                && self.should_draw_metis_ssd(id)
+                && self.should_auto_hide_titlebar(id)
             {
                 self.auto_hide_titlebar.insert(id);
             } else {
@@ -2220,6 +2446,7 @@ impl MetisState {
     }
 
     pub fn close_window(&mut self, id: u32) {
+        self.maximize_fx_started.remove(&id);
         if let Some(record) = self.windows.get(id).cloned() {
             record.toplevel.send_close();
         }
@@ -2306,13 +2533,14 @@ impl MetisState {
             self.space
                 .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
             self.windows.set_rect(id, client);
-            if self.window_uses_ssd(id) {
+            if self.should_auto_hide_titlebar(id) {
                 self.auto_hide_titlebar.insert(id);
                 self.reclamp_auto_hide(id);
             } else {
                 self.clear_auto_hide(id);
             }
             self.windows.set_snapped(id, true);
+            self.start_maximize_fx(id);
         } else {
             self.demote_maximized(id);
             // Match the maximize path: remapping with `activate: true` forces the
@@ -2362,7 +2590,7 @@ impl MetisState {
             self.space.map_element(record.window.clone(), loc, false);
         }
         self.windows.set_rect(id, client);
-        if self.window_uses_ssd(id) {
+        if self.should_auto_hide_titlebar(id) {
             self.auto_hide_titlebar.insert(id);
             self.reclamp_auto_hide(id);
         } else {
@@ -2378,11 +2606,16 @@ impl MetisState {
             None => self.window_placement_zone(),
         };
         let gaps = self.zone_edge_gaps();
-        let client = PixelRect {
+        let full = PixelRect {
             x: zone.x + gaps.left,
             y: zone.y + gaps.top,
             width: (zone.width - gaps.left - gaps.right).max(1),
             height: (zone.height - gaps.top - gaps.bottom).max(1),
+        };
+        let client = if self.window_uses_ssd(id) {
+            self.ssd_client_rect(id, full)
+        } else {
+            full
         };
         let client_size = Size::from((client.width.max(1), client.height.max(1)));
         Some((client, client_size))
@@ -2425,6 +2658,7 @@ impl MetisState {
             }
         }
         self.apply_window_rect(id);
+        self.start_maximize_fx(id);
     }
 
     pub fn minimize_window(&mut self, id: u32) {
@@ -2817,17 +3051,21 @@ impl MetisState {
             // titlebar + border), so Metis draws the same server-side chrome around
             // all of them. The decoration frame is the body grown by the titlebar
             // (top) and border (sides/bottom).
-            let Some(loc) = self.space.element_location(&record.window) else {
-                continue;
-            };
             let size = record.window.geometry().size;
             if size.w <= 0 || size.h <= 0 {
                 continue;
             }
+            let Some(loc) = self.space.element_location(&record.window) else {
+                continue;
+            };
             let auto_hide = self.auto_hide_titlebar.contains(&id);
-            if auto_hide && self.revealed_titlebar != Some(id) {
+            let show_overlay_titlebar = auto_hide
+                && self.titlebar_reveal_window == Some(id)
+                && self.titlebar_reveal_progress > 0.0;
+            if auto_hide && !show_overlay_titlebar {
                 continue;
             }
+            let overlay_compact = auto_hide && self.window_uses_compact_overlay(id);
             let (frame, overlay) = if auto_hide {
                 (
                     PixelRect {
@@ -2848,11 +3086,19 @@ impl MetisState {
             specs.push(crate::decoration::WindowDeco {
                 id,
                 frame,
-                title: self.titlebar_title(id, record.app_id.as_deref(), &record.title),
-                // Treat a revealed auto-hide strip as active chrome so traffic-light
-                // buttons render (and hit-test) in their focused colors.
+                title: if overlay_compact {
+                    String::new()
+                } else {
+                    self.titlebar_title(id, record.app_id.as_deref(), &record.title)
+                },
                 focused: focused == Some(id) || self.revealed_titlebar == Some(id),
                 overlay,
+                overlay_reveal: if overlay {
+                    self.titlebar_reveal_progress
+                } else {
+                    1.0
+                },
+                overlay_compact,
             });
         }
         specs
@@ -3457,9 +3703,12 @@ impl MetisState {
                 continue;
             }
             if spec.overlay {
-                // Overlay reveal: only the top titlebar strip is interactive; the
-                // rest of the frame is live client content.
-                if !point_in_rect(x, y, metis_grid::app_tile_chrome_rect(frame)) {
+                let chrome = crate::decoration::overlay_chrome_rect(
+                    spec.frame,
+                    spec.overlay_reveal,
+                    spec.overlay_compact,
+                );
+                if !point_in_rect(x, y, chrome) {
                     continue;
                 }
             } else if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
@@ -3480,7 +3729,22 @@ impl MetisState {
                     return self.start_edge_resize(spec.id, edges, loc, serial, button);
                 }
             }
-            for (control, rect) in control_hitboxes(frame) {
+            let hit_frame = if spec.overlay {
+                let chrome = crate::decoration::overlay_chrome_rect(
+                    spec.frame,
+                    spec.overlay_reveal,
+                    spec.overlay_compact,
+                );
+                PixelRect {
+                    x: spec.frame.x,
+                    y: chrome.y,
+                    width: spec.frame.width,
+                    height: spec.frame.height,
+                }
+            } else {
+                frame
+            };
+            for (control, rect) in control_hitboxes(hit_frame, spec.overlay_compact) {
                 if !point_in_rect(x, y, rect) {
                     continue;
                 }
@@ -3504,7 +3768,12 @@ impl MetisState {
                             .unwrap_or(false);
                         self.set_maximized(spec.id, !maxed);
                     }
-                    DecoControl::Titlebar => self.start_titlebar_move(spec.id, loc, serial),
+                    DecoControl::Titlebar => {
+                        if self.titlebar_double_click_toggle(spec.id) {
+                            return true;
+                        }
+                        self.start_titlebar_move(spec.id, loc, serial);
+                    }
                 }
                 return true;
             }
@@ -3577,7 +3846,7 @@ impl MetisState {
 
     /// Server-side decoration frame for a mapped window, when chrome should be
     /// drawn or hit-tested. `None` for minimized/fullscreen windows and for
-    /// auto-hide windows whose overlay titlebar is not revealed.
+    /// auto-hide windows whose titlebar is not revealed.
     pub(crate) fn ssd_frame_for_mapped_window(
         &self,
         id: u32,
@@ -3688,8 +3957,7 @@ impl MetisState {
 
     /// Reveal the auto-hide titlebar overlay for the topmost auto-hide window whose
     /// top strip (the first `APP_TILE_HEADER_PX` of its client) the pointer is in,
-    /// hiding it again once the pointer drops below that strip or onto another
-    /// window. Flags a redraw on change.
+    /// hiding it again once the pointer drops below that strip. Flags a redraw on change.
     fn update_titlebar_reveal(&mut self, loc: Point<f64, Logical>) {
         let (x, y) = (loc.x as i32, loc.y as i32);
         let header = metis_grid::APP_TILE_HEADER_PX;
@@ -3705,7 +3973,15 @@ impl MetisState {
                 continue;
             };
             if self.auto_hide_titlebar.contains(&id) {
-                if in_x && y >= geo.loc.y && y < geo.loc.y + header {
+                let in_top_strip = in_x && y >= geo.loc.y && y < geo.loc.y + header;
+                let compact = self.window_uses_compact_overlay(id);
+                let in_reveal_zone = if compact {
+                    let strip_w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(geo.size.w.max(1));
+                    in_top_strip && x >= geo.loc.x + geo.size.w - strip_w
+                } else {
+                    in_top_strip
+                };
+                if in_reveal_zone {
                     revealed = Some(id);
                 }
                 if in_window {
@@ -3718,6 +3994,10 @@ impl MetisState {
         }
         if revealed != self.revealed_titlebar {
             self.revealed_titlebar = revealed;
+            if let Some(id) = revealed {
+                self.titlebar_reveal_window = Some(id);
+            }
+            let _ = self.tick_titlebar_reveal_animation();
             // Hover only reveals chrome; keyboard focus stays on the window the
             // user picked until they click its titlebar (see `focus_window_chrome`).
             // Calling `focus_window_id` here re-raised a stale maximized neighbor
@@ -3856,6 +4136,28 @@ impl MetisState {
         self.schedule_redraw();
         pointer.set_grab(self, grab, serial, Focus::Clear);
         true
+    }
+
+    /// Double-click the titlebar (anywhere outside the traffic-light buttons) to
+    /// toggle maximize. The first click of a pair may start a brief move grab; the
+    /// second press within the interval toggles without dragging.
+    fn titlebar_double_click_toggle(&mut self, id: u32) -> bool {
+        const INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
+        let now = std::time::Instant::now();
+        if let Some((prev_id, prev)) = self.titlebar_last_click {
+            if prev_id == id && now.duration_since(prev) <= INTERVAL {
+                self.titlebar_last_click = None;
+                let maxed = self
+                    .windows
+                    .get(id)
+                    .map(|r| r.maximized)
+                    .unwrap_or(false);
+                self.set_maximized(id, !maxed);
+                return true;
+            }
+        }
+        self.titlebar_last_click = Some((id, now));
+        false
     }
 
     fn start_titlebar_move(

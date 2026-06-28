@@ -5,6 +5,9 @@ use crate::model::TileRect;
 /// Header strip rendered by the shell for app tiles; body is the live app window.
 /// Height of the compositor-drawn server-side titlebar above each app window.
 pub const APP_TILE_HEADER_PX: i32 = 36;
+/// Width of the compact auto-hide overlay (traffic-light buttons only) for apps
+/// whose client draws tabs along the top edge (Chromium, etc.).
+pub const OVERLAY_CONTROLS_WIDTH_PX: i32 = 96;
 
 /// Default thickness of the compositor-drawn border on the left/right/bottom of each
 /// app window. The live value is configurable at runtime — see [`app_tile_border_px`]
@@ -104,8 +107,9 @@ pub fn app_tile_chrome_rect(full: PixelRect) -> PixelRect {
     }
 }
 
-/// Client region for auto-hide chrome: the window fills the tile and the
-/// titlebar is drawn as a hover overlay on the top strip.
+/// Client region for auto-hide chrome: the window fills the tile footprint and
+/// the titlebar is drawn as a hover overlay on its top strip (see compositor
+/// `decoration_specs` with `overlay: true`).
 pub fn app_tile_auto_hide_body_rect(full: PixelRect) -> PixelRect {
     let b = app_tile_border_px();
     let border = b.min((full.width / 2).max(0));

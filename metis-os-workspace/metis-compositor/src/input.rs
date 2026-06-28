@@ -229,6 +229,12 @@ impl MetisState {
                                 }
                                 return FilterResult::Intercept(());
                             }
+                            if mod_active(modifiers) && sym == keysyms::KEY_m {
+                                if let Some(id) = state.focused_window_id() {
+                                    state.minimize_by_id(id);
+                                }
+                                return FilterResult::Intercept(());
+                            }
                             if sym == keysyms::KEY_Escape {
                                 if let Some(id) = state.focused_window_id() {
                                     if state
