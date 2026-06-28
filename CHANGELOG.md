@@ -37,6 +37,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     `assets/metis.desktop` wayland-session, installed via
     `run-metis.sh --install-session`; pick **Metis** from the greeter like
     Hyprland. `run-metis.sh --session --drm` runs it directly from a TTY.
+- **Settings portal (`metis-portal`)** — a new `metis-portal` binary serves
+  `org.freedesktop.impl.portal.Settings` for the standalone Metis session:
+  color-scheme and gtk-theme from `metis-config`, plus empty decoration/button
+  layouts so GTK clients defer to Metis server-side chrome. Registered via
+  `metis.portal` + `metis-portals.conf`; the compositor starts it before
+  `xdg-desktop-portal` on DRM boot (replacing the old `GDK_DEBUG=no-portals`
+  workaround).
 
 ### Changed
 
@@ -51,6 +58,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     column to full width, then back to half.
   - Opening a new window never resizes the windows already on the strip — it just
     appends a column (new windows open at half-width).
+- **Scroll viewport easing** — focus changes in a scroll workspace now animate
+  the strip toward the focused column. Client surfaces stay mapped at the target
+  offset; the compositor applies a render-time X nudge
+  (`scroll_x_target - scroll_x`) so resize-averse apps are not reconfigured every
+  frame.
 
 ### Fixed
 
@@ -65,6 +77,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Scroll columns clipped to their display** — a column scrolled past the screen
   edge is now clipped to its own output (via `CropRenderElement`) instead of
   bleeding onto the adjacent monitor; fully off-screen columns stay unmapped.
+- **Copy/paste across XWayland and Wayland clients** — the compositor now
+  bridges clipboard and primary selection between native Wayland apps and X11
+  clients (e.g. Chrome → terminal). Previously only the data-device globals were
+  advertised; selections were never forwarded in either direction.
 
 ## [2026-06-26]
 
