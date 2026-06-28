@@ -231,11 +231,17 @@ impl MetisState {
             // Match smithay's `render_location`: the surface origin sits at the
             // mapped location minus the window-geometry offset (CSD shadow
             // margin), then offset to render-target-local coords.
-            let loc = (self.space.element_location(window).unwrap_or_default()
+            let id = self.windows.id_for_window(window);
+            let mut loc = (self.space.element_location(window).unwrap_or_default()
                 - window.geometry().loc)
                 .to_physical_precise_round(output_scale)
                 - render_origin;
-            let id = self.windows.id_for_window(window);
+            if let Some(id) = id {
+                let nudge = self.scroll_render_nudge(id);
+                if nudge != 0 {
+                    loc = Point::from((loc.x + nudge, loc.y));
+                }
+            }
             // Scroll columns may overhang their display edge; clip them to their
             // own output (in local coords) so they never paint onto a neighbour.
             let clip = id

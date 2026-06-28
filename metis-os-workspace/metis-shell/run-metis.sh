@@ -211,12 +211,13 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     export PKG_CONFIG_PATH
 
     echo "Building release binaries …"
-    if ! cargo build --release -p metis-compositor -p metis-shell -p metis-settings; then
+    if ! cargo build --release -p metis-compositor -p metis-shell -p metis-settings -p metis-portal; then
         echo "ERROR: release build failed." >&2
         exit 1
     fi
 
     REL="$CARGO_TARGET_DIR/release"
+    PORTALS_DST="${METIS_PORTALS_DIR:-/usr/local/share/xdg-desktop-portal}"
     # Privileged copies: re-exec the install steps under sudo if not already root.
     SUDO=""
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -235,6 +236,13 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
         $SUDO install -Dm755 "$REL/metis-settings" "$BIN_DST/metis-settings"
     fi
     $SUDO install -Dm755 "$ASSETS_DIR/metis-session" "$BIN_DST/metis-session"
+    if [[ -x "$REL/metis-portal" ]]; then
+        $SUDO install -Dm755 "$REL/metis-portal" "$BIN_DST/metis-portal"
+    fi
+
+    echo "Installing portal registration to $PORTALS_DST …"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis.portal" "$PORTALS_DST/portals/metis.portal"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-portals.conf" "$PORTALS_DST/metis-portals.conf"
 
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"

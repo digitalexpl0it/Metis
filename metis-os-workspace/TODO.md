@@ -2,9 +2,9 @@
 
 **Current phase:** Phase 3 (multi-monitor, workspaces & tiling) is complete —
 per-output bars/workspaces/wallpaper, cross-output moves, automatic grid tiling,
-and scrolling layout polish — and Metis now also runs as a **standalone DRM/KMS
-session** (own TTY/GPU, login-manager entry) alongside the nested winit dev path.
-Deferred: full multi-GPU compositing and the settings portal. Next: Phase 4
+scrolling layout polish (viewport easing), the settings portal, and Metis runs as
+a **standalone DRM/KMS session** (own TTY/GPU, login-manager entry) alongside the
+nested winit dev path. Deferred: full multi-GPU compositing. Next: Phase 4
 (settings-app expansion into a full control center) and Phase 5 (display
 pipeline: VRR, colour management, HDR).
 
@@ -226,9 +226,10 @@ so each milestone is shippable on its own:
   - Off-screen columns are clipped to their own output (`CropRenderElement`) so a
         column scrolled past the edge never bleeds onto an adjacent monitor; fully
         off-screen columns stay unmapped; scroll offset is clamped to strip width.
-  - Known gap: the viewport pan is currently a snap (the easing path is disabled
-        to avoid per-frame client reconfigure storms); revive via render-time
-        translation.
+  - Viewport pan **eases** toward the focused column (`advance_scroll_animation`);
+        client surfaces stay mapped at the target offset and render with an X nudge
+        (`scroll_x_target - scroll_x`) so resize-averse clients are not reconfigured
+        every frame.
 - [x] **Taskbar follows** — each output's dock shows only the windows on that
       output's currently-visible workspace (pinned launchers persist everywhere).
       `WindowInfo.output` carries the monitor name; the dock filters by
@@ -249,14 +250,11 @@ so each milestone is shippable on its own:
         pinned smithay API does not expose; needs a blur rework (or a
         per-renderer fallback) + multi-GPU hardware to validate. Single-GPU and
         hybrid single-output (direct EGL/PRIME import) work today.
-- [ ] **Settings portal (`org.freedesktop.portal.Settings`)** — now that Metis
-      runs as a standalone DE (not nested in GNOME), serve an empty GTK decoration
-      layout so stubborn CSD apps (e.g. GTK3 Cheese) drop their own
-      close/min/max buttons and only Metis's server-side controls show; also a
-      clean handoff for theme / font / dark-mode prefs to clients (zbus is already
-      a shell dependency). Deferred from the DRM backend work: needs a
-      `xdg-desktop-portal` backend `.portal` registration to avoid clashing with
-      the host portal.
+- [x] **Settings portal (`org.freedesktop.portal.Settings`)** — `metis-portal`
+      serves color-scheme, gtk-theme, and empty decoration/button layouts from
+      `metis-config` so GTK clients pick up Metis light/dark prefs and drop CSD
+      chrome; registered via `metis.portal` + `metis-portals.conf`, started by
+      the compositor before `xdg-desktop-portal` in the DRM session.
 
 ---
 

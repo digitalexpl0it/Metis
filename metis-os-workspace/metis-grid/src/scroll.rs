@@ -286,11 +286,28 @@ impl ScrollState {
     }
 
     /// Compute the full (titlebar-inclusive) pixel frame for every window, laid
-    /// out left to right with `scroll_x` applied. `zone` is the bar-excluded
-    /// usable area in global logical coordinates.
+    /// out left to right with the animated [`Self::scroll_x`] viewport offset.
+    /// `zone` is the bar-excluded usable area in global logical coordinates.
     pub fn layout(&self, zone: PixelRect, gutter: i32) -> Vec<(u32, PixelRect)> {
+        self.layout_at_scroll(zone, gutter, self.scroll_x)
+    }
+
+    /// Same as [`Self::layout`] but pinned to [`Self::scroll_x_target`]. The
+    /// compositor maps client surfaces here and applies a render-time X nudge
+    /// (`scroll_x_target - scroll_x`) while the viewport eases, avoiding
+    /// per-frame Wayland configure storms.
+    pub fn layout_placed(&self, zone: PixelRect, gutter: i32) -> Vec<(u32, PixelRect)> {
+        self.layout_at_scroll(zone, gutter, self.scroll_x_target)
+    }
+
+    fn layout_at_scroll(
+        &self,
+        zone: PixelRect,
+        gutter: i32,
+        scroll_x: i32,
+    ) -> Vec<(u32, PixelRect)> {
         let mut out = Vec::new();
-        let mut cursor = zone.x - self.scroll_x;
+        let mut cursor = zone.x - scroll_x;
         for col in &self.columns {
             let w = col_width_px(col.width_frac, zone.width);
             let n = col.windows.len();
@@ -570,5 +587,18 @@ mod tests {
         assert_eq!(frames.len(), 3);
         let total_h: i32 = frames.iter().map(|(_, r)| r.height).sum::<i32>() + 10 * 2;
         assert_eq!(total_h, ZONE.height);
+    }
+
+    #[test]
+    fn layout_placed_uses_target_offset() {
+        let mut s = ScrollState::new();
+        s.insert_window_after_focus(1);
+        s.insert_window_after_focus(2);
+        s.scroll_x = 0;
+        s.scroll_x_target = 200;
+        let visual = s.layout(ZONE, 10);
+        let placed = s.layout_placed(ZONE, 10);
+        assert_eq!(visual[0].1.x, 0);
+        assert_eq!(placed[0].1.x, -200);
     }
 }

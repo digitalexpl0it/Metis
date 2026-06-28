@@ -121,6 +121,7 @@ version = "0.13.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "340e0f6bf7f9ee78549c61454f1460a3ed97c011902ee76b58301bbc6d502a32"
 dependencies = [
+ "async-trait",
  "enumflags2",
  "futures-util",
  "getrandom 0.4.2",
@@ -1959,6 +1960,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "metis-portal"
+version = "0.1.0"
+dependencies = [
+ "ashpd",
+ "async-trait",
+ "futures-util",
+ "metis-config",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

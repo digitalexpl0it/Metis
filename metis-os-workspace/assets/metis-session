@@ -30,19 +30,9 @@ export GDK_BACKEND="${GDK_BACKEND:-wayland}"
 export GSK_RENDERER="${GSK_RENDERER:-cairo}"
 
 # --- GTK startup hardening for a standalone (non-GNOME) session ------------
-# Without these, the GTK4 shell can stall for ~25s (or indefinitely) at startup:
-#   * The Settings portal: with XDG_CURRENT_DESKTOP=Metis, GTK4 reads its theme
-#     / color-scheme via xdg-desktop-portal; that backend (xdg-desktop-portal-gtk)
-#     fails outside GNOME, so the lookup blocks on a D-Bus timeout. GTK4 made the
-#     old GTK_USE_PORTAL var obsolete — `GDK_DEBUG=no-portals` is the supported
-#     switch, which makes GTK read settings directly (GSettings/dconf).
-#   * The AT-SPI accessibility bus: GTK connects to org.a11y.Bus at startup; with
-#     no a11y bus in a bare session it can hang. Disable accessibility.
-if [[ -z "${GDK_DEBUG:-}" ]]; then
-    export GDK_DEBUG="no-portals"
-elif [[ ",$GDK_DEBUG," != *",no-portals,"* && ",$GDK_DEBUG," != *",portals,"* ]]; then
-    export GDK_DEBUG="$GDK_DEBUG,no-portals"
-fi
+# Metis serves org.freedesktop.portal.Settings via metis-portal (started by the
+# compositor). The AT-SPI accessibility bus is still disabled — GTK connects to
+# org.a11y.Bus at startup and can hang when no bus exists in a bare session.
 export GTK_A11Y="${GTK_A11Y:-none}"
 export NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}"
 
@@ -77,7 +67,7 @@ fi
 # run inside Metis. Best-effort: a session may not have a user bus yet.
 SESSION_VARS=(
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
-    XDG_SESSION_ID DISPLAY GDK_BACKEND GSK_RENDERER GDK_DEBUG GTK_A11Y NO_AT_BRIDGE
+    XDG_SESSION_ID DISPLAY GDK_BACKEND GSK_RENDERER GTK_A11Y NO_AT_BRIDGE
 )
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
     dbus-update-activation-environment --systemd "${SESSION_VARS[@]}" 2>/dev/null || true

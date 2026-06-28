@@ -329,13 +329,17 @@ fn apply_spawned_client_env(
     }
     cmd.env("GTK_A11Y", "none");
     cmd.env("NO_AT_BRIDGE", "1");
-    let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_default();
-    if gdk_debug.is_empty() {
-        cmd.env("GDK_DEBUG", "no-portals");
-    } else if !gdk_debug.split(',').any(|p| p == "no-portals" || p == "portals") {
-        cmd.env("GDK_DEBUG", format!("{gdk_debug},no-portals"));
-    } else {
-        cmd.env("GDK_DEBUG", gdk_debug);
+    // Nested dev sessions run inside GNOME/KDE — disable GTK's portal proxy so
+    // startup does not block on the host portal stack.
+    if std::env::var_os("METIS_NESTED").is_some() {
+        let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_default();
+        if gdk_debug.is_empty() {
+            cmd.env("GDK_DEBUG", "no-portals");
+        } else if !gdk_debug.split(',').any(|p| p == "no-portals" || p == "portals") {
+            cmd.env("GDK_DEBUG", format!("{gdk_debug},no-portals"));
+        } else {
+            cmd.env("GDK_DEBUG", gdk_debug);
+        }
     }
 }
 
@@ -490,7 +494,9 @@ impl MetisState {
             self.damaged = true;
         }
 
-        let _ = self.tick_scroll_animations();
+        if self.tick_scroll_animations() {
+            self.damaged = true;
+        }
     }
 
     /// True while the startup splash layer is on-screen (backdrop blur is deferred
@@ -1230,34 +1236,64 @@ impl MetisState {
         }
     }
 
-    /// Full (titlebar-inclusive) frames for the active scroll workspace on `key`.
+    /// Full (titlebar-inclusive) frames for the active scroll workspace on `key`,
+    /// using the animated viewport offset (visual position during easing).
     pub(crate) fn scroll_frames_for(&self, key: &str) -> Vec<(u32, PixelRect)> {
+        self.scroll_frames_at(key, false)
+    }
+
+    /// Full frames at the scroll target offset — where client surfaces are mapped.
+    fn scroll_frames_placed_for(&self, key: &str) -> Vec<(u32, PixelRect)> {
+        self.scroll_frames_at(key, true)
+    }
+
+    fn scroll_frames_at(&self, key: &str, placed: bool) -> Vec<(u32, PixelRect)> {
         let ws = self.active_workspace_for(key);
-        let Some(desk) = self.desk(key) else {
+        if self.layout_kind_for(key, ws) != metis_grid::LayoutKind::Scroll {
             return Vec::new();
-        };
-        let Some(scroll) = desk.scroll.get(&ws) else {
+        }
+        let Some(scroll) = self.desk(key).and_then(|d| d.scroll.get(&ws)) else {
             return Vec::new();
         };
         let zone = self.scroll_zone_for(key);
-        scroll.layout(zone, self.gutter_px as i32)
+        let gutter = self.gutter_px as i32;
+        if placed {
+            scroll.layout_placed(zone, gutter)
+        } else {
+            scroll.layout(zone, gutter)
+        }
     }
 
     /// Full frame for a single window when its workspace is the active scroll
-    /// workspace on its output; `None` otherwise (so hidden windows stay unmapped).
+    /// workspace on its output; `None` otherwise (for decorations / hit-testing).
     pub(crate) fn scroll_frame_for_window(&self, id: u32) -> Option<PixelRect> {
         let key = self.desk_key_for_window(id);
-        let ws = self.windows.workspace(id).unwrap_or(1);
-        if ws != self.active_workspace_for(&key) {
-            return None;
-        }
-        if self.layout_kind_for(&key, ws) != metis_grid::LayoutKind::Scroll {
-            return None;
-        }
         self.scroll_frames_for(&key)
             .into_iter()
             .find(|(wid, _)| *wid == id)
             .map(|(_, rect)| rect)
+    }
+
+    /// Mapped (target-offset) frame for scroll-managed window placement.
+    fn scroll_frame_placed_for_window(&self, id: u32) -> Option<PixelRect> {
+        let key = self.desk_key_for_window(id);
+        self.scroll_frames_placed_for(&key)
+            .into_iter()
+            .find(|(wid, _)| *wid == id)
+            .map(|(_, rect)| rect)
+    }
+
+    /// Render-time X offset for a scroll-managed window while the viewport eases.
+    pub(crate) fn scroll_render_nudge(&self, id: u32) -> i32 {
+        if !self.is_active_scroll_window(id) {
+            return 0;
+        }
+        let key = self.desk_key_for_window(id);
+        let ws = self.active_workspace_for(&key);
+        let Some(scroll) = self.desk(&key).and_then(|d| d.scroll.get(&ws)) else {
+            return 0;
+        };
+        scroll.scroll_x_target - scroll.scroll_x
     }
 
     /// Mutable scroll state for an output's workspace, creating it on demand.
@@ -1269,9 +1305,9 @@ impl MetisState {
     }
 
     /// Recompute the scroll offset for an output's active workspace so the focused
-    /// column is visible. Scroll snapping is always immediate — animation was
-    /// disabled after it caused configure/render storms with resize-averse clients.
-    fn refresh_scroll_offset(&mut self, key: &str, _animate: bool) {
+    /// column is visible. When `animate` is true the viewport eases toward the
+    /// target via render-time translation (no per-frame client reconfigure).
+    fn refresh_scroll_offset(&mut self, key: &str, animate: bool) {
         let ws = self.active_workspace_for(key);
         if self.layout_kind_for(key, ws) != metis_grid::LayoutKind::Scroll {
             return;
@@ -1281,7 +1317,19 @@ impl MetisState {
         if let Some(scroll) = self.desk_mut_or_default(key).scroll.get_mut(&ws) {
             let target = scroll.desired_scroll_x(zone, gutter);
             scroll.set_scroll_target(target, zone, gutter);
-            scroll.snap_scroll();
+            if !animate {
+                scroll.snap_scroll();
+            }
+        }
+    }
+
+    /// Update the scroll viewport and remap windows to the target strip layout.
+    fn apply_scroll_viewport(&mut self, key: &str, animate: bool) {
+        self.refresh_scroll_offset(key, animate);
+        self.reposition_scroll_windows();
+        if animate {
+            self.damaged = true;
+            self.request_redraw();
         }
     }
 
@@ -1318,6 +1366,9 @@ impl MetisState {
                     moved |= scroll.advance_scroll_animation(dt);
                 }
             }
+        }
+        if moved {
+            self.request_redraw();
         }
         moved
     }
@@ -1784,8 +1835,7 @@ impl MetisState {
             let scroll = self.scroll_state_mut(&key, ws);
             f(scroll);
         }
-        self.refresh_scroll_offset(&key, false);
-        self.reposition_scroll_windows();
+        self.apply_scroll_viewport(&key, true);
         let focused = self
             .desk(&key)
             .and_then(|d| d.scroll.get(&ws))
@@ -1819,8 +1869,7 @@ impl MetisState {
             })
             .unwrap_or(false);
         if changed {
-            self.refresh_scroll_offset(&key, false);
-            self.reposition_scroll_windows();
+            self.apply_scroll_viewport(&key, true);
         }
     }
 
@@ -3707,7 +3756,7 @@ impl MetisState {
             return None;
         }
         // Scrolling workspaces position from the strip, not the tile grid.
-        if let Some(frame) = self.scroll_frame_for_window(id) {
+        if let Some(frame) = self.scroll_frame_placed_for_window(id) {
             return Some(frame);
         }
         let key = self.desk_key_for_window(id);

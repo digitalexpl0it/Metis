@@ -150,10 +150,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if backend == Backend::Drm {
-        // GtkApplication-based apps (Cheese, many GTK4 clients) do a *synchronous*
-        // portal Settings proxy during startup. If xdg-desktop-portal is cold, that
-        // blocks for up to ~25s per launch. Pre-start it once our socket exists.
-        prewarm_desktop_portal();
+        // GtkApplication-based apps do a synchronous portal Settings proxy during
+        // startup. Start our Settings backend, then xdp, before any shell spawn.
+        start_portal_stack();
         update_standalone_activation_env(&state.socket_name.to_string_lossy());
     }
 
@@ -260,30 +259,56 @@ fn update_activation_environment(display: &str) {
 }
 
 /// Standalone DRM session: publish Wayland + GTK hardening vars so D-Bus-activated
-/// apps (and later spawns) land in this session without portal/a11y stalls.
+/// apps land in this session. Portal Settings are served by `metis-portal`.
 fn update_standalone_activation_env(display: &str) {
-    let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_else(|_| "no-portals".into());
-    let gdk_debug = if gdk_debug.is_empty() {
-        "no-portals".to_string()
-    } else if !gdk_debug.split(',').any(|p| p == "no-portals" || p == "portals") {
-        format!("{gdk_debug},no-portals")
-    } else {
-        gdk_debug
-    };
     unsafe {
-        std::env::set_var("GDK_DEBUG", &gdk_debug);
         std::env::set_var("GTK_A11Y", "none");
         std::env::set_var("NO_AT_BRIDGE", "1");
     }
     let gsk_renderer = std::env::var("GSK_RENDERER").unwrap_or_else(|_| "cairo".into());
     push_activation_environment(&[
         &format!("WAYLAND_DISPLAY={display}"),
-        &format!("GDK_DEBUG={gdk_debug}"),
         "GTK_A11Y=none",
         "NO_AT_BRIDGE=1",
         "GDK_BACKEND=wayland",
         &format!("GSK_RENDERER={gsk_renderer}"),
     ]);
+}
+
+/// Start the Metis Settings portal backend, then the xdp front-end.
+fn start_portal_stack() {
+    spawn_metis_portal();
+    // metis-portal must own its D-Bus name before xdp enumerates backends.
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    prewarm_desktop_portal();
+}
+
+fn spawn_metis_portal() {
+    if std::env::var_os("METIS_NO_PORTAL").is_some() {
+        return;
+    }
+    let portal_bin = std::env::var("METIS_PORTAL_BIN").unwrap_or_else(|_| {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| {
+                p.parent()
+                    .map(|d| d.join("metis-portal").display().to_string())
+            })
+            .unwrap_or_else(|| "metis-portal".into())
+    });
+    match std::process::Command::new(&portal_bin)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    {
+        Ok(_) => tracing::info!("started metis-portal Settings backend"),
+        Err(err) => tracing::warn!(
+            %err,
+            portal = %portal_bin,
+            "metis-portal unavailable — install metis-portal or set METIS_NO_PORTAL=1"
+        ),
+    }
 }
 
 /// Best-effort: start xdg-desktop-portal once our Wayland socket exists so the

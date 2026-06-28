@@ -8,6 +8,7 @@ members = [
     "metis-compositor",
     "metis-shell",
     "metis-settings",
+    "metis-portal",
 ]
 
 [workspace.package]

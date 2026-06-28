@@ -9,11 +9,26 @@
 //! D-Bus-activated apps inside a nested session; richer integration can come
 //! later.
 
+use std::os::unix::io::OwnedFd;
+
 use smithay::{
     desktop::Window,
     reexports::calloop::LoopHandle,
     utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size},
-    wayland::xwayland_shell::{XWaylandShellHandler, XWaylandShellState},
+    wayland::{
+        selection::{
+            SelectionTarget,
+            data_device::{
+                clear_data_device_selection, current_data_device_selection_userdata,
+                request_data_device_client_selection, set_data_device_selection,
+            },
+            primary_selection::{
+                clear_primary_selection, current_primary_selection_userdata,
+                request_primary_client_selection, set_primary_selection,
+            },
+        },
+        xwayland_shell::{XWaylandShellHandler, XWaylandShellState},
+    },
     xwayland::{
         X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler,
         xwm::{Reorder, ResizeEdge as X11ResizeEdge, XwmId},
@@ -226,6 +241,66 @@ impl XwmHandler for MetisState {
         if let Some(elem) = self.x11_element(&window) {
             self.space.raise_element(&elem, true);
             self.focus_x11(&elem);
+        }
+    }
+
+    fn allow_selection_access(&mut self, xwm: XwmId, _selection: SelectionTarget) -> bool {
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            if let Some(KeyboardFocusTarget::Window(w)) = keyboard.current_focus() {
+                if let Some(surface) = w.x11_surface() {
+                    if surface.xwm_id() == Some(xwm) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn send_selection(
+        &mut self,
+        _xwm: XwmId,
+        selection: SelectionTarget,
+        mime_type: String,
+        fd: OwnedFd,
+    ) {
+        match selection {
+            SelectionTarget::Clipboard => {
+                if let Err(err) = request_data_device_client_selection(&self.seat, mime_type, fd) {
+                    tracing::warn!(?err, "failed to read Wayland clipboard for XWayland");
+                }
+            }
+            SelectionTarget::Primary => {
+                if let Err(err) = request_primary_client_selection(&self.seat, mime_type, fd) {
+                    tracing::warn!(?err, "failed to read Wayland primary selection for XWayland");
+                }
+            }
+        }
+    }
+
+    fn new_selection(&mut self, _xwm: XwmId, selection: SelectionTarget, mime_types: Vec<String>) {
+        match selection {
+            SelectionTarget::Clipboard => {
+                set_data_device_selection(&self.display_handle, &self.seat, mime_types, ());
+            }
+            SelectionTarget::Primary => {
+                set_primary_selection(&self.display_handle, &self.seat, mime_types, ());
+            }
+        }
+    }
+
+    fn cleared_selection(&mut self, _xwm: XwmId, selection: SelectionTarget) {
+        match selection {
+            SelectionTarget::Clipboard => {
+                if current_data_device_selection_userdata(&self.seat).is_some() {
+                    let _ = clear_data_device_selection(&self.display_handle, &self.seat);
+                }
+            }
+            SelectionTarget::Primary => {
+                if current_primary_selection_userdata(&self.seat).is_some() {
+                    let _ = clear_primary_selection(&self.display_handle, &self.seat);
+                }
+            }
         }
     }
 }
