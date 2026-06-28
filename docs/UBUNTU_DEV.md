@@ -35,6 +35,21 @@ sudo apt install -y gnome-keyring   # recommended, desktop-independent
 
 Without PAM auto-unlock (`pam_gnome_keyring`), the login keyring starts locked and the first secret access prompts once per session via gcr's prompter (pulled in by `gnome-keyring`).
 
+### Phase 4 runtime tools (standalone session)
+
+Several settings pages shell out to system services (same pattern as `nmcli` for
+Network). Install what you need on the host:
+
+```bash
+sudo apt install -y \
+  bluez bluetooth \
+  cups system-config-printer \
+  power-profiles-daemon
+```
+
+PipeWire/PulseAudio (`pipewire-pulse` / `pulseaudio-utils` for `pactl`) is usually
+already present on Ubuntu desktop installs.
+
 ## Rust toolchain
 
 ```bash

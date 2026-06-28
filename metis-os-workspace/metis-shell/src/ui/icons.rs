@@ -42,6 +42,16 @@ pub mod names {
         }
     }
 
+    pub fn bluetooth(powered: bool, connected: bool) -> &'static str {
+        if !powered {
+            "bluetooth-disabled-symbolic"
+        } else if connected {
+            "bluetooth-active-symbolic"
+        } else {
+            "bluetooth-symbolic"
+        }
+    }
+
     pub fn volume(percent: u8, muted: bool) -> &'static str {
         if muted || percent == 0 {
             "audio-volume-muted-symbolic"

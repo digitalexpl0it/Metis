@@ -8,6 +8,8 @@ pub mod clocks;
 pub mod css;
 pub mod input;
 pub mod menu;
+pub mod outputs;
+pub mod power;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
@@ -156,6 +158,14 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
     }
 }
 
+pub use outputs::{
+    load_outputs_config, output_prefs, outputs_config_path, save_outputs_config, OutputPrefs,
+    OutputsConfig,
+};
+pub use power::{
+    load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,
+    PowerProfile,
+};
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
     ComposeKey, InputConfig, KeyboardConfig, MouseConfig, TouchpadConfig,

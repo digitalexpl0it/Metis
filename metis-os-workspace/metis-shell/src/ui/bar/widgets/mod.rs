@@ -20,7 +20,7 @@ use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
 pub use notifications::do_not_disturb;
 pub(crate) use notifications::build_action_row;
-use sys::{BatteryWidget, NetworkWidget, VolumeWidget};
+use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
 use tasks::TasksWidget;
 use weather::WeatherWidget;
 use workspaces::WorkspacesWidget;
@@ -30,6 +30,7 @@ pub struct WidgetRefs {
     tasks: RefCell<Option<TasksWidget>>,
     clock: RefCell<Option<ClockWidget>>,
     battery: RefCell<Option<BatteryWidget>>,
+    bluetooth: RefCell<Option<BluetoothWidget>>,
     network: RefCell<Option<NetworkWidget>>,
     volume: RefCell<Option<VolumeWidget>>,
     notifications: RefCell<Option<NotificationsWidget>>,
@@ -43,6 +44,9 @@ impl WidgetRefs {
         }
         if let Some(w) = self.battery.borrow().as_ref() {
             w.update(snapshot.battery_percent, snapshot.battery_charging);
+        }
+        if let Some(w) = self.bluetooth.borrow().as_ref() {
+            w.update(&snapshot.bluetooth);
         }
         if let Some(w) = self.network.borrow().as_ref() {
             w.update(&snapshot.ethernet, &snapshot.wifi, snapshot.wifi_enabled);
@@ -104,6 +108,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
         tasks: RefCell::new(None),
         clock: RefCell::new(None),
         battery: RefCell::new(None),
+        bluetooth: RefCell::new(None),
         network: RefCell::new(None),
         volume: RefCell::new(None),
         notifications: RefCell::new(None),
@@ -163,6 +168,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
                 let w = NetworkWidget::new();
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.network.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Bluetooth => {
+                let w = BluetoothWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.bluetooth.borrow_mut() = Some(w);
             }
             BarWidgetId::Volume => {
                 let w = VolumeWidget::new();

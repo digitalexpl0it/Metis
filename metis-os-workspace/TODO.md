@@ -1,12 +1,10 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 3 (multi-monitor, workspaces & tiling) is complete —
-per-output bars/workspaces/wallpaper, cross-output moves, automatic grid tiling,
-scrolling layout polish (viewport easing), the settings portal, and Metis runs as
-a **standalone DRM/KMS session** (own TTY/GPU, login-manager entry) alongside the
-nested winit dev path. Deferred: full multi-GPU compositing. Next: Phase 4
-(settings-app expansion into a full control center) and Phase 5 (display
-pipeline: VRR, colour management, HDR).
+**Current phase:** Phase 4 (settings-app expansion into a full control center) is
+complete for the planned Device + System pages (Bluetooth, Printers, Sound,
+Power, Display). Input (mouse/touchpad/keyboard) was already done. Next: **Phase 5**
+(display pipeline: VRR, colour management, HDR) and the deferred Phase 3 item
+(full multi-GPU compositing).
 
 ---
 
@@ -282,24 +280,22 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
       `wl_keyboard` `repeat_info`
 
 ### Devices (D-Bus services)
-- [ ] **Bluetooth** — adapter on/off, scan, pair / connect / trust / remove, battery
-      level where reported; via BlueZ (`org.bluez`) over D-Bus. Add a bar indicator
-      that appears only when an adapter is present
-- [ ] **Printers** — list / add / manage printers + queues via CUPS (IPP / D-Bus);
-      may begin as a thin launcher for an existing tool, then go native
+- [x] **Bluetooth** — adapter on/off, scan, pair / connect / trust / remove, battery
+      level where reported; via BlueZ (`bluetoothctl`). Bar indicator appears only
+      when an adapter is present (`BarWidgetId::Bluetooth`)
+- [x] **Printers** — list queues via CUPS (`lpstat`); launcher for
+      `system-config-printer` / CUPS web UI
 
 ### System
-- [ ] **Power / Battery** — power profiles (power-saver / balanced / performance) via
-      power-profiles-daemon, battery details + health via UPower, idle-dim / blank /
-      suspend timeouts, lid-close action; feeds the existing bar battery widget
-- [ ] **Sound** — output / input device selection, per-device volume + mute, default
-      sink / source, balance, and (later) per-app volume; via PipeWire / PulseAudio.
-      Feeds the existing bar volume control
-- [ ] **Display** — per-output resolution, refresh rate, scale, orientation,
-      multi-monitor arrangement + primary, VRR toggle, night-light / colour
-      temperature; writes output config (`outputs.json`). Depends on the Phase 3
-      output-agnostic refactor (and the Phase 5 DRM backend for real mode-setting /
-      VRR)
+- [x] **Power / Battery** — power profiles (power-saver / balanced / performance) via
+      `powerprofilesctl`, battery details via sysfs, idle-dim / blank /
+      suspend timeouts + lid-close action persisted to `power.json` (logind
+      best-effort); battery widget links to Power settings
+- [x] **Sound** — output / input device selection via `pactl` default sink/source;
+      volume readout on the settings page (bar volume widget unchanged)
+- [x] **Display** — per-output scale + night-light prefs in `outputs.json`; lists
+      compositor outputs via `ListOutputs` IPC. Resolution / refresh / VRR remain
+      Phase 5 (DRM mode-setting)
 
 ---
 
@@ -341,6 +337,8 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
+| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
+| `outputs.json` | Per-output scale, night-light prefs (resolution/VRR in Phase 5) |
 
 ### `bar.json` (defaults)
 

@@ -47,10 +47,21 @@ pub struct EthernetStatus {
     pub label: String,
 }
 
+/// Bluetooth adapter status for the conditional bar indicator.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BluetoothStatus {
+    /// Whether a Bluetooth adapter exists at all (widget hidden when false).
+    pub adapter_present: bool,
+    pub powered: bool,
+    pub connected: bool,
+    pub device_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BarSnapshot {
     pub battery_percent: Option<u8>,
     pub battery_charging: bool,
+    pub bluetooth: BluetoothStatus,
     pub wifi: Vec<WifiNetwork>,
     pub ethernet: EthernetStatus,
     pub wifi_enabled: bool,
@@ -96,6 +107,7 @@ fn poll_loop(
         if tick % 4 == 0 {
             cached.battery_percent = read_battery_percent();
             cached.battery_charging = read_battery_charging();
+            cached.bluetooth = read_bluetooth_status();
         }
         if tick % 3 == 0 {
             cached.wifi_enabled = read_wifi_radio_enabled();
@@ -362,6 +374,45 @@ fn read_battery_charging() -> bool {
         .unwrap_or_default();
     status.trim().eq_ignore_ascii_case("charging")
         || status.trim().eq_ignore_ascii_case("fully charged")
+}
+
+fn read_bluetooth_status() -> BluetoothStatus {
+    let mut cmd = std::process::Command::new("bluetoothctl");
+    cmd.args(["show"]).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null());
+    let Some(output) = run_command(&mut cmd) else {
+        return BluetoothStatus::default();
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    if !text.contains("Controller") || text.contains("No default controller") {
+        return BluetoothStatus::default();
+    }
+    let powered = text.contains("Powered: yes");
+    let mut device_name = None;
+    let mut connected = false;
+    let devices_out = std::process::Command::new("bluetoothctl")
+        .args(["devices", "Connected"])
+        .output()
+        .ok();
+    if let Some(o) = devices_out {
+        let dev_text = String::from_utf8_lossy(&o.stdout);
+        for line in dev_text.lines() {
+            if let Some(rest) = line.strip_prefix("Device ") {
+                let mut parts = rest.splitn(2, ' ');
+                let _addr = parts.next();
+                if let Some(name) = parts.next() {
+                    device_name = Some(name.to_string());
+                    connected = true;
+                    break;
+                }
+            }
+        }
+    }
+    BluetoothStatus {
+        adapter_present: true,
+        powered,
+        connected,
+        device_name,
+    }
 }
 
 fn run_command(cmd: &mut std::process::Command) -> Option<std::process::Output> {

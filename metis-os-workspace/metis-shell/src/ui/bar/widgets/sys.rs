@@ -2,52 +2,142 @@ use gtk::prelude::*;
 
 use crate::ui::icons::{self, names};
 
+use crate::services::{BluetoothStatus, EthernetStatus, WifiNetwork};
+
 pub struct BatteryWidget {
-    root: gtk::Box,
+    root: gtk::Button,
     icon: gtk::Image,
+    label: gtk::Label,
     last_percent: std::cell::Cell<Option<u8>>,
     last_charging: std::cell::Cell<bool>,
 }
 
 impl BatteryWidget {
     pub fn new() -> Self {
-        let root = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(0)
-            .build();
+        let root = gtk::Button::builder().build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-battery");
         root.add_css_class("metis-bar-sys-icon");
 
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         let icon = icons::image(names::battery(100, false));
-        root.append(&icon);
+        let label = gtk::Label::new(None);
+        label.add_css_class("metis-bar-battery-label");
+        row.append(&icon);
+        row.append(&label);
+        root.set_child(Some(&row));
+
+        let panel = super::super::dropdown::build_panel();
+        panel.set_spacing(8);
+        let status = gtk::Label::new(Some("Battery"));
+        status.set_xalign(0.0);
+        status.add_css_class("metis-bar-section-title");
+        panel.append(&status);
+        let settings_btn = gtk::Button::with_label("Power settings…");
+        settings_btn.connect_clicked(|_| {
+            if let Err(err) = crate::compositor::launch_program("metis-settings --page power") {
+                tracing::warn!(%err, "failed to open power settings");
+            }
+        });
+        panel.append(&settings_btn);
+        super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
 
         Self {
             root,
             icon,
+            label,
             last_percent: std::cell::Cell::new(None),
             last_charging: std::cell::Cell::new(false),
         }
     }
 
-    pub fn root(&self) -> &gtk::Box {
+    pub fn root(&self) -> &gtk::Button {
         &self.root
     }
 
     pub fn update(&self, percent: Option<u8>, charging: bool) {
-        let pct = percent.unwrap_or(0);
         if self.last_percent.get() == percent && self.last_charging.get() == charging {
             return;
         }
         self.last_percent.set(percent);
         self.last_charging.set(charging);
-        self.root
-            .set_tooltip_text(Some(&format!("Battery {pct}%")));
-        icons::set_icon(&self.icon, names::battery(pct, charging));
+        if let Some(pct) = percent {
+            self.label.set_text(&format!("{pct}%"));
+            self.label.set_visible(true);
+            self.root
+                .set_tooltip_text(Some(&format!("Battery {pct}%")));
+        } else {
+            self.label.set_visible(false);
+            self.root.set_tooltip_text(Some("AC power"));
+        }
+        icons::set_icon(
+            &self.icon,
+            names::battery(percent.unwrap_or(100), charging),
+        );
     }
 }
 
-use crate::services::{EthernetStatus, WifiNetwork};
+pub struct BluetoothWidget {
+    root: gtk::Button,
+    icon: gtk::Image,
+}
+
+impl BluetoothWidget {
+    pub fn new() -> Self {
+        let root = gtk::Button::builder().build();
+        root.add_css_class("metis-bar-widget");
+        root.add_css_class("metis-bar-bluetooth");
+        root.add_css_class("metis-bar-sys-icon");
+        root.set_visible(false);
+
+        let icon = icons::image(names::bluetooth(false, false));
+        root.set_child(Some(&icon));
+
+        let panel = super::super::dropdown::build_panel();
+        panel.set_spacing(8);
+        let title = gtk::Label::new(Some("Bluetooth"));
+        title.set_xalign(0.0);
+        title.add_css_class("metis-bar-section-title");
+        panel.append(&title);
+        let settings_btn = gtk::Button::with_label("Bluetooth settings…");
+        settings_btn.connect_clicked(|_| {
+            if let Err(err) = crate::compositor::launch_program("metis-settings --page bluetooth")
+            {
+                tracing::warn!(%err, "failed to open bluetooth settings");
+            }
+        });
+        panel.append(&settings_btn);
+        super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
+
+        Self { root, icon }
+    }
+
+    pub fn root(&self) -> &gtk::Button {
+        &self.root
+    }
+
+    pub fn update(&self, status: &BluetoothStatus) {
+        self.root.set_visible(status.adapter_present);
+        if !status.adapter_present {
+            return;
+        }
+        icons::set_icon(
+            &self.icon,
+            names::bluetooth(status.powered, status.connected),
+        );
+        let tip = if !status.powered {
+            "Bluetooth off".to_string()
+        } else if let Some(name) = &status.device_name {
+            format!("Connected to {name}")
+        } else if status.connected {
+            "Bluetooth connected".to_string()
+        } else {
+            "Bluetooth on".to_string()
+        };
+        self.root.set_tooltip_text(Some(&tip));
+    }
+}
+
 
 /// Shared state + interactive widgets for the network popover so row/button
 /// closures can re-render the Wi-Fi list and drive the connect flow.

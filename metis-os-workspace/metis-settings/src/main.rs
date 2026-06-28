@@ -3,10 +3,14 @@
 //! the `metis-config` crate; the running shell picks up changes through its file
 //! watchers (or an explicit `reload-*` runtime command).
 
+mod bluetooth;
 mod msauth;
 mod net;
 mod pages;
+mod power;
+mod printers;
 mod runtime;
+mod sound;
 mod theme;
 mod ui;
 
@@ -70,6 +74,41 @@ const NAV: &[NavItem] = &[
         page_id: Some("keyboard"),
         title: "Keyboard",
         icon: Some("input-keyboard-symbolic"),
+    },
+    NavItem {
+        page_id: None,
+        title: "Devices",
+        icon: None,
+    },
+    NavItem {
+        page_id: Some("bluetooth"),
+        title: "Bluetooth",
+        icon: Some("bluetooth-symbolic"),
+    },
+    NavItem {
+        page_id: Some("printers"),
+        title: "Printers",
+        icon: Some("printer-symbolic"),
+    },
+    NavItem {
+        page_id: None,
+        title: "System",
+        icon: None,
+    },
+    NavItem {
+        page_id: Some("sound"),
+        title: "Sound",
+        icon: Some("audio-volume-high-symbolic"),
+    },
+    NavItem {
+        page_id: Some("power"),
+        title: "Power",
+        icon: Some("battery-level-100-symbolic"),
+    },
+    NavItem {
+        page_id: Some("display"),
+        title: "Display",
+        icon: Some("video-display-symbolic"),
     },
 ];
 
@@ -139,6 +178,11 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::mouse::build(), Some("mouse"), "Mouse");
     stack.add_titled(&pages::touchpad::build(), Some("touchpad"), "Touchpad");
     stack.add_titled(&pages::keyboard::build(), Some("keyboard"), "Keyboard");
+    stack.add_titled(&pages::bluetooth::build(), Some("bluetooth"), "Bluetooth");
+    stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
+    stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
+    stack.add_titled(&pages::power::build(), Some("power"), "Power");
+    stack.add_titled(&pages::display::build(), Some("display"), "Display");
 
     let nav = gtk::ListBox::new();
     nav.set_selection_mode(gtk::SelectionMode::Single);

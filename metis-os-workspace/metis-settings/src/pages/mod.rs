@@ -1,9 +1,14 @@
 pub mod appearance;
+pub mod bluetooth;
 pub mod calendars;
+pub mod display;
 pub mod input_common;
 pub mod keyboard;
 pub mod menu;
 pub mod mouse;
 pub mod network;
+pub mod power;
+pub mod printers;
+pub mod sound;
 pub mod touchpad;
 pub mod weather;

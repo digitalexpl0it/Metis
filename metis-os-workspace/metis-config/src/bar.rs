@@ -100,6 +100,7 @@ pub enum BarWidgetId {
     Clock,
     Battery,
     Network,
+    Bluetooth,
     Volume,
     Notifications,
     Weather,
@@ -377,6 +378,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Weather,
         BarWidgetId::Battery,
         BarWidgetId::Network,
+        BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
         BarWidgetId::Notifications,
         BarWidgetId::Clock,
@@ -444,6 +446,7 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
         BarWidgetId::Spacer,
         BarWidgetId::Battery,
         BarWidgetId::Network,
+        BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
         BarWidgetId::Notifications,
     ];
@@ -454,6 +457,7 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
         BarWidgetId::Spacer,
         BarWidgetId::Battery,
         BarWidgetId::Network,
+        BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
         BarWidgetId::Clock,
     ];
@@ -487,6 +491,7 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                     w,
                     BarWidgetId::Battery
                         | BarWidgetId::Network
+                        | BarWidgetId::Bluetooth
                         | BarWidgetId::Volume
                         | BarWidgetId::Notifications
                         | BarWidgetId::Clock
@@ -509,6 +514,20 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
             .map(|i| i + 1)
             .unwrap_or(0);
         cfg.widgets.insert(pos, BarWidgetId::Tasks);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    }
+
+    // Insert the Bluetooth indicator after Network in layouts that predate it.
+    if !cfg.widgets.contains(&BarWidgetId::Bluetooth) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Network))
+            .map(|i| i + 1)
+            .unwrap_or(cfg.widgets.len());
+        cfg.widgets.insert(pos, BarWidgetId::Bluetooth);
         if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
             let _ = std::fs::write(bar_config_path(), json);
         }
