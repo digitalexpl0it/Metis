@@ -387,9 +387,19 @@ impl Wallpaper {
     }
 
     pub fn render_element(&self) -> Option<TextureRenderElement<GlesTexture>> {
+        self.render_element_at(Point::from((0.0, 0.0)))
+    }
+
+    /// Wallpaper element with its top-left placed at `loc` (physical). The
+    /// texture spans the whole virtual desktop, so the DRM backend offsets it by
+    /// the negative of each output's origin to slice the per-output framebuffer.
+    pub fn render_element_at(
+        &self,
+        loc: Point<f64, Physical>,
+    ) -> Option<TextureRenderElement<GlesTexture>> {
         let buffer = self.buffer.as_ref()?;
         Some(TextureRenderElement::from_texture_buffer(
-            Point::from((0.0, 0.0)),
+            loc,
             buffer,
             None,
             None,

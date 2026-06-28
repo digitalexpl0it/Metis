@@ -79,6 +79,11 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
     ) {
         handle.motion(data, None, event);
 
+        if data.hover_cursor != Some(self.edges) {
+            data.hover_cursor = Some(self.edges);
+            data.schedule_redraw();
+        }
+
         let mut delta = event.location - self.start_data.location;
         let mut new_window_width = self.initial_rect.size.w;
         let mut new_window_height = self.initial_rect.size.h;
@@ -120,6 +125,23 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
             state.size = Some(self.last_window_size);
         });
         xdg.send_pending_configure();
+
+        // Shift the window origin live for top/left resizes so feedback is not
+        // delayed until the client's commit lands.
+        if self.edges.intersects(ResizeEdge::TOP | ResizeEdge::LEFT) {
+            let mut origin = self.initial_rect.loc;
+            if self.edges.intersects(ResizeEdge::LEFT) {
+                origin.x = self.initial_rect.loc.x + (self.initial_rect.size.w - self.last_window_size.w);
+            }
+            if self.edges.intersects(ResizeEdge::TOP) {
+                origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - self.last_window_size.h);
+            }
+            if data.space.element_location(&self.window).is_some_and(|loc| loc != origin) {
+                data.space.map_element(self.window.clone(), origin, false);
+            }
+        }
+
+        data.schedule_redraw();
     }
 
     fn relative_motion(
@@ -139,8 +161,7 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
         event: &ButtonEvent,
     ) {
         handle.button(data, event);
-        const BTN_LEFT: u32 = 0x110;
-        if !handle.current_pressed().contains(&BTN_LEFT) {
+        if handle.current_pressed().is_empty() {
             handle.unset_grab(self, data, event.serial, event.time, true);
             let xdg = self.window.toplevel().unwrap();
             xdg.with_pending_state(|state| {
@@ -310,6 +331,21 @@ impl ResizeSurfaceState {
             Self::Idle => None,
         }
     }
+
+    fn is_active(surface: &WlSurface) -> bool {
+        Self::with(surface, |state| {
+            matches!(
+                *state,
+                Self::Resizing { .. } | Self::WaitingForLastCommit { .. }
+            )
+        })
+    }
+}
+
+/// True while an interactive edge-resize grab is active or waiting for the last
+/// client commit from that grab.
+pub fn surface_is_interactively_resizing(surface: &WlSurface) -> bool {
+    ResizeSurfaceState::is_active(surface)
 }
 
 pub fn handle_commit(space: &mut Space<Window>, surface: &WlSurface) -> Option<()> {

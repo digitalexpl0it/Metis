@@ -12,6 +12,15 @@ sudo apt install -y \
   curl git
 ```
 
+To build/run the **standalone DRM session** (Metis on its own TTY/GPU, not nested),
+also install the session, input, and GPU libraries:
+
+```bash
+sudo apt install -y \
+  libudev-dev libinput-dev libseat-dev \
+  libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+```
+
 If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.
 
 ## Rust toolchain
@@ -37,6 +46,53 @@ METIS_VIRTUAL_OUTPUTS=2 ./run-metis.sh --session
 
 For day-to-day usage (keybinds, workspaces, scrolling layout, settings), see the
 [User Guide](USER_GUIDE.md).
+
+## Standalone session (run on a real TTY/GPU)
+
+Metis autodetects its backend: with `WAYLAND_DISPLAY`/`DISPLAY` set it nests
+(winit), otherwise it drives DRM/KMS directly. Force it with
+`METIS_BACKEND=winit|drm`.
+
+### Option A — log in from your display manager (recommended, Hyprland-style)
+
+Install the session entry, then pick **Metis** from the GDM/SDDM/greetd session
+menu, exactly like selecting Hyprland:
+
+```bash
+cd metis-os-workspace/metis-shell
+./run-metis.sh --install-session    # builds release; prompts for sudo
+```
+
+This installs:
+
+- `/usr/local/bin/{metis-compositor,metis-shell,metis-settings}`
+- `/usr/local/bin/metis-session` — the session launcher (sets
+  `XDG_CURRENT_DESKTOP=Metis`, `METIS_BACKEND=drm`, exports the activation
+  environment, then execs the compositor)
+- `/usr/local/share/wayland-sessions/metis.desktop` — the greeter entry
+
+Log out and choose **Metis** at the login screen. The display manager hands the
+session its own VT + seat, so libseat takes DRM master cleanly and exiting drops
+back to the greeter. **Keep an SSH session open the first few times** in case the
+greeter does not return.
+
+### Option B — from a bare TTY (quick test)
+
+Switch to a free VT (`Ctrl+Alt+F3`), log in, then:
+
+```bash
+cd metis-os-workspace/metis-shell
+./run-metis.sh --session --drm
+```
+
+### Escape hatches (DRM session only)
+
+- **Ctrl+Alt+Backspace** — quit Metis (returns to the greeter / shell)
+- **Ctrl+Alt+F<n>** — switch virtual terminal
+
+`METIS_DRM_DEVICE=/dev/dri/cardN` overrides primary-GPU autodetection. The DRM
+session paints its own (XCursor-themed) pointer; set `XCURSOR_THEME` /
+`XCURSOR_SIZE` to change it.
 
 On first run, Metis writes defaults to `~/.config/metis/`:
 
@@ -64,3 +120,5 @@ Created later, on demand:
 | Missing layer-shell | Install `libgtk-4-layer-shell-dev` |
 | Shell hangs on startup | Rebuild compositor + shell (`./run-metis.sh --build --session`) |
 | Theme not applied | Delete `~/.config/metis/themes/*.json` and restart to regenerate |
+| DRM session: black screen / no input | Run from a VT you own (or via the display-manager entry) so libseat can take DRM master; check the log and SSH in to `Ctrl+Alt+Backspace` is unavailable — `pkill metis-compositor`. |
+| DRM session: "no GPU found for seat" | Ensure you are in the `video`/`render`/`input` groups and `seatd`/logind is running; try `METIS_DRM_DEVICE=/dev/dri/card0`. |

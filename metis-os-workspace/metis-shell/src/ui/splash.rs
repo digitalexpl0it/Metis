@@ -33,7 +33,7 @@ const MAX_SHOW: Duration = Duration::from_millis(4000);
 const FADE: Duration = Duration::from_millis(360);
 
 struct Splash {
-    window: gtk::ApplicationWindow,
+    window: gtk::Window,
     progress: gtk::ProgressBar,
     /// Set once the card has been measured and centered (animation clock origin).
     start: Option<Instant>,
@@ -108,14 +108,11 @@ fn materialize_sound() -> Option<std::path::PathBuf> {
 }
 
 /// Build and show the splash overlay, then start the progress/fade animation.
-pub fn show(app: &gtk::Application) {
+pub fn show() {
     // Defer audio so GStreamer/plugin init cannot block GTK setup on the main thread.
     glib::idle_add_local_once(play_startup_sound);
 
-    let window = gtk::ApplicationWindow::builder()
-        .application(app)
-        .title("Metis")
-        .build();
+    let window = gtk::Window::builder().title("Metis").build();
     window.add_css_class("metis-splash-window");
     window.init_layer_shell();
     window.set_layer(Layer::Overlay);

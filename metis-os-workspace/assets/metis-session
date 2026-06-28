@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Metis standalone session launcher (Stage C.5).
+#
+# This is the entry point a login manager (GDM, SDDM, greetd, …) runs when you
+# pick "Metis" from the session list — analogous to Hyprland's `Hyprland`
+# session wrapper. The display manager has already given us our own VT and a
+# logind seat, so libseat can take DRM master cleanly; on exit we drop straight
+# back to the greeter.
+#
+# It sets the desktop identity, pins the DRM backend, exports the session
+# environment to the user D-Bus / systemd activation environment (so portals and
+# activated apps land in this session), then execs the compositor.
+
+set -uo pipefail
+
+# --- desktop identity -------------------------------------------------------
+export XDG_CURRENT_DESKTOP="Metis"
+export XDG_SESSION_DESKTOP="metis"
+export XDG_SESSION_TYPE="wayland"
+
+# --- backend ---------------------------------------------------------------
+# Pin the standalone DRM/KMS backend regardless of autodetection.
+export METIS_BACKEND="drm"
+
+# GTK shell: prefer the Wayland backend.
+export GDK_BACKEND="${GDK_BACKEND:-wayland}"
+# Some GPU/driver combos hang GTK's GL renderer under a fresh compositor; the
+# Cairo renderer is a safe default. Override by exporting GSK_RENDERER before
+# launch if your stack is happy with GL.
+export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+
+# --- GTK startup hardening for a standalone (non-GNOME) session ------------
+# Without these, the GTK4 shell can stall for ~25s (or indefinitely) at startup:
+#   * The Settings portal: with XDG_CURRENT_DESKTOP=Metis, GTK4 reads its theme
+#     / color-scheme via xdg-desktop-portal; that backend (xdg-desktop-portal-gtk)
+#     fails outside GNOME, so the lookup blocks on a D-Bus timeout. GTK4 made the
+#     old GTK_USE_PORTAL var obsolete — `GDK_DEBUG=no-portals` is the supported
+#     switch, which makes GTK read settings directly (GSettings/dconf).
+#   * The AT-SPI accessibility bus: GTK connects to org.a11y.Bus at startup; with
+#     no a11y bus in a bare session it can hang. Disable accessibility.
+if [[ -z "${GDK_DEBUG:-}" ]]; then
+    export GDK_DEBUG="no-portals"
+elif [[ ",$GDK_DEBUG," != *",no-portals,"* && ",$GDK_DEBUG," != *",portals,"* ]]; then
+    export GDK_DEBUG="$GDK_DEBUG,no-portals"
+fi
+export GTK_A11Y="${GTK_A11Y:-none}"
+export NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}"
+
+# Default logging if the session leaves it unset.
+export RUST_LOG="${RUST_LOG:-metis_shell=debug,metis_compositor=info,warn}"
+
+# --- session log -----------------------------------------------------------
+# A login-manager session has no terminal, so capture compositor + shell output
+# to a file (the shell inherits these fds). Read it after a failed run:
+#   ~/.local/state/metis/logs/session-latest.log
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/metis/logs"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+SESSION_LOG="$LOG_DIR/session-$(date +%Y%m%d-%H%M%S).log"
+ln -sfn "$SESSION_LOG" "$LOG_DIR/session-latest.log" 2>/dev/null || true
+
+# --- locate the compositor -------------------------------------------------
+# Installed layout puts metis-compositor + metis-shell side by side; the
+# compositor resolves metis-shell next to itself. Fall back to PATH.
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+if [[ -x "$SELF_DIR/metis-compositor" ]]; then
+    COMP_BIN="$SELF_DIR/metis-compositor"
+else
+    COMP_BIN="$(command -v metis-compositor || true)"
+fi
+if [[ -z "${COMP_BIN:-}" ]]; then
+    echo "metis-session: metis-compositor not found in $SELF_DIR or PATH" >&2
+    exit 127
+fi
+
+# --- activation environment ------------------------------------------------
+# Hand our session env to systemd --user and D-Bus so portals / activated apps
+# run inside Metis. Best-effort: a session may not have a user bus yet.
+SESSION_VARS=(
+    WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+    XDG_SESSION_ID DISPLAY GDK_BACKEND GSK_RENDERER GDK_DEBUG GTK_A11Y NO_AT_BRIDGE
+)
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+    dbus-update-activation-environment --systemd "${SESSION_VARS[@]}" 2>/dev/null || true
+elif command -v systemctl >/dev/null 2>&1; then
+    systemctl --user import-environment "${SESSION_VARS[@]}" 2>/dev/null || true
+fi
+
+exec "$COMP_BIN" "$@" >"$SESSION_LOG" 2>&1

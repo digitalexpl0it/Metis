@@ -66,6 +66,21 @@ side-by-side virtual outputs:
 METIS_VIRTUAL_OUTPUTS=2 ./run-metis.sh --session
 ```
 
+### Standalone session (real TTY/GPU)
+
+Metis also runs as a real desktop session on its own GPU via a DRM/KMS + libseat
++ libinput backend (autodetected when no parent Wayland/X11 session is present).
+Install the login entry and pick **Metis** from your display manager, just like
+Hyprland:
+
+```bash
+./run-metis.sh --install-session   # build release + install the session entry
+```
+
+Or test it directly from a free VT with `./run-metis.sh --session --drm`. See
+[`docs/UBUNTU_DEV.md`](docs/UBUNTU_DEV.md) for details and escape hatches
+(Ctrl+Alt+Backspace to quit, Ctrl+Alt+F<n> to switch VT).
+
 ## Using Metis
 
 Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:

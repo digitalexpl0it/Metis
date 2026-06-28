@@ -1,11 +1,12 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 3 (multi-monitor, workspaces & tiling) is complete for the
-nested dev session — per-output bars/workspaces/wallpaper, cross-output moves,
-automatic grid tiling, and scrolling layout polish. Deferred: DRM/udev backend and
-the settings portal (standalone DE only). Next: Phase 4 (settings-app expansion
-into a full control center) and Phase 5 (display pipeline: VRR, colour management,
-HDR).
+**Current phase:** Phase 3 (multi-monitor, workspaces & tiling) is complete —
+per-output bars/workspaces/wallpaper, cross-output moves, automatic grid tiling,
+and scrolling layout polish — and Metis now also runs as a **standalone DRM/KMS
+session** (own TTY/GPU, login-manager entry) alongside the nested winit dev path.
+Deferred: full multi-GPU compositing and the settings portal. Next: Phase 4
+(settings-app expansion into a full control center) and Phase 5 (display
+pipeline: VRR, colour management, HDR).
 
 ---
 
@@ -233,13 +234,29 @@ so each milestone is shippable on its own:
       `WindowInfo.output` carries the monitor name; the dock filters by
       `(output, active workspace)`, repaints on workspace switch, and dedups per
       bar. The "Per-output state" per-output dock item is now also covered.
-- [ ] DRM/udev backend (real multi-seat sessions) — deferred until the above lands
-- [ ] **Settings portal (`org.freedesktop.portal.Settings`)** — once Metis runs as
-      a standalone DE (not nested in GNOME), serve an empty GTK decoration layout so
-      stubborn CSD apps (e.g. GTK3 Cheese) drop their own close/min/max buttons and
-      only Metis's server-side controls show; also a clean handoff for theme / font /
-      dark-mode prefs to clients. (Avoided while nested — it would alter the host
-      GNOME session live.)
+- [x] **DRM/udev backend (real standalone session)** — DRM/KMS + libseat +
+      libinput backend selected alongside the nested winit dev path
+      (`METIS_BACKEND` / autodetect). Damage-gated per-output page-flips on the
+      primary GPU's `GlesRenderer`, dmabuf global for EGL clients, libinput input
+      with VT-switch / safe-quit / suspend-resume, software/HW cursor (XCursor +
+      client surfaces), and live connector hotplug with output re-packing.
+      Login-manager entry installable via `run-metis.sh --install-session`
+      (`metis-session` + `metis.desktop`); `--session --drm` runs from a TTY.
+  - [ ] **Full multi-GPU** — render each output on its own GPU via
+        `GpuManager`/`MultiRenderer`. Blocked on making the custom GL **blur
+        shader** (`BlurElement`, a `GlesTexProgram` drawn through
+        `GlesFrame::render_texture_from_to`) work through `MultiFrame`, which the
+        pinned smithay API does not expose; needs a blur rework (or a
+        per-renderer fallback) + multi-GPU hardware to validate. Single-GPU and
+        hybrid single-output (direct EGL/PRIME import) work today.
+- [ ] **Settings portal (`org.freedesktop.portal.Settings`)** — now that Metis
+      runs as a standalone DE (not nested in GNOME), serve an empty GTK decoration
+      layout so stubborn CSD apps (e.g. GTK3 Cheese) drop their own
+      close/min/max buttons and only Metis's server-side controls show; also a
+      clean handoff for theme / font / dark-mode prefs to clients (zbus is already
+      a shell dependency). Deferred from the DRM backend work: needs a
+      `xdg-desktop-portal` backend `.portal` registration to avoid clashing with
+      the host portal.
 
 ---
 

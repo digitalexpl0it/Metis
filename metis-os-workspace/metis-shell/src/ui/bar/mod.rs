@@ -18,14 +18,6 @@ thread_local! {
     // One bar per output (monitor); see `BarDisplays`. A single-monitor session
     // holds exactly one handle.
     static BARS: RefCell<Vec<BarHandle>> = const { RefCell::new(Vec::new()) };
-    // The owning GTK application, kept so monitor hotplug / config changes can
-    // build fresh bar windows without threading `app` through every call.
-    static APP: RefCell<Option<gtk::Application>> = const { RefCell::new(None) };
-    // Keeps the GtkApplication alive even when it transiently owns zero windows
-    // (e.g. mid-rebuild when the display set changes). Without this the app would
-    // auto-quit the instant the last window is removed and tear down the Wayland
-    // connection ("Error flushing display: Broken pipe").
-    static APP_HOLD: RefCell<Option<gtk::gio::ApplicationHoldGuard>> = const { RefCell::new(None) };
     // Mirror of the active bar position, kept outside the `BARS` RefCell so
     // `popover_position()` can be read while `BARS` is mutably borrowed (e.g. from
     // within `rebuild_bars`, which builds widgets that query the popover side).
@@ -36,7 +28,7 @@ thread_local! {
 }
 
 struct BarHandle {
-    window: gtk::ApplicationWindow,
+    window: gtk::Window,
     outer: gtk::Box,
     column: gtk::Box,
     pill: gtk::Box,
@@ -48,13 +40,10 @@ struct BarHandle {
 }
 
 
-pub fn init_and_show(app: &gtk::Application) {
+pub fn init_and_show() {
     if let Err(err) = save_default_bar_config() {
         tracing::warn!(%err, "failed to write default bar.json");
     }
-
-    APP.with(|a| *a.borrow_mut() = Some(app.clone()));
-    APP_HOLD.with(|h| *h.borrow_mut() = Some(app.hold()));
 
     let config = Rc::new(RefCell::new(load_bar_config()));
     let cfg = config.borrow().clone();
@@ -65,7 +54,7 @@ pub fn init_and_show(app: &gtk::Application) {
     let monitors = target_monitors(&cfg);
     let handles: Vec<BarHandle> = monitors
         .iter()
-        .map(|m| build_bar(app, config.clone(), m.as_ref()))
+        .map(|m| build_bar(config.clone(), m.as_ref()))
         .collect();
     let count = handles.len();
     BARS.with(|bars| *bars.borrow_mut() = handles);
@@ -88,15 +77,13 @@ pub fn init_and_show(app: &gtk::Application) {
 /// Build a single bar window, optionally bound to `monitor` (None lets the
 /// compositor choose the output). Returns the handle without registering it.
 fn build_bar(
-    app: &gtk::Application,
     config: Rc<RefCell<BarConfig>>,
     monitor: Option<&gtk::gdk::Monitor>,
 ) -> BarHandle {
     let cfg = config.borrow().clone();
     let (win_w, win_h) = layer_window_size(&cfg);
 
-    let window = gtk::ApplicationWindow::builder()
-        .application(app)
+    let window = gtk::Window::builder()
         .title("Metis Bar")
         .default_width(win_w)
         .default_height(win_h)
@@ -465,7 +452,7 @@ fn orientation_for(config: &BarConfig) -> gtk::Orientation {
     }
 }
 
-fn apply_layer_geometry(window: &gtk::ApplicationWindow, config: &BarConfig) {
+fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     if !window.is_layer_window() {
         window.init_layer_shell();
     }
@@ -579,18 +566,13 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
 /// the `displays` option).
 fn rebuild_all_bars(config: Rc<RefCell<BarConfig>>) {
     dropdown::close_all();
-    let Some(app) = APP.with(|a| a.borrow().clone()) else {
-        return;
-    };
     let cfg = config.borrow().clone();
-    // Build the new bars *before* destroying the old ones so the application's
-    // window count never reaches zero — otherwise GtkApplication auto-quits the
-    // moment the last window is removed (then the display connection tears down:
-    // "Error flushing display: Broken pipe"). This also avoids a one-frame flash
-    // with no bar on screen.
+    // Build the new bars *before* destroying the old ones to avoid a one-frame
+    // flash with no bar on screen. (The shell runs its own GLib main loop, so an
+    // empty window set never quits it.)
     let new_handles: Vec<BarHandle> = target_monitors(&cfg)
         .iter()
-        .map(|m| build_bar(&app, config.clone(), m.as_ref()))
+        .map(|m| build_bar(config.clone(), m.as_ref()))
         .collect();
     let old = BARS.with(|bars| std::mem::replace(&mut *bars.borrow_mut(), new_handles));
     for handle in old {

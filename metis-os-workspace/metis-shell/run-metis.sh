@@ -11,6 +11,10 @@
 #   ./run-metis.sh --release    # optimized binaries
 #   ./run-metis.sh --stop       # stop background shell process
 #   ./run-metis.sh --verify-grid # compare compositor vs shell grid layouts
+#   ./run-metis.sh --install-session # build release + install the GDM/login
+#                                    # "Metis" session entry (run with sudo)
+#   ./run-metis.sh --session --drm   # run the standalone DRM/TTY backend
+#                                    # (switch to a free VT first; keep SSH open)
 #
 # Logs:
 #   ~/.local/state/metis/logs/metis-YYYYMMDD-HHMMSS.log
@@ -64,11 +68,13 @@ AUDIT_LOG="${XDG_STATE_HOME:-$HOME/.local/state}/metis/launch-audit.log"
 
 FORCE_BUILD=0
 SESSION=0
+DRM=0
 IMPORT_ENV=0
 FOREGROUND=0
 DO_STOP=0
 DO_VERIFY=0
 DO_VERIFY_GRID=0
+DO_INSTALL_SESSION=0
 PROFILE="dev"
 COMP_ARGS=()
 
@@ -82,13 +88,15 @@ while [[ $# -gt 0 ]]; do
         --build) FORCE_BUILD=1 ;;
         --release) PROFILE="release" ;;
         --session) SESSION=1 ;;
+        --drm) DRM=1 ;;
         --import-env) IMPORT_ENV=1 ;;
         --foreground) FOREGROUND=1 ;;
         --stop) DO_STOP=1 ;;
         --verify) DO_VERIFY=1 ;;
         --verify-grid) DO_VERIFY_GRID=1 ;;
+        --install-session) DO_INSTALL_SESSION=1 ;;
         -h|--help)
-            sed -n '2,25p' "$0"
+            sed -n '2,29p' "$0"
             exit 0
             ;;
         *)
@@ -179,6 +187,64 @@ verify_keybind_chain() {
     fi
     return "$ok"
 }
+
+if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
+    # Install the GDM/login "Metis" session entry, Hyprland-style:
+    #   - release binaries  -> /usr/local/bin/{metis-compositor,metis-shell,metis-settings}
+    #   - launcher script    -> /usr/local/bin/metis-session
+    #   - wayland-session    -> /usr/local/share/wayland-sessions/metis.desktop
+    # Re-login at the greeter and pick "Metis" from the gear/session menu.
+    BIN_DST="${METIS_PREFIX_BIN:-/usr/local/bin}"
+    SESSIONS_DST="${METIS_SESSIONS_DIR:-/usr/local/share/wayland-sessions}"
+    ASSETS_DIR="$WORKSPACE/assets"
+
+    if [[ -f "$HOME/.cargo/env" ]]; then
+        # shellcheck source=/dev/null
+        source "$HOME/.cargo/env"
+    fi
+    for pc_dir in \
+        /usr/local/lib/x86_64-linux-gnu/pkgconfig \
+        /usr/local/lib/pkgconfig \
+        /usr/lib/x86_64-linux-gnu/pkgconfig; do
+        [[ -d "$pc_dir" ]] && PKG_CONFIG_PATH="${pc_dir}${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    done
+    export PKG_CONFIG_PATH
+
+    echo "Building release binaries …"
+    if ! cargo build --release -p metis-compositor -p metis-shell -p metis-settings; then
+        echo "ERROR: release build failed." >&2
+        exit 1
+    fi
+
+    REL="$CARGO_TARGET_DIR/release"
+    # Privileged copies: re-exec the install steps under sudo if not already root.
+    SUDO=""
+    if [[ "$(id -u)" -ne 0 ]]; then
+        if command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+        else
+            echo "ERROR: need root to write $BIN_DST and $SESSIONS_DST (install sudo or run as root)." >&2
+            exit 1
+        fi
+    fi
+
+    echo "Installing binaries to $BIN_DST …"
+    $SUDO install -Dm755 "$REL/metis-compositor" "$BIN_DST/metis-compositor"
+    $SUDO install -Dm755 "$REL/metis-shell" "$BIN_DST/metis-shell"
+    if [[ -x "$REL/metis-settings" ]]; then
+        $SUDO install -Dm755 "$REL/metis-settings" "$BIN_DST/metis-settings"
+    fi
+    $SUDO install -Dm755 "$ASSETS_DIR/metis-session" "$BIN_DST/metis-session"
+
+    echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
+
+    echo
+    echo "Done. Log out, then pick 'Metis' from your login manager's session menu."
+    echo "Tip: keep an SSH session open the first time; Ctrl+Alt+Backspace quits Metis,"
+    echo "     Ctrl+Alt+F<n> switches VT."
+    exit 0
+fi
 
 if [[ "$DO_STOP" -eq 1 ]]; then
     stopped=0
@@ -384,7 +450,16 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     echo
 
     run_section "Session"
-    if [[ "$SESSION" -eq 1 ]]; then
+    if [[ "$SESSION" -eq 1 ]] && [[ "$DRM" -eq 1 ]]; then
+        # Standalone DRM/TTY session: own the seat outright. Pin the backend and
+        # use the real defaults (Super modifier, wallpaper/briefing ON) rather
+        # than the nested dev fallbacks below.
+        export METIS_BACKEND=drm
+        : "${METIS_MOD:=super}"
+        export METIS_MOD
+        log "Backend: DRM/KMS (standalone) — METIS_BACKEND=drm"
+        log "Escape:  Ctrl+Alt+Backspace quits · Ctrl+Alt+F<n> switches VT"
+    elif [[ "$SESSION" -eq 1 ]]; then
         # Nested dev sessions default wallpaper + briefing OFF. Distinguish an
         # explicit empty value (METIS_NO_WALLPAPER=, meaning "enable") from an
         # unset var ("use the session default of disabled"). Using ${VAR-...}

@@ -7,6 +7,37 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [2026-06-27]
 
+### Added
+
+- **Standalone DRM/KMS session — Metis runs as a real desktop on its own GPU.**
+  A new DRM/udev + libseat + libinput backend lets the compositor own a TTY/GPU
+  directly, alongside the existing nested winit dev backend:
+  - **Backend selection** (`main.rs`) — autodetects nested (winit) vs. standalone
+    (DRM) from `WAYLAND_DISPLAY`/`DISPLAY`; override with `METIS_BACKEND=winit|drm`.
+    Nested-only side effects (host activation-env import) are confined to winit.
+  - **Shared render path** — `render.rs::build_render_elements` and
+    `state.tick_housekeeping()` are now shared by both backends; the DRM backend
+    renders one framebuffer per output in output-local coordinates.
+  - **DRM render** (`udev.rs`) — libseat session, primary-GPU selection (render
+    node detection, `METIS_DRM_DEVICE` override), GBM allocator + `GlesRenderer`,
+    a `DrmOutput` per connector, damage-gated page-flips driven by a 16 ms
+    heartbeat + vblank (zero GPU work when idle), and a dmabuf global so EGL/GPU
+    clients (GTK) submit hardware buffers.
+  - **Input + session control** — real devices via libinput feed the shared
+    `process_input_event`; relative pointer motion is clamped to the desktop.
+    **Ctrl+Alt+F<n>** switches VT, **Ctrl+Alt+Backspace** safe-quits, and
+    session pause/resume (VT switch / suspend) re-arms input and DRM.
+  - **Pointer** — the DRM session paints its own XCursor-themed cursor (with a
+    generated fallback) on the cursor plane and honors client `set_cursor`
+    surfaces; `XCURSOR_THEME`/`XCURSOR_SIZE` apply.
+  - **Hotplug / robustness** — live connector connect/disconnect with output
+    re-packing (no gaps/overlap), and a clean shutdown if the primary GPU is
+    removed.
+  - **Login-manager entry (GDM/SDDM/greetd)** — `assets/metis-session` launcher +
+    `assets/metis.desktop` wayland-session, installed via
+    `run-metis.sh --install-session`; pick **Metis** from the greeter like
+    Hyprland. `run-metis.sh --session --drm` runs it directly from a TTY.
+
 ### Changed
 
 - **Scrolling layout reworked (niri / paneru style)** — the strip is now an

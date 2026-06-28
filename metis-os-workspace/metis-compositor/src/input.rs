@@ -15,6 +15,20 @@ use crate::focus::KeyboardFocusTarget;
 use crate::keybinds::mod_active;
 use crate::state::MetisState;
 
+/// Map a Ctrl+Alt+F<n> press to a 1-based virtual terminal number. Matches both
+/// the dedicated `XF86Switch_VT_n` keysyms (when xkb is configured for them) and
+/// the plain `F1..F12` keysyms (the common case under Ctrl+Alt).
+fn vt_from_keysym(sym: u32) -> Option<i32> {
+    const VT_BASE: u32 = 0x1008_FE01; // XF86Switch_VT_1
+    if (VT_BASE..VT_BASE + 12).contains(&sym) {
+        return Some((sym - VT_BASE + 1) as i32);
+    }
+    if (keysyms::KEY_F1..=keysyms::KEY_F12).contains(&sym) {
+        return Some((sym - keysyms::KEY_F1 + 1) as i32);
+    }
+    None
+}
+
 /// Map a number-row keysym (1..9) to a 1-based workspace id, for Mod+<n> bindings.
 fn workspace_from_keysym(sym: u32) -> Option<u32> {
     match sym {
@@ -56,6 +70,23 @@ impl MetisState {
                                 .raw_latin_sym_or_raw_current_sym()
                                 .map(u32::from)
                                 .unwrap_or(sym);
+                            // Standalone-session escape hatches (DRM backend only):
+                            // Ctrl+Alt+F<n> switches VT, Ctrl+Alt+Backspace quits
+                            // back to the greeter. Checked first so they always win.
+                            if state.is_drm_backend() && modifiers.ctrl && modifiers.alt {
+                                if sym == keysyms::KEY_BackSpace {
+                                    state.drm_quit();
+                                    return FilterResult::Intercept(());
+                                }
+                                let vt_sym = keysym
+                                    .raw_latin_sym_or_raw_current_sym()
+                                    .map(u32::from)
+                                    .unwrap_or(sym);
+                                if let Some(vt) = vt_from_keysym(sym).or_else(|| vt_from_keysym(vt_sym)) {
+                                    state.drm_change_vt(vt);
+                                    return FilterResult::Intercept(());
+                                }
+                            }
                             if mod_active(modifiers) {
                                 if let Some(ws) = workspace_from_keysym(digit_sym) {
                                     if modifiers.shift {
@@ -230,11 +261,14 @@ impl MetisState {
             }
             InputEvent::PointerMotion { event, .. } => {
                 let pointer = self.seat.get_pointer().unwrap();
-                let location = pointer.current_location() + event.delta();
+                // Relative motion (libinput) can run off-screen; clamp to the
+                // union of output geometries so the cursor stays reachable.
+                let location = self.clamp_to_desktop(pointer.current_location() + event.delta());
                 pointer.set_location(location);
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
                 self.update_hover_cursor(location);
+                self.maintain_focus_stacking(location);
                 if !self.should_forward_pointer_motion(location) {
                     return;
                 }
@@ -263,6 +297,7 @@ impl MetisState {
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
                 self.update_hover_cursor(pos);
+                self.maintain_focus_stacking(pos);
                 if !self.should_forward_pointer_motion(pos) {
                     return;
                 }
@@ -300,6 +335,7 @@ impl MetisState {
                 );
 
                 if ButtonState::Pressed == button_state {
+                    const BTN_LEFT: u32 = 0x110;
                     // A press over the bar or one of its open popovers (e.g. the app
                     // launcher) belongs to the shell. The bar's popovers don't take a
                     // pointer grab, so without this guard a click would fall through to
@@ -318,28 +354,28 @@ impl MetisState {
                     if !pointer.is_grabbed() && !on_bar_ui {
                         let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
-                    if !on_bar_ui {
+                    let mut chrome_press = false;
+                    if !on_bar_ui && button == BTN_LEFT {
                         // Window resize bands sit on the outer edges/corners — check them
                         // before decorations so grabbing an edge starts a resize (and
                         // floats a tiled window out of the grid).
-                        if self.handle_resize_press(loc, serial) {
+                        chrome_press = self.handle_resize_press(loc, serial, button)
+                            || self.handle_decoration_press(loc, serial, button);
+                        if chrome_press {
                             self.schedule_redraw();
-                            return;
-                        }
-                        // Server-side decorations (titlebar buttons / drag / border) are
-                        // compositor chrome, not client surfaces — intercept before any
-                        // client forwarding so close/min/max and titlebar drag work.
-                        if self.handle_decoration_press(loc, serial) {
-                            self.schedule_redraw();
-                            return;
                         }
                     }
-                    // Always move keyboard focus to whatever was clicked — including
-                    // the bar's own OnDemand layer surface. Text entries inside
-                    // non-grabbing bar popovers (Wi-Fi password, world-clock search)
-                    // only receive keystrokes if the bar layer surface holds
-                    // wl_keyboard focus; GTK then routes keys to the focused widget.
-                    self.update_keyboard_focus(loc, serial);
+                    // Server-side chrome already focused/raised the target (or a grab
+                    // owns the pointer). Re-running keyboard focus here would forward
+                    // focus to the client surface under the titlebar/buttons.
+                    if !chrome_press {
+                        // Always move keyboard focus to whatever was clicked — including
+                        // the bar's own OnDemand layer surface. Text entries inside
+                        // non-grabbing bar popovers (Wi-Fi password, world-clock search)
+                        // only receive keystrokes if the bar layer surface holds
+                        // wl_keyboard focus; GTK then routes keys to the focused widget.
+                        self.update_keyboard_focus(loc, serial);
+                    }
                 }
 
                 pointer.button(
@@ -399,6 +435,7 @@ impl MetisState {
                 // Tell the shell (taskbar) which window now has focus — focus
                 // changes are otherwise only reported as a reply to FocusWindow.
                 if let Some(id) = self.windows.id_for_window(window) {
+                    self.note_window_focus(id);
                     self.sync_scroll_focus_for_window(id);
                     self.event_bus
                         .emit(&metis_protocol::CompositorEvent::WindowFocused { id });

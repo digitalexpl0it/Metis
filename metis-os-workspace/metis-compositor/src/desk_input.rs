@@ -25,21 +25,12 @@ fn metis_bar_region_contains(
     layers: &smithay::desktop::LayerMap,
     rel: Point<f64, Logical>,
 ) -> bool {
-    if !surface_has_buffer(layer.wl_surface()) {
-        return false;
-    }
     let Some(layer_geo) = layers.layer_geometry(layer) else {
         return false;
     };
+    // Popovers can extend below the bar strip — always honor their geometry even
+    // when the root layer surface has not committed a buffer yet.
     let local = rel - layer_geo.loc.to_f64();
-
-    if layer.bbox().to_f64().contains(local) {
-        return true;
-    }
-
-    // Popovers: use client geometry, not `bbox_with_popups()`. The surface-tree
-    // bbox can balloon to the full output and swallow desktop clicks — which
-    // prevented "click outside to dismiss" from ever firing.
     let root = layer.wl_surface();
     for (popup, location) in PopupManager::popups_for_surface(root) {
         let geo = popup.geometry();
@@ -51,6 +42,19 @@ fn metis_bar_region_contains(
             return true;
         }
     }
+
+    if !surface_has_buffer(layer.wl_surface()) {
+        return false;
+    }
+
+    if layer_geo.to_f64().contains(rel) {
+        return true;
+    }
+
+    if layer.bbox().to_f64().contains(local) {
+        return true;
+    }
+
     false
 }
 
@@ -276,9 +280,23 @@ impl MetisState {
         }) else {
             return false;
         };
-        let output_geo = self.space.output_geometry(output).unwrap();
+        if !self.output_has_bar(&output) {
+            return false;
+        }
+        let output_geo = self.space.output_geometry(&output).unwrap();
+        let (x, y) = (pos.x as i32, pos.y as i32);
+
+        // Always block the configured bar strip + shadow pad so window titlebars
+        // underneath cannot receive hover/resize chrome even when layer geometry
+        // or buffer state is briefly stale.
+        if let Some(strip) = self.bar_input_block_rect(&output, &output_geo) {
+            if point_in_rect(x, y, strip) {
+                return true;
+            }
+        }
+
         let rel = pos - output_geo.loc.to_f64();
-        let layers = layer_map_for_output(output);
+        let layers = layer_map_for_output(&output);
 
         for layer in layers
             .layers()
@@ -289,6 +307,59 @@ impl MetisState {
             }
         }
         false
+    }
+
+    /// Configured edge-bar strip (margin + body + shadow pad) in monitor-global
+    /// coordinates. Does not consult the layer map — safe while a layer lock is held.
+    pub(crate) fn bar_config_strip_rect(
+        output_geo: &smithay::utils::Rectangle<i32, Logical>,
+    ) -> PixelRect {
+        let cfg = metis_config::load_bar_config();
+        let margin = cfg.margin_top as i32;
+        let visible = cfg.height as i32;
+        let shadow = metis_config::bar::SHADOW_PAD;
+        let thickness = margin + visible + shadow;
+        let w = output_geo.size.w;
+        let h = output_geo.size.h;
+        match cfg.position {
+            metis_config::BarPosition::Top => PixelRect {
+                x: output_geo.loc.x,
+                y: output_geo.loc.y,
+                width: w,
+                height: thickness,
+            },
+            metis_config::BarPosition::Bottom => PixelRect {
+                x: output_geo.loc.x,
+                y: output_geo.loc.y + h - thickness,
+                width: w,
+                height: thickness,
+            },
+            metis_config::BarPosition::Left => PixelRect {
+                x: output_geo.loc.x,
+                y: output_geo.loc.y,
+                width: thickness,
+                height: h,
+            },
+            metis_config::BarPosition::Right => PixelRect {
+                x: output_geo.loc.x + w - thickness,
+                y: output_geo.loc.y,
+                width: thickness,
+                height: h,
+            },
+        }
+    }
+
+    /// Monitor-global rect covering the edge bar's layer surface (margin + body +
+    /// shadow pad) on `output`, used for input blocking and cursor selection.
+    pub(crate) fn bar_input_block_rect(
+        &self,
+        output: &smithay::output::Output,
+        output_geo: &smithay::utils::Rectangle<i32, Logical>,
+    ) -> Option<PixelRect> {
+        if !self.output_has_bar(output) {
+            return None;
+        }
+        Some(Self::bar_config_strip_rect(output_geo))
     }
 
     /// Route pointer hits: app bodies pass through, then layer-shell UI, then windows.
@@ -309,7 +380,29 @@ impl MetisState {
         // self-deadlock the compositor thread on the next pointer motion.
         let desk_hit = self.classify_hit(x, y);
 
+        let has_bar = self.output_has_bar(output);
         let layers = layer_map_for_output(output);
+
+        // Block the configured bar strip even when layer geometry/buffer state is
+        // briefly stale. Must not call `metis_bar_ui_hit()` here — it re-locks the
+        // layer map we already hold.
+        if has_bar {
+            let strip = Self::bar_config_strip_rect(&output_geo);
+            if point_in_rect(x, y, strip) {
+                for layer in layers
+                    .layers()
+                    .filter(|layer| layer.namespace().starts_with("metis-bar"))
+                {
+                    if !layer_accepts_pointer(layer, &layers, rel) {
+                        continue;
+                    }
+                    if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
+                        return Some(hit);
+                    }
+                    return None;
+                }
+            }
+        }
 
         // The bar strip and its popovers (e.g. the start menu) take priority over
         // everything below — including the desk-grid app-body passthrough. Without

@@ -1,41 +1,45 @@
-use std::cell::RefCell;
 use std::sync::mpsc::Receiver;
 
-use gtk::prelude::*;
-use gtk::Application;
+use gtk::glib;
 
 use crate::state::{MetisInit, SystemEvent};
 use crate::ui::{bar, splash, theme};
 
-thread_local! {
-    /// Must outlive the GTK main loop — dropping `ApplicationHoldGuard` releases the app.
-    static APP_HOLD: RefCell<Option<gtk::gio::ApplicationHoldGuard>> = const { RefCell::new(None) };
-}
-
 /// Minimal GTK shell — edge bar only (no command overlay).
+///
+/// We deliberately do **not** use `GtkApplication`. Its `startup` handler (run
+/// inside `g_application_register`) creates a *synchronous* `GDBusProxy` for the
+/// desktop portal with a 25-second timeout. In a bare standalone Metis session
+/// (no GNOME), that portal cold-starts slowly or hangs, so `app.run()` blocks
+/// before `activate` ever fires — the bar is never built and only the wallpaper
+/// shows. Driving GTK directly with `gtk::init()` + a plain `glib::MainLoop`
+/// avoids `g_application_register` entirely, so there is no blocking portal proxy.
 pub fn run(init: MetisInit) {
-    let app = Application::builder()
-        .application_id("com.metis.shell")
-        .build();
+    tracing::info!(
+        wayland_display = ?std::env::var("WAYLAND_DISPLAY").ok(),
+        "initializing GTK"
+    );
+    if let Err(err) = gtk::init() {
+        tracing::error!(?err, "gtk::init() failed — cannot open display");
+        return;
+    }
+    tracing::info!(
+        have_display = gtk::gdk::Display::default().is_some(),
+        "gtk::init() ok — building shell"
+    );
 
-    let event_rx = RefCell::new(Some(init.event_rx));
-    app.connect_activate(move |app| {
-        tracing::info!("GTK application activate — initializing edge bar");
-        theme::install_theme();
-        splash::show(app);
-        bar::init_and_show(app);
-        if let Some(rx) = event_rx.borrow_mut().take() {
-            attach_system_events(rx);
-        }
-        // The bar maps and pollers attach shortly after activate; let the splash
-        // ramp to completion and fade once the shell is up and running.
-        glib::timeout_add_seconds_local_once(2, splash::finish);
-        APP_HOLD.with(|hold| {
-            *hold.borrow_mut() = Some(app.hold());
-        });
-    });
+    theme::install_theme();
+    splash::show();
+    bar::init_and_show();
+    attach_system_events(init.event_rx);
+    // The bar maps and pollers attach shortly after; let the splash ramp to
+    // completion and fade once the shell is up and running.
+    glib::timeout_add_seconds_local_once(2, splash::finish);
 
-    app.run();
+    tracing::info!("starting GLib main loop");
+    let main_loop = glib::MainLoop::new(None, false);
+    main_loop.run();
+    tracing::warn!("GLib main loop returned — shell exiting");
 }
 
 fn attach_system_events(event_rx: Receiver<SystemEvent>) {

@@ -10,10 +10,8 @@ mod runtime;
 mod theme;
 mod ui;
 
+use gtk::glib;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow};
-
-const APP_ID: &str = "com.metis.Settings";
 
 /// Sidebar pages, in display order: `(id, title, symbolic icon)`. The
 /// `--page <name>` flag preselects one.
@@ -35,11 +33,14 @@ fn main() {
 
     let page = parse_page_arg();
 
-    let app = Application::builder().application_id(APP_ID).build();
-    app.connect_activate(move |app| build_ui(app, page.clone()));
-    // Run with an empty arg list so GTK doesn't try to parse our `--page` flag.
-    let empty: [&str; 0] = [];
-    app.run_with_args(&empty);
+    // Same rationale as metis-shell: GtkApplication startup does a sync portal
+    // proxy that blocks ~25s when xdg-desktop-portal cold-starts in a bare session.
+    if let Err(err) = gtk::init() {
+        tracing::error!(?err, "gtk::init() failed");
+        std::process::exit(1);
+    }
+    build_ui(page);
+    glib::MainLoop::new(None, false).run();
 }
 
 /// Parse `--page <name>` / `--page=<name>` from the process args.
@@ -66,7 +67,7 @@ fn normalize_page(name: &str) -> Option<String> {
         .map(|(id, _, _)| id.to_string())
 }
 
-fn build_ui(app: &Application, page: Option<String>) {
+fn build_ui(page: Option<String>) {
     theme::install();
 
     let stack = gtk::Stack::new();
@@ -131,8 +132,7 @@ fn build_ui(app: &Application, page: Option<String>) {
     // doubled-up frame. On the host (no Metis), keep GTK's titlebar so the window
     // stays movable/closable.
     let under_metis = std::env::var_os("METIS_SESSION").is_some();
-    let window = ApplicationWindow::builder()
-        .application(app)
+    let window = gtk::Window::builder()
         .title("Metis Settings")
         .default_width(880)
         .default_height(640)

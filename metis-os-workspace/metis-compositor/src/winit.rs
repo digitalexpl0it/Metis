@@ -4,50 +4,20 @@ use std::time::Duration;
 
 use smithay::{
     backend::{
-        renderer::{
-            damage::OutputDamageTracker,
-            element::{
-                render_elements,
-                solid::SolidColorRenderElement,
-                surface::WaylandSurfaceRenderElement,
-                texture::TextureRenderElement,
-                utils::CropRenderElement,
-                AsRenderElements, Id, Kind,
-            },
-            gles::{GlesRenderer, GlesTexture},
-            utils::CommitCounter,
-            Color32F,
-        },
+        renderer::{damage::OutputDamageTracker, gles::GlesRenderer},
         winit::{self, WinitEvent},
     },
-    desktop::{layer_map_for_output, Window},
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::{
         EventLoop,
         timer::{TimeoutAction, Timer},
     },
     utils::{Logical, Physical, Point, Rectangle, Scale, Size, Transform},
-    wayland::shell::wlr_layer::Layer,
 };
 
 use crate::ipc;
+use crate::render::CLEAR_COLOR;
 use crate::state::MetisState;
-
-render_elements! {
-    OutputStack<=GlesRenderer>;
-    Wallpaper=TextureRenderElement<GlesTexture>,
-    Surface=WaylandSurfaceRenderElement<GlesRenderer>,
-    Deco=crate::decoration::DecorationElement,
-    Blur=crate::blur::BlurElement,
-    Snap=SolidColorRenderElement,
-    // Scroll-managed windows + their chrome, clipped to their own output so a
-    // half-scrolled column never bleeds onto the adjacent display.
-    CropSurface=CropRenderElement<WaylandSurfaceRenderElement<GlesRenderer>>,
-    CropDeco=CropRenderElement<crate::decoration::DecorationElement>,
-}
-
-/// Translucent fill for the snap-zone drop preview (accent blue @ ~30% alpha).
-const SNAP_OVERLAY_COLOR: [f32; 4] = [0.36, 0.56, 0.96, 0.30];
 
 /// Map the hovered resize edge to the matching host (winit) cursor shape. This
 /// nested backend always draws the host cursor and ignores client cursor
@@ -58,10 +28,10 @@ fn resize_cursor(edge: Option<crate::grabs::ResizeEdge>) -> smithay::reexports::
 
     let icon = match edge {
         Some(e) if e == ResizeEdge::TOP_LEFT || e == ResizeEdge::BOTTOM_RIGHT => {
-            CursorIcon::NwseResize
+            CursorIcon::NeswResize
         }
         Some(e) if e == ResizeEdge::TOP_RIGHT || e == ResizeEdge::BOTTOM_LEFT => {
-            CursorIcon::NeswResize
+            CursorIcon::NwseResize
         }
         Some(e) if e.intersects(ResizeEdge::LEFT | ResizeEdge::RIGHT) => CursorIcon::EwResize,
         Some(e) if e.intersects(ResizeEdge::TOP | ResizeEdge::BOTTOM) => CursorIcon::NsResize,
@@ -100,21 +70,6 @@ fn output_layout(
     } else {
         vec![(Size::from((w, h)), Point::from((0, 0)))]
     }
-}
-
-/// On-screen rectangle of the Metis bar layer surface, used to position the
-/// backdrop blur. Returned in the output's local physical coordinates; the caller
-/// offsets by the output's global origin. `None` when the bar is not (yet) mapped.
-fn bar_layer_rect(output: &Output) -> Option<Rectangle<i32, Physical>> {
-    let map = smithay::desktop::layer_map_for_output(output);
-    for layer in map.layers() {
-        if layer.namespace() == "metis-bar" {
-            if let Some(geo) = map.layer_geometry(layer) {
-                return Some(geo.to_physical(1));
-            }
-        }
-    }
-    None
 }
 
 pub fn init_winit(
@@ -193,7 +148,6 @@ pub fn init_winit(
     }
 
     let mut damage_tracker = OutputDamageTracker::from_output(&render_output);
-    let mut frame_age = 0usize;
 
     let backend_winit = backend.clone();
     backend
@@ -214,55 +168,10 @@ pub fn init_winit(
     event_loop
         .handle()
         .insert_source(Timer::from_duration(Duration::from_millis(16)), move |_, _, state| {
-            // Drive the startup state machine from the heartbeat (not from
-            // rendering) so going idle can never starve shell/client spawn.
-            state.run_pending_startup();
-
-            // Service shell IPC every tick, not just on render. Redraws are
-            // damage-gated, so when the compositor is idle the `Redraw` handler
-            // never fires — which previously left shell commands (taskbar
-            // minimize/activate, etc.) unread until the 400ms client timeout
-            // expired with `EAGAIN`. handle_ipc flags damage as needed below.
-            ipc::drain_ipc(state);
-
-            // Advance the debounced wallpaper decode off the render path and
-            // repaint while it settles, so a re-decode (e.g. after maximize)
-            // shows up without waiting for an unrelated damage event.
-            if state.wallpaper.tick_decode() {
-                state.damaged = true;
-            }
-
-            // Pick up live blur on/off + radius / bar-position changes from bar.json
-            // (throttled to ~1s). A position change alters whether the bar reserves
-            // screen space (top/bottom) or overlays it (left/right).
-            let (blur_changed, bar_position_changed) = state.blur.maybe_refresh();
-            if blur_changed {
-                state.damaged = true;
-            }
-            if bar_position_changed {
-                state.last_bar_position = state.blur.position;
-                state.reflow_for_bar_geometry_change();
-            }
-
-            // Same for the configurable titlebar opacity + window border. A border
-            // thickness change also resizes clients (the body inset changed), so
-            // re-apply every window's rect before redrawing.
-            let deco = state.decorations.maybe_refresh();
-            if deco.damage {
-                state.damaged = true;
-            }
-            if deco.relayout {
-                let ids: Vec<u32> = state.windows.ids();
-                for id in ids {
-                    state.apply_window_rect(id);
-                }
-                state.sync_all_app_windows();
-                state.refresh_all_scroll_offsets();
-                state.damaged = true;
-            }
-
-            // Scroll viewport snaps immediately (no animation), so nothing to do here.
-            let _ = state.tick_scroll_animations();
+            // Shared per-tick housekeeping (startup, IPC, wallpaper decode, live
+            // blur/decoration config, scroll animation). Kept off the render path
+            // so going idle can never starve shell/client spawn.
+            state.tick_housekeeping();
 
             // Frame callbacks are delivered after each render (see Redraw), not
             // on a fixed clock — that keeps GTK's frame clock from spinning when
@@ -273,12 +182,6 @@ pub fn init_winit(
             }
             TimeoutAction::ToDuration(Duration::from_millis(16))
         })?;
-
-    // Persistent identity for the snap-zone overlay so the damage tracker treats
-    // it as one stable element; the commit only bumps when the target rect moves.
-    let snap_overlay_id = Id::new();
-    let mut snap_overlay_commit = CommitCounter::default();
-    let mut last_snap_rect: Option<metis_grid::PixelRect> = None;
 
     let backend_winit = backend.clone();
     event_loop.handle().insert_source(winit, move |event, _, state| {
@@ -312,7 +215,6 @@ pub fn init_winit(
                 let (wp_full, wp_regions) = state.wallpaper_layout();
                 state.wallpaper.set_layout(wp_full, wp_regions);
                 state.emit_monitor_changed();
-                frame_age = 0;
                 let ids: Vec<u32> = state.windows.ids();
                 if !ids.is_empty() {
                     for id in ids {
@@ -336,8 +238,6 @@ pub fn init_winit(
                 // still update during interaction; the heartbeat caps us at 60fps.
                 let render = state.damaged;
 
-                frame_age = 0;
-
                 if render {
                     let mut backend = backend_winit.borrow_mut();
                     let size = backend.window_size();
@@ -348,251 +248,37 @@ pub fn init_winit(
                     // rendering the client's own cursor produced a second cursor with a
                     // mismatched size over GTK surfaces; the host cursor stays uniform.
                     backend.window().set_cursor_visible(true);
-                    backend.window().set_cursor(resize_cursor(state.hover_cursor));
+                    let cursor = if state.metis_bar_ui_hit(
+                        state.seat.get_pointer().map(|p| p.current_location()).unwrap_or_default(),
+                    ) {
+                        resize_cursor(None)
+                    } else {
+                        resize_cursor(state.hover_cursor)
+                    };
+                    backend.window().set_cursor(cursor);
 
+                    let output_scale =
+                        Scale::from(render_output.current_scale().fractional_scale());
                     match backend.bind() {
                         Ok((renderer, mut framebuffer)) => {
-                            state.wallpaper.poll_decode();
-                            state.wallpaper.ensure(renderer);
-
-                            let wallpaper_owned = state.wallpaper.render_element();
-
-                            // Build the bar backdrop-blur element per output (each
-                            // output may carry its own bar). Sampled from the
-                            // wallpaper under the bar through a Gaussian shader and
-                            // drawn below the bar surface, above wallpaper/windows.
-                            let bar_rects: Vec<Rectangle<i32, Physical>> = state
-                                .space
-                                .outputs()
-                                .filter_map(|out| {
-                                    let origin =
-                                        state.space.output_geometry(out)?.loc.to_physical(1);
-                                    let local = bar_layer_rect(out)?;
-                                    Some(Rectangle::new(local.loc + origin, local.size))
-                                })
-                                .collect();
-                            state.blur.ensure_program(renderer);
-                            let draw_blur = state.blur.enabled
-                                && !state.splash_overlay_visible()
-                                && state.wallpaper.texture().is_some();
-                            let blur_elements: Vec<crate::blur::BlurElement> = if draw_blur {
-                                bar_rects
-                                    .into_iter()
-                                    .filter_map(|r| {
-                                        let rect = state.blur.confine_to_pill(r);
-                                        let (tex, tex_size) = state.wallpaper.texture()?;
-                                        state.blur.element(rect, tex, tex_size)
-                                    })
-                                    .collect()
-                            } else {
-                                Vec::new()
-                            };
-
-                            // Snap-zone drop preview (translucent fill at the
-                            // destination), drawn on top of everything during a
-                            // titlebar drag. Bump the commit only when it moves.
-                            let snap_element = match state.snap_preview {
-                                Some((rect, _label)) => {
-                                    if last_snap_rect != Some(rect) {
-                                        last_snap_rect = Some(rect);
-                                        snap_overlay_commit.increment();
-                                    }
-                                    let geo = Rectangle::<i32, Logical>::new(
-                                        Point::from((rect.x, rect.y)),
-                                        Size::from((rect.width.max(1), rect.height.max(1))),
-                                    )
-                                    .to_physical(1);
-                                    Some(SolidColorRenderElement::new(
-                                        snap_overlay_id.clone(),
-                                        geo,
-                                        snap_overlay_commit,
-                                        Color32F::from(SNAP_OVERLAY_COLOR),
-                                        Kind::Unspecified,
-                                    ))
-                                }
-                                None => {
-                                    last_snap_rect = None;
-                                    None
-                                }
-                            };
-
-                            // Server-side window decorations (titlebar + border +
-                            // controls). Built here so we have the GL renderer for
-                            // title-text texture uploads.
-                            let deco_elements = {
-                                let specs = state.decoration_specs();
-                                state.decorations.elements(renderer, &specs)
-                            };
-                            let crate::decoration::DecoElements {
-                                below: mut deco_below,
-                                overlay: deco_overlay,
-                            } = deco_elements;
-
-                            let output_scale =
-                                Scale::from(render_output.current_scale().fractional_scale());
-
-                            // Layer-shell surfaces, gathered from every output's layer
-                            // map: background/bottom render beneath windows, top/overlay
-                            // above them (the Metis bar is a Top layer). Each surface is
-                            // offset by its output's global origin so multi-output bars
-                            // land on the right monitor.
-                            let mut upper_layer_elems: Vec<OutputStack> = Vec::new();
-                            let mut lower_layer_elems: Vec<OutputStack> = Vec::new();
-                            let layer_outputs: Vec<Output> =
-                                state.space.outputs().cloned().collect();
-                            for out in &layer_outputs {
-                                let origin = state
-                                    .space
-                                    .output_geometry(out)
-                                    .map(|g| g.loc)
-                                    .unwrap_or_default();
-                                let map = layer_map_for_output(out);
-                                for surface in map.layers().rev() {
-                                    let Some(geo) = map.layer_geometry(surface) else {
-                                        continue;
-                                    };
-                                    let loc = (geo.loc + origin)
-                                        .to_physical_precise_round(output_scale);
-                                    let elems =
-                                        AsRenderElements::<GlesRenderer>::render_elements::<
-                                            WaylandSurfaceRenderElement<GlesRenderer>,
-                                        >(
-                                            surface, renderer, loc, output_scale, 1.0
-                                        );
-                                    let target = if matches!(
-                                        surface.layer(),
-                                        Layer::Background | Layer::Bottom
-                                    ) {
-                                        &mut lower_layer_elems
-                                    } else {
-                                        &mut upper_layer_elems
-                                    };
-                                    target.extend(elems.into_iter().map(OutputStack::Surface));
-                                }
-                            }
-
-                            // smithay's damage renderer draws elements front-to-back:
-                            // the FIRST element in the slice ends up on top, so the
-                            // wallpaper goes last (behind everything).
-                            let mut render_elements: Vec<OutputStack> = Vec::new();
-
-                            // Snap preview sits on top of all windows so the drop
-                            // destination reads as a ghost over the dragged window.
-                            if let Some(snap) = snap_element {
-                                render_elements.push(OutputStack::Snap(snap));
-                            }
-                            // Auto-hide titlebar reveal: drawn ABOVE the client so it
-                            // overlays the top of a maximized/snapped window.
-                            render_elements.extend(
-                                deco_overlay.into_iter().map(OutputStack::Deco),
+                            // The nested backend renders the whole virtual desktop
+                            // into a single framebuffer, so it builds elements in
+                            // global coords (render origin (0, 0)).
+                            let render_elements = state.build_render_elements(
+                                renderer,
+                                Point::<i32, Physical>::from((0, 0)),
+                                output_scale,
                             );
-                            // Top/overlay layer surfaces (the bar) above all windows.
-                            render_elements.extend(upper_layer_elems);
-                            // Defensive: chrome whose window can't be matched in the
-                            // space stacking below would otherwise render behind every
-                            // window (titlebar tucked behind an overlapping app). Draw
-                            // any such orphans on top instead — a visible glitch beats
-                            // an invisible one — and flag it so we can chase the cause.
-                            {
-                                let stack_ids: std::collections::HashSet<u32> = state
-                                    .space
-                                    .elements()
-                                    .filter_map(|w| state.windows.id_for_window(w))
-                                    .collect();
-                                let orphans: Vec<u32> = deco_below
-                                    .keys()
-                                    .copied()
-                                    .filter(|id| !stack_ids.contains(id))
-                                    .collect();
-                                for id in orphans {
-                                    tracing::warn!(id, "deco: window chrome not matched to a stacked window — drawing on top");
-                                    if let Some(decos) = deco_below.remove(&id) {
-                                        render_elements
-                                            .extend(decos.into_iter().map(OutputStack::Deco));
-                                    }
-                                }
-                            }
-                            // Windows top-to-bottom, each immediately followed by its
-                            // own server-side chrome so an overlapping window can
-                            // never hide a lower window's titlebar/border.
-                            // `space.elements()` yields bottom-to-top, so reverse it.
-                            let stacking: Vec<Window> =
-                                state.space.elements().cloned().collect();
-                            for window in stacking.iter().rev() {
-                                // Match smithay's `render_location`: the surface
-                                // origin sits at the mapped location minus the
-                                // window-geometry offset (CSD shadow margin). GTK
-                                // changes that offset between floating and tiled, so
-                                // using the raw map location shifts snapped windows.
-                                let loc = (state
-                                    .space
-                                    .element_location(window)
-                                    .unwrap_or_default()
-                                    - window.geometry().loc)
-                                    .to_physical_precise_round(output_scale);
-                                let id = state.windows.id_for_window(window);
-                                // Scroll columns may overhang their display edge; clip
-                                // them to their own output so they never paint onto the
-                                // neighbouring monitor. Other windows render uncropped.
-                                let clip = id
-                                    .and_then(|id| state.scroll_window_clip(id, output_scale));
-                                let elems = AsRenderElements::<GlesRenderer>::render_elements::<
-                                    WaylandSurfaceRenderElement<GlesRenderer>,
-                                >(
-                                    window, renderer, loc, output_scale, 1.0
-                                );
-                                if let Some(clip) = clip {
-                                    for e in elems {
-                                        if let Some(c) = CropRenderElement::from_element(
-                                            e,
-                                            output_scale,
-                                            clip,
-                                        ) {
-                                            render_elements.push(OutputStack::CropSurface(c));
-                                        }
-                                    }
-                                } else {
-                                    render_elements
-                                        .extend(elems.into_iter().map(OutputStack::Surface));
-                                }
-                                if let Some(id) = id {
-                                    if let Some(decos) = deco_below.remove(&id) {
-                                        if let Some(clip) = clip {
-                                            for d in decos {
-                                                if let Some(c) = CropRenderElement::from_element(
-                                                    d,
-                                                    output_scale,
-                                                    clip,
-                                                ) {
-                                                    render_elements
-                                                        .push(OutputStack::CropDeco(c));
-                                                }
-                                            }
-                                        } else {
-                                            render_elements
-                                                .extend(decos.into_iter().map(OutputStack::Deco));
-                                        }
-                                    }
-                                }
-                            }
-                            // Any remaining chrome belongs to mapped windows that were
-                            // handled inline above; nothing should be left here.
-                            debug_assert!(deco_below.is_empty());
-                            // Background/bottom layer surfaces beneath the windows.
-                            render_elements.extend(lower_layer_elems);
-                            // Below the windows, above the wallpaper.
-                            render_elements
-                                .extend(blur_elements.into_iter().map(OutputStack::Blur));
-                            if let Some(wallpaper) = wallpaper_owned {
-                                render_elements.push(OutputStack::Wallpaper(wallpaper));
-                            }
 
+                            // Winit re-binds the same framebuffer each frame, so it
+                            // can't track buffer age; a fixed age of 0 makes the
+                            // damage tracker treat each frame as a full redraw.
                             if let Err(err) = damage_tracker.render_output(
                                 renderer,
                                 &mut framebuffer,
-                                frame_age,
+                                0,
                                 &render_elements,
-                                [0.08, 0.09, 0.11, 1.0],
+                                CLEAR_COLOR,
                             ) {
                                 tracing::warn!(?err, "render_output failed");
                             }
@@ -601,7 +287,6 @@ pub fn init_winit(
                             tracing::warn!(?err, "winit GL bind failed — skipping frame");
                         }
                     }
-                    frame_age = frame_age.saturating_add(1);
                     if let Err(err) = backend.submit(Some(&[damage])) {
                         tracing::warn!(?err, "winit frame submit failed");
                     }

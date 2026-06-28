@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Metis
+Comment=Metis Wayland desktop environment
+Exec=metis-session
+TryExec=metis-session
+Type=Application
+DesktopNames=Metis
+Keywords=tiling;wayland;compositor;

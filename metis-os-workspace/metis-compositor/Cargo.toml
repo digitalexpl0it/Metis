@@ -19,14 +19,29 @@ tracing-subscriber = { workspace = true }
 directories = "5"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 fontdue = "0.9"
+thiserror = { workspace = true }
+xcursor = "0.3"
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay"
+rev = "66fc28b"
 default-features = false
 features = [
     "backend_winit",
+    "backend_drm",
+    "backend_gbm",
+    "backend_egl",
+    "backend_libinput",
+    "backend_udev",
+    "backend_session_libseat",
+    "use_system_lib",
     "wayland_frontend",
     "desktop",
     "renderer_gl",
+    "renderer_multi",
     "xwayland",
 ]
+
+[dependencies.smithay-drm-extras]
+git = "https://github.com/Smithay/smithay"
+rev = "66fc28b"
