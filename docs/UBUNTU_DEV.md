@@ -23,6 +23,18 @@ sudo apt install -y \
 
 If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.
 
+### Keyring (Secret Service) — runtime dependency
+
+Metis is only a *client* of the freedesktop Secret Service (`org.freedesktop.secrets`, via `oo7`), and so are apps like Cursor, GitHub Desktop, and browsers. A Metis session must therefore have a **provider** running, or those apps fall back to plaintext credential storage ("encryption is low"). The session launcher (`metis-session` / `run-metis.sh --session --drm`) auto-detects and starts whichever of these is installed — install **one** (any desktop works; `gnome-keyring` is not GNOME-specific and is the lightest):
+
+```bash
+sudo apt install -y gnome-keyring   # recommended, desktop-independent
+# alternatives that also implement the Secret Service API:
+#   kwalletd6 / kwalletd5 (KWallet) · keepassxc · pass + pass-secret-service
+```
+
+Without PAM auto-unlock (`pam_gnome_keyring`), the login keyring starts locked and the first secret access prompts once per session via gcr's prompter (pulled in by `gnome-keyring`).
+
 ## Rust toolchain
 
 ```bash

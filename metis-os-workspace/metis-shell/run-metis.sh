@@ -247,6 +247,25 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
 
+    # Runtime dependency: Metis is only a *client* of the Secret Service, so a
+    # provider must exist or keyring-backed apps (and Metis's own credential
+    # storage) degrade to plaintext. The session launcher auto-starts whichever
+    # provider is installed; warn here if none is present yet.
+    echo
+    if command -v gnome-keyring-daemon >/dev/null 2>&1 \
+        || command -v kwalletd6 >/dev/null 2>&1 \
+        || command -v kwalletd5 >/dev/null 2>&1 \
+        || command -v keepassxc >/dev/null 2>&1 \
+        || command -v pass-secret-service >/dev/null 2>&1 \
+        || ls /usr/share/dbus-1/services/org.freedesktop.secrets.service >/dev/null 2>&1; then
+        echo "Keyring: a Secret Service provider is installed — good."
+    else
+        echo "WARNING: no keyring / Secret Service provider found."
+        echo "  Keyring-backed apps (Cursor, GitHub Desktop, browsers) and Metis's own"
+        echo "  credential storage will fall back to plaintext until one is installed."
+        echo "  Recommended (desktop-independent): sudo apt install -y gnome-keyring"
+    fi
+
     echo
     echo "Done. Log out, then pick 'Metis' from your login manager's session menu."
     echo "Tip: keep an SSH session open the first time; Ctrl+Alt+Backspace quits Metis,"
@@ -425,6 +444,58 @@ check_build_deps() {
         return 1
     fi
     return 0
+}
+
+# True if the freedesktop Secret Service is already owned on the user bus or is
+# D-Bus activatable (a provider auto-starts on first access — nothing to launch).
+metis_have_secret_service() {
+    if command -v busctl >/dev/null 2>&1 \
+        && busctl --user status org.freedesktop.secrets >/dev/null 2>&1; then
+        return 0
+    fi
+    if command -v gdbus >/dev/null 2>&1 \
+        && gdbus call --session --dest org.freedesktop.DBus \
+            --object-path /org/freedesktop/DBus \
+            --method org.freedesktop.DBus.NameHasOwner org.freedesktop.secrets \
+            2>/dev/null | grep -q true; then
+        return 0
+    fi
+    local dir
+    local IFS=:
+    for dir in /usr/local/share /usr/share ${XDG_DATA_DIRS:-}; do
+        [ -e "$dir/dbus-1/services/org.freedesktop.secrets.service" ] && return 0
+    done
+    return 1
+}
+
+# Start the best available Secret Service provider so keyring-backed apps (and
+# Metis's own oo7 client) don't fall back to plaintext. Preference order favors
+# whatever is installed; gnome-keyring is the recommended default.
+metis_start_secret_service() {
+    if metis_have_secret_service; then
+        log "Keyring: org.freedesktop.secrets already available"
+        return 0
+    fi
+    if command -v gnome-keyring-daemon >/dev/null 2>&1; then
+        eval "$(gnome-keyring-daemon --start --components=secrets,ssh 2>/dev/null)"
+        export SSH_AUTH_SOCK
+        log "Keyring: started gnome-keyring-daemon (secrets + ssh-agent)"
+    elif command -v kwalletd6 >/dev/null 2>&1; then
+        kwalletd6 >/dev/null 2>&1 &
+        log "Keyring: started kwalletd6 (KWallet Secret Service)"
+    elif command -v kwalletd5 >/dev/null 2>&1; then
+        kwalletd5 >/dev/null 2>&1 &
+        log "Keyring: started kwalletd5 (KWallet Secret Service)"
+    elif command -v keepassxc >/dev/null 2>&1; then
+        keepassxc >/dev/null 2>&1 &
+        log "Keyring: started KeePassXC (enable Secret Service integration in its settings)"
+    elif command -v pass-secret-service >/dev/null 2>&1; then
+        pass-secret-service >/dev/null 2>&1 &
+        log "Keyring: started pass-secret-service"
+    else
+        log "Keyring: WARNING no Secret Service provider found — keyring-backed apps will"
+        log "         fall back to plaintext. Install one (recommended: sudo apt install gnome-keyring)."
+    fi
 }
 
 # --- environment -----------------------------------------------------------
@@ -667,12 +738,10 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
         # Standalone DRM/TTY session owns the seat outright, so (like the
         # installed metis-session) it must provide the Secret Service itself.
-        # A nested dev session is skipped — the host desktop's gnome-keyring
-        # already serves org.freedesktop.secrets on the shared user bus.
-        if [[ "$DRM" -eq 1 ]] && command -v gnome-keyring-daemon >/dev/null 2>&1; then
-            eval "$(gnome-keyring-daemon --start --components=secrets,ssh 2>/dev/null)"
-            export SSH_AUTH_SOCK
-            log "Keyring: gnome-keyring-daemon started (org.freedesktop.secrets + ssh-agent)"
+        # A nested dev session is skipped — the host desktop's keyring already
+        # serves org.freedesktop.secrets on the shared user bus.
+        if [[ "$DRM" -eq 1 ]]; then
+            metis_start_secret_service
         fi
 
         log "Starting Metis compositor session (spawns shell automatically) …"
