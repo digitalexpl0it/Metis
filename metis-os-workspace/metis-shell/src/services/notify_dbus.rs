@@ -15,14 +15,26 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Mutex;
 
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use zbus::fdo::RequestNameFlags;
 use zbus::interface;
 use zbus::zvariant::{OwnedValue, Value};
 
-use super::notifications::{BarNotification, NotificationKind};
+use super::notifications::{BarNotification, NotificationKind, NotifyOutgoing};
+
+/// Incoming notifications + the outgoing action/close channel handed to the bar.
+pub struct NotifyChannels {
+    /// Notifications delivered by the daemon, drained on the GTK main thread.
+    pub incoming: Receiver<BarNotification>,
+    /// Sent by the UI when the user clicks an action or dismisses a card; the
+    /// daemon turns these into `ActionInvoked` / `NotificationClosed` signals.
+    pub actions: UnboundedSender<NotifyOutgoing>,
+}
 
 struct NotifyServer {
     tx: Mutex<Sender<BarNotification>>,
+    /// Outgoing signal channel so `CloseNotification` can emit `NotificationClosed`.
+    out_tx: UnboundedSender<NotifyOutgoing>,
     next_id: AtomicU32,
 }
 
@@ -38,38 +50,56 @@ impl NotifyServer {
         _app_icon: String,
         summary: String,
         body: String,
-        _actions: Vec<String>,
+        actions: Vec<String>,
         hints: HashMap<String, OwnedValue>,
-        _expire_timeout: i32,
+        expire_timeout: i32,
     ) -> u32 {
+        let id = if replaces_id != 0 {
+            replaces_id
+        } else {
+            self.next_id.fetch_add(1, Ordering::Relaxed).max(1)
+        };
+
         let kind = urgency_kind(&hints);
         let title = if summary.trim().is_empty() {
-            app_name
+            app_name.clone()
         } else {
             summary
         };
         let note = BarNotification {
+            id,
+            app_name,
             kind,
             title,
             message: body,
+            actions: parse_actions(&actions),
+            desktop_entry: hint_str(&hints, "desktop-entry"),
+            suppress_sound: hint_bool(&hints, "suppress-sound"),
+            sound_name: hint_str(&hints, "sound-name"),
+            sound_file: hint_str(&hints, "sound-file"),
+            expire_ms: expire_timeout,
         };
         if let Ok(tx) = self.tx.lock() {
             let _ = tx.send(note);
         }
-        if replaces_id != 0 {
-            replaces_id
-        } else {
-            self.next_id.fetch_add(1, Ordering::Relaxed).max(1)
-        }
+        id
     }
 
-    /// `CloseNotification` — Metis notifications are dismissed via the bar UI, so
-    /// this is a no-op acknowledgement.
-    async fn close_notification(&self, _id: u32) {}
+    /// `CloseNotification` — acknowledge by emitting `NotificationClosed` with
+    /// reason 3 (closed by a call to CloseNotification), per the spec.
+    async fn close_notification(&self, id: u32) {
+        let _ = self.out_tx.send(NotifyOutgoing::Closed { id, reason: 3 });
+    }
 
-    /// `GetCapabilities` — advertise only what the in-bar popup actually renders.
+    /// `GetCapabilities` — advertise what Metis renders. `actions` is what makes
+    /// apps attach buttons; `sound` lets them request a tone on arrival.
     fn get_capabilities(&self) -> Vec<String> {
-        vec!["body".to_string()]
+        vec![
+            "body".to_string(),
+            "actions".to_string(),
+            "sound".to_string(),
+            "persistence".to_string(),
+        ]
     }
 
     /// `GetServerInformation` — (name, vendor, version, spec_version).
@@ -97,10 +127,41 @@ fn urgency_kind(hints: &HashMap<String, OwnedValue>) -> NotificationKind {
     }
 }
 
+/// The `actions` array alternates `[key, label, key, label, ...]`. Pair them up,
+/// dropping any trailing unpaired entry.
+fn parse_actions(actions: &[String]) -> Vec<(String, String)> {
+    actions
+        .chunks_exact(2)
+        .map(|pair| (pair[0].clone(), pair[1].clone()))
+        .collect()
+}
+
+/// Read a string-valued hint (handles both `Str` and `OwnedValue`-wrapped str).
+fn hint_str(hints: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
+    hints.get(key).and_then(|v| match &**v {
+        Value::Str(s) => {
+            let s = s.as_str();
+            (!s.is_empty()).then(|| s.to_string())
+        }
+        _ => None,
+    })
+}
+
+/// Read a bool-valued hint, defaulting to `false` when missing or wrong type.
+fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
+    matches!(hints.get(key).map(|v| &**v), Some(Value::Bool(true)))
+}
+
 /// Start the notification daemon on a background thread and return the receiver
 /// the bar polls on the GTK main thread.
-pub fn spawn_notification_service() -> Receiver<BarNotification> {
+pub fn spawn_notification_service() -> NotifyChannels {
     let (tx, rx) = channel::<BarNotification>();
+    // Outgoing action/close channel. One sender goes to the UI (via the returned
+    // struct), one to the daemon's `CloseNotification`, and the receiver lives in
+    // `run()`. `unbounded_channel` does not need a runtime to be created.
+    let (out_tx, out_rx) = unbounded_channel::<NotifyOutgoing>();
+    let ui_out_tx = out_tx.clone();
+
     let nested = std::env::var("METIS_NESTED")
         .map(|v| !v.is_empty())
         .unwrap_or(false);
@@ -110,7 +171,12 @@ pub fn spawn_notification_service() -> Receiver<BarNotification> {
     if nested || disabled {
         tracing::info!("notify: skipped (nested dev session or METIS_NO_NOTIFY)");
         drop(tx);
-        return rx;
+        // Drop the daemon's receiver so UI sends fail gracefully (debug-logged).
+        drop(out_rx);
+        return NotifyChannels {
+            incoming: rx,
+            actions: ui_out_tx,
+        };
     }
     if let Err(err) = std::thread::Builder::new()
         .name("metis-notify-dbus".to_string())
@@ -125,32 +191,71 @@ pub fn spawn_notification_service() -> Receiver<BarNotification> {
                     return;
                 }
             };
-            if let Err(err) = rt.block_on(run(tx)) {
+            if let Err(err) = rt.block_on(run(tx, out_tx, out_rx)) {
                 tracing::warn!(%err, "notify: dbus service stopped");
             }
         })
     {
         tracing::error!(%err, "notify: failed to spawn dbus thread");
     }
-    rx
+    NotifyChannels {
+        incoming: rx,
+        actions: ui_out_tx,
+    }
 }
 
-async fn run(tx: Sender<BarNotification>) -> zbus::Result<()> {
+const NOTIFY_PATH: &str = "/org/freedesktop/Notifications";
+const NOTIFY_IFACE: &str = "org.freedesktop.Notifications";
+
+async fn run(
+    tx: Sender<BarNotification>,
+    out_tx: UnboundedSender<NotifyOutgoing>,
+    mut out_rx: UnboundedReceiver<NotifyOutgoing>,
+) -> zbus::Result<()> {
     let server = NotifyServer {
         tx: Mutex::new(tx),
+        out_tx,
         next_id: AtomicU32::new(1),
     };
     let conn = zbus::connection::Builder::session()?
-        .serve_at("/org/freedesktop/Notifications", server)?
+        .serve_at(NOTIFY_PATH, server)?
         .build()
         .await?;
 
     let flags = RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement;
-    conn.request_name_with_flags("org.freedesktop.Notifications", flags)
-        .await?;
+    conn.request_name_with_flags(NOTIFY_IFACE, flags).await?;
     tracing::info!("notify: acquired org.freedesktop.Notifications");
 
-    // Keep the connection (and thus the service) alive for the process lifetime.
-    std::future::pending::<()>().await;
+    // Drain outgoing UI interactions and emit the spec-required signals back to
+    // the originating apps. This loop also keeps the connection (and thus the
+    // service) alive for the process lifetime: the server holds a sender clone,
+    // so `recv()` never returns `None`.
+    while let Some(msg) = out_rx.recv().await {
+        let result = match msg {
+            NotifyOutgoing::Action { id, key } => {
+                conn.emit_signal(
+                    None::<&str>,
+                    NOTIFY_PATH,
+                    NOTIFY_IFACE,
+                    "ActionInvoked",
+                    &(id, key),
+                )
+                .await
+            }
+            NotifyOutgoing::Closed { id, reason } => {
+                conn.emit_signal(
+                    None::<&str>,
+                    NOTIFY_PATH,
+                    NOTIFY_IFACE,
+                    "NotificationClosed",
+                    &(id, reason),
+                )
+                .await
+            }
+        };
+        if let Err(err) = result {
+            tracing::warn!(%err, "notify: failed to emit signal");
+        }
+    }
     Ok(())
 }

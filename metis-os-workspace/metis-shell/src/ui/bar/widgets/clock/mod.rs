@@ -40,11 +40,11 @@ impl Store {
 /// keeps timer/alarm/calendar alerts inside Metis instead of relying on an
 /// external `notify-send` daemon.
 pub(crate) fn notify(title: &str, body: &str) {
-    crate::services::push_notification(crate::services::BarNotification {
-        kind: crate::services::NotificationKind::Notification,
-        title: title.to_string(),
-        message: body.to_string(),
-    });
+    crate::services::push_notification(crate::services::BarNotification::internal(
+        crate::services::NotificationKind::Notification,
+        title,
+        body,
+    ));
 }
 
 /// Best-effort alarm sound; degrades silently if no player/sound is present.

@@ -1,12 +1,27 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use tokio::sync::mpsc::UnboundedSender;
+
 /// A notification plus how many identical copies have arrived (for de-duped
 /// grouping with a count badge).
 #[derive(Debug, Clone)]
 pub struct NotificationEntry {
     pub notification: BarNotification,
     pub count: u32,
+}
+
+/// A message sent back to the freedesktop daemon thread when the user interacts
+/// with a notification (clicks an action button or dismisses a card), so the
+/// daemon can emit the spec-required `ActionInvoked` / `NotificationClosed`
+/// signals to the originating application.
+#[derive(Debug, Clone)]
+pub enum NotifyOutgoing {
+    /// User triggered an action; `key` is the action identifier the app sent.
+    Action { id: u32, key: String },
+    /// Notification was closed; `reason` follows the spec (1 expired, 2 dismissed
+    /// by user, 3 closed by `CloseNotification`, 4 undefined).
+    Closed { id: u32, reason: u32 },
 }
 
 thread_local! {
@@ -16,6 +31,83 @@ thread_local! {
     /// Repaint hooks installed by each bar's notifications widget (one per output
     /// in a multi-monitor session). Weak so a torn-down bar's hook drops itself.
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
+    /// Outgoing channel back to the D-Bus daemon thread for action/close signals.
+    /// Set once at startup from the GTK main thread by `set_action_sender`.
+    static ACTION_TX: RefCell<Option<UnboundedSender<NotifyOutgoing>>> = const { RefCell::new(None) };
+}
+
+/// Register the outgoing channel used to notify the freedesktop daemon thread of
+/// action clicks / dismissals. Called once at startup on the GTK main thread.
+pub fn set_action_sender(tx: UnboundedSender<NotifyOutgoing>) {
+    ACTION_TX.with(|cell| *cell.borrow_mut() = Some(tx));
+}
+
+fn send_outgoing(msg: NotifyOutgoing) {
+    ACTION_TX.with(|cell| {
+        if let Some(tx) = cell.borrow().as_ref() {
+            if let Err(err) = tx.send(msg) {
+                tracing::debug!(%err, "notify: outgoing channel closed");
+            }
+        }
+    });
+}
+
+/// Tell the originating app that the user invoked `key` on notification `id`.
+/// Real D-Bus notifications carry a non-zero id; runtime/demo notifications use
+/// id 0 and are silently ignored here (nothing to signal back to).
+pub fn invoke_action(id: u32, key: &str) {
+    if id == 0 {
+        return;
+    }
+    send_outgoing(NotifyOutgoing::Action {
+        id,
+        key: key.to_string(),
+    });
+}
+
+/// Tell the originating app that notification `id` was closed. `reason` follows
+/// the freedesktop spec (2 = dismissed by the user).
+pub fn close_notification(id: u32, reason: u32) {
+    if id == 0 {
+        return;
+    }
+    send_outgoing(NotifyOutgoing::Closed { id, reason });
+}
+
+/// Best-effort notification sound, honouring the sender's `sound-file` /
+/// `sound-name` hints and falling back to the freedesktop default. Mirrors the
+/// `canberra-gtk-play` -> `paplay` fallback used for alarms. Degrades silently
+/// when no player or sound is available. Callers must gate this on Do Not
+/// Disturb and the `suppress-sound` hint themselves.
+pub fn play_notification_sound(note: &BarNotification) {
+    if let Some(file) = note.sound_file.as_deref().filter(|f| !f.is_empty()) {
+        if std::process::Command::new("canberra-gtk-play")
+            .args(["-f", file])
+            .spawn()
+            .is_ok()
+        {
+            return;
+        }
+        if std::process::Command::new("paplay").arg(file).spawn().is_ok() {
+            return;
+        }
+    }
+
+    let name = note
+        .sound_name
+        .as_deref()
+        .filter(|n| !n.is_empty())
+        .unwrap_or("message-new-instant");
+    if std::process::Command::new("canberra-gtk-play")
+        .args(["-i", name])
+        .spawn()
+        .is_ok()
+    {
+        return;
+    }
+    let _ = std::process::Command::new("paplay")
+        .arg("/usr/share/sounds/freedesktop/stereo/message.oga")
+        .spawn();
 }
 
 const RUNTIME_CAP: usize = 50;
@@ -52,7 +144,7 @@ pub fn push_notification(notification: BarNotification) {
         let mut list = r.borrow_mut();
         if let Some(pos) = list
             .iter()
-            .position(|e| e.notification == notification)
+            .position(|e| e.notification.content_eq(&notification))
         {
             let mut entry = list.remove(pos);
             entry.count = entry.count.saturating_add(1);
@@ -125,8 +217,78 @@ impl NotificationKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BarNotification {
+    /// Freedesktop notification id assigned by the daemon (0 for internal/runtime
+    /// or demo notifications that have no app to signal back to).
+    pub id: u32,
+    /// Sending application name (`app_name` from `Notify`).
+    pub app_name: String,
     pub kind: NotificationKind,
     pub title: String,
     pub message: String,
+    /// Labeled actions the sender provided as `(key, label)` pairs. The
+    /// conventional `default` action (invoked by clicking the card body) is kept
+    /// here too if present.
+    pub actions: Vec<(String, String)>,
+    /// `desktop-entry` hint — the `.desktop` id of the owning app, used to render
+    /// a single "Open" button when no explicit actions are supplied.
+    pub desktop_entry: Option<String>,
+    /// `suppress-sound` hint: the sender asked that no sound be played.
+    pub suppress_sound: bool,
+    /// `sound-name` hint: a freedesktop sound theme id to play on arrival.
+    pub sound_name: Option<String>,
+    /// `sound-file` hint: an explicit audio file path to play on arrival.
+    pub sound_file: Option<String>,
+    /// Requested on-screen lifetime in ms (`expire_timeout`): `-1` = server
+    /// default, `0` = never auto-expire. Drives toast auto-dismiss timing.
+    pub expire_ms: i32,
+}
+
+impl BarNotification {
+    /// Build an internal (non-D-Bus) notification with default action/sound
+    /// fields. Used by timers, alarms, calendar reminders and demo seeds.
+    pub fn internal(kind: NotificationKind, title: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            id: 0,
+            app_name: "Metis".to_string(),
+            kind,
+            title: title.into(),
+            message: message.into(),
+            actions: Vec::new(),
+            desktop_entry: None,
+            suppress_sound: false,
+            sound_name: None,
+            sound_file: None,
+            expire_ms: -1,
+        }
+    }
+
+    /// Whether two notifications carry the same user-visible content. Used for
+    /// dedup/grouping so distinct ids, actions and sound hints do not prevent
+    /// coalescing of otherwise-identical messages.
+    pub fn content_eq(&self, other: &Self) -> bool {
+        self.kind == other.kind && self.title == other.title && self.message == other.message
+    }
+
+    /// Non-`default` actions as `(key, label)` — these become explicit buttons.
+    pub fn labeled_actions(&self) -> impl Iterator<Item = &(String, String)> {
+        self.actions.iter().filter(|(key, _)| key != "default")
+    }
+
+    /// Whether a conventional `default` action is present (invoked by clicking
+    /// the card body).
+    pub fn has_default_action(&self) -> bool {
+        self.actions.iter().any(|(key, _)| key == "default")
+    }
+
+    /// Resolved on-screen lifetime for a toast banner. Honours an explicit
+    /// positive `expire_ms`; server-default (`-1`) and "never" (`0`) both map to
+    /// a sensible ~5s banner so the overlay never lingers forever.
+    pub fn toast_duration_ms(&self) -> u64 {
+        if self.expire_ms > 0 {
+            (self.expire_ms as u64).clamp(2000, 30_000)
+        } else {
+            5000
+        }
+    }
 }
 

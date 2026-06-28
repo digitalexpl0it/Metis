@@ -1,5 +1,5 @@
 mod dropdown;
-mod widgets;
+pub(crate) mod widgets;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -11,7 +11,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
 use crate::services::{
     spawn_bar_pollers, spawn_notification_service, spawn_weather_service, workspace_snapshot,
-    BarNotification, BarSnapshot, WeatherSnapshot,
+    BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
@@ -646,10 +646,24 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
 }
 
 /// Drain notifications delivered by the freedesktop D-Bus daemon thread and push
-/// them into the (thread-local) in-bar notification store on the UI thread.
-fn attach_notification_channel(rx: Receiver<BarNotification>) {
+/// them into the (thread-local) in-bar notification store on the UI thread. Also
+/// registers the outgoing action channel and, for each arrival (unless Do Not
+/// Disturb is on), plays a sound and shows a transient toast banner.
+fn attach_notification_channel(channels: crate::services::NotifyChannels) {
+    let crate::services::NotifyChannels { incoming, actions } = channels;
+    // Register the outgoing sender so popover/toast buttons can round-trip
+    // ActionInvoked / NotificationClosed back to the originating apps.
+    crate::services::set_action_sender(actions);
+
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        while let Ok(note) = rx.try_recv() {
+        while let Ok(note) = incoming.try_recv() {
+            let dnd = widgets::do_not_disturb();
+            if !dnd {
+                if !note.suppress_sound {
+                    crate::services::play_notification_sound(&note);
+                }
+                crate::ui::toast::show(&note);
+            }
             crate::services::push_notification(note);
         }
         glib::ControlFlow::Continue

@@ -597,6 +597,52 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         line-height: 1.35;
     }}
 
+    .metis-notif-actions {{
+        margin-top: 6px;
+    }}
+
+    .metis-notif-action {{
+        padding: 5px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: {text};
+        background-color: rgba(255, 255, 255, 0.07);
+        background-image: none;
+        border: 1px solid {border};
+        box-shadow: none;
+    }}
+    .metis-notif-action:hover {{
+        background-color: rgba(255, 255, 255, 0.13);
+    }}
+    .metis-notif-action.suggested-action {{
+        color: {text};
+        border-color: rgba({accent_rgb}, 0.55);
+        background-color: rgba({accent_rgb}, 0.22);
+    }}
+    .metis-notif-action.suggested-action:hover {{
+        background-color: rgba({accent_rgb}, 0.34);
+    }}
+
+    .metis-notif-card-clickable:hover {{
+        background-color: rgba(255, 255, 255, 0.05);
+    }}
+
+    /* ---- Toast banners (transient overlay, top-right) ---- */
+    window.metis-toast-window {{
+        background-color: transparent;
+    }}
+    .metis-toast-stack {{
+        margin: 0;
+    }}
+    .metis-toast-card {{
+        background-color: rgba(12, 16, 22, 0.96);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        padding: 14px 16px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }}
+
     .metis-notif-card-error {{
         box-shadow: 0 0 18px rgba({c_error_rgb}, 0.22);
         border-color: rgba({c_error_rgb}, 0.35);

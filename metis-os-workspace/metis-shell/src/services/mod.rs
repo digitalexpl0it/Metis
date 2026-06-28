@@ -13,10 +13,11 @@ pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };
 pub use notifications::{
-    clear_notifications, notification_count, push_notification, register_refresh,
-    runtime_notifications, BarNotification, NotificationEntry, NotificationKind,
+    clear_notifications, close_notification, invoke_action, notification_count,
+    play_notification_sound, push_notification, register_refresh, runtime_notifications,
+    set_action_sender, BarNotification, NotificationEntry, NotificationKind, NotifyOutgoing,
 };
-pub use notify_dbus::spawn_notification_service;
+pub use notify_dbus::{spawn_notification_service, NotifyChannels};
 pub use poll::{
     set_mic_mute, set_mic_volume_absolute, set_mute, set_volume_absolute, set_volume_relative,
     spawn_bar_pollers, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, EthernetStatus,

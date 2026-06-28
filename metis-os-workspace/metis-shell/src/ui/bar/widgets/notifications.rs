@@ -268,7 +268,27 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
 
     text.append(&title);
     text.append(&message);
+
+    // Action / Open buttons, driven purely by what the sender provided.
+    if let Some(row) = build_action_row(notif) {
+        text.append(&row);
+    }
+
     card.append(&text);
+
+    // Clicking the card body invokes the conventional `default` action when the
+    // sender advertised one (e.g. "open the chat that pinged you").
+    if notif.has_default_action() {
+        card.add_css_class("metis-notif-card-clickable");
+        let gesture = gtk::GestureClick::new();
+        let id = notif.id;
+        gesture.connect_released(move |gesture, _, _, _| {
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+            crate::services::invoke_action(id, "default");
+            crate::services::close_notification(id, 2);
+        });
+        card.add_controller(gesture);
+    }
 
     if entry.count > 1 {
         let count = gtk::Label::new(Some(&format!("{}", entry.count)));
@@ -280,11 +300,71 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
     card
 }
 
+/// Build a row of buttons for a notification using the detection rule:
+/// labeled actions become one button each; otherwise a `desktop-entry` becomes a
+/// single "Open" button. Returns `None` when the notification has neither (plain
+/// informational notification — buttons are never inferred from text).
+pub(crate) fn build_action_row(notif: &BarNotification) -> Option<gtk::Box> {
+    let row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .halign(gtk::Align::End)
+        .build();
+    row.add_css_class("metis-notif-actions");
+    row.set_margin_top(4);
+
+    let mut any = false;
+    for (key, label) in notif.labeled_actions() {
+        let button = gtk::Button::with_label(label);
+        button.add_css_class("metis-notif-action");
+        let id = notif.id;
+        let key = key.clone();
+        button.connect_clicked(move |_| {
+            crate::services::invoke_action(id, &key);
+            crate::services::close_notification(id, 2);
+        });
+        row.append(&button);
+        any = true;
+    }
+
+    if !any {
+        if let Some(entry) = notif.desktop_entry.clone() {
+            let button = gtk::Button::with_label("Open");
+            button.add_css_class("metis-notif-action");
+            button.add_css_class("suggested-action");
+            let id = notif.id;
+            button.connect_clicked(move |_| {
+                launch_desktop_entry(&entry);
+                crate::services::close_notification(id, 2);
+            });
+            row.append(&button);
+            any = true;
+        }
+    }
+
+    any.then_some(row)
+}
+
+/// Launch the app behind a `desktop-entry` hint via its `.desktop` file. Tries
+/// the id as-is first, then with a `.desktop` suffix (the hint is usually bare).
+pub(crate) fn launch_desktop_entry(entry: &str) {
+    use gio::prelude::*;
+    let candidates = [entry.to_string(), format!("{entry}.desktop")];
+    for id in candidates {
+        if let Some(app) = gio::DesktopAppInfo::new(&id) {
+            match app.launch(&[], None::<&gio::AppLaunchContext>) {
+                Ok(()) => return,
+                Err(err) => tracing::warn!(%err, desktop = %id, "notify: failed to launch app"),
+            }
+        }
+    }
+    tracing::warn!(desktop = %entry, "notify: no .desktop entry found to open");
+}
+
 fn seed_demo_notifications() {
     use crate::services::push_notification;
     let demos = [
         (NotificationKind::Success, "Workspace saved", "Layout stored to disk."),
-        (NotificationKind::Information, "Update available", "Restart Metis when convenient."),
         (NotificationKind::Payment, "Payment received", "Invoice #1042 was paid."),
         (NotificationKind::Error, "Sync failed", "Could not reach the calendar server."),
         (NotificationKind::Notification, "New message", "Ping from Metis Core."),
@@ -292,10 +372,24 @@ fn seed_demo_notifications() {
         (NotificationKind::Notification, "New message", "Ping from Metis Core."),
     ];
     for (kind, title, message) in demos {
-        push_notification(BarNotification {
-            kind,
-            title: title.into(),
-            message: message.into(),
-        });
+        push_notification(BarNotification::internal(kind, title, message));
     }
+
+    // One entry with explicit actions (Install / Later) to exercise buttons.
+    let mut firmware =
+        BarNotification::internal(NotificationKind::Information, "Firmware update", "A firmware update is available for your dock.");
+    firmware.actions = vec![
+        ("install".into(), "Install".into()),
+        ("later".into(), "Later".into()),
+    ];
+    push_notification(firmware);
+
+    // One entry that only carries a desktop-entry hint -> single "Open" button.
+    let mut update = BarNotification::internal(
+        NotificationKind::Information,
+        "Update available",
+        "Restart Metis when convenient.",
+    );
+    update.desktop_entry = Some("org.gnome.Software".into());
+    push_notification(update);
 }

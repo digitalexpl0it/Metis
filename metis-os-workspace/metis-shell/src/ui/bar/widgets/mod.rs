@@ -18,6 +18,8 @@ use crate::services::BarSnapshot;
 use clock::ClockWidget;
 use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
+pub use notifications::do_not_disturb;
+pub(crate) use notifications::build_action_row;
 use sys::{BatteryWidget, NetworkWidget, VolumeWidget};
 use tasks::TasksWidget;
 use weather::WeatherWidget;
