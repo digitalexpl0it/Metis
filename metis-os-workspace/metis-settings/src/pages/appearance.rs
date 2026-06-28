@@ -634,6 +634,25 @@ pub fn build() -> gtk::Widget {
     // ---- Windows (titlebar) ----------------------------------------------
     let (win_card, win_body) = ui::section_with_icon("Windows", "window-new-symbolic");
 
+    let window_animations = gtk::Switch::new();
+    window_animations.set_active(bar.borrow().window_animations);
+    window_animations.set_halign(gtk::Align::End);
+    window_animations.set_valign(gtk::Align::Center);
+    win_body.append(&ui::row_with_icon(
+        "preferences-desktop-effects-symbolic",
+        "Window animations",
+        &window_animations,
+    ));
+
+    let anim_hint = gtk::Label::new(Some(
+        "Minimize genie, maximize wobble, and titlebar slide effects. \
+         Turn off for instant window transitions.",
+    ));
+    anim_hint.set_xalign(0.0);
+    anim_hint.set_wrap(true);
+    anim_hint.add_css_class("metis-settings-hint");
+    win_body.append(&anim_hint);
+
     let titlebar_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     titlebar_opacity.set_value(bar.borrow().titlebar_opacity as f64);
     titlebar_opacity.set_size_request(200, -1);
@@ -854,6 +873,13 @@ pub fn build() -> gtk::Widget {
     }
     {
         let bar = bar.clone();
+        window_animations.connect_active_notify(move |s| {
+            bar.borrow_mut().window_animations = s.is_active();
+            save_bar(&bar.borrow());
+        });
+    }
+    {
+        let bar = bar.clone();
         titlebar_opacity.connect_value_changed(move |s| {
             bar.borrow_mut().titlebar_opacity = s.value() as f32;
             save_bar(&bar.borrow());
@@ -1007,6 +1033,7 @@ fn save_bar(cfg: &metis_config::BarConfig) {
     on_disk.margin_top = cfg.margin_top;
     on_disk.opacity = cfg.opacity;
     on_disk.titlebar_opacity = cfg.titlebar_opacity;
+    on_disk.window_animations = cfg.window_animations;
     on_disk.titlebar_pill_border = cfg.titlebar_pill_border.clone();
     on_disk.window_border = cfg.window_border.clone();
     on_disk.bar_border = cfg.bar_border.clone();

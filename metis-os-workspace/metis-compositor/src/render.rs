@@ -236,20 +236,36 @@ impl MetisState {
                 - window.geometry().loc)
                 .to_physical_precise_round(output_scale)
                 - render_origin;
+            let mut alpha = 1.0f32;
             if let Some(id) = id {
                 let nudge = self.scroll_render_nudge(id);
                 if nudge != 0 {
                     loc = Point::from((loc.x + nudge, loc.y));
                 }
+                if let Some((_, genie_alpha)) = self.minimize_genie_render(id) {
+                    alpha = genie_alpha;
+                }
             }
             // Scroll columns may overhang their display edge; clip them to their
             // own output (in local coords) so they never paint onto a neighbour.
-            let clip = id
-                .and_then(|id| self.scroll_window_clip(id, output_scale))
-                .map(|c| Rectangle::new(c.loc - render_origin, c.size));
+            let clip = id.and_then(|id| {
+                if self.is_minimize_genie_active(id) {
+                    self.minimize_genie_render(id).map(|(r, _)| {
+                        Rectangle::new(
+                            Point::from((r.x, r.y)).to_physical_precise_round(output_scale)
+                                - render_origin,
+                            Size::from((r.width.max(1), r.height.max(1)))
+                                .to_physical_precise_round(output_scale),
+                        )
+                    })
+                } else {
+                    self.scroll_window_clip(id, output_scale)
+                        .map(|c| Rectangle::new(c.loc - render_origin, c.size))
+                }
+            });
             let elems = AsRenderElements::<GlesRenderer>::render_elements::<
                 WaylandSurfaceRenderElement<GlesRenderer>,
-            >(window, renderer, loc, output_scale, 1.0);
+            >(window, renderer, loc, output_scale, alpha);
             if let Some(clip) = clip {
                 for e in elems {
                     if let Some(c) = CropRenderElement::from_element(e, output_scale, clip) {
