@@ -9,6 +9,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Release build profiles** — workspace `release` uses thin LTO, `codegen-units=1`,
+  and `strip=symbols` (~34% smaller installed binaries). Optional `release-small`
+  profile (`opt-level=s`, fat LTO, compositor stays at `opt-level=3`) for ~56%
+  smaller installs; `./run-metis.sh --release-small --install-session`.
+- **Performance audit** — [`docs/PERF_AUDIT.md`](docs/PERF_AUDIT.md) documents
+  compositor hot paths, hotspots (capture, scanout, `state.rs` size), and sizing
+  measurements.
 - **Bluetooth device battery in the edge bar** — the Bluetooth popover now lists
   every connected device with a battery icon and percentage when the device reports
   one. Low levels (≤20%) use an amber warning style; charging devices show a
@@ -62,6 +69,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Changed
 
+- **metis-shell tokio features** — trimmed from `full` to `rt`, `rt-multi-thread`,
+  `macros`, `time`, `sync` (smaller shell binary, same runtime surface).
 - **Client-side vs server-side decoration policy** — Chromium and similar tabbed
   browsers are forced to Metis server-side chrome; Firefox and GNOME apps keep
   native client-side decorations where appropriate.

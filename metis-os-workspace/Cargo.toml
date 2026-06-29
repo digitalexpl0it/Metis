@@ -31,3 +31,24 @@ metis-secrets = { path = "metis-secrets" }
 # stalls). Our own crates stay unoptimized for fast, debuggable iteration.
 [profile.dev.package."*"]
 opt-level = 3
+
+# Default release: balance runtime perf (compositor GL path) with smaller installs.
+# LTO + single codegen unit shrink binaries noticeably vs stock `cargo build --release`.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# Smallest installed footprint (`cargo build --profile release-small`, or
+# `./run-metis.sh --install-session --release-small`). Slightly slower builds;
+# compositor hot path remains opt-level 3 via package override below.
+[profile.release-small]
+inherits = "release"
+opt-level = "s"
+lto = "fat"
+panic = "abort"
+
+# Keep the compositor on full speed even in release-small — GLES/Smithay dominate.
+[profile.release-small.package.metis-compositor]
+opt-level = 3

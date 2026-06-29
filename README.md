@@ -185,7 +185,8 @@ reference.
   wrapper, controller/device permissions docs.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
-roadmap and [`CHANGELOG.md`](CHANGELOG.md) for recent changes.
+roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
+[`docs/PERF_AUDIT.md`](docs/PERF_AUDIT.md) for performance and binary-size notes.
 
 ## License
 

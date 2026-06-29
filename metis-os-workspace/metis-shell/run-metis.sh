@@ -8,7 +8,8 @@
 #                                         # apps into the nested session (dev)
 #   ./run-metis.sh              # shell only (compositor must already run)
 #   ./run-metis.sh --build      # force rebuild before run
-#   ./run-metis.sh --release    # optimized binaries
+#   ./run-metis.sh --release    # optimized binaries (default LTO release profile)
+#   ./run-metis.sh --release-small # smallest install footprint (see Cargo.toml)
 #   ./run-metis.sh --stop       # stop background shell process
 #   ./run-metis.sh --verify-grid # compare compositor vs shell grid layouts
 #   ./run-metis.sh --install-session # build release + install the GDM/login
@@ -88,6 +89,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --build) FORCE_BUILD=1 ;;
         --release) PROFILE="release" ;;
+        --release-small) PROFILE="release-small" ;;
         --session) SESSION=1 ;;
         --drm) DRM=1 ;;
         --import-env) IMPORT_ENV=1 ;;
@@ -110,6 +112,30 @@ done
 
 log() {
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
+}
+
+# Map PROFILE (dev | release | release-small) to cargo flags and target subdir.
+cargo_target_subdir() {
+    case "$PROFILE" in
+        release) printf '%s' release ;;
+        release-small) printf '%s' release-small ;;
+        *) printf '%s' debug ;;
+    esac
+}
+
+cargo_build_flag() {
+    case "$PROFILE" in
+        release) printf '%s' --release ;;
+        release-small) printf '%s' --profile ;;
+        *) return 1 ;;
+    esac
+}
+
+cargo_build_profile_name() {
+    case "$PROFILE" in
+        release-small) printf '%s' release-small ;;
+        *) return 1 ;;
+    esac
 }
 
 # `sudo ./run-metis.sh` sets HOME=/root — load the invoking user's rustup cargo.
@@ -225,6 +251,9 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     SESSIONS_DST="${METIS_SESSIONS_DIR:-/usr/local/share/wayland-sessions}"
     ASSETS_DIR="$WORKSPACE/assets"
 
+    # Install always builds optimized binaries unless --release-small was passed.
+    [[ "$PROFILE" == "dev" ]] && PROFILE="release"
+
     ensure_cargo_in_path
     for pc_dir in \
         /usr/local/lib/x86_64-linux-gnu/pkgconfig \
@@ -234,7 +263,7 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     done
     export PKG_CONFIG_PATH
 
-    echo "Building release binaries …"
+    echo "Building ${PROFILE} binaries …"
     if ! command -v cargo >/dev/null 2>&1; then
         echo "ERROR: cargo not in PATH." >&2
         echo "  Install Rust: https://rustup.rs" >&2
@@ -242,12 +271,19 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
         echo "    ./run-metis.sh --install-session" >&2
         exit 1
     fi
-    if ! cargo build --release -p metis-compositor -p metis-shell -p metis-settings -p metis-portal; then
+    BUILD_ARGS=()
+    if flag="$(cargo_build_flag)"; then
+        BUILD_ARGS+=("$flag")
+        if prof="$(cargo_build_profile_name)"; then
+            BUILD_ARGS+=("$prof")
+        fi
+    fi
+    if ! cargo build "${BUILD_ARGS[@]}" -p metis-compositor -p metis-shell -p metis-settings -p metis-portal; then
         echo "ERROR: release build failed." >&2
         exit 1
     fi
 
-    REL="$CARGO_TARGET_DIR/release"
+    REL="$CARGO_TARGET_DIR/$(cargo_target_subdir)"
     # xdg-desktop-portal only loads backend descriptors from
     # /usr/share/xdg-desktop-portal/portals/ — installing under /usr/local alone
     # makes apps wait ~25s per portal call while xdp times out on GNOME backends.
@@ -659,10 +695,18 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     echo
 
     TARGET_DIR="$CARGO_TARGET_DIR"
-    if [[ "$PROFILE" == "release" ]]; then
-        SHELL_BIN="$TARGET_DIR/release/metis-shell"
-        COMP_BIN="$TARGET_DIR/release/metis-compositor"
-        BUILD_CMD=(cargo build --release -p metis-shell -p metis-compositor -p metis-settings)
+    TARGET_SUB="$(cargo_target_subdir)"
+    if [[ "$PROFILE" != "dev" ]]; then
+        SHELL_BIN="$TARGET_DIR/$TARGET_SUB/metis-shell"
+        COMP_BIN="$TARGET_DIR/$TARGET_SUB/metis-compositor"
+        BUILD_ARGS=()
+        if flag="$(cargo_build_flag)"; then
+            BUILD_ARGS+=("$flag")
+            if prof="$(cargo_build_profile_name)"; then
+                BUILD_ARGS+=("$prof")
+            fi
+        fi
+        BUILD_CMD=(cargo build "${BUILD_ARGS[@]}" -p metis-shell -p metis-compositor -p metis-settings)
     else
         SHELL_BIN="$TARGET_DIR/debug/metis-shell"
         COMP_BIN="$TARGET_DIR/debug/metis-compositor"

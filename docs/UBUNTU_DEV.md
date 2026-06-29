@@ -104,6 +104,20 @@ Optional: `gamescope` for per-game nested compositor (Steam launch options:
 Hybrid GPU laptops: see `METIS_DRM_DEVICE` in the standalone session section below.
 Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proton--steamos-class-gaming).
 
+### Release build profiles
+
+Default **`release`** uses thin LTO, single codegen unit, and strips symbols —
+smaller than stock Cargo release with minimal compositor perf impact. For the
+smallest install footprint:
+
+```bash
+./run-metis.sh --build --release-small
+./run-metis.sh --install-session --release-small
+```
+
+The compositor stays at `opt-level=3` in `release-small`; GTK/shell binaries use
+size optimization. Details: [`PERF_AUDIT.md`](PERF_AUDIT.md).
+
 ## Rust toolchain
 
 ```bash
