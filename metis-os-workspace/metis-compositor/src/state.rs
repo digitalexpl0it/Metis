@@ -1117,6 +1117,18 @@ impl MetisState {
         }
     }
 
+    /// Tear down spawned clients and stop the event loop. On the DRM backend,
+    /// switch back to the login greeter's VT so the display manager can repaint
+    /// instead of leaving a black framebuffer.
+    pub(crate) fn end_compositor_session(&mut self) {
+        tracing::info!("shutting down compositor session");
+        self.kill_spawned_clients();
+        if self.is_drm_backend() {
+            self.drm_change_vt(1);
+        }
+        self.loop_signal.stop();
+    }
+
     fn init_wayland_listener(
         display: Display<MetisState>,
         event_loop: &mut EventLoop<'_, MetisState>,
@@ -3983,6 +3995,72 @@ impl MetisState {
         edges
     }
 
+    /// Frame grown by the outer resize grab halo so a frontmost window blocks edge
+    /// hits on windows below when the pointer sits in the margin outside the client.
+    fn resize_occlusion_rect(frame: PixelRect) -> PixelRect {
+        let m = RESIZE_MARGIN_PX;
+        PixelRect {
+            x: frame.x - m,
+            y: frame.y - m,
+            width: frame.width + m * 2,
+            height: frame.height + m * 2,
+        }
+    }
+
+    /// Mapped window bounds expanded by the resize grab halo — used to block edge
+    /// hits on windows below a frontmost window that does not itself expose edges.
+    fn mapped_resize_occlusion_rect(
+        &self,
+        window: &smithay::desktop::Window,
+    ) -> Option<PixelRect> {
+        let geo = self.space.element_geometry(window)?;
+        if geo.size.w <= 0 || geo.size.h <= 0 {
+            return None;
+        }
+        Some(Self::resize_occlusion_rect(PixelRect {
+            x: geo.loc.x,
+            y: geo.loc.y,
+            width: geo.size.w,
+            height: geo.size.h,
+        }))
+    }
+
+    /// Frame used for resize-band hit-testing. Unlike [`Self::ssd_frame_for_mapped_window`],
+    /// auto-hide windows still expose edge bands even when their titlebar is hidden.
+    fn resize_frame_for_mapped_window(
+        &self,
+        id: u32,
+        window: &smithay::desktop::Window,
+    ) -> Option<PixelRect> {
+        if !self.should_draw_metis_ssd(id) {
+            return None;
+        }
+        let record = self.windows.get(id)?;
+        if record.fullscreen || self.windows.is_minimized(id) {
+            return None;
+        }
+        let loc = self.space.element_location(window)?;
+        let size = window.geometry().size;
+        if size.w <= 0 || size.h <= 0 {
+            return None;
+        }
+        if self.auto_hide_titlebar.contains(&id) {
+            return Some(PixelRect {
+                x: loc.x,
+                y: loc.y,
+                width: size.w,
+                height: size.h,
+            });
+        }
+        let border = metis_grid::app_tile_border_px();
+        Some(PixelRect {
+            x: loc.x - border,
+            y: loc.y - metis_grid::APP_TILE_HEADER_PX,
+            width: size.w + border * 2,
+            height: size.h + metis_grid::APP_TILE_HEADER_PX + border,
+        })
+    }
+
     /// Server-side decoration frame for a mapped window, when chrome should be
     /// drawn or hit-tested. `None` for minimized/fullscreen windows and for
     /// auto-hide windows whose titlebar is not revealed.
@@ -4025,7 +4103,8 @@ impl MetisState {
 
     /// Hit-test the pointer against every mapped window's resize band. Returns the
     /// topmost window whose edge/corner is under the pointer, plus the combined
-    /// edge(s). Skips minimized, maximized, and fullscreen windows.
+    /// edge(s). Minimized windows are skipped. Maximized and fullscreen windows
+    /// do not expose edges but still occlude windows below.
     pub fn resize_edge_at(
         &self,
         loc: Point<f64, Logical>,
@@ -4044,17 +4123,36 @@ impl MetisState {
             if self.windows.is_minimized(id) {
                 continue;
             }
-            if self.windows.get(id).is_some_and(|r| r.maximized || r.fullscreen) {
+            if self
+                .windows
+                .get(id)
+                .is_some_and(|r| r.maximized || r.fullscreen)
+            {
+                if let Some(occlusion) = self.mapped_resize_occlusion_rect(window) {
+                    if point_in_rect(x, y, occlusion) {
+                        return None;
+                    }
+                }
                 continue;
             }
-            let Some(frame) = self.ssd_frame_for_mapped_window(id, window) else {
+            if let Some(frame) = self.resize_frame_for_mapped_window(id, window) {
+                let edges = self.resize_edges_for_point(loc, frame);
+                if !edges.is_empty() {
+                    return Some((id, edges));
+                }
+                if point_in_rect(x, y, Self::resize_occlusion_rect(frame)) {
+                    return None;
+                }
+                continue;
+            }
+            let Some(geo) = self.space.element_geometry(window) else {
                 continue;
             };
-            let edges = self.resize_edges_for_point(loc, frame);
-            if !edges.is_empty() {
-                return Some((id, edges));
-            }
-            if point_in_rect(x, y, frame) {
+            if x >= geo.loc.x
+                && x < geo.loc.x + geo.size.w
+                && y >= geo.loc.y
+                && y < geo.loc.y + geo.size.h
+            {
                 return None;
             }
         }
@@ -4387,6 +4485,7 @@ impl MetisState {
             return;
         };
         let window = record.window.clone();
+        self.note_window_focus(id);
         self.space.raise_element(&window, true);
         // Manual titlebar drag floats the window out of the grid (no snap-back).
         self.floating.insert(id);
@@ -4553,6 +4652,10 @@ impl MetisState {
     /// the raise when the cursor reaches the chosen app.
     pub(crate) fn maintain_focus_stacking(&mut self, loc: Point<f64, Logical>) {
         use crate::desk_input::point_in_rect;
+
+        if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return;
+        }
 
         let Some(preferred) = self.preferred_stacking_window() else {
             return;
@@ -5546,8 +5649,8 @@ impl MetisState {
                 CompositorEvent::Pong
             }
             CompositorCommand::EndSession => {
-                tracing::info!("EndSession requested — stopping compositor event loop");
-                self.loop_signal.stop();
+                tracing::info!("EndSession requested");
+                self.end_compositor_session();
                 CompositorEvent::Pong
             }
             CompositorCommand::ApplyBackground => {

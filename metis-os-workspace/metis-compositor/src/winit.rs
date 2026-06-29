@@ -333,8 +333,7 @@ pub fn init_winit(
             }
             WinitEvent::CloseRequested => {
                 tracing::info!("compositor winit window close requested — shutting down");
-                state.kill_spawned_clients();
-                state.loop_signal.stop();
+                state.end_compositor_session();
             }
             _ => (),
         }

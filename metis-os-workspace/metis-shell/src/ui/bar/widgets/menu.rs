@@ -256,8 +256,14 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     }));
     rail.append(&rail_button(overlay, tip, "system-log-out-symbolic", "Log Out", || {
         if let Err(err) = crate::compositor::end_session() {
-            tracing::warn!(%err, "failed to end session");
+            tracing::warn!(%err, "compositor end_session failed — falling back to loginctl");
+            if std::env::var_os("XDG_SESSION_ID").is_some() {
+                run_detached("loginctl", &["terminate-session", "self"]);
+            } else if let Ok(user) = std::env::var("USER") {
+                run_detached("loginctl", &["terminate-user", &user]);
+            }
         }
+        super::super::dropdown::request_close_all();
     }));
     rail.append(&rail_button(overlay, tip, "system-reboot-symbolic", "Restart", || {
         run_detached("systemctl", &["reboot"]);

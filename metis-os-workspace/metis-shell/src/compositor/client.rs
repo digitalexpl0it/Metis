@@ -92,8 +92,12 @@ pub fn launch_program(program: &str) -> std::io::Result<()> {
 
 /// Ask the compositor to end the Metis session (stops its event loop).
 pub fn end_session() -> std::io::Result<()> {
-    let _ = send_command(CompositorCommand::EndSession)?;
-    Ok(())
+    match send_command(CompositorCommand::EndSession) {
+        Ok(_) => Ok(()),
+        // The compositor may exit before the reply is flushed back to us.
+        Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {

@@ -948,8 +948,7 @@ impl MetisState {
     /// clients and stop the event loop, returning to the greeter.
     pub(crate) fn drm_quit(&mut self) {
         tracing::info!("safe-quit keybind — shutting down DRM session");
-        self.kill_spawned_clients();
-        self.loop_signal.stop();
+        self.end_compositor_session();
     }
 
     /// udev device add/remove (GPU hotplug). Stage F/G expand this; Stage C only

@@ -275,16 +275,109 @@ impl MetisState {
     }
 
     pub fn window_id_at(&self, pos: Point<f64, Logical>) -> Option<u32> {
-        self.space
-            .element_under(pos)
+        self.topmost_window_at_pointer(pos)
             .and_then(|(window, _)| self.windows.id_for_window(&window))
+            .or_else(|| {
+                self.space
+                    .element_under(pos)
+                    .and_then(|(window, _)| self.windows.id_for_window(&window))
+            })
+    }
+
+    /// Topmost mapped window that should receive pointer events at `pos`. Unlike
+    /// [`Space::element_under`](smithay::desktop::Space::element_under), accounts
+    /// for compositor-drawn SSD chrome (overlay titlebars and border strips) that
+    /// sits outside the client's committed surface tree.
+    pub(crate) fn topmost_window_at_pointer(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Option<(smithay::desktop::Window, Point<i32, Logical>)> {
+        use crate::decoration::overlay_chrome_rect;
+
+        let (x, y) = (pos.x as i32, pos.y as i32);
+
+        for window in self.space.elements().rev() {
+            let Some(id) = self.windows.id_for_window(window) else {
+                continue;
+            };
+            if self.windows.is_minimized(id) {
+                continue;
+            }
+            let Some(record) = self.windows.get(id) else {
+                continue;
+            };
+            let Some(loc) = self.space.element_location(window) else {
+                continue;
+            };
+            let size = window.geometry().size;
+            if size.w <= 0 || size.h <= 0 {
+                continue;
+            }
+
+            if record.fullscreen {
+                if let Some(geo) = self.space.element_geometry(window) {
+                    if geo.contains(pos.to_i32_round()) {
+                        return Some((window.clone(), geo.loc));
+                    }
+                }
+                continue;
+            }
+
+            if self.should_draw_metis_ssd(id) {
+                let client_frame = PixelRect {
+                    x: loc.x,
+                    y: loc.y,
+                    width: size.w,
+                    height: size.h,
+                };
+
+                if self.auto_hide_titlebar.contains(&id) {
+                    if self.titlebar_reveal_window == Some(id)
+                        && self.titlebar_reveal_progress > 0.0
+                    {
+                        let compact = self.window_uses_compact_overlay(id);
+                        let chrome = overlay_chrome_rect(
+                            client_frame,
+                            self.titlebar_reveal_progress,
+                            compact,
+                        );
+                        if point_in_rect(x, y, chrome) {
+                            return Some((window.clone(), loc));
+                        }
+                    }
+                } else if let Some(frame) = self.ssd_frame_for_mapped_window(id, window) {
+                    if point_in_rect(x, y, frame)
+                        && !point_in_rect(x, y, app_tile_body_rect(frame))
+                    {
+                        return Some((window.clone(), loc));
+                    }
+                }
+            }
+
+            if let Some(geo) = self.space.element_geometry(window) {
+                if x >= geo.loc.x
+                    && x < geo.loc.x + geo.size.w
+                    && y >= geo.loc.y
+                    && y < geo.loc.y + geo.size.h
+                {
+                    return Some((window.clone(), geo.loc));
+                }
+            }
+        }
+        None
     }
 
     pub fn window_surface_at(
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        let (window, location) = self.space.element_under(pos)?;
+        let (window, location) = self
+            .topmost_window_at_pointer(pos)
+            .or_else(|| {
+                self.space
+                    .element_under(pos)
+                    .map(|(window, location)| (window.clone(), location))
+            })?;
         let rel = pos - location.to_f64();
         if let Some((surface, loc)) = window
             .surface_under(rel, WindowSurfaceType::ALL)
@@ -590,7 +683,7 @@ impl MetisState {
         match desk_hit {
             DeskHit::AppBody { window_id } => {
                 if self.window_id_at(location) == Some(window_id) {
-                    if let Some((window, _)) = self.space.element_under(location) {
+                    if let Some((window, _)) = self.topmost_window_at_pointer(location) {
                         return Some(window.clone().into());
                     }
                 }
@@ -611,6 +704,10 @@ impl MetisState {
                 }
             }
             DeskHit::Gutter | DeskHit::Empty => {}
+        }
+
+        if let Some((window, _)) = self.topmost_window_at_pointer(location) {
+            return Some(window.clone().into());
         }
 
         if let Some((window, _)) = self.space.element_under(location) {
