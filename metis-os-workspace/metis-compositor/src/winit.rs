@@ -238,6 +238,16 @@ pub fn init_winit(
                 // still update during interaction; the heartbeat caps us at 60fps.
                 let render = state.damaged;
 
+                if state.image_capture.has_pending() {
+                    let mut backend = backend_winit.borrow_mut();
+                    match backend.bind() {
+                        Ok((renderer, _framebuffer)) => {
+                            state.process_pending_captures(renderer);
+                        }
+                        Err(err) => tracing::warn!(?err, "winit capture bind failed"),
+                    };
+                }
+
                 if render {
                     let mut backend = backend_winit.borrow_mut();
                     let size = backend.window_size();
@@ -282,6 +292,7 @@ pub fn init_winit(
                             ) {
                                 tracing::warn!(?err, "render_output failed");
                             }
+                            state.process_pending_captures(renderer);
                         }
                         Err(err) => {
                             tracing::warn!(?err, "winit GL bind failed — skipping frame");

@@ -10,6 +10,7 @@ mod events;
 mod focus;
 mod grabs;
 mod handlers;
+mod image_capture;
 mod input;
 mod ipc;
 mod keybinds;
@@ -339,7 +340,7 @@ fn spawn_metis_portal() {
         .stderr(std::process::Stdio::null())
         .spawn()
     {
-        Ok(_) => tracing::info!("started metis-portal Settings backend"),
+        Ok(_) => tracing::info!("started metis-portal backend (Settings, Screenshot, ScreenCast)"),
         Err(err) => tracing::warn!(
             %err,
             portal = %portal_bin,

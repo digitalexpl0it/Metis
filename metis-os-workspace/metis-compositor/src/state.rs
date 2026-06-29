@@ -231,6 +231,8 @@ pub struct MetisState {
     /// DRM/udev backend state (session, GPUs, per-connector surfaces). `None` in
     /// the nested winit session.
     pub udev: Option<crate::udev::UdevState>,
+    /// Screen capture protocol state (ext-image-copy-capture).
+    pub image_capture: crate::image_capture::ImageCaptureRuntime,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -420,7 +422,7 @@ impl MetisState {
         Self {
             start_time,
             socket_name,
-            display_handle: dh,
+            display_handle: dh.clone(),
             space,
             loop_signal,
             compositor_state,
@@ -490,7 +492,16 @@ impl MetisState {
             snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
             last_snap_rect: None,
             udev: None,
+            image_capture: crate::image_capture::ImageCaptureRuntime::new(&dh),
         }
+    }
+
+    pub(crate) fn process_pending_captures(&mut self, renderer: &mut smithay::backend::renderer::gles::GlesRenderer) {
+        if !self.image_capture.has_pending() {
+            return;
+        }
+        let start = self.start_time;
+        crate::image_capture::finish_pending_captures(self, renderer, start);
     }
 
     /// Per-tick housekeeping shared by both backends: drive the startup state

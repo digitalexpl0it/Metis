@@ -693,6 +693,7 @@ impl MetisState {
         {
             Some(o) => o,
             None => {
+                self.process_pending_captures(&mut renderer);
                 self.udev.as_mut().unwrap().renderer = Some(renderer);
                 return;
             }
@@ -732,6 +733,8 @@ impl MetisState {
             }
         };
 
+        self.process_pending_captures(&mut renderer);
+
         // Restore the renderer before any early return below.
         self.udev.as_mut().unwrap().renderer = Some(renderer);
 
@@ -761,7 +764,7 @@ impl MetisState {
     /// coordinates. Honors a client-supplied cursor surface (`set_cursor`), hides
     /// the pointer when the client requested it, and otherwise paints the named
     /// theme cursor. Returns empty when the pointer is not over this output.
-    fn build_cursor_elements(
+    pub(crate) fn build_cursor_elements(
         &mut self,
         renderer: &mut GlesRenderer,
         output: &Output,
