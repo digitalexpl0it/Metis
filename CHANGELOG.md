@@ -131,6 +131,28 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Portal screenshot on Metis failed with Ubuntu `grim`** — Debian/Ubuntu grim
   only supports `wlr-screencopy-unstable-v1`, which Metis does not implement;
   replaced with the native `ext-image-copy-capture` client in `metis-portal`.
+- **Resize edge bleed through a front auto-hide window** — when the top window's
+  Metis titlebar was hidden, `resize_edge_at` skipped it (`ssd_frame_for_mapped_window`
+  returned `None`) and the compositor hit-tested the window below, showing resize
+  cursors and starting resizes through the foreground app. Resize bands now use
+  client geometry plus a 12 px occlusion halo (`resize_frame_for_mapped_window` /
+  `resize_occlusion_rect`).
+- **Resize cursor bleed through maximized windows** — maximized and fullscreen
+  windows were omitted from `resize_edge_at`, so a lower window's edge bands were
+  still active under a maximized neighbor (resize cursor and click-to-resize on the
+  background window). Maximized/fullscreen windows now occlude lower windows without
+  exposing their own resize edges.
+- **Pointer hover and click through the auto-hide titlebar overlay** — Smithay's
+  `element_under` only considers mapped client geometry; the sliding Metis titlebar
+  sits above that rect, so motion and button events could reach windows stacked
+  below (background buttons highlighting and receiving clicks through the
+  foreground titlebar). `topmost_window_at_pointer` now owns revealed overlay
+  chrome and permanent SSD border strips before falling through to client geometry.
+- **Log out left a blank screen on the DRM session** — `EndSession` only stopped
+  the compositor event loop without tearing down clients or handing the VT back to
+  the display manager. `end_compositor_session()` now kills spawned clients, switches
+  to VT 1 on the DRM backend, then stops the loop; the shell also falls back to
+  `loginctl terminate-user` when IPC does not reply.
 
 ## [2026-06-27]
 

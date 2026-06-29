@@ -92,6 +92,12 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Border resize — compositor-side edge/corner hit-test (`RESIZE_MARGIN_PX`)
       starts `ResizeSurfaceGrab`, floats tiled windows out of the grid, persists
       the new geometry, and shows directional resize cursors on hover
+- [x] Resize edge occlusion — auto-hide, maximized, and fullscreen windows block
+      lower-window resize bands (client geometry + 12 px halo) without stealing
+      titlebar/decoration input
+- [x] Auto-hide titlebar pointer routing — revealed overlay chrome and permanent
+      SSD border strips own pointer hits above the mapped client rect so hover and
+      clicks cannot fall through to windows below
 - [x] Per-app geometry memory — free-layout windows save their position/size per
       `app_id` to `~/.config/metis/windows.json` and restore it on reopen (placement
       defers until `app_id` is known so the restore isn't lost to a centered default)
