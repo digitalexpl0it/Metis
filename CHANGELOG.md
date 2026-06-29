@@ -50,6 +50,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Double-click titlebar to maximize** — a double-click on the titlebar (not the
   traffic-light buttons) toggles maximize/unmaximize; single-click no longer
   demotes a maximized window until you drag (5 px movement threshold).
+- **Screenshot portal (`org.freedesktop.impl.portal.Screenshot`)** — `metis-portal`
+  captures the desktop via a native Wayland client using
+  `ext-image-copy-capture-v1` / `ext-image-capture-source-v1` (no `grim` or
+  `wlr-screencopy`). PNGs are written under `$XDG_RUNTIME_DIR/metis-screenshot-*.png`
+  and returned to apps through `xdg-desktop-portal`. Verified with Flameshot.
+- **Compositor image capture** — the Smithay compositor registers
+  `ext_output_image_capture_source_manager_v1` and
+  `ext_image_copy_capture_manager_v1`, queues capture frames from the protocol
+  handler, and renders them on the next GL pass into client SHM buffers.
 
 ### Changed
 
@@ -106,6 +115,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Single-click unmaximize on maximized windows** — titlebar press now arms a
   pending drag instead of immediately demoting, so double-click and button clicks
   work reliably.
+- **Screenshot capture sessions stopped immediately** — the compositor's
+  `new_session` handler did not retain the owned `Session`, so the capture source
+  was torn down before the client could attach a buffer. Sessions are now stored
+  in `ImageCaptureRuntime` until the client destroys them.
+- **Portal screenshot on Metis failed with Ubuntu `grim`** — Debian/Ubuntu grim
+  only supports `wlr-screencopy-unstable-v1`, which Metis does not implement;
+  replaced with the native `ext-image-copy-capture` client in `metis-portal`.
 
 ## [2026-06-27]
 

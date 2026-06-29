@@ -113,6 +113,28 @@ apps are dimmed.
 - **Right-click** — pin/unpin the app, or close its window(s).
 - The dock scrolls horizontally if it outgrows the bar.
 
+### Screenshots
+
+Metis implements the freedesktop **Screenshot** portal
+(`org.freedesktop.impl.portal.Screenshot`). Any app that captures through
+**xdg-desktop-portal** — Flameshot, GNOME Screenshot, browser screen-share
+pickers, etc. — can take a desktop screenshot without `grim` or
+`wlr-screencopy`.
+
+- The **first** capture from an app may show a permission dialog; grant it once
+  and later captures proceed silently.
+- Screenshots are saved as PNGs under `$XDG_RUNTIME_DIR/metis-screenshot-*.png`
+  and returned to the requesting app as a `file://` URI.
+
+If screenshots fail after an upgrade, log out and back into Metis so the updated
+compositor and portal binaries are running (`./run-metis.sh --install-session`
+installs both). To verify capture directly:
+
+```bash
+metis-portal --capture-test /tmp/test.png
+ls -la /tmp/test.png
+```
+
 ---
 
 ## 5. Window management
@@ -378,6 +400,8 @@ changes live.
 |---------|-----|
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk-4-layer-shell` is installed |
 | Apps slow to open / black screen on login | Ensure portal files are installed (`./run-metis.sh --install-session` or rebuild with `--session`); see [`CHANGELOG.md`](../CHANGELOG.md) 2026-06-28 |
+| Screenshot / Flameshot fails | Re-login after `./run-metis.sh --install-session`; run `metis-portal --capture-test /tmp/test.png` to isolate portal vs app issues; grant the first-time portal permission |
+| gdbus request path "does not exist" | Portal request objects are ephemeral — trigger a fresh `Screenshot` call; use `gdbus monitor --session --dest org.freedesktop.portal.Desktop` *before* the call to see the `Response` signal |
 | Bluetooth shows stale battery | Many devices only refresh over BT on reconnect; install **Solaar** for Logitech charging state, or use a Unifying/Bolt receiver |
 | Session won't start / behaves oddly | `./run-metis.sh --stop` then `./run-metis.sh --build --session` |
 | Theme looks wrong | Delete `~/.config/metis/themes/*.json` and restart to regenerate |

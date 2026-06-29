@@ -258,12 +258,15 @@ so each milestone is shippable on its own:
       `metis-config` so GTK clients pick up Metis light/dark prefs and drop CSD
       chrome; registered via `metis.portal` + `metis-portals.conf`, started by
       the compositor before `xdg-desktop-portal` in the DRM session.
-- [x] **Screenshot + ScreenCast portals** — compositor exposes
+- [x] **Screenshot portal** — compositor exposes
       `ext-image-copy-capture-v1` / `ext-image-capture-source-v1`; `metis-portal`
-      serves `org.freedesktop.impl.portal.Screenshot` (via `grim`) and
-      `org.freedesktop.impl.portal.ScreenCast` (PipeWire stream registration;
-      live frame pump still TODO). Registered in `metis.portal` +
-      `metis-portals.conf`.
+      serves `org.freedesktop.impl.portal.Screenshot` via a native Wayland capture
+      client (SHM buffer + PNG encode). Compositor retains capture `Session` objects
+      for the client lifetime. Verified with Flameshot via `xdg-desktop-portal`.
+      Registered in `metis.portal` + `metis-portals.conf`.
+- [ ] **ScreenCast portal (live streaming)** — `metis-portal` registers
+      `org.freedesktop.impl.portal.ScreenCast` and PipeWire stream node IDs;
+      continuous ext-image-copy-capture → PipeWire frame pump still TODO.
 
 ---
 

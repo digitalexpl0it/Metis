@@ -50,6 +50,26 @@ sudo apt install -y \
 PipeWire/PulseAudio (`pipewire-pulse` / `pulseaudio-utils` for `pactl`) is usually
 already present on Ubuntu desktop installs.
 
+### Portal stack (standalone session)
+
+Screenshot and ScreenCast apps talk to **xdg-desktop-portal**, which routes
+capture requests to **metis-portal**. Install the portal front-end and GTK
+helper on the host:
+
+```bash
+sudo apt install -y xdg-desktop-portal xdg-desktop-portal-gtk
+```
+
+`./run-metis.sh --install-session` installs `metis-portal` plus
+`metis.portal` / `metis-portals.conf` under `/usr/share/xdg-desktop-portal/`.
+The compositor starts `metis-portal` before `xdg-desktop-portal` on DRM boot.
+
+To verify screenshot capture without Flameshot:
+
+```bash
+metis-portal --capture-test /tmp/test.png
+```
+
 ## Rust toolchain
 
 ```bash
@@ -92,11 +112,13 @@ cd metis-os-workspace/metis-shell
 
 This installs:
 
-- `/usr/local/bin/{metis-compositor,metis-shell,metis-settings}`
+- `/usr/local/bin/{metis-compositor,metis-shell,metis-settings,metis-portal}`
 - `/usr/local/bin/metis-session` — the session launcher (sets
   `XDG_CURRENT_DESKTOP=Metis`, `METIS_BACKEND=drm`, exports the activation
   environment, then execs the compositor)
 - `/usr/local/share/wayland-sessions/metis.desktop` — the greeter entry
+- `/usr/share/xdg-desktop-portal/{metis-portals.conf,portals/metis.portal}` —
+  routes Settings, Screenshot, and ScreenCast to the Metis portal backend
 
 Log out and choose **Metis** at the login screen. The display manager hands the
 session its own VT + seat, so libseat takes DRM master cleanly and exiting drops
@@ -149,3 +171,4 @@ Created later, on demand:
 | Theme not applied | Delete `~/.config/metis/themes/*.json` and restart to regenerate |
 | DRM session: black screen / no input | Run from a VT you own (or via the display-manager entry) so libseat can take DRM master; check the log and SSH in to `Ctrl+Alt+Backspace` is unavailable — `pkill metis-compositor`. |
 | DRM session: "no GPU found for seat" | Ensure you are in the `video`/`render`/`input` groups and `seatd`/logind is running; try `METIS_DRM_DEVICE=/dev/dri/card0`. |
+| Screenshot / Flameshot fails | `./run-metis.sh --install-session`, log out and back in, then `metis-portal --capture-test /tmp/test.png`; install `xdg-desktop-portal` + `xdg-desktop-portal-gtk` if missing |

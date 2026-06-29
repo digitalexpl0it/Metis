@@ -25,11 +25,12 @@ New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 │   ├── metis-compositor/        # Smithay Wayland compositor (winit nested backend for dev)
 │   ├── metis-shell/             # Metis shell — GTK4 layer-shell edge bar + popovers
 │   ├── metis-settings/          # GTK4 control center (appearance, devices, system)
+│   ├── metis-portal/            # xdg-desktop-portal backend (Settings, Screenshot, ScreenCast)
 │   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
 │   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
 │   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
-│   └── assets/wallpapers/       # Bundled default wallpaper
+│   └── assets/                  # Wallpapers, portal registration, session launcher
 └── docs/                        # User guide + development setup
 ```
 
@@ -173,6 +174,11 @@ reference.
   System pages (Input, Bluetooth, Printers, Power, Sound, Display). Bluetooth
   battery/charging in the bar and Power settings; optional Solaar integration
   for Logitech peripherals.
+- **Portal capture (Screenshot):** `metis-portal` serves
+  `org.freedesktop.impl.portal.Screenshot` via native `ext-image-copy-capture`
+  (compositor-side protocol + portal Wayland client). Verified with Flameshot
+  and other xdg-desktop-portal screenshot apps. ScreenCast stream registration
+  works; live PipeWire frame pump is still TODO.
 - **Phase 5 — display pipeline (VRR / colour / HDR):** upcoming.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
