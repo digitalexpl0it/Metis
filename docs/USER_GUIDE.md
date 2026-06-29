@@ -135,6 +135,82 @@ metis-portal --capture-test /tmp/test.png
 ls -la /tmp/test.png
 ```
 
+### Flatpak apps and games
+
+Flatpak apps use the same Wayland session and **xdg-desktop-portal** stack as
+native apps. Metis does not ship a Flatpak runner yet, but sandboxed apps work
+when the host is set up correctly:
+
+```bash
+sudo apt install flatpak xdg-desktop-portal xdg-desktop-portal-gtk
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+```
+
+**Permissions** come from three places:
+
+1. **Flatpak manifest / overrides** — e.g. `socket=wayland`, `device=dri`, and
+   often `--device=all` for gamepads (`flatpak override --user --device=all …`).
+2. **Portal prompts** — screenshot/screencast/file access; stored by system
+   `xdg-permission-store` (the first-time Flameshot dialog).
+3. **Metis portal backends** — Settings, Screenshot, and ScreenCast via
+   `metis-portal`; file dialogs and notifications via the GTK portal backend.
+
+**Controllers:** games read `/dev/input/event*` directly (SDL, Proton), not through
+the compositor. If a Flatpak game has no gamepad, try:
+
+```bash
+flatpak override --user --device=all com.example.Game
+```
+
+Your user should also be in the `input`, `video`, and `render` groups for DRM
+and evdev access. See [`TODO.md`](../metis-os-workspace/TODO.md) Phase 6 for the
+full Flatpak & gaming roadmap.
+
+### Steam, Proton & SteamOS-class gaming
+
+Metis is intended to work as a **gaming desktop** with the same stack SteamOS
+Desktop Mode uses (Steam + Proton), without requiring KDE or GNOME.
+
+**Install Steam (pick one):**
+
+```bash
+# Native .deb (Valve repo — Ubuntu/Debian)
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install -y steam-installer mesa-vulkan-drivers mesa-vulkan-drivers:i386
+
+# Or Flatpak
+flatpak install flathub com.valvesoftware.Steam
+```
+
+Launch Steam from the app launcher or `steam`. **Big Picture** (controller-friendly
+UI): `steam -gamepadui`.
+
+**Proton games** run as child processes of Steam. Metis provides Wayland, XWayland,
+DRM/KMS, and (when complete) portal **Inhibit** so the session does not sleep
+mid-game. For hybrid laptops, if games pick the wrong GPU, set
+`METIS_DRM_DEVICE` to the discrete or integrated card (see dev docs).
+
+**Controllers:** configure in Steam → Settings → Controller. Steam Input maps
+gamepads in user space; Metis does not need a compositor gamepad driver. Flatpak
+Steam/games may still need `flatpak override --user --device=all …`.
+
+**Gamescope (optional):** SteamOS Gaming Mode uses [Gamescope](https://github.com/ValveSoftware/gamescope)
+as its compositor. On Metis, Gamescope is optional — add to a game's Steam launch
+options to wrap only that title:
+
+```text
+gamescope -W 1920 -H 1080 -f -- %command%
+```
+
+Metis stays the session compositor; Gamescope nests inside it for that game
+(frame limit, scaling, FSR). Install: `sudo apt install gamescope` (where available).
+
+**SteamOS note:** Valve's SteamOS 3.x uses Gamescope for handheld Gaming Mode and
+KDE for Desktop Mode. Running Metis *on* SteamOS (replacing Desktop Mode) is
+experimental and not supported yet — see Phase 6 in `TODO.md`. The primary goal
+is **Steam + Proton working on a Metis session** on Ubuntu and similar distros.
+
 ---
 
 ## 5. Window management
@@ -401,6 +477,11 @@ changes live.
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk-4-layer-shell` is installed |
 | Apps slow to open / black screen on login | Ensure portal files are installed (`./run-metis.sh --install-session` or rebuild with `--session`); see [`CHANGELOG.md`](../CHANGELOG.md) 2026-06-28 |
 | Screenshot / Flameshot fails | Re-login after `./run-metis.sh --install-session`; run `metis-portal --capture-test /tmp/test.png` to isolate portal vs app issues; grant the first-time portal permission |
+| Flatpak app won't start / no Wayland | Install `flatpak` + portal packages; ensure app has `socket=wayland` (`flatpak info --show-permissions …`) |
+| Flatpak game: no controller | `flatpak override --user --device=all <app-id>`; confirm user is in `input` group |
+| Steam / Proton game black screen or wrong GPU | Install 32-bit Vulkan (`i386` + `mesa-vulkan-drivers:i386`); try `METIS_DRM_DEVICE=/dev/dri/cardN`; disable fullscreen optimizations in Steam per-game |
+| Steam overlay (Shift+Tab) missing | Often XWayland-only; ensure game has focus; check Proton vs native build; see Phase 6 overlay audit |
+| Session sleeps during game | Inhibit portal not implemented yet — use Power settings to extend blank timeout; Steam may request logind inhibit when portal lands |
 | gdbus request path "does not exist" | Portal request objects are ephemeral — trigger a fresh `Screenshot` call; use `gdbus monitor --session --dest org.freedesktop.portal.Desktop` *before* the call to see the `Response` signal |
 | Bluetooth shows stale battery | Many devices only refresh over BT on reconnect; install **Solaar** for Logitech charging state, or use a Unifying/Bolt receiver |
 | Session won't start / behaves oddly | `./run-metis.sh --stop` then `./run-metis.sh --build --session` |

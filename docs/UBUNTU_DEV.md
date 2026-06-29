@@ -70,6 +70,40 @@ To verify screenshot capture without Flameshot:
 metis-portal --capture-test /tmp/test.png
 ```
 
+### Flatpak (optional)
+
+For sandboxed apps and games from Flathub:
+
+```bash
+sudo apt install -y flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+```
+
+Flatpak apps use the same portal stack as native apps. Gamepads usually need a
+Flatpak device override (`flatpak override --user --device=all <app-id>`) — see
+the [User Guide](USER_GUIDE.md#flatpak-apps-and-games) and
+[`TODO.md`](../metis-os-workspace/TODO.md) Phase 6.
+
+### Steam / Proton (gaming)
+
+For SteamOS-class desktop gaming on Metis:
+
+```bash
+sudo dpkg --add-architecture i386
+sudo apt update
+sudo apt install -y \
+  steam-installer \
+  mesa-vulkan-drivers mesa-vulkan-drivers:i386
+# NVIDIA: also install 32-bit GL/Vulkan for your driver series, e.g.
+# sudo apt install -y libnvidia-gl-XXX libnvidia-gl-XXX:i386
+```
+
+Optional: `gamescope` for per-game nested compositor (Steam launch options:
+`gamescope -W 1920 -H 1080 -f -- %command%`).
+
+Hybrid GPU laptops: see `METIS_DRM_DEVICE` in the standalone session section below.
+Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proton--steamos-class-gaming).
+
 ## Rust toolchain
 
 ```bash

@@ -180,6 +180,9 @@ reference.
   and other xdg-desktop-portal screenshot apps. ScreenCast stream registration
   works; live PipeWire frame pump is still TODO.
 - **Phase 5 — display pipeline (VRR / colour / HDR):** upcoming.
+- **Phase 6 — Flatpak, Steam & gaming:** upcoming — Steam/Proton on Metis,
+  portal gaps (Inhibit, ScreenCast pump), Flatpak discovery, Gamescope optional
+  wrapper, controller/device permissions docs.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap and [`CHANGELOG.md`](CHANGELOG.md) for recent changes.

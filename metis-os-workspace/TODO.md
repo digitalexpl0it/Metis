@@ -2,9 +2,10 @@
 
 **Current phase:** Phase 4 (settings-app expansion into a full control center) is
 complete for the planned Device + System pages (Bluetooth, Printers, Sound,
-Power, Display). Input (mouse/touchpad/keyboard) was already done. Next: **Phase 5**
-(display pipeline: VRR, colour management, HDR) and the deferred Phase 3 item
-(full multi-GPU compositing).
+Power, Display). Input (mouse/touchpad/keyboard) was already done. Open portal
+work: **ScreenCast** (Phase 3). Next major tracks: **Phase 5** (display pipeline:
+VRR, colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and the deferred
+Phase 3 item (full multi-GPU compositing).
 
 ---
 
@@ -332,6 +333,127 @@ Phase 3) — none of these are possible under the nested winit dev session.
 - [ ] **HDR** — wide-gamut / 10-bit GLES render path + DRM colour pipeline on top of
       colour management (long-term; gated on protocol + Smithay maturity). A genuinely
       rare thing for a lightweight DE — worth doing right rather than fast
+
+---
+
+## Phase 6 — Flatpak, Steam & gaming
+
+Sandboxed apps (Flatpak), **Steam / Proton**, and native games share the same
+Wayland session and **xdg-desktop-portal** stack. Metis does not ship gaming-specific
+code today — apps work incidentally when the host has the right packages, portal
+daemons, and device permissions. This phase makes Flatpak and **SteamOS-class gaming**
+(first-class Steam client, Proton, controllers, optional Gamescope) explicit and
+fills portal gaps launchers expect.
+
+**Target:** a Metis session where you can install Steam (`.deb` or Flatpak), launch
+Proton titles, use Steam Input / common controllers, and optionally wrap games in
+**Gamescope** — the same building blocks Valve uses on SteamOS (minus replacing
+SteamOS's own Gamescope gaming-mode session).
+
+**Permissions model (three layers):**
+
+1. **Flatpak manifest / overrides** — `socket=wayland`, `device=dri`, `device=all`
+   (gamepads), `share=network`, etc. (`flatpak override --user …`).
+2. **Portal runtime prompts** — screenshot, screencast, file access; persisted by
+   system **`xdg-permission-store`** (not `metis-portal`).
+3. **Metis portal backends** — only interfaces registered in `metis.portal` /
+   `metis-portals.conf` (Settings, Screenshot, ScreenCast today; gtk default for
+   file dialogs and notifications).
+
+**Gamepads:** Wayland has no standard gamepad protocol on `wl_seat`. Games read
+`/dev/input/event*` via SDL/Proton/evdev. The compositor seat is keyboard +
+pointer only; libinput gamepad events are not forwarded. Flatpak games typically
+need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
+
+### A. Flatpak session integration
+
+- [ ] **Host prerequisites** — document `flatpak`, `xdg-desktop-portal`,
+      `xdg-desktop-portal-gtk`, user in `input` / `video` / `render` groups
+- [ ] **Session env** — verify `XDG_DATA_DIRS` includes Flatpak exports
+      (`~/.local/share/flatpak/exports`, `/var/lib/flatpak/exports`) through
+      `metis-session` activation env
+- [ ] **App launcher** — discover Flatpak `.desktop` entries alongside native apps
+- [ ] **Window identity** — optional `StartupWMClass` / `X-Flatpak` hints for Steam
+      and common game clients
+
+### B. Portal completeness for sandboxed apps
+
+- [ ] **Inhibit portal** — block idle blank / suspend / lock while a game or media
+      app holds an inhibit request (high value for gaming)
+- [ ] **ScreenCast live pump** — finish Phase 3 PipeWire frame streaming (OBS,
+      Discord, browser share, Steam Remote Play)
+- [ ] **Background / PowerProfile / GameMode** — route or stub via portal (can no-op
+      initially; GameMode may integrate `gamemoded` later)
+- [ ] **Permission UX docs** — `flatpak permission-show`, portal permission reset,
+      `~/.local/share/xdg-desktop-portal/` permission files
+
+### C. Controllers & input (host + Flatpak)
+
+- [ ] **Flatpak override guide** — document `flatpak override --user --device=all`
+      for controller-heavy games; `--device=dri` alone is often insufficient
+- [ ] **Settings → Gaming / Input** — read-only list of connected gamepads
+      (`/proc/bus/input/devices` or libudev); no compositor evdev grab that blocks
+      games
+- [ ] **libinput audit** — confirm compositor does not exclusively grab gamepad
+      nodes opened via libinput
+- [ ] **Touch (optional)** — `wl_touch` on seat for touchscreen Flatpak apps
+      (separate from gamepads)
+
+### D. Steam & Proton (SteamOS-class desktop gaming)
+
+Steam on Metis runs as a **normal Wayland client** (native `.deb` or Flatpak
+`com.valvesoftware.Steam`). Games launch as child processes with Proton/Wine;
+most do **not** go through compositor gamepad protocols — they use evdev, Steam
+Input, and SDL. SteamOS Desktop Mode uses KDE today; Metis aims to be a viable
+alternative desktop with the same Steam/Proton stack.
+
+- [ ] **Native Steam (.deb)** — document Valve repo install on Ubuntu/Debian;
+      prerequisites: 32-bit (`i386`), Vulkan (`mesa-vulkan-drivers`,
+      `lib32-mesa-vulkan-drivers`), PipeWire/Pulse, `steam-devices` udev rules
+- [ ] **Flatpak Steam** — document `com.valvesoftware.Steam` from Flathub;
+      pressure-vessel / `~/.steam` layout; portal and `device` permissions
+- [ ] **Proton** — verify Proton Experimental / GE-Proton launch; document common
+      failures (missing i386, wrong default GPU on hybrid laptops → `METIS_DRM_DEVICE`
+      / DRI_PRIME)
+- [ ] **Gamescope (optional)** — per-game launch option
+      (`gamescope -W … -H … -- %command%`) as nested compositor; session-wide
+      wrapper for Big Picture-style use; verify focus, overlay, and multi-monitor
+- [ ] **Big Picture / `-gamepadui`** — `.desktop` / menu entry; fullscreen and
+      controller navigation without keyboard
+- [ ] **Steam Input & hardware** — Steam Controller, Deck controls, Switch Pro,
+      etc. via Steam's user-space mapping; confirm Metis/libinput does not grab
+      exclusive evdev access on gamepad nodes
+- [ ] **Steam overlay** — audit XWayland + native Wayland games (shift+tab);
+      fullscreen unredirect / focus issues
+- [ ] **Steam Remote Play / Link** — depends on ScreenCast portal + PipeWire pump
+      (Phase 3 / §B); host-side streaming encode is out of scope initially
+- [ ] **Power while gaming** — Inhibit portal + logind idle/sleep block (Steam sets
+      these during gameplay); tie-in with Power settings performance profile
+
+### E. SteamOS & handheld compatibility (optional / stretch)
+
+Running **Metis on SteamOS** (replacing Desktop Mode) or on Deck-class hardware
+is a stretch goal — SteamOS is immutable/read-only and ships Gamescope for Gaming
+Mode. Track compatibility either way:
+
+- [ ] **Steam Deck / handheld inputs** — SD card reader, volume buttons, gyro
+      (where exposed as evdev) documented or passed through to Steam Input
+- [ ] **SteamOS host notes** — if experimenting on SteamOS Desktop: read-only
+      root, `steamos-readonly disable`, where to install `metis-compositor` without
+      breaking Valve updates (document only; not officially supported initially)
+- [ ] **Gamescope vs Metis** — clarify roles: Metis = session compositor;
+      Gamescope = optional per-game nested compositor (SteamOS Gaming Mode uses
+      Gamescope *instead of* a full DE, not alongside one)
+
+### F. Gaming polish (optional)
+
+- [ ] **gamemoded** — CPU governor / scheduler hints via GameMode portal or D-Bus
+      (Steam can invoke `gamemoderun` in launch options)
+- [ ] **Fullscreen / pointer confinement** — audit Proton / XWayland game behaviour
+- [ ] **XWayland game notes** — document games that still require X11 socket vs
+      native Wayland
+- [ ] **MangoHud / vkBasalt** — document `%command%` prefix patterns in Steam
+      launch options (no Metis code required)
 
 ---
 
