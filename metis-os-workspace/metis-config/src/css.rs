@@ -1555,7 +1555,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-cal-nav, .metis-cal-today-btn {{
         padding: 2px 8px;
         min-height: 0;
-        border: none;
+        border: 1px solid transparent;
         outline: none;
         background-image: none;
         background-color: transparent;
@@ -1632,6 +1632,113 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-cal-add-btn:hover {{
         background-color: rgba({accent_rgb}, 0.24);
+    }}
+
+    .metis-bar-dropdown-panel button.metis-cal-event-action {{
+        padding: 4px;
+        min-width: 28px;
+        min-height: 28px;
+        border: 1px solid {border};
+        background-color: {surface_solid};
+        background-image: none;
+        box-shadow: none;
+        color: {muted};
+        border-radius: {rs}px;
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-event-action:hover {{
+        color: {text};
+        background-color: {raised};
+        border-color: {border};
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-event-action image {{
+        color: {muted};
+        -gtk-icon-style: symbolic;
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-event-action:hover image {{
+        color: {text};
+    }}
+
+    .metis-bar-dropdown-panel .metis-cal-form button {{
+        background-color: {surface_solid};
+        background-image: none;
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        box-shadow: none;
+        padding: 6px 12px;
+    }}
+    .metis-bar-dropdown-panel .metis-cal-form button:hover {{
+        background-color: {raised};
+    }}
+    .metis-bar-dropdown-panel .metis-cal-form button.metis-cal-add-btn {{
+        background-color: rgba({accent_rgb}, 0.14);
+        border-color: rgba({accent_rgb}, 0.45);
+        color: {text};
+    }}
+    .metis-bar-dropdown-panel .metis-cal-form button.metis-cal-add-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.24);
+    }}
+
+    .metis-bar-dropdown-panel button.metis-cal-add-btn {{
+        background-color: rgba({accent_rgb}, 0.14);
+        background-image: none;
+        color: {text};
+        border: 1px solid rgba({accent_rgb}, 0.45);
+        border-radius: {rs}px;
+        box-shadow: none;
+        padding: 4px 10px;
+        min-height: 0;
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-add-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.24);
+        border-color: rgba({accent_rgb}, 0.55);
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-add-btn label {{
+        color: {text};
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-add-btn image {{
+        color: {text};
+        -gtk-icon-style: symbolic;
+    }}
+
+    .metis-bar-dropdown-panel button.metis-cal-nav,
+    .metis-bar-dropdown-panel button.metis-cal-today-btn {{
+        background-color: transparent;
+        background-image: none;
+        border: 1px solid transparent;
+        box-shadow: none;
+        color: {muted};
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-nav:hover,
+    .metis-bar-dropdown-panel button.metis-cal-today-btn:hover {{
+        color: {text};
+        background-color: rgba({text_rgb}, 0.08);
+        border-color: {border};
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-nav image,
+    .metis-bar-dropdown-panel button.metis-cal-today-btn image {{
+        color: {muted};
+        -gtk-icon-style: symbolic;
+    }}
+    .metis-bar-dropdown-panel button.metis-cal-nav:hover image,
+    .metis-bar-dropdown-panel button.metis-cal-today-btn:hover image {{
+        color: {text};
+    }}
+
+    .metis-bar-dropdown-panel checkbutton,
+    .metis-bar-dropdown-panel checkbutton label {{
+        color: {text};
+    }}
+
+    .metis-bar-dropdown-panel spinbutton {{
+        background-color: {surface_solid};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+    }}
+    .metis-bar-dropdown-panel spinbutton text {{
+        color: {text};
+        background-color: transparent;
     }}
 
     .metis-cal-event {{

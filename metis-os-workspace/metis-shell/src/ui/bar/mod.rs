@@ -10,8 +10,9 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
 use crate::services::{
-    spawn_bar_pollers, spawn_notification_service, spawn_weather_service, apply_event,
-    last_weather_snapshot, weather_refresh, workspace_snapshot, BarSnapshot, WeatherSnapshot,
+    last_weather_snapshot, refresh_taskbars, spawn_bar_pollers, spawn_notification_service,
+    spawn_weather_service, apply_event, weather_refresh, workspace_snapshot, BarSnapshot,
+    WeatherSnapshot,
 };
 
 thread_local! {
@@ -578,6 +579,36 @@ fn rehydrate_widget_state(refs: &widgets::WidgetRefs) {
     crate::services::sync_tray();
 }
 
+/// Whether a bar.json change requires destroying and recreating bar widgets.
+fn needs_widget_rebuild(old: &BarConfig, new: &BarConfig) -> bool {
+    old.widgets != new.widgets
+        || old.position != new.position
+        || old.displays != new.displays
+        || old.clock != new.clock
+        || old.workspace_count != new.workspace_count
+}
+
+/// Live-update geometry, CSS, and widget settings without closing popovers or
+/// recreating widgets (opacity, tray mode, taskbar pins, margins, etc.).
+fn apply_bars_live(config: Rc<RefCell<BarConfig>>) {
+    let cfg = config.borrow().clone();
+    BAR_POSITION.with(|p| p.set(cfg.position));
+    let (win_w, win_h) = layer_window_size(&cfg);
+    BARS.with(|bars| {
+        for handle in bars.borrow_mut().iter_mut() {
+            configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
+            apply_layer_geometry(&handle.window, &cfg);
+            handle.window.set_default_size(win_w, win_h);
+            handle.outer.queue_resize();
+            handle.column.queue_resize();
+            handle.pill.queue_resize();
+            handle.widget_refs.apply_bar_config(&cfg);
+            rehydrate_widget_state(&handle.widget_refs);
+        }
+    });
+    refresh_taskbars();
+}
+
 /// Tear down all bars and rebuild from scratch for the current monitor set —
 /// used when the number of target outputs changes (monitor hotplug or toggling
 /// the `displays` option).
@@ -813,15 +844,18 @@ fn rebuild_from_config_now() {
     let Some(config) = config else {
         return;
     };
-    // Pull the latest on-disk bar config so live theme/opacity edits apply.
-    *config.borrow_mut() = load_bar_config();
-    let target_count = target_monitors(&config.borrow()).len();
+    let old = config.borrow().clone();
+    let new = load_bar_config();
+    *config.borrow_mut() = new.clone();
+    let target_count = target_monitors(&new).len();
     if target_count != cur_count {
         // The set of outputs changed (hotplug, or `displays` toggled) — recreate
         // the bar surfaces so each output gets (or loses) its bar.
         rebuild_all_bars(config.clone());
-    } else {
+    } else if needs_widget_rebuild(&old, &new) {
         rebuild_bars_in_place(config.clone());
+    } else {
+        apply_bars_live(config.clone());
     }
     crate::ui::theme::reload_stylesheet();
 }

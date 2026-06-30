@@ -62,9 +62,10 @@ impl WeatherWidget {
         others.add_css_class("metis-weather-others");
         panel.append(&others);
 
-        let status = gtk::Label::new(Some("Loading weather…"));
+        let status = gtk::Label::new(None);
         status.add_css_class("metis-weather-status");
         status.set_halign(gtk::Align::Start);
+        status.set_visible(false);
         panel.append(&status);
 
         let attrib = gtk::Label::new(Some("Open-Meteo"));

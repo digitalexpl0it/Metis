@@ -106,6 +106,13 @@ impl WidgetRefs {
             w.update(&crate::services::workspace_snapshot());
         }
     }
+
+    /// Apply bar.json fields that do not require tearing down widgets.
+    pub fn apply_bar_config(&self, cfg: &BarConfig) {
+        if let Some(w) = self.tray.borrow().as_ref() {
+            w.set_mode(cfg.tray_icon_mode);
+        }
+    }
 }
 
 pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<String>) -> WidgetRefs {

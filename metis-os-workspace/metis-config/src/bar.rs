@@ -63,7 +63,7 @@ pub enum DefaultLayout {
     Scroll,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClockConfig {
     #[serde(default = "default_time_format")]
     pub time_format: String,

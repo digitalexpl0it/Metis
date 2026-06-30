@@ -35,6 +35,11 @@ pub fn register_refresh(cb: Rc<dyn Fn()>) {
     });
 }
 
+/// Repaint every bar's task dock (e.g. after `taskbar_pinned` changes live).
+pub fn refresh_taskbars() {
+    fire_refresh();
+}
+
 fn fire_refresh() {
     if REFRESH_SCHEDULED.with(|c| c.get()) {
         return;
