@@ -11,7 +11,9 @@ colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and **Phase 7**
 ## Phase 1 — Edge bar
 
 - [x] `bar.json` config — position (top/bottom/left/right), height/width, opacity, widget order
-- [x] Live reload when `bar.json` changes
+- [x] Live reload when `bar.json` changes (cosmetic edits apply in place; full
+      rebuild only when widgets, position, displays, clock format, or workspace
+      count change)
 - [x] Bar position — top/bottom/left/right dropdown (Settings → Appearance → Edge bar);
       exclusive zone, pill flush-to-edge, and popover/menu open direction adapt per side
 - [x] Distance from edge — slider for the gap between the bar and its anchored screen edge
@@ -36,7 +38,16 @@ colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and **Phase 7**
       compositor IPC; history persisted to `~/.local/state/metis/clipboard.json`
       (max 50 entries; 10 MB image cap; clear-history button)
 - [x] WiFi / audio popover controls
-- [x] Weather widget — icon + temperature with a forecast popover (see Phase 2)
+- [x] Weather widget — icon + temperature with a forecast popover (see Phase 2);
+      cached snapshot re-applied after bar rebuilds (no empty flash)
+- [x] System tray — collapsed popover vs pinned-on-bar modes; readable tooltips
+      (SNI title / bus-name fallback); light-mode pixmap/symbolic icon rendering
+- [x] Light-mode bar popover styling — theme-token entries, buttons, and icon
+      actions in dropdown panels (clock calendar, clipboard, network, notifications)
+- [x] Bundled default wallpapers (`default.png` … `default9.png`) listed in
+      Settings → Appearance background picker
+- [x] Bar symbolic icons — bluetooth, clipboard, and notifications match other bar
+      icons (GTK symbolic + theme text color)
 - [x] Theme file watcher (live `themes/*.json` reload)
 - [x] Freedesktop notification D-Bus daemon (`org.freedesktop.Notifications`)
 - [x] Themeable token palette — accent + secondary accent, semantic status colors,
@@ -640,10 +651,13 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `default_layout` | Layout mode: `grid` (tiling) or `scroll` (niri-style strip). Changing it in Settings → Appearance → Edge bar → New workspace layout applies live to every workspace; `Super`+`\` toggles a single workspace |
 | `taskbar_pinned` | App ids pinned to the `tasks` dock, in order (independent of `menu.json` launcher pins) |
 
-Edit `bar.json` while the shell runs — changes apply within ~1s (the compositor
-also re-reads `blur`/`blur_radius` live). Legacy layouts are migrated to the
-current defaults automatically. Editing `themes/dark.json` / `themes/light.json`
-re-applies the active theme live as well.
+Edit `bar.json` while the shell runs — changes apply within ~1s. Cosmetic fields
+(opacity, tray mode, margins, blur, borders, taskbar pins) update in place without
+closing popovers; structural changes (widgets, position, displays, clock format,
+workspace count) trigger a full widget rebuild. The compositor also re-reads
+`blur`/`blur_radius` live. Legacy layouts are migrated to the current defaults
+automatically. Editing `themes/dark.json` / `themes/light.json` re-applies the
+active theme live as well.
 
 ---
 

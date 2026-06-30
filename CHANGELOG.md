@@ -5,7 +5,7 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026-06-30]
+## [2026-06-29]
 
 ### Added
 
@@ -22,6 +22,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   clipboard offers on selection change and can set the Wayland clipboard from the
   shell.
 
+### Changed
+
+- **Live `bar.json` reload** — cosmetic edits (opacity, tray mode, margins, blur,
+  borders, taskbar pins) now update the bar in place without destroying widgets or
+  closing open popovers. A full rebuild runs only when the widget list, bar position,
+  display set, clock format, or workspace count changes.
+- **Bar symbolic icons** — bluetooth, clipboard, and notification bar icons use GTK
+  symbolic rendering with theme text color so they match the rest of the bar in both
+  light and dark modes. Removed the unused bundled Papirus icon set from
+  `metis-shell`.
+
 ### Fixed
 
 - **Terminal right-click and middle-click paste** — right/middle button press now
@@ -29,6 +40,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   *before* titlebar/resize chrome handlers, so context menus and primary-selection
   paste work reliably in Wayland terminals (kitty, foot) across tiled, floating,
   maximized, and auto-hide-titlebar layouts.
+- **Settings changes closed bar popovers** — changing tray mode, opacity, or other
+  edge-bar settings used to run a full bar rebuild that called `close_all()` on
+  every popover (bluetooth, clock, etc.) and recreated widgets. Cosmetic settings
+  now take the live-apply path so open popovers stay up.
+- **Weather flashed empty on bar reload** — the weather label briefly cleared
+  during structural bar rebuilds. The shell now caches the last weather snapshot
+  and re-applies it immediately after rebuild; the status label stays hidden until
+  data arrives.
+- **Tray pinned mode did nothing** — switching from collapsed to pinned in Settings
+  left the tray empty until the next D-Bus update. The tray widget now rebuilds its
+  icon row immediately when the mode changes.
+- **Tray tooltips showed internal ids** — SNI items like Cursor could display
+  `chrome_status_icon_1` instead of the app name. Tooltips now prefer the SNI
+  `ToolTip` title and fall back to a readable name from the D-Bus bus name.
+- **Tray icons washed out on a light bar** — pixmap tray icons and light symbolic
+  assets are inverted or filtered in light mode so they remain visible against the
+  pale bar surface.
+- **Light-mode popover controls stayed dark** — entries, buttons, switches, and icon
+  actions inside bar dropdown panels (clock calendar add/refresh/dismiss, clipboard,
+  network, notifications, etc.) now derive colors from Metis theme tokens instead of
+  GTK Adwaita defaults.
+- **Bundled wallpapers missing in Settings** — the background picker now discovers
+  `default.png` … `default9.png` from the workspace assets tree (and install
+  prefixes), not a hard-coded `default.jpg` path relative to the binary.
 
 ## [2026-06-28]
 
