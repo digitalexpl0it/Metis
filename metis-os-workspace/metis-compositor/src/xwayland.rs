@@ -281,10 +281,20 @@ impl XwmHandler for MetisState {
     fn new_selection(&mut self, _xwm: XwmId, selection: SelectionTarget, mime_types: Vec<String>) {
         match selection {
             SelectionTarget::Clipboard => {
-                set_data_device_selection(&self.display_handle, &self.seat, mime_types, ());
+                set_data_device_selection(
+                    &self.display_handle,
+                    &self.seat,
+                    mime_types,
+                    crate::clipboard::MetisSelectionUserData::default(),
+                );
             }
             SelectionTarget::Primary => {
-                set_primary_selection(&self.display_handle, &self.seat, mime_types, ());
+                set_primary_selection(
+                    &self.display_handle,
+                    &self.seat,
+                    mime_types,
+                    crate::clipboard::MetisSelectionUserData::default(),
+                );
             }
         }
     }

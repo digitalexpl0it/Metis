@@ -173,6 +173,8 @@ pub struct MetisState {
     pub ipc_listener: Option<std::os::unix::net::UnixListener>,
     pub events_listener: Option<std::os::unix::net::UnixListener>,
     pub event_bus: EventBus,
+    /// Skip clipboard history capture while the shell is setting the selection.
+    pub clipboard_capture_suppressed: u32,
 
     /// Spawn shell/client after the compositor is accepting connections.
     pub startup_shell: Option<String>,
@@ -464,6 +466,7 @@ impl MetisState {
             ipc_listener: None,
             events_listener: None,
             event_bus: EventBus::default(),
+            clipboard_capture_suppressed: 0,
             startup_shell: None,
             startup_client: None,
             startup_frames: 0,
@@ -718,14 +721,7 @@ impl MetisState {
             }
         }
         self.windows.set_uses_ssd(id, uses_ssd);
-        if self.should_auto_hide_titlebar(id)
-            && self
-                .windows
-                .get(id)
-                .is_some_and(|r| r.maximized || r.snapped)
-        {
-            self.auto_hide_titlebar.insert(id);
-        }
+        self.sync_auto_hide_titlebar(id);
         if record.decoration_bound || record.decoration_negotiated {
             self.push_preferred_decoration_mode(&record.toplevel, uses_ssd);
         }
@@ -928,6 +924,25 @@ impl MetisState {
         if self.titlebar_reveal_window == Some(id) {
             self.titlebar_reveal_window = None;
             self.titlebar_reveal_progress = 0.0;
+        }
+    }
+
+    /// Tabbed browsers (Chromium, Firefox) keep their tab row at the client top;
+    /// use the hover overlay + compact control strip instead of a persistent SSD
+    /// titlebar that covers tabs, including while floating.
+    fn sync_auto_hide_titlebar(&mut self, id: u32) {
+        if !self.should_auto_hide_titlebar(id) || !self.should_draw_metis_ssd(id) {
+            return;
+        }
+        let Some(record) = self.windows.get(id) else {
+            return;
+        };
+        let grid_tiled = self.tile_id_for_window(id).is_some() && !self.floating.contains(&id);
+        let maximized_or_snapped = record.maximized || record.snapped;
+        let tabbed_floating =
+            self.window_uses_compact_overlay(id) && self.floating.contains(&id);
+        if grid_tiled || maximized_or_snapped || tabbed_floating {
+            self.auto_hide_titlebar.insert(id);
         }
     }
 
@@ -2774,13 +2789,18 @@ impl MetisState {
             if let Some(restore) = self.windows.take_restore_rect(id) {
                 let restore = self.recover_offscreen_rect(restore);
                 let restore = if self.should_draw_metis_ssd(id) {
-                    self.clamp_body_below_bar(restore)
+                    if self.window_uses_compact_overlay(id) {
+                        self.clamp_floating_rect(restore)
+                    } else {
+                        self.clamp_body_below_bar(restore)
+                    }
                 } else {
                     self.clamp_floating_rect_for(id, restore)
                 };
                 self.windows.set_target_rect(id, restore);
             }
         }
+        self.sync_auto_hide_titlebar(id);
         self.apply_window_rect(id);
         self.start_maximize_fx(id);
     }
@@ -3070,6 +3090,7 @@ impl MetisState {
             });
             record.toplevel.send_pending_configure();
             self.windows.set_target_rect(id, rect);
+            self.sync_auto_hide_titlebar(id);
             self.reclamp_auto_hide(id);
             self.schedule_redraw();
             return;
@@ -3083,6 +3104,7 @@ impl MetisState {
         self.windows.set_target_rect(id, rect);
         // An auto-hide (maximized / edge-snapped) window may refuse to shrink to
         // its footprint; re-anchor it so the screen-edge gap survives.
+        self.sync_auto_hide_titlebar(id);
         self.reclamp_auto_hide(id);
     }
 
@@ -3445,6 +3467,13 @@ impl MetisState {
                 None => self.centered_rect(body_w, body_h),
             };
             return self.clamp_floating_rect_for(id, rect);
+        }
+        if self.window_uses_compact_overlay(id) {
+            let rect = match self.launch_output_for(id) {
+                Some(output) => self.centered_rect_in(&output, body_w, body_h),
+                None => self.centered_rect(body_w, body_h),
+            };
+            return self.clamp_floating_rect(rect);
         }
         let border = metis_grid::app_tile_border_px() as i32;
         let header = metis_grid::APP_TILE_HEADER_PX;
@@ -4502,8 +4531,11 @@ impl MetisState {
                     .unwrap_or_default();
 
                 // SSD windows reserve a titlebar strip above the body when floating;
-                // CSD windows keep their own chrome and need no extra inset.
-                if self.usable_zone().is_some() && self.should_draw_metis_ssd(id) {
+                // tabbed browsers use overlay chrome instead.
+                if self.usable_zone().is_some()
+                    && self.should_draw_metis_ssd(id)
+                    && !self.window_uses_compact_overlay(id)
+                {
                     let rect = metis_grid::PixelRect {
                         x: initial_window_location.x,
                         y: initial_window_location.y,
@@ -5666,6 +5698,19 @@ impl MetisState {
                 let cfg = self.input_runtime.reload_from_disk();
                 crate::device_input::apply_keyboard(self, &cfg);
                 CompositorEvent::Pong
+            }
+            CompositorCommand::SetClipboard {
+                mime,
+                text,
+                image_path,
+            } => {
+                if let Err(message) =
+                    self.set_clipboard_from_command(mime, text, image_path)
+                {
+                    CompositorEvent::Error { message }
+                } else {
+                    CompositorEvent::Pong
+                }
             }
         }
     }

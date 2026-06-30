@@ -5,6 +5,31 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-30]
+
+### Added
+
+- **ScreenCast portal (Phase 3)** — `metis-portal` now runs a persistent
+  `ext-image-copy-capture-v1` session and a ~30 Hz frame pump that pushes BGRx
+  frames into a real PipeWire output stream node (dedicated PipeWire thread).
+  `start_cast` spawns the pump; session close tears down the stream.
+- **Clipboard history edge-bar widget** — new `clipboard` bar widget with a
+  popover listing recent clipboard entries (text previews and image thumbnails).
+  Click a row to recall via `SetClipboard` compositor IPC. History is persisted
+  to `~/.local/state/metis/clipboard.json` (50-entry ring buffer; 10 MB image cap).
+- **Clipboard IPC** — `CompositorEvent::ClipboardChanged` and
+  `CompositorCommand::SetClipboard` in `metis-protocol`; compositor reads client
+  clipboard offers on selection change and can set the Wayland clipboard from the
+  shell.
+
+### Fixed
+
+- **Terminal right-click and middle-click paste** — right/middle button press now
+  syncs data-device and primary-selection focus from the resolved pointer target
+  *before* titlebar/resize chrome handlers, so context menus and primary-selection
+  paste work reliably in Wayland terminals (kitty, foot) across tiled, floating,
+  maximized, and auto-hide-titlebar layouts.
+
 ## [2026-06-28]
 
 ### Added

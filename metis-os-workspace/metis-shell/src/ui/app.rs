@@ -67,6 +67,18 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     if matches!(&evt, metis_protocol::CompositorEvent::WindowOpened { .. }) {
                         crate::services::windows::reconcile_now();
                     }
+                    if let metis_protocol::CompositorEvent::ClipboardChanged {
+                        mime,
+                        preview_text,
+                        image_path,
+                    } = &evt
+                    {
+                        crate::services::apply_clipboard_event(
+                            mime,
+                            preview_text.clone(),
+                            image_path.clone(),
+                        );
+                    }
                 }
                 SystemEvent::BriefingReady(items) => {
                     tracing::info!(count = items.len(), "briefing ready");

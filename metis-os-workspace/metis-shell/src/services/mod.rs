@@ -1,6 +1,7 @@
 pub mod applications;
 pub mod calendar;
 mod notifications;
+mod clipboard;
 mod notify_dbus;
 mod poll;
 mod tray;
@@ -15,6 +16,10 @@ mod workspaces;
 pub use applications::{watch_app_index, AppEntry};
 pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
+};
+pub use clipboard::{
+    apply_clipboard_event, clear_history, clipboard_count, load_history, recall_entry,
+    register_refresh as register_clipboard_refresh, runtime_clipboard_entries, ClipboardEntry,
 };
 pub use notifications::{
     clear_notifications, close_notification, dismiss_notification, invoke_action,

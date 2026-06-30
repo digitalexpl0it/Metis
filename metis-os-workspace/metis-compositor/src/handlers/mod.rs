@@ -6,6 +6,7 @@ pub use layer_shell::handle_layer_commit;
 
 use std::os::unix::io::OwnedFd;
 
+use crate::clipboard::{write_selection_to_fd, MetisSelectionUserData};
 use crate::state::MetisState;
 
 use smithay::input::dnd::{DnDGrab, DndGrabHandler, GrabType, Source};
@@ -58,9 +59,19 @@ impl MetisState {
     /// `loc` so paste (right/middle-click, Shift+Insert) works even when keyboard
     /// focus was previously elsewhere.
     pub(crate) fn sync_selection_focus_at(&mut self, loc: Point<f64, Logical>) {
+        let under = self.pointer_target_at(loc);
+        self.sync_selection_focus_from_target(&under);
+    }
+
+    /// Align data-device and primary-selection focus with an already-resolved
+    /// pointer target (avoids a second hit-test that can disagree with motion).
+    pub(crate) fn sync_selection_focus_from_target(
+        &mut self,
+        under: &Option<(WlSurface, Point<f64, Logical>)>,
+    ) {
         let dh = &self.display_handle;
-        let client = self
-            .pointer_target_at(loc)
+        let client = under
+            .as_ref()
             .and_then(|(surface, _)| dh.get_client(surface.id()).ok());
         set_data_device_focus(dh, &self.seat, client.clone());
         set_primary_focus(dh, &self.seat, client);
@@ -68,7 +79,7 @@ impl MetisState {
 }
 
 impl SelectionHandler for MetisState {
-    type SelectionUserData = ();
+    type SelectionUserData = MetisSelectionUserData;
 
     fn new_selection(
         &mut self,
@@ -76,6 +87,11 @@ impl SelectionHandler for MetisState {
         source: Option<SelectionSource>,
         _seat: Seat<Self>,
     ) {
+        if ty == SelectionTarget::Clipboard {
+            if let Some(ref source) = source {
+                self.capture_client_clipboard(source.mime_types());
+            }
+        }
         if let Some(xwm) = self.xwm.as_mut() {
             if let Err(err) = xwm.new_selection(ty, source.map(|s| s.mime_types())) {
                 tracing::warn!(?err, ?ty, "failed to mirror Wayland selection to XWayland");
@@ -89,8 +105,14 @@ impl SelectionHandler for MetisState {
         mime_type: String,
         fd: OwnedFd,
         _seat: Seat<Self>,
-        _user_data: &Self::SelectionUserData,
+        user_data: &Self::SelectionUserData,
     ) {
+        if let Some(offer) = user_data.offer.as_ref() {
+            if offer.mime == mime_type {
+                write_selection_to_fd(fd, offer);
+                return;
+            }
+        }
         if let Some(xwm) = self.xwm.as_mut() {
             if let Err(err) = xwm.send_selection(ty, mime_type, fd) {
                 tracing::warn!(?err, ?ty, "failed to send Wayland selection to XWayland");

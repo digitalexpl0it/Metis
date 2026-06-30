@@ -77,6 +77,14 @@ pub enum CompositorCommand {
     /// Re-read `input.json` and apply mouse/touchpad/keyboard settings live.
     ReloadInput,
     SubscribeEvents,
+    /// Set the Wayland clipboard from the shell (text or image file on disk).
+    SetClipboard {
+        mime: String,
+        #[serde(default)]
+        text: Option<String>,
+        #[serde(default)]
+        image_path: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -127,6 +135,14 @@ pub enum CompositorEvent {
         count: u32,
     },
     Error { message: String },
+    /// Clipboard contents changed (text preview and/or image path under runtime dir).
+    ClipboardChanged {
+        mime: String,
+        #[serde(default)]
+        preview_text: Option<String>,
+        #[serde(default)]
+        image_path: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -174,7 +190,7 @@ pub fn runtime_command_path() -> std::path::PathBuf {
     runtime_dir().join("command")
 }
 
-fn runtime_dir() -> std::path::PathBuf {
+pub fn runtime_dir() -> std::path::PathBuf {
     std::env::var("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/metis"))

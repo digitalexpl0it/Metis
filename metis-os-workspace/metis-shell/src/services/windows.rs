@@ -3,7 +3,7 @@
 //! `WindowMinimized`) with a periodic `ListWindows` reconcile as a safety net.
 //! The taskbar widget reads this cache to render running apps.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use metis_protocol::{CompositorEvent, WindowInfo};
@@ -19,6 +19,9 @@ thread_local! {
     /// Repaint hooks installed by each bar's tasks widget (one per output in a
     /// multi-monitor session). Weak so a torn-down bar's hook drops itself.
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
+    /// Coalesce bursty window events (Firefox/Text Editor title churn) into one
+    /// idle repaint so the dock is not torn down repeatedly in a single frame.
+    static REFRESH_SCHEDULED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Register a callback invoked whenever the window cache changes so every bar's
@@ -33,16 +36,23 @@ pub fn register_refresh(cb: Rc<dyn Fn()>) {
 }
 
 fn fire_refresh() {
-    // Collect live callbacks first so we don't hold the REFRESH borrow while a
-    // callback runs (a callback may re-enter via register_refresh).
-    let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|r| {
-        let mut list = r.borrow_mut();
-        list.retain(|w| w.strong_count() > 0);
-        list.iter().filter_map(std::rc::Weak::upgrade).collect()
-    });
-    for cb in callbacks {
-        cb();
+    if REFRESH_SCHEDULED.with(|c| c.get()) {
+        return;
     }
+    REFRESH_SCHEDULED.with(|c| c.set(true));
+    glib::idle_add_local_once(|| {
+        REFRESH_SCHEDULED.with(|c| c.set(false));
+        // Collect live callbacks first so we don't hold the REFRESH borrow while a
+        // callback runs (a callback may re-enter via register_refresh).
+        let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|r| {
+            let mut list = r.borrow_mut();
+            list.retain(|w| w.strong_count() > 0);
+            list.iter().filter_map(std::rc::Weak::upgrade).collect()
+        });
+        for cb in callbacks {
+            cb();
+        }
+    });
 }
 
 /// Current snapshot of known windows.
@@ -133,9 +143,13 @@ pub fn apply_event(evt: &CompositorEvent) {
             }
             CompositorEvent::WindowMetadata { id, title, app_id } => {
                 if let Some(w) = store.windows.iter_mut().find(|w| w.id == *id) {
+                    let app_changed = w.app_id != *app_id;
                     w.title = title.clone();
                     w.app_id = app_id.clone();
-                    true
+                    // Title-only updates (tab switches, document edits) must not
+                    // rebuild the dock — that destroys task buttons while popovers
+                    // are open and can corrupt GTK layout.
+                    app_changed
                 } else {
                     false
                 }

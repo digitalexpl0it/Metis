@@ -342,6 +342,9 @@ impl MetisState {
 
                 if ButtonState::Pressed == button_state {
                     const BTN_LEFT: u32 = 0x110;
+                    const BTN_MIDDLE: u32 = 0x112;
+                    const BTN_RIGHT: u32 = 0x111;
+                    let paste_button = button == BTN_MIDDLE || button == BTN_RIGHT;
                     // A press over the bar or one of its open popovers (e.g. the app
                     // launcher) belongs to the shell. The bar's popovers don't take a
                     // pointer grab, so without this guard a click would fall through to
@@ -351,39 +354,29 @@ impl MetisState {
                     // Any press off the bar/popover dismisses open popovers — do this
                     // FIRST so it still fires when the press is consumed by compositor
                     // chrome (resize band or server-side titlebar) and returns early.
-                    // Without this, clicking another window's titlebar left the start
-                    // menu open while every other off-bar click closed it.
-                    //
-                    // When a popup grab is active, smithay's PopupPointerGrab already
-                    // dismisses popovers on outside clicks (popup_done); only fall back
-                    // to the manual signal when no grab is in effect.
                     if !pointer.is_grabbed() && !on_bar_ui {
                         let _ = metis_protocol::write_runtime_command("close-popovers");
                     }
+                    // Terminals (kitty, foot, …) use right/middle-click paste and
+                    // context menus against the surface under the pointer — align
+                    // clipboard + primary-selection focus before any chrome handler
+                    // can short-circuit the press path.
+                    if paste_button && !on_bar_ui {
+                        self.sync_selection_focus_from_target(&under);
+                    }
                     let mut chrome_press = false;
                     if !on_bar_ui && button == BTN_LEFT {
-                        // Window resize bands sit on the outer edges/corners — check them
-                        // before decorations so grabbing an edge starts a resize (and
-                        // floats a tiled window out of the grid).
                         chrome_press = self.handle_resize_press(loc, serial, button)
                             || self.handle_decoration_press(loc, serial, button);
                         if chrome_press {
                             self.schedule_redraw();
                         }
                     }
-                    // Server-side chrome already focused/raised the target (or a grab
-                    // owns the pointer). Re-running keyboard focus here would forward
-                    // focus to the client surface under the titlebar/buttons.
                     if !chrome_press {
-                        // Always move keyboard focus to whatever was clicked — including
-                        // the bar's own OnDemand layer surface. Text entries inside
-                        // non-grabbing bar popovers (Wi-Fi password, world-clock search)
-                        // only receive keystrokes if the bar layer surface holds
-                        // wl_keyboard focus; GTK then routes keys to the focused widget.
                         self.update_keyboard_focus(loc, serial);
-                        // Right/middle-click paste reads the seat's data-device and
-                        // primary-selection focus — align them with the click target.
-                        self.sync_selection_focus_at(loc);
+                        if !paste_button {
+                            self.sync_selection_focus_from_target(&under);
+                        }
                     }
                 } else if button_state == ButtonState::Released && button == 0x110 {
                     self.clear_titlebar_press_pending();

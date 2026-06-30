@@ -1,5 +1,7 @@
 //! Screen capture for the Metis portal backend.
 
+mod pump;
+mod session;
 mod shm;
 mod wayland;
 
@@ -9,6 +11,10 @@ use std::sync::Arc;
 use ashpd::PortalError;
 
 use crate::pipewire::PipeWireHub;
+
+pub use pump::spawn_screencast_pump;
+pub use session::CaptureSession;
+pub use wayland::Frame;
 
 #[derive(Debug, Clone)]
 pub struct CapturedPng {

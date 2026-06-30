@@ -19,6 +19,14 @@ const SSD_APP_IDS: &[&str] = &[
     "org.kitty",
     "net.kovidgoyal.kitty",
     "com.metis.Settings",
+    // GNOME Text Editor ships a libadwaita headerbar; Metis SSD gives consistent
+    // tiling controls and avoids double-chrome layout fights in grid mode.
+    "org.gnome.TextEditor",
+    // Firefox (snap/deb) reports varying app_ids; explicit entries plus
+    // [`id_looks_firefox`] below route them to Metis chrome.
+    "org.mozilla.firefox",
+    "org.mozilla.Firefox",
+    "firefox_firefox",
     // Chromium-based browsers on Wayland often ship only a close button in their
     // client chrome while the portal tells them the compositor owns decorations.
     // Metis grants ServerSide over xdg-decoration so they drop CSD entirely.
@@ -32,8 +40,6 @@ const SSD_APP_IDS: &[&str] = &[
 /// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
 /// shipped GNOME apps are covered by [`id_looks_csd`] prefix rules).
 const CSD_APP_IDS: &[&str] = &[
-    "org.mozilla.firefox",
-    "org.mozilla.Firefox",
     "dev.zed.Zed",
     "com.obsproject.Studio",
     "com.slack.Slack",
@@ -72,9 +78,16 @@ pub fn id_looks_chromium_family(app_id: &str) -> bool {
         || id.starts_with("com.microsoft.edge")
 }
 
+/// True for Mozilla Firefox builds (snap `firefox_firefox`, deb `firefox`, …).
+pub fn id_looks_firefox(app_id: &str) -> bool {
+    norm_app_id(app_id).contains("firefox")
+}
+
 /// True when the app has no native titlebar and needs Metis chrome.
 pub fn id_looks_ssd(app_id: &str) -> bool {
-    id_matches_list(app_id, SSD_APP_IDS) || id_looks_chromium_family(app_id)
+    id_matches_list(app_id, SSD_APP_IDS)
+        || id_looks_chromium_family(app_id)
+        || id_looks_firefox(app_id)
 }
 
 /// True when the app ships its own titlebar (GNOME/libadwaita, browsers, …).
@@ -95,8 +108,7 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     {
         return true;
     }
-    id.contains("firefox")
-        || id.contains("electron")
+    id.contains("electron")
         || id.contains("cursor")
         || id.ends_with(".code")
         || id == "code"
@@ -140,9 +152,9 @@ pub fn defer_ssd_paint(
 }
 
 /// True when auto-hide should reveal only a compact control strip (top-right)
-/// so the client's tab bar stays interactive (Chromium-family browsers).
+/// so the client's tab bar stays interactive (Chromium-family browsers, Firefox).
 pub fn id_uses_compact_overlay(app_id: &str) -> bool {
-    id_looks_chromium_family(app_id)
+    id_looks_chromium_family(app_id) || id_looks_firefox(app_id)
 }
 
 /// Whether an SSD-decorated window should auto-hide its Metis titlebar when
@@ -165,6 +177,13 @@ pub fn grant_decoration_mode(uses_ssd: bool) -> DecorationMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn firefox_and_text_editor_use_ssd() {
+        assert!(resolve_uses_ssd(Some("firefox_firefox"), None));
+        assert!(resolve_uses_ssd(Some("org.mozilla.firefox"), None));
+        assert!(resolve_uses_ssd(Some("org.gnome.TextEditor"), None));
+    }
 
     #[test]
     fn gnome_apps_keep_client_headerbar() {
@@ -227,6 +246,7 @@ mod tests {
     fn chromium_uses_compact_overlay() {
         assert!(id_uses_compact_overlay("org.chromium.Chromium"));
         assert!(id_uses_compact_overlay("chromium"));
+        assert!(id_uses_compact_overlay("firefox_firefox"));
         assert!(!id_uses_compact_overlay("org.kitty"));
     }
 

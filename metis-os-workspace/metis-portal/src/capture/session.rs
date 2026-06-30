@@ -1,4 +1,4 @@
-//! Native ext-image-copy-capture screenshot client.
+//! Persistent ext-image-copy-capture session for live ScreenCast frames.
 
 use std::time::{Duration, Instant};
 
@@ -20,13 +20,11 @@ use wayland_protocols::ext::{
 };
 
 use super::shm::{BufferFormat, ShmBuffer};
+use super::wayland::{prefer_shm_format, Frame};
 
-#[derive(Debug, Clone)]
-pub struct Frame {
-    pub width: u32,
-    pub height: u32,
-    pub stride: u32,
-    pub data: Vec<u8>,
+enum CaptureMode {
+    OneShot,
+    Continuous,
 }
 
 struct SessionState {
@@ -39,13 +37,15 @@ struct SessionState {
     frame_pending: bool,
 }
 
-pub struct AppState {
+struct AppState {
     shm: Option<WlShm>,
     copy_manager: Option<ExtImageCopyCaptureManagerV1>,
     source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
     output: Option<WlOutput>,
     session: Option<SessionState>,
     result: Option<Result<Frame, String>>,
+    mode: CaptureMode,
+    paint_cursors: bool,
 }
 
 impl AppState {
@@ -73,7 +73,11 @@ impl AppState {
         };
 
         let source = source_manager.create_source(&output, qh, ());
-        let options = ext_image_copy_capture_manager_v1::Options::PaintCursors;
+        let options = if self.paint_cursors {
+            ext_image_copy_capture_manager_v1::Options::PaintCursors
+        } else {
+            ext_image_copy_capture_manager_v1::Options::empty()
+        };
         let session = copy_manager.create_session(&source, options, qh, ());
 
         self.session = Some(SessionState {
@@ -145,20 +149,27 @@ impl AppState {
     }
 
     fn on_frame_ready(&mut self) {
-        let Some(session) = self.session.take() else {
+        let Some(session) = self.session.as_mut() else {
             return;
         };
-        let Some(shm) = session.shm else {
+        let Some(shm) = session.shm.as_ref() else {
             self.fail("missing shm buffer on frame ready");
             return;
         };
-        session.session.destroy();
-        self.result = Some(Ok(Frame {
+        let frame = Frame {
             width: shm.format.width,
             height: shm.format.height,
             stride: shm.format.stride,
             data: shm.pixels().to_vec(),
-        }));
+        };
+        if matches!(self.mode, CaptureMode::OneShot) {
+            let session = self.session.take().unwrap();
+            session.session.destroy();
+            self.result = Some(Ok(frame));
+            return;
+        }
+        session.frame_pending = false;
+        self.result = Some(Ok(frame));
     }
 
     fn tick(&mut self, qh: &QueueHandle<Self>) {
@@ -189,64 +200,103 @@ impl AppState {
     }
 }
 
-pub fn capture_output_frame() -> Result<Frame, String> {
-    let conn = Connection::connect_to_env()
-        .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
-    let (globals, mut event_queue) =
-        registry_queue_init::<AppState>(&conn).map_err(|err| format!("registry init: {err}"))?;
-    let qh = event_queue.handle();
+/// Live capture handle — keeps an ext-image-copy session open across frames.
+pub struct CaptureSession {
+    conn: Connection,
+    queue: wayland_client::EventQueue<AppState>,
+    state: AppState,
+}
 
-    let shm = globals.bind(&qh, 1..=1, ()).ok();
-    let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
-    let source_manager = globals.bind(&qh, 1..=1, ()).ok();
-    let output = globals.bind(&qh, 1..=4, ()).ok();
+impl CaptureSession {
+    pub fn open(paint_cursors: bool) -> Result<Self, String> {
+        let conn = Connection::connect_to_env()
+            .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
+        let (globals, queue) =
+            registry_queue_init::<AppState>(&conn).map_err(|err| format!("registry init: {err}"))?;
+        let qh = queue.handle();
 
-    let mut state = AppState {
-        shm,
-        copy_manager,
-        source_manager,
-        output,
-        session: None,
-        result: None,
-    };
+        let shm = globals.bind(&qh, 1..=1, ()).ok();
+        let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
+        let source_manager = globals.bind(&qh, 1..=1, ()).ok();
+        let output = globals.bind(&qh, 1..=4, ()).ok();
 
-    if state.copy_manager.is_none() || state.source_manager.is_none() {
-        return Err(
-            "compositor does not expose ext-image-copy-capture (rebuild metis-compositor)".into(),
-        );
+        let mut state = AppState {
+            shm,
+            copy_manager,
+            source_manager,
+            output,
+            session: None,
+            result: None,
+            mode: CaptureMode::Continuous,
+            paint_cursors,
+        };
+
+        if state.copy_manager.is_none() || state.source_manager.is_none() {
+            return Err(
+                "compositor does not expose ext-image-copy-capture (rebuild metis-compositor)"
+                    .into(),
+            );
+        }
+
+        state.start_capture(&qh);
+
+        let mut session = Self { conn, queue, state };
+        session.wait_until_ready(Duration::from_secs(8))?;
+        Ok(session)
     }
 
-    state.start_capture(&qh);
-
-    let deadline = Instant::now() + Duration::from_secs(8);
-    while state.result.is_none() && Instant::now() < deadline {
-        event_queue
-            .blocking_dispatch(&mut state)
-            .map_err(|err| format!("wayland dispatch: {err}"))?;
-        state.tick(&qh);
+    fn wait_until_ready(&mut self, timeout: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        while self.state.session.is_none() && Instant::now() < deadline {
+            self.queue
+                .blocking_dispatch(&mut self.state)
+                .map_err(|err| format!("wayland dispatch: {err}"))?;
+            self.state.tick(&self.queue.handle());
+            if self.state.result.is_some() {
+                break;
+            }
+        }
+        if self.state.session.is_some() {
+            Ok(())
+        } else {
+            self.state
+                .result
+                .take()
+                .unwrap_or(Err("capture session setup timed out".into()))
+                .map(|_| ())
+        }
     }
 
-    match state.result {
-        Some(result) => result,
-        None => Err("capture timed out".to_string()),
+    pub fn capture_next_frame(&mut self) -> Result<Frame, String> {
+        self.state.result = None;
+        let qh = self.queue.handle();
+        self.state.request_frame(&qh);
+
+        let deadline = Instant::now() + Duration::from_millis(500);
+        while self.state.result.is_none() && Instant::now() < deadline {
+            self.queue
+                .blocking_dispatch(&mut self.state)
+                .map_err(|err| format!("wayland dispatch: {err}"))?;
+            self.state.tick(&qh);
+        }
+
+        match self.state.result.take() {
+            Some(result) => result,
+            None => Err("capture frame timed out".into()),
+        }
     }
 }
 
-pub(crate) fn prefer_shm_format(current: Format, offered: Format) -> Format {
-    fn rank(format: Format) -> u8 {
-        match format {
-            Format::Argb8888 => 0,
-            Format::Xrgb8888 => 1,
-            Format::Abgr8888 => 2,
-            Format::Xbgr8888 => 3,
-            _ => 4,
+impl Drop for CaptureSession {
+    fn drop(&mut self) {
+        if let Some(session) = self.state.session.take() {
+            session.session.destroy();
         }
     }
-    if rank(offered) < rank(current) {
-        offered
-    } else {
-        current
-    }
+}
+
+fn prefer_shm_format_local(current: Format, offered: Format) -> Format {
+    prefer_shm_format(current, offered)
 }
 
 impl Dispatch<WlRegistry, GlobalListContents> for AppState {
@@ -289,7 +339,7 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
             ext_image_copy_capture_session_v1::Event::ShmFormat { format, .. } => {
                 if let WEnum::Value(fmt) = format {
                     session.constraints.format =
-                        prefer_shm_format(session.constraints.format, fmt);
+                        prefer_shm_format_local(session.constraints.format, fmt);
                 }
             }
             ext_image_copy_capture_session_v1::Event::Done { .. } => {

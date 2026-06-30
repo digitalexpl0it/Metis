@@ -1,11 +1,10 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 4 (settings-app expansion into a full control center) is
-complete for the planned Device + System pages (Bluetooth, Printers, Sound,
-Power, Display). Input (mouse/touchpad/keyboard) was already done. Open portal
-work: **ScreenCast** (Phase 3). Next major tracks: **Phase 5** (display pipeline:
-VRR, colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and the deferred
-Phase 3 item (full multi-GPU compositing).
+**Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
+compositing item. **Phase 4** (settings-app expansion) is complete for the planned
+Device + System pages. Next major tracks: **Phase 5** (display pipeline: VRR,
+colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and **Phase 7**
+(remote access / full desktop sharing).
 
 ---
 
@@ -32,6 +31,10 @@ Phase 3 item (full multi-GPU compositing).
       the signal icon does not flicker offline
 - [x] Notifications popup — badge, grouped duplicates + count badge, per-kind icons,
       clear-all with slide-out animation, scrollbar, in-bar alert routing
+- [x] **Clipboard history widget** — edge-bar popover listing recent clipboard
+      entries (text previews + image thumbnails); click a row to recall via
+      compositor IPC; history persisted to `~/.local/state/metis/clipboard.json`
+      (max 50 entries; 10 MB image cap; clear-history button)
 - [x] WiFi / audio popover controls
 - [x] Weather widget — icon + temperature with a forecast popover (see Phase 2)
 - [x] Theme file watcher (live `themes/*.json` reload)
@@ -98,6 +101,10 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Auto-hide titlebar pointer routing — revealed overlay chrome and permanent
       SSD border strips own pointer hits above the mapped client rect so hover and
       clicks cannot fall through to windows below
+- [x] **Terminal right-click / primary-selection paste** — right/middle press
+      syncs data-device + primary-selection focus before chrome handlers so
+      context menus and middle-click paste work in kitty/foot on tiled, floating,
+      maximized, and auto-hide-titlebar layouts
 - [x] Per-app geometry memory — free-layout windows save their position/size per
       `app_id` to `~/.config/metis/windows.json` and restore it on reopen (placement
       defers until `app_id` is known so the restore isn't lost to a centered default)
@@ -271,9 +278,15 @@ so each milestone is shippable on its own:
       client (SHM buffer + PNG encode). Compositor retains capture `Session` objects
       for the client lifetime. Verified with Flameshot via `xdg-desktop-portal`.
       Registered in `metis.portal` + `metis-portals.conf`.
-- [ ] **ScreenCast portal (live streaming)** — `metis-portal` registers
-      `org.freedesktop.impl.portal.ScreenCast` and PipeWire stream node IDs;
-      continuous ext-image-copy-capture → PipeWire frame pump still TODO.
+- [x] **ScreenCast portal (live streaming)** — `metis-portal` registers
+      `org.freedesktop.impl.portal.ScreenCast`; persistent
+      `ext-image-copy-capture-v1` session + ~30 Hz frame pump pushes BGRx frames
+      into a real PipeWire output stream node (`pipewire` crate on a dedicated
+      thread). Verify with OBS “Video Capture Device (PipeWire)” under a live
+      session. Post-Phase-3 follow-up: dmabuf zero-copy export (see
+      `docs/PERF_AUDIT.md` P0).
+- [ ] **ScreenCast dmabuf zero-copy** — export dmabuf from compositor capture +
+      PipeWire memfd import (perf pass; SHM pump is functional at 1080p30 today).
 
 ---
 
@@ -386,8 +399,8 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
 
 - [ ] **Inhibit portal** — block idle blank / suspend / lock while a game or media
       app holds an inhibit request (high value for gaming)
-- [ ] **ScreenCast live pump** — finish Phase 3 PipeWire frame streaming (OBS,
-      Discord, browser share, Steam Remote Play)
+- [ ] **ScreenCast live pump** — ~~finish Phase 3 PipeWire frame streaming~~ done
+      (OBS / Discord / browser share); remaining: dmabuf zero-copy perf pass
 - [ ] **Background / PowerProfile / GameMode** — route or stub via portal (can no-op
       initially; GameMode may integrate `gamemoded` later)
 - [ ] **Permission UX docs** — `flatpak permission-show`, portal permission reset,
@@ -460,6 +473,57 @@ Mode. Track compatibility either way:
       native Wayland
 - [ ] **MangoHud / vkBasalt** — document `%command%` prefix patterns in Steam
       launch options (no Metis code required)
+
+---
+
+## Phase 7 — Remote access (full desktop sharing)
+
+Let you **remote into a Metis machine from another device** (laptop, tablet,
+phone) with full interactive control — not just “share screen” in a call.
+ScreenCast (Phase 3) covers **local video capture** for portal apps; remote
+desktop also needs **remote input injection**, **network transport**, and
+**session security**. Third-party servers (RustDesk, RDP) may work incidentally
+today when installed on the host; this phase makes remote access a documented,
+tested, and optionally Metis-integrated capability.
+
+**Target:** from another machine on LAN or over the internet, connect to a Metis
+session and see + control the desktop (windows, bar, games) with acceptable
+latency and clear setup docs.
+
+### A. Third-party remote desktop (document + verify)
+
+- [ ] **RustDesk** — document host install (`rustdesk` server / headless), firewall
+      ports, and Wayland capture path (portal ScreenCast / PipeWire vs RustDesk’s
+      own capture); verify remote mouse/keyboard into Metis compositor + XWayland
+      clients under the DRM session
+- [ ] **RDP (GNOME Remote Desktop / xrdp)** — document enabling RDP on Metis
+      (`gnome-remote-desktop`, `xrdp` + XWayland fallback); note which stack works
+      on pure-Wayland vs XWayland apps; test from Windows/macOS/Linux RDP clients
+- [ ] **Other tools** — spot-check AnyDesk, Chrome Remote Desktop, TigerVNC /
+      `wayvnc` where relevant; capture known-good / known-broken matrix in dev docs
+- [ ] **Settings → System → Remote access** (optional) — read-only status: which
+      services are installed/running, port hints, link to setup docs (no secrets in
+      the UI)
+
+### B. Metis-native / portal integration (longer term)
+
+- [ ] **Remote input path** — audit compositor input routing so injected pointer/
+      keyboard events from a remote server reach focused Wayland/XWayland clients
+      reliably (multi-monitor, per-output workspaces, layer-shell bar)
+- [ ] **ScreenCast as capture backend** — optional: remote servers that consume
+      portal PipeWire streams use `metis-portal` instead of brittle screencopy;
+      follow-up: dmabuf zero-copy (Phase 3 perf item) for lower latency
+- [ ] **First-party remote option** (stretch) — lightweight Metis remote viewer/
+      host or official RustDesk/RDP preset in `metis-session` (TBD; depends on
+      security review and maintenance cost)
+
+### C. Security & session policy
+
+- [ ] **Firewall / LAN-only defaults** — document ufw/nftables rules; warn against
+      exposing RDP/RustDesk to the open internet without VPN or strong auth
+- [ ] **Session lock** — remote session behaviour when Metis is locked / idle
+      (Inhibit portal + logind integration from Phase 6)
+- [ ] **Multi-user / VT** — clarify behaviour when switching TTYs or multiple seats
 
 ---
 

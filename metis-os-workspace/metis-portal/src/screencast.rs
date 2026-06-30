@@ -1,13 +1,13 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 
 use ashpd::{
     MaybeAppID, PortalError, WindowIdentifierType,
     backend::{
         request::RequestImpl,
-        screencast::{
-            ScreencastImpl, SelectSourcesResponse,
-        },
+        screencast::{ScreencastImpl, SelectSourcesResponse},
         session::{CreateSessionResponse, SessionImpl},
     },
     desktop::{
@@ -21,12 +21,25 @@ use ashpd::{
 use async_trait::async_trait;
 use enumflags2::BitFlags;
 
-use crate::capture::CaptureHub;
+use crate::capture::{spawn_screencast_pump, CaptureHub};
 use crate::pipewire::PipeWireHub;
 
-#[derive(Default)]
 struct CastSession {
     streams: Vec<u32>,
+    cancel: Arc<AtomicBool>,
+    pump: Option<JoinHandle<()>>,
+}
+
+impl CastSession {
+    fn stop(&mut self, pipewire: &PipeWireHub) {
+        self.cancel.store(true, Ordering::Relaxed);
+        if let Some(handle) = self.pump.take() {
+            let _ = handle.join();
+        }
+        for node in self.streams.drain(..) {
+            pipewire.destroy_stream(node);
+        }
+    }
 }
 
 pub struct MetisScreencast {
@@ -55,10 +68,8 @@ impl SessionImpl for MetisScreencast {
     async fn session_closed(&self, session_token: HandleToken) -> ashpd::backend::Result<()> {
         let key = session_token.to_string();
         if let Ok(mut sessions) = self.sessions.lock() {
-            if let Some(session) = sessions.remove(&key) {
-                for node in session.streams {
-                    self.pipewire.destroy_stream(node);
-                }
+            if let Some(mut session) = sessions.remove(&key) {
+                session.stop(&self.pipewire);
             }
         }
         Ok(())
@@ -85,7 +96,14 @@ impl ScreencastImpl for MetisScreencast {
         self.sessions
             .lock()
             .map_err(|err| PortalError::Failed(format!("session map lock: {err}")))?
-            .insert(session_token.to_string(), CastSession::default());
+            .insert(
+                session_token.to_string(),
+                CastSession {
+                    streams: Vec::new(),
+                    cancel: Arc::new(AtomicBool::new(false)),
+                    pump: None,
+                },
+            );
         Ok(CreateSessionResponse::new(session_token))
     }
 
@@ -112,9 +130,20 @@ impl ScreencastImpl for MetisScreencast {
             .create_stream(width, height)
             .map_err(|err| PortalError::Failed(format!("create PipeWire stream: {err}")))?;
 
+        let paint_cursors = true;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let pump = spawn_screencast_pump(
+            Arc::clone(&self.pipewire),
+            stream.node_id,
+            paint_cursors,
+            Arc::clone(&cancel),
+        );
+
         if let Ok(mut sessions) = self.sessions.lock() {
             if let Some(session) = sessions.get_mut(&session_token.to_string()) {
                 session.streams.push(stream.node_id);
+                session.cancel = cancel;
+                session.pump = Some(pump);
             }
         }
 

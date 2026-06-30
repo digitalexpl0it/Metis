@@ -100,6 +100,19 @@ pub fn end_session() -> std::io::Result<()> {
     }
 }
 
+pub fn set_clipboard(
+    mime: String,
+    text: Option<String>,
+    image_path: Option<String>,
+) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::SetClipboard {
+        mime,
+        text,
+        image_path,
+    })?;
+    Ok(())
+}
+
 fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
     let path = metis_protocol::ipc_socket_path();
     let mut stream = UnixStream::connect(&path).map_err(|e| {

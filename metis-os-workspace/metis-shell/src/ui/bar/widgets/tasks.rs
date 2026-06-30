@@ -47,11 +47,10 @@ fn dock_signature(windows: &[WindowInfo], focused: Option<u32>, pinned: &[String
     let mut sig = format!("f:{focused:?}|");
     for w in wins {
         sig.push_str(&format!(
-            "{}:{}:{}:{};",
+            "{}:{}:{};",
             w.id,
             w.minimized as u8,
             w.app_id.as_deref().unwrap_or(""),
-            w.title,
         ));
     }
     sig.push('|');

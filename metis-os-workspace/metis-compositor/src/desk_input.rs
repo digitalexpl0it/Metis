@@ -317,7 +317,7 @@ impl MetisState {
             if record.fullscreen {
                 if let Some(geo) = self.space.element_geometry(window) {
                     if geo.contains(pos.to_i32_round()) {
-                        return Some((window.clone(), geo.loc));
+                        return Some((window.clone(), loc));
                     }
                 }
                 continue;
@@ -360,7 +360,10 @@ impl MetisState {
                     && y >= geo.loc.y
                     && y < geo.loc.y + geo.size.h
                 {
-                    return Some((window.clone(), geo.loc));
+                    // Use the mapped origin, not geo.loc (which includes
+                    // geometry.loc shadow offsets). surface_under expects
+                    // coordinates relative to element_location.
+                    return Some((window.clone(), loc));
                 }
             }
         }
@@ -378,10 +381,18 @@ impl MetisState {
                     .element_under(pos)
                     .map(|(window, location)| (window.clone(), location))
             })?;
-        let rel = pos - location.to_f64();
+        let map_loc = self
+            .space
+            .element_location(&window)
+            .unwrap_or(location);
+        // Match smithay's render origin: mapped location minus the client's
+        // geometry offset (CSD shadow margins Firefox keeps while unmaximized).
+        let geo = window.geometry();
+        let surface_origin = map_loc.to_f64() - geo.loc.to_f64();
+        let rel = pos - surface_origin;
         if let Some((surface, loc)) = window
             .surface_under(rel, WindowSurfaceType::ALL)
-            .map(|(surface, loc)| (surface, (loc + location).to_f64()))
+            .map(|(surface, loc)| (surface, (loc.to_f64() + surface_origin).to_f64()))
         {
             return Some((surface, loc));
         }

@@ -103,6 +103,8 @@ pub enum BarWidgetId {
     Bluetooth,
     Volume,
     Notifications,
+    /// Clipboard history (text + image previews).
+    Clipboard,
     Weather,
     /// System tray (StatusNotifierItem) host.
     Tray,
@@ -401,6 +403,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Network,
         BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
+        BarWidgetId::Clipboard,
         BarWidgetId::Notifications,
         BarWidgetId::Clock,
     ]
@@ -515,7 +518,8 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                     BarWidgetId::Battery
                         | BarWidgetId::Network
                         | BarWidgetId::Bluetooth
-                        | BarWidgetId::Volume
+                        |                     BarWidgetId::Volume
+                        | BarWidgetId::Clipboard
                         | BarWidgetId::Notifications
                         | BarWidgetId::Clock
                 )
@@ -551,6 +555,19 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
             .map(|i| i + 1)
             .unwrap_or(cfg.widgets.len());
         cfg.widgets.insert(pos, BarWidgetId::Bluetooth);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    }
+
+    // Insert the clipboard history widget before notifications in older layouts.
+    if !cfg.widgets.contains(&BarWidgetId::Clipboard) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Notifications))
+            .unwrap_or(cfg.widgets.len());
+        cfg.widgets.insert(pos, BarWidgetId::Clipboard);
         if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
             let _ = std::fs::write(bar_config_path(), json);
         }

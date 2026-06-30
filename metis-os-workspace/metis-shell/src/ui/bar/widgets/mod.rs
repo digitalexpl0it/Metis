@@ -2,6 +2,7 @@ pub mod clock;
 mod launcher;
 mod menu;
 mod notifications;
+mod clipboard;
 pub mod sys;
 mod tasks;
 mod tray;
@@ -19,6 +20,7 @@ use crate::services::BarSnapshot;
 use clock::ClockWidget;
 use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
+use clipboard::ClipboardWidget;
 pub use notifications::do_not_disturb;
 pub(crate) use notifications::build_action_row;
 use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
@@ -36,6 +38,7 @@ pub struct WidgetRefs {
     network: RefCell<Option<NetworkWidget>>,
     volume: RefCell<Option<VolumeWidget>>,
     notifications: RefCell<Option<NotificationsWidget>>,
+    clipboard: RefCell<Option<ClipboardWidget>>,
     weather: RefCell<Option<WeatherWidget>>,
     tray: RefCell<Option<TrayWidget>>,
 }
@@ -115,6 +118,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
         network: RefCell::new(None),
         volume: RefCell::new(None),
         notifications: RefCell::new(None),
+        clipboard: RefCell::new(None),
         weather: RefCell::new(None),
         tray: RefCell::new(None),
     };
@@ -192,6 +196,11 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
                 let w = NotificationsWidget::new();
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.notifications.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Clipboard => {
+                let w = ClipboardWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.clipboard.borrow_mut() = Some(w);
             }
             BarWidgetId::Weather => {
                 let w = WeatherWidget::new(compact);
