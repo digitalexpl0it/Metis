@@ -5,6 +5,7 @@ use std::rc::Rc;
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_MAX_ENTRIES: usize = 50;
+const DEFAULT_PAGE_SIZE: usize = 50;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClipboardEntry {
@@ -14,12 +15,28 @@ pub struct ClipboardEntry {
     pub preview_text: Option<String>,
     #[serde(default)]
     pub image_path: Option<String>,
+    #[serde(default)]
+    pub favorited: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ClipboardPage {
+    pub entries: Vec<ClipboardEntry>,
+    pub page: usize,
+    pub total_pages: usize,
+    pub total_matching: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ClipboardStore {
     #[serde(default = "default_max_entries")]
     max_entries: usize,
+    #[serde(default = "default_page_size")]
+    page_size: usize,
+    #[serde(default)]
+    private_mode: bool,
+    #[serde(default)]
+    active_id: Option<u64>,
     #[serde(default)]
     entries: Vec<ClipboardEntry>,
 }
@@ -28,9 +45,16 @@ fn default_max_entries() -> usize {
     DEFAULT_MAX_ENTRIES
 }
 
+fn default_page_size() -> usize {
+    DEFAULT_PAGE_SIZE
+}
+
 thread_local! {
     static ENTRIES: RefCell<Vec<ClipboardEntry>> = const { RefCell::new(Vec::new()) };
     static NEXT_ID: RefCell<u64> = const { RefCell::new(1) };
+    static PRIVATE_MODE: RefCell<bool> = const { RefCell::new(false) };
+    static PAGE_SIZE: RefCell<usize> = const { RefCell::new(DEFAULT_PAGE_SIZE) };
+    static ACTIVE_ID: RefCell<Option<u64>> = const { RefCell::new(None) };
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -63,6 +87,9 @@ pub fn load_history() {
     ENTRIES.with(|cell| {
         *cell.borrow_mut() = store.entries;
     });
+    PRIVATE_MODE.with(|m| *m.borrow_mut() = store.private_mode);
+    PAGE_SIZE.with(|p| *p.borrow_mut() = store.page_size.max(1));
+    ACTIVE_ID.with(|a| *a.borrow_mut() = store.active_id);
     if let Some(max) = max_id {
         NEXT_ID.with(|id| {
             *id.borrow_mut() = max.saturating_add(1);
@@ -78,6 +105,9 @@ fn persist_history() {
     let entries = runtime_clipboard_entries();
     let store = ClipboardStore {
         max_entries: DEFAULT_MAX_ENTRIES,
+        page_size: page_size(),
+        private_mode: private_mode(),
+        active_id: active_entry_id(),
         entries,
     };
     if let Ok(json) = serde_json::to_string_pretty(&store) {
@@ -103,8 +133,85 @@ pub fn runtime_clipboard_entries() -> Vec<ClipboardEntry> {
     ENTRIES.with(|cell| cell.borrow().clone())
 }
 
-pub fn clipboard_count() -> usize {
-    ENTRIES.with(|cell| cell.borrow().len())
+pub fn private_mode() -> bool {
+    PRIVATE_MODE.with(|m| *m.borrow())
+}
+
+pub fn set_private_mode(on: bool) {
+    PRIVATE_MODE.with(|m| *m.borrow_mut() = on);
+    persist_history();
+    notify_refresh();
+}
+
+pub fn page_size() -> usize {
+    PAGE_SIZE.with(|p| *p.borrow())
+}
+
+pub fn set_page_size(size: usize) {
+    PAGE_SIZE.with(|p| *p.borrow_mut() = size.clamp(10, 200));
+    persist_history();
+    notify_refresh();
+}
+
+pub fn active_entry_id() -> Option<u64> {
+    ACTIVE_ID.with(|a| *a.borrow())
+}
+
+fn set_active_entry_id(id: Option<u64>) {
+    ACTIVE_ID.with(|a| *a.borrow_mut() = id);
+    persist_history();
+}
+
+pub fn filtered_entries(search: &str, page: usize) -> ClipboardPage {
+    let needle = search.trim().to_lowercase();
+    let all = runtime_clipboard_entries();
+    let matching: Vec<ClipboardEntry> = if needle.is_empty() {
+        all
+    } else {
+        all.into_iter()
+            .filter(|e| entry_matches(&needle, e))
+            .collect()
+    };
+    let per_page = page_size();
+    let total_matching = matching.len();
+    let total_pages = if total_matching == 0 {
+        1
+    } else {
+        total_matching.div_ceil(per_page)
+    };
+    let page = page.min(total_pages.saturating_sub(1));
+    let start = page * per_page;
+    let entries = matching
+        .into_iter()
+        .skip(start)
+        .take(per_page)
+        .collect();
+    ClipboardPage {
+        entries,
+        page,
+        total_pages,
+        total_matching,
+    }
+}
+
+fn entry_matches(needle: &str, entry: &ClipboardEntry) -> bool {
+    entry
+        .preview_text
+        .as_deref()
+        .is_some_and(|t| t.to_lowercase().contains(needle))
+        || entry.mime.to_lowercase().contains(needle)
+}
+
+fn trim_entries(entries: &mut Vec<ClipboardEntry>) {
+    while entries.len() > DEFAULT_MAX_ENTRIES {
+        let Some(pos) = entries.iter().rposition(|e| !e.favorited) else {
+            break;
+        };
+        if let Some(path) = entries[pos].image_path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+        entries.remove(pos);
+    }
 }
 
 pub fn apply_clipboard_event(
@@ -112,18 +219,22 @@ pub fn apply_clipboard_event(
     preview_text: Option<String>,
     image_path: Option<String>,
 ) {
+    if private_mode() {
+        return;
+    }
     if preview_text.as_deref().is_some_and(|t| t.is_empty()) && image_path.is_none() {
         return;
     }
 
-    ENTRIES.with(|cell| {
+    let new_id = ENTRIES.with(|cell| {
         let mut entries = cell.borrow_mut();
         if let Some(first) = entries.first() {
             if first.mime == mime
                 && first.preview_text == preview_text
                 && first.image_path == image_path
             {
-                return;
+                set_active_entry_id(Some(first.id));
+                return None;
             }
         }
         let id = NEXT_ID.with(|n| {
@@ -139,24 +250,62 @@ pub fn apply_clipboard_event(
                 mime: mime.to_string(),
                 preview_text,
                 image_path,
+                favorited: false,
             },
         );
-        while entries.len() > DEFAULT_MAX_ENTRIES {
-            entries.pop();
+        trim_entries(&mut entries);
+        Some(id)
+    });
+    if let Some(id) = new_id {
+        set_active_entry_id(Some(id));
+        persist_history();
+        notify_refresh();
+    }
+}
+
+pub fn clear_history() {
+    ENTRIES.with(|cell| {
+        for entry in cell.borrow().iter() {
+            if let Some(path) = entry.image_path.as_deref() {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+        cell.borrow_mut().clear();
+    });
+    set_active_entry_id(None);
+    persist_history();
+    notify_refresh();
+}
+
+pub fn delete_entry(id: u64) {
+    ENTRIES.with(|cell| {
+        let mut entries = cell.borrow_mut();
+        if let Some(pos) = entries.iter().position(|e| e.id == id) {
+            if let Some(path) = entries[pos].image_path.take() {
+                let _ = std::fs::remove_file(path);
+            }
+            entries.remove(pos);
+        }
+    });
+    if active_entry_id() == Some(id) {
+        set_active_entry_id(None);
+    }
+    persist_history();
+    notify_refresh();
+}
+
+pub fn toggle_favorite(id: u64) {
+    ENTRIES.with(|cell| {
+        if let Some(entry) = cell.borrow_mut().iter_mut().find(|e| e.id == id) {
+            entry.favorited = !entry.favorited;
         }
     });
     persist_history();
     notify_refresh();
 }
 
-pub fn clear_history() {
-    ENTRIES.with(|cell| cell.borrow_mut().clear());
-    persist_history();
-    notify_refresh();
-}
-
 pub fn recall_entry(entry: &ClipboardEntry) -> Result<(), String> {
-    if let Some(text) = entry.preview_text.as_deref() {
+    let result = if let Some(text) = entry.preview_text.as_deref() {
         crate::compositor::client::set_clipboard(entry.mime.clone(), Some(text.to_string()), None)
             .map_err(|e| e.to_string())
     } else if let Some(path) = entry.image_path.as_deref() {
@@ -171,13 +320,21 @@ pub fn recall_entry(entry: &ClipboardEntry) -> Result<(), String> {
         .map_err(|e| e.to_string())
     } else {
         Err("empty clipboard entry".into())
+    };
+    if result.is_ok() {
+        set_active_entry_id(Some(entry.id));
+        notify_refresh();
     }
+    result
 }
 
 impl Default for ClipboardStore {
     fn default() -> Self {
         Self {
             max_entries: DEFAULT_MAX_ENTRIES,
+            page_size: DEFAULT_PAGE_SIZE,
+            private_mode: false,
+            active_id: None,
             entries: Vec::new(),
         }
     }

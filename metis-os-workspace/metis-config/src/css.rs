@@ -9,6 +9,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let accent2_rgb = theme.accent_secondary_rgb();
     let on_accent = theme.text_on_accent.clone();
     let text_rgb = theme.text_rgb();
+    let surface_solid = theme.surface.clone();
     let surface = theme.surface_rgba();
     let raised = theme.surface_raised.clone();
     let shadow = theme.shadow_ambient.clone();
@@ -17,6 +18,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     // effectively invisible on the dark theme, so it's only emitted for light.
     let launcher_icon_shadow = if theme.mode.eq_ignore_ascii_case("light") {
         "-gtk-icon-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);"
+    } else {
+        ""
+    };
+    let tray_pixmap_filter = if theme.mode.eq_ignore_ascii_case("light") {
+        "filter: brightness(0); opacity: 0.88;"
     } else {
         ""
     };
@@ -170,12 +176,6 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 18px;
     }}
 
-    .metis-bar-notif-icon {{
-        font-size: 14px;
-        padding: 0 2px;
-        background-color: transparent;
-    }}
-
     .metis-bar-notif-badge {{
         font-size: 8px;
         font-weight: 700;
@@ -202,8 +202,68 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border: 1px solid {border};
         border-radius: {rl}px;
         padding: 14px 16px;
+        color: {text};
         box-shadow: {shadow},
-                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                    inset 0 1px 0 rgba({text_rgb}, 0.05);
+    }}
+
+    /* Popover form controls — drive from Metis theme tokens so entries and
+       buttons stay light in light mode (GTK Adwaita defaults are not enough
+       inside layer-shell popovers). */
+    .metis-bar-dropdown-panel entry,
+    .metis-bar-dropdown-panel searchentry,
+    .metis-bar-dropdown-panel spinbutton,
+    .metis-bar-dropdown-panel .metis-clipboard-search,
+    .metis-bar-dropdown-panel .metis-menu-search,
+    .metis-bar-dropdown-panel .metis-net-password {{
+        background-color: {surface_solid};
+        background-image: none;
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        box-shadow: none;
+        caret-color: {text};
+    }}
+    .metis-bar-dropdown-panel entry text,
+    .metis-bar-dropdown-panel searchentry text,
+    .metis-bar-dropdown-panel spinbutton text {{
+        background-color: transparent;
+        color: {text};
+    }}
+    .metis-bar-dropdown-panel entry text placeholder,
+    .metis-bar-dropdown-panel searchentry text placeholder,
+    .metis-bar-dropdown-panel entry > text > placeholder,
+    .metis-bar-dropdown-panel searchentry > text > placeholder {{
+        color: {muted};
+        opacity: 1;
+    }}
+    .metis-bar-dropdown-panel entry:focus-within,
+    .metis-bar-dropdown-panel searchentry:focus-within,
+    .metis-bar-dropdown-panel spinbutton:focus-within,
+    .metis-bar-dropdown-panel .metis-menu-search:focus-within,
+    .metis-bar-dropdown-panel .metis-clipboard-search:focus-within {{
+        border-color: {accent};
+    }}
+    .metis-bar-dropdown-panel entry image,
+    .metis-bar-dropdown-panel searchentry image {{
+        color: {muted};
+    }}
+
+    /* Footer / settings links that sit directly on the panel root */
+    .metis-bar-dropdown-panel > button {{
+        background-color: {surface_solid};
+        background-image: none;
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        box-shadow: none;
+        padding: 6px 12px;
+    }}
+    .metis-bar-dropdown-panel > button:hover {{
+        background-color: {raised};
+    }}
+    .metis-bar-dropdown-panel > button label {{
+        color: {text};
     }}
 
     .metis-bar-clock {{
@@ -435,6 +495,26 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: rgba({accent_rgb}, 0.18);
     }}
 
+    .metis-bar-tray-pinned {{
+        margin-right: 2px;
+    }}
+
+    .metis-bar-tray-item {{
+        padding: 2px;
+        border-radius: {rs}px;
+        min-width: 0;
+        min-height: 0;
+    }}
+
+    .metis-bar-tray-item image.metis-bar-tray-icon {{
+        color: {text};
+        -gtk-icon-style: symbolic;
+    }}
+
+    .metis-bar-tray-item image.metis-bar-tray-pixmap {{
+        {tray_pixmap_filter}
+    }}
+
     .metis-bar-task-pick.focused {{
         background-color: rgba({accent_rgb}, 0.26);
     }}
@@ -456,8 +536,9 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-bar-icon {{
-        -gtk-icon-style: regular;
+        -gtk-icon-style: symbolic;
         background-color: transparent;
+        color: {text};
     }}
 
     .metis-bar-ws-dot-idle {{
@@ -515,11 +596,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-notif-scrolled scrollbar.vertical slider {{
         min-width: 6px;
         border-radius: 999px;
-        background-color: rgba(255, 255, 255, 0.18);
+        background-color: rgba({text_rgb}, 0.18);
     }}
 
     .metis-notif-scrolled scrollbar.vertical slider:hover {{
-        background-color: rgba(255, 255, 255, 0.28);
+        background-color: rgba({text_rgb}, 0.28);
     }}
 
     .metis-notif-empty {{
@@ -556,14 +637,14 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 12px;
         font-weight: 600;
         color: {muted};
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: rgba({text_rgb}, 0.06);
         background-image: none;
         border: 1px solid {border};
         box-shadow: none;
     }}
     .metis-notif-clear:hover {{
         color: {text};
-        background-color: rgba(255, 255, 255, 0.10);
+        background-color: rgba({text_rgb}, 0.10);
     }}
     .metis-notif-clear:disabled {{
         opacity: 0.45;
@@ -715,6 +796,80 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {c_payment};
     }}
 
+    .metis-clipboard-panel {{
+        min-width: 380px;
+    }}
+
+    .metis-clipboard-search {{
+        margin-bottom: 4px;
+    }}
+
+    .metis-clipboard-list {{
+        margin: 0;
+    }}
+
+    .metis-clipboard-row {{
+        padding: 6px 4px;
+        border-bottom: 1px solid rgba({text_rgb}, 0.08);
+    }}
+
+    .metis-clipboard-active-marker {{
+        color: {accent};
+        font-size: 10px;
+    }}
+
+    .metis-clipboard-inactive-marker {{
+        color: transparent;
+        font-size: 10px;
+    }}
+
+    .metis-clipboard-body {{
+        padding: 4px 6px;
+        border-radius: 6px;
+    }}
+
+    .metis-clipboard-body:hover {{
+        background-color: rgba({text_rgb}, 0.06);
+    }}
+
+    .metis-clipboard-preview {{
+        color: {text};
+        font-size: 13px;
+    }}
+
+    .metis-clipboard-row-action,
+    .metis-clipboard-icon-btn,
+    .metis-clipboard-footer-btn {{
+        padding: 4px;
+        min-width: 28px;
+        min-height: 28px;
+        border-radius: 6px;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        color: {text};
+    }}
+
+    .metis-clipboard-row-action:hover,
+    .metis-clipboard-icon-btn:hover,
+    .metis-clipboard-footer-btn:hover {{
+        background-color: rgba({text_rgb}, 0.08);
+    }}
+
+    .metis-clipboard-starred {{
+        color: {accent};
+    }}
+
+    .metis-clipboard-footer {{
+        padding-top: 6px;
+        border-top: 1px solid rgba({text_rgb}, 0.08);
+    }}
+
+    .metis-clipboard-settings-item {{
+        justify-content: flex-start;
+    }}
+
     .metis-bar-volume-scale {{
         min-width: 180px;
         padding: 2px 0;
@@ -846,11 +1001,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-weight: 600;
         border-radius: {rs}px;
         padding: 4px 12px;
+        border: 1px solid {accent};
+        box-shadow: none;
     }}
 
     .metis-net-cancel {{
         border-radius: {rs}px;
         padding: 4px 12px;
+        background-color: {surface_solid};
+        background-image: none;
+        color: {text};
+        border: 1px solid {border};
+        box-shadow: none;
+    }}
+
+    .metis-net-cancel:hover {{
+        background-color: {raised};
     }}
 
     .metis-bt-device-list {{
@@ -969,7 +1135,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-bar-dropdown-panel switch {{
-        background-color: rgba(255, 255, 255, 0.14);
+        background-color: rgba({text_rgb}, 0.14);
         border: none;
         border-radius: 999px;
         min-width: 40px;
@@ -982,11 +1148,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-bar-dropdown-panel switch > slider {{
-        background-color: #ffffff;
+        background-color: {surface_solid};
         border-radius: 999px;
         min-width: 18px;
         min-height: 18px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
     }}
 
     .metis-bar-dropdown-panel separator {{
@@ -1040,7 +1206,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: 999px;
         color: {muted};
         background-image: none;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         box-shadow: none;
         border: 1px solid transparent;
     }}
@@ -1049,7 +1215,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-clock-tab:hover {{
         color: {text};
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba({text_rgb}, 0.09);
     }}
     .metis-clock-tab:checked {{
         color: {text};
@@ -1075,7 +1241,6 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border: none;
         border-radius: 999px;
         font-weight: 700;
-        color: #ffffff;
         box-shadow: none;
         background-image: none;
     }}
@@ -1087,11 +1252,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: {accent2};
     }}
     .metis-sw-btn-stop {{
-        background-color: rgba(255, 255, 255, 0.10);
+        background-color: rgba({text_rgb}, 0.08);
         color: {text};
     }}
     .metis-sw-btn-stop:hover {{
-        background-color: rgba(255, 255, 255, 0.16);
+        background-color: rgba({text_rgb}, 0.14);
     }}
     .metis-sw-btn:disabled {{
         opacity: 0.45;
@@ -1099,7 +1264,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-sw-lap {{
         padding: 8px 12px;
         border-radius: {rs}px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
     }}
     .metis-sw-lap-total {{
         font-feature-settings: "tnum";
@@ -1134,7 +1299,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 0;
         border: 1px solid {border};
         border-radius: {rs}px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         background-image: none;
         color: {text};
         box-shadow: none;
@@ -1147,7 +1312,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-timer-stepper {{
         padding: 6px;
         border-radius: {rm}px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
     }}
     .metis-timer-step-btn {{
         min-width: 56px;
@@ -1155,7 +1320,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 0;
         border: none;
         border-radius: {rs}px;
-        background-color: rgba(255, 255, 255, 0.06);
+        background-color: rgba({text_rgb}, 0.07);
         background-image: none;
         box-shadow: none;
         color: {muted};
@@ -1182,7 +1347,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-alarm-form {{
         padding: 14px;
         border-radius: {rm}px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
     }}
     .metis-alarm-ampm {{
@@ -1190,7 +1355,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 0;
         border: 1px solid {border};
         border-radius: {rs}px;
-        background-color: rgba(255, 255, 255, 0.06);
+        background-color: rgba({text_rgb}, 0.07);
         background-image: none;
         box-shadow: none;
         color: {text};
@@ -1212,7 +1377,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 0;
         border-radius: 999px;
         border: 1px solid {border};
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         background-image: none;
         box-shadow: none;
         color: {muted};
@@ -1220,7 +1385,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-alarm-day:hover {{
         color: {text};
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba({text_rgb}, 0.09);
     }}
     .metis-alarm-day:checked {{
         color: {on_accent};
@@ -1239,7 +1404,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 6px 10px;
         min-height: 0;
         border: 1px solid {border};
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         background-image: none;
         box-shadow: none;
         color: {muted};
@@ -1247,7 +1412,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-alarm-sound-seg button:hover {{
         color: {text};
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba({text_rgb}, 0.09);
     }}
     .metis-alarm-sound-seg button:checked {{
         color: {on_accent};
@@ -1259,12 +1424,13 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-tz-picker {{
         padding: 10px;
         border-radius: {rm}px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
     }}
     .metis-tz-scroll {{
         border-radius: {rs}px;
-        background-color: rgba(0, 0, 0, 0.22);
+        background-color: {surface_solid};
+        border: 1px solid {border};
     }}
     .metis-tz-list {{
         background-color: transparent;
@@ -1290,11 +1456,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-tz-scroll scrollbar slider {{
         min-width: 7px;
         border-radius: 999px;
-        background-color: rgba(255, 255, 255, 0.22);
+        background-color: rgba({text_rgb}, 0.22);
     }}
     .metis-sw-laps-scroll scrollbar slider:hover,
     .metis-tz-scroll scrollbar slider:hover {{
-        background-color: rgba(255, 255, 255, 0.34);
+        background-color: rgba({text_rgb}, 0.34);
     }}
 
     /* ---- Running-timer HUD (layer-shell overlay under the bar) ---- */
@@ -1329,7 +1495,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 2px;
         border: none;
         border-radius: 999px;
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba({text_rgb}, 0.08);
         background-image: none;
         box-shadow: none;
         color: {text};
@@ -1426,7 +1592,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: {rs}px;
     }}
     button.metis-cal-day:hover {{
-        background-color: rgba(255, 255, 255, 0.06);
+        background-color: rgba({text_rgb}, 0.07);
     }}
     button.metis-cal-adjacent {{
         opacity: 0.32;
@@ -1473,7 +1639,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: {rs}px;
     }}
     .metis-cal-event:hover {{
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
     }}
     .metis-cal-event-color {{
         background-color: {accent};
@@ -1499,7 +1665,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-cal-event-action:hover {{
         color: {text};
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba({text_rgb}, 0.09);
     }}
 
     .metis-clock-cards {{
@@ -1507,7 +1673,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-clock-card {{
         padding: 10px 12px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
         border-radius: {rm}px;
     }}
@@ -1538,14 +1704,15 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-clock-btn {{
         padding: 4px 12px;
         min-height: 0;
-        border: none;
+        border: 1px solid {border};
         border-radius: {rs}px;
         color: {text};
-        background-color: rgba(255, 255, 255, 0.06);
+        background-color: {surface_solid};
+        background-image: none;
         box-shadow: none;
     }}
     .metis-clock-btn:hover {{
-        background-color: rgba({accent_rgb}, 0.20);
+        background-color: {raised};
     }}
     .metis-clock-lap {{
         font-size: 12px;
@@ -1553,7 +1720,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-clock-alarm {{
         padding: 6px 8px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border-radius: {rs}px;
     }}
     .metis-clock-alarm-time {{
@@ -1565,19 +1732,19 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     /* ---- Add-event form + Calendars account management ---- */
     .metis-cal-form {{
         padding: 8px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
         border-radius: {rm}px;
     }}
     .metis-acct-form {{
         padding: 12px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
         border-radius: {rm}px;
     }}
     .metis-acct-row {{
         padding: 10px 12px;
-        background-color: rgba(255, 255, 255, 0.04);
+        background-color: rgba({text_rgb}, 0.05);
         border: 1px solid {border};
         border-radius: {rm}px;
     }}
@@ -1723,7 +1890,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-menu-search {{
         margin-top: 4px;
         border-radius: {rs}px;
-        background-color: {raised};
+        background-color: {surface_solid};
         border: 1px solid {border};
         color: {text};
         caret-color: {text};
@@ -1776,6 +1943,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         rs = rs,
         rl = rl,
         raised = raised,
+        surface_solid = surface_solid,
         accent = accent,
         text = theme.text,
         muted = theme.text_muted,

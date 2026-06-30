@@ -8,6 +8,7 @@ use crate::services::{
     clear_notifications, notification_count, register_refresh, runtime_notifications,
     BarNotification, NotificationEntry, NotificationKind,
 };
+use crate::ui::icons::{self, names};
 
 thread_local! {
     static DND: Cell<bool> = const { Cell::new(false) };
@@ -31,8 +32,7 @@ impl NotificationsWidget {
         root.add_css_class("metis-bar-notifications");
         root.add_css_class("metis-bar-sys-icon");
 
-        let icon = gtk::Label::builder().label("🔔").build();
-        icon.add_css_class("metis-bar-notif-icon");
+        let icon = icons::image(names::notification(do_not_disturb()));
 
         let overlay = gtk::Overlay::new();
         overlay.add_css_class("metis-bar-notif-overlay");
@@ -111,9 +111,11 @@ impl NotificationsWidget {
         // Runs on the GTK main thread; invoked on open and on runtime changes.
         let refresh: Rc<dyn Fn()> = {
             let badge = badge.clone();
+            let icon = icon.clone();
             let list = list.clone();
             let clear_btn = clear_btn.clone();
             Rc::new(move || {
+                icons::set_icon(&icon, names::notification(do_not_disturb()));
                 let entries = runtime_notifications();
                 let total = notification_count();
                 if do_not_disturb() || total == 0 {

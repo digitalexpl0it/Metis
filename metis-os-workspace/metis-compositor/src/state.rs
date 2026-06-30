@@ -175,6 +175,9 @@ pub struct MetisState {
     pub event_bus: EventBus,
     /// Skip clipboard history capture while the shell is setting the selection.
     pub clipboard_capture_suppressed: u32,
+    /// Mimes from the latest client `SetSelection`, read on the next dispatch tick.
+    pub(crate) pending_clipboard_mimes: Option<Vec<String>>,
+    pub(crate) pending_clipboard_reads: Vec<crate::clipboard::PendingClipboardRead>,
 
     /// Spawn shell/client after the compositor is accepting connections.
     pub startup_shell: Option<String>,
@@ -467,6 +470,8 @@ impl MetisState {
             events_listener: None,
             event_bus: EventBus::default(),
             clipboard_capture_suppressed: 0,
+            pending_clipboard_mimes: None,
+            pending_clipboard_reads: Vec::new(),
             startup_shell: None,
             startup_client: None,
             startup_frames: 0,
@@ -1169,6 +1174,7 @@ impl MetisState {
                     if let Err(err) = unsafe { display.get_mut().dispatch_clients(state) } {
                         tracing::error!(?err, "wayland dispatch failed");
                     }
+                    state.flush_pending_clipboard_capture();
                     // Configure events are queued during dispatch; clients block until flushed.
                     let _ = state.display_handle.flush_clients();
                     if let Some(ref listener) = state.events_listener {

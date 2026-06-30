@@ -89,7 +89,7 @@ impl SelectionHandler for MetisState {
     ) {
         if ty == SelectionTarget::Clipboard {
             if let Some(ref source) = source {
-                self.capture_client_clipboard(source.mime_types());
+                self.queue_clipboard_capture(source.mime_types());
             }
         }
         if let Some(xwm) = self.xwm.as_mut() {

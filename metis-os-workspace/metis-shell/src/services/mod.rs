@@ -18,8 +18,10 @@ pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };
 pub use clipboard::{
-    apply_clipboard_event, clear_history, clipboard_count, load_history, recall_entry,
-    register_refresh as register_clipboard_refresh, runtime_clipboard_entries, ClipboardEntry,
+    apply_clipboard_event, clear_history, delete_entry, filtered_entries, load_history,
+    private_mode, recall_entry, register_refresh as register_clipboard_refresh,
+    runtime_clipboard_entries, set_page_size, set_private_mode, toggle_favorite,
+    active_entry_id, ClipboardEntry, ClipboardPage,
 };
 pub use notifications::{
     clear_notifications, close_notification, dismiss_notification, invoke_action,
@@ -38,7 +40,7 @@ pub use tray::{
     send_command, set_command_sender, snapshot as tray_snapshot, spawn_tray_service, sync_tray,
     IconPixmap, TrayCommand, TrayEvent, TrayItem, TraySnapshot,
 };
-pub use weather::{spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
+pub use weather::{last_weather_snapshot, spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
 pub use workspaces::{
     active_workspace_for, dispatch_workspace, set_active_workspace, workspace_snapshot,
     workspace_snapshot_for, WorkspaceSnapshot,

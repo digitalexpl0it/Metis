@@ -124,6 +124,10 @@ impl TrayWidget {
             }
         });
 
+        // Paint from the current store immediately — a bar rebuild drops the old
+        // widget without a fresh dbus event, so pinned mode would stay empty.
+        rebuild();
+
         Self {
             root,
             pinned_row,
@@ -536,19 +540,48 @@ fn append_menu_items(list: &gtk::Box, item: &TrayItem, entries: &[TrayMenuItem])
 }
 
 fn set_tray_icon_image(image: &gtk::Image, item: &TrayItem) {
+    image.add_css_class("metis-bar-tray-icon");
+
     if let Some(texture) = pixmap_texture(item) {
+        image.add_css_class("metis-bar-tray-pixmap");
         image.set_from_paintable(Some(&texture));
         return;
     }
     if let Some(texture) = theme_path_texture(item) {
+        image.add_css_class("metis-bar-tray-pixmap");
         image.set_from_paintable(Some(&texture));
         return;
     }
     if let Some(name) = item.icon_name.as_deref().filter(|n| !n.is_empty()) {
-        image.set_from_icon_name(Some(name));
+        set_themed_tray_icon(image, name);
         return;
     }
     image.set_from_icon_name(Some("application-x-executable-symbolic"));
+}
+
+/// Prefer a symbolic icon name so GTK tints it with the bar foreground colour.
+fn set_themed_tray_icon(image: &gtk::Image, name: &str) {
+    let candidates: Vec<String> = if name.ends_with("-symbolic") {
+        vec![name.to_string()]
+    } else {
+        vec![format!("{name}-symbolic"), name.to_string()]
+    };
+    if let Some(display) = gtk::gdk::Display::default() {
+        let theme = gtk::IconTheme::for_display(&display);
+        for candidate in &candidates {
+            if theme.has_icon(candidate) {
+                image.set_from_icon_name(Some(candidate));
+                return;
+            }
+        }
+    }
+    image.set_from_icon_name(Some(name));
+}
+
+fn bar_is_light_mode() -> bool {
+    crate::ui::theme::active_tokens()
+        .mode
+        .eq_ignore_ascii_case("light")
 }
 
 /// Chromium/Electron tray icons ship PNG files under `IconThemePath`.
@@ -585,7 +618,8 @@ fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
             gdk::MemoryFormat::R8g8b8a8,
             &glib::Bytes::from_static(&[0, 0, 0, 0]),
             4,
-        ).into();
+        )
+        .into();
     }
     let mut rgba = vec![0u8; w * h * 4];
     for y in 0..h {
@@ -605,6 +639,9 @@ fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
             rgba[dst + 3] = a;
         }
     }
+    if bar_is_light_mode() && pixmap_is_mostly_light(&rgba) {
+        invert_opaque_rgba(&mut rgba);
+    }
     gdk::MemoryTexture::new(
         pixmap.width,
         pixmap.height,
@@ -613,6 +650,33 @@ fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
         (w * 4) as usize,
     )
     .into()
+}
+
+fn pixmap_is_mostly_light(rgba: &[u8]) -> bool {
+    let mut light = 0u32;
+    let mut opaque = 0u32;
+    for px in rgba.chunks_exact(4) {
+        if px[3] < 48 {
+            continue;
+        }
+        opaque += 1;
+        let lum = (px[0] as u32 * 299 + px[1] as u32 * 587 + px[2] as u32 * 114) / 1000;
+        if lum >= 200 {
+            light += 1;
+        }
+    }
+    opaque > 0 && light * 100 / opaque >= 55
+}
+
+fn invert_opaque_rgba(rgba: &mut [u8]) {
+    for px in rgba.chunks_exact_mut(4) {
+        if px[3] < 16 {
+            continue;
+        }
+        px[0] = 255 - px[0];
+        px[1] = 255 - px[1];
+        px[2] = 255 - px[2];
+    }
 }
 
 fn wire_tray_toggle(

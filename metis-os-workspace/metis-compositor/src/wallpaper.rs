@@ -575,25 +575,5 @@ pub fn resolve_path() -> Option<PathBuf> {
         }
     }
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for rel in [
-                "assets/wallpapers/default.jpg",
-                "../assets/wallpapers/default.jpg",
-                "../../assets/wallpapers/default.jpg",
-            ] {
-                let path = dir.join(rel);
-                if path.is_file() {
-                    return path.canonicalize().ok();
-                }
-            }
-        }
-    }
-
-    let bundled = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets/wallpapers/default.jpg");
-    if bundled.is_file() {
-        return bundled.canonicalize().ok();
-    }
-
-    None
+    metis_config::default_wallpaper_path()
 }

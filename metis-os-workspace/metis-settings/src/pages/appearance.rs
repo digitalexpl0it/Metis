@@ -16,8 +16,6 @@ use metis_config::ThemeMode;
 
 use crate::{runtime, ui};
 
-const WALLPAPER_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp"];
-
 struct State {
     name: String,
     tokens: metis_config::ThemeTokens,
@@ -1232,56 +1230,15 @@ fn current_wallpaper() -> Option<PathBuf> {
 fn list_wallpapers() -> Vec<PathBuf> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
-    collect_images(&metis_config::wallpaper_store_dir(), &mut out, &mut seen);
-    for dir in bundled_wallpaper_dirs() {
-        collect_images(&dir, &mut out, &mut seen);
+    metis_config::collect_wallpaper_images(
+        &metis_config::wallpaper_store_dir(),
+        &mut out,
+        &mut seen,
+    );
+    for dir in metis_config::bundled_wallpaper_dirs() {
+        metis_config::collect_wallpaper_images(&dir, &mut out, &mut seen);
     }
     out
-}
-
-fn collect_images(dir: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    let mut found: Vec<PathBuf> = Vec::new();
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let is_image = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|e| WALLPAPER_EXTS.contains(&e.to_ascii_lowercase().as_str()))
-            .unwrap_or(false);
-        if !is_image {
-            continue;
-        }
-        let canon = path.canonicalize().unwrap_or(path.clone());
-        if seen.insert(canon) {
-            found.push(path);
-        }
-    }
-    found.sort();
-    out.extend(found);
-}
-
-/// Candidate directories holding the bundled wallpapers (resolved relative to the
-/// settings binary, mirroring the compositor's lookup).
-fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            for rel in [
-                "assets/wallpapers",
-                "../assets/wallpapers",
-                "../../assets/wallpapers",
-            ] {
-                let p = dir.join(rel);
-                if p.is_dir() {
-                    dirs.push(p);
-                }
-            }
-        }
-    }
-    dirs
 }
 
 fn populate_wallpapers(
@@ -1479,7 +1436,7 @@ where
     dialog.set_title("Choose a picture");
     let filter = gtk::FileFilter::new();
     filter.set_name(Some("Images"));
-    for ext in WALLPAPER_EXTS {
+    for ext in metis_config::WALLPAPER_IMAGE_EXTS {
         filter.add_pattern(&format!("*.{ext}"));
         filter.add_pattern(&format!("*.{}", ext.to_ascii_uppercase()));
     }

@@ -191,7 +191,3 @@ roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
 ## License
 
 Licensed under the [MIT License](LICENSE).
-
-> Note: bundled panel icons under `metis-os-workspace/metis-shell/icons/papirus/`
-> are from the [Papirus icon theme](https://github.com/PapirusDevelopmentTeam/papirus-icon-theme)
-> and remain under their original license.

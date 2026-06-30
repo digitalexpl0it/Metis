@@ -11,6 +11,7 @@
 //! Temperature unit follows `weather.json` (`auto` resolves US-style regions to
 //! Fahrenheit, everything else to Celsius).
 
+use std::cell::RefCell;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -73,6 +74,16 @@ enum WeatherCommand {
 
 static WEATHER_CMD_TX: OnceLock<Sender<WeatherCommand>> = OnceLock::new();
 
+thread_local! {
+    static LAST_WEATHER: RefCell<Option<WeatherSnapshot>> = RefCell::new(None);
+}
+
+/// Last weather snapshot sent to the bar — used to re-hydrate widgets after a
+/// live bar rebuild (the async service only pushes every ~15 minutes).
+pub fn last_weather_snapshot() -> Option<WeatherSnapshot> {
+    LAST_WEATHER.with(|s| s.borrow().clone())
+}
+
 /// Spawn the weather background thread and return the snapshot receiver.
 pub fn spawn_weather_service() -> Receiver<WeatherSnapshot> {
     let (tx, rx) = mpsc::channel();
@@ -116,6 +127,7 @@ async fn weather_loop(tx: Sender<WeatherSnapshot>, cmd_rx: Receiver<WeatherComma
             "weather: snapshot ready"
         );
         let failed = snapshot.error.is_some();
+        LAST_WEATHER.with(|s| *s.borrow_mut() = Some(snapshot.clone()));
         if tx.send(snapshot).is_err() {
             return;
         }

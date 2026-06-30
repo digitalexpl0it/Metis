@@ -12,7 +12,9 @@ use zbus::proxy;
 use zbus::zvariant::{OwnedValue, Value};
 
 use super::tray::{TrayCommand, TrayEvent, TrayItem};
-use super::tray_dbus_types::{parse_item_props, service_parts, MenuLayout, ServiceParts};
+use super::tray_dbus_types::{
+    parse_item_props, resolve_tray_display_title, service_parts, MenuLayout, ServiceParts,
+};
 use super::tray_menu::{parse_menu_layout, TrayMenu};
 
 const WATCHER_PATH: &str = "/StatusNotifierWatcher";
@@ -303,11 +305,19 @@ async fn fetch_item(conn: &zbus::Connection, parts: &ServiceParts) -> Option<Tra
         None
     };
 
+    let title = resolve_tray_display_title(
+        &parsed.title,
+        &parsed.id,
+        &parsed.tooltip_title,
+        &parsed.tooltip_subtitle,
+        &parts.bus_name,
+    );
+
     Some(TrayItem {
         bus_name: parts.bus_name.clone(),
         object_path: parts.object_path.clone(),
         id: parsed.id,
-        title: parsed.title,
+        title,
         icon_name: parsed.icon_name,
         icon_theme_path: parsed.icon_theme_path,
         icon_pixmap: parsed.icon_pixmap.map(|p| super::tray::IconPixmap {

@@ -11,7 +11,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
 use crate::services::{
     spawn_bar_pollers, spawn_notification_service, spawn_weather_service, apply_event,
-    workspace_snapshot, BarSnapshot, WeatherSnapshot,
+    last_weather_snapshot, weather_refresh, workspace_snapshot, BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
@@ -164,6 +164,7 @@ fn build_bar(
         workspaces: workspace_snapshot(),
         ..Default::default()
     });
+    rehydrate_widget_state(&widget_refs);
 
     // Defer map until layer-shell anchors/size are applied (avoids 0-height first commit).
     let show_window = window.clone();
@@ -562,8 +563,19 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
                 handle.pill.remove(&child);
             }
             handle.widget_refs = widgets::build(&handle.pill, config.clone(), handle.output.clone());
+            rehydrate_widget_state(&handle.widget_refs);
         }
     });
+}
+
+/// Re-apply cached service state after tearing down and rebuilding bar widgets.
+fn rehydrate_widget_state(refs: &widgets::WidgetRefs) {
+    if let Some(snapshot) = last_weather_snapshot() {
+        refs.apply_weather(&snapshot);
+    } else {
+        weather_refresh();
+    }
+    crate::services::sync_tray();
 }
 
 /// Tear down all bars and rebuild from scratch for the current monitor set —

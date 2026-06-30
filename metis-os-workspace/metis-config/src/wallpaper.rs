@@ -6,7 +6,8 @@
 //! command.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -118,6 +119,81 @@ pub fn save_wallpaper_config(cfg: &WallpaperConfig) -> std::io::Result<()> {
 /// Directory where user-imported wallpapers are copied to.
 pub fn wallpaper_store_dir() -> PathBuf {
     config_dir().join("wallpapers")
+}
+
+/// Image extensions treated as selectable wallpapers.
+pub const WALLPAPER_IMAGE_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp"];
+
+/// Compile-time path to the workspace bundled wallpapers directory.
+pub fn bundled_wallpaper_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets/wallpapers")
+}
+
+/// Candidate directories holding bundled wallpapers (compile-time bundle plus
+/// exe-relative fallbacks for installed layouts).
+pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let mut push = |p: PathBuf| {
+        if p.is_dir() && !dirs.iter().any(|d| d == &p) {
+            dirs.push(p);
+        }
+    };
+    push(bundled_wallpaper_dir());
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            for rel in [
+                "assets/wallpapers",
+                "../assets/wallpapers",
+                "../../assets/wallpapers",
+                "../../../assets/wallpapers",
+            ] {
+                push(parent.join(rel));
+            }
+        }
+    }
+    dirs
+}
+
+fn is_wallpaper_image(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| WALLPAPER_IMAGE_EXTS.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+/// Collect image files from `dir` into `out`, skipping paths already in `seen`.
+pub fn collect_wallpaper_images(dir: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut found = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() || !is_wallpaper_image(&path) {
+            continue;
+        }
+        let canon = path.canonicalize().unwrap_or(path.clone());
+        if seen.insert(canon) {
+            found.push(path);
+        }
+    }
+    found.sort();
+    out.extend(found);
+}
+
+/// All bundled wallpaper images, sorted by filename.
+pub fn list_bundled_wallpapers() -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    for dir in bundled_wallpaper_dirs() {
+        collect_wallpaper_images(&dir, &mut out, &mut seen);
+    }
+    out
+}
+
+/// First bundled wallpaper (typically `default.png`), if any exist.
+pub fn default_wallpaper_path() -> Option<PathBuf> {
+    list_bundled_wallpapers().into_iter().next()
 }
 
 /// Parse a `#rrggbb` hex colour into an RGB triplet, falling back to black.

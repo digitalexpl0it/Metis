@@ -2,9 +2,7 @@ use gtk::prelude::*;
 
 const ICON_SIZE: i32 = 18;
 
-/// Use the host GTK icon theme (symbolic icons). No bundled Papirus paths.
-pub fn install() {}
-
+/// Bar icons resolve from the host GTK icon theme (symbolic names).
 pub fn image(name: &str) -> gtk::Image {
     let image = gtk::Image::new();
     image.add_css_class("metis-bar-icon");
@@ -19,7 +17,9 @@ pub fn set_icon(image: &gtk::Image, name: &str) {
 }
 
 pub mod names {
+    pub const CLIPBOARD: &str = "edit-paste-symbolic";
     pub const NOTIFICATION: &str = "preferences-system-notifications-symbolic";
+    pub const NOTIFICATION_DND: &str = "notifications-disabled-symbolic";
 
     pub fn battery(percent: u8, charging: bool) -> &'static str {
         if charging {
@@ -39,6 +39,14 @@ pub mod names {
             "network-wireless-symbolic"
         } else {
             "network-offline-symbolic"
+        }
+    }
+
+    pub fn notification(dnd: bool) -> &'static str {
+        if dnd {
+            NOTIFICATION_DND
+        } else {
+            NOTIFICATION
         }
     }
 

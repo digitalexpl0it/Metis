@@ -27,6 +27,8 @@ pub struct IconPixmap {
 pub struct ParsedItemProps {
     pub id: String,
     pub title: String,
+    pub tooltip_title: String,
+    pub tooltip_subtitle: String,
     pub icon_name: Option<String>,
     pub icon_theme_path: Option<String>,
     pub icon_pixmap: Option<IconPixmap>,
@@ -95,7 +97,7 @@ fn normalize_object_path(service: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::service_parts;
+    use super::{resolve_tray_display_title, service_parts};
 
     #[test]
     fn parses_ayatana_item_id() {
@@ -131,6 +133,36 @@ mod tests {
         assert_eq!(parts.bus_name, ":1.285");
         assert_eq!(parts.object_path, "/StatusNotifierItem");
     }
+
+    #[test]
+    fn resolves_electron_tray_tooltip() {
+        let title = resolve_tray_display_title(
+            "",
+            "chrome_status_icon_1",
+            "Cursor",
+            "",
+            "org.chromium.StatusNotifierItem-1-1",
+        );
+        assert_eq!(title, "Cursor");
+    }
+
+    #[test]
+    fn skips_internal_title_for_tooltip() {
+        let title = resolve_tray_display_title(
+            "chrome_status_icon_1",
+            "chrome_status_icon_1",
+            "Cursor",
+            "",
+            "",
+        );
+        assert_eq!(title, "Cursor");
+    }
+
+    #[test]
+    fn friendly_name_from_bus_name() {
+        let title = resolve_tray_display_title("", "chrome_status_icon_1", "", "", "co.anysphere.Cursor");
+        assert_eq!(title, "Cursor");
+    }
 }
 
 pub fn parse_item_props(props: &HashMap<String, OwnedValue>) -> ParsedItemProps {
@@ -138,18 +170,147 @@ pub fn parse_item_props(props: &HashMap<String, OwnedValue>) -> ParsedItemProps 
         .filter(|s| !s.is_empty())
         .or_else(|| get_string(props, "Title"))
         .unwrap_or_else(|| "tray-item".into());
-    let title = get_string(props, "Title")
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| id.clone());
+    let title = get_string(props, "Title").unwrap_or_default();
+    let (tooltip_title, tooltip_subtitle) = get_tooltip_strings(props);
     ParsedItemProps {
-        id: id.clone(),
+        id,
         title,
+        tooltip_title,
+        tooltip_subtitle,
         icon_name: get_string(props, "IconName"),
         icon_theme_path: get_string(props, "IconThemePath"),
         icon_pixmap: get_icon_pixmap(props),
         menu: get_object_path(props, "Menu"),
         item_is_menu: get_bool(props, "ItemIsMenu").unwrap_or(false),
     }
+}
+
+/// Pick a human-readable label for tooltips and menus. Electron/Chromium apps
+/// often leave `Title` empty and put an internal id like `chrome_status_icon_1`
+/// in `Id`, while the real name lives in `ToolTip`.
+pub fn resolve_tray_display_title(
+    title: &str,
+    id: &str,
+    tooltip_title: &str,
+    tooltip_subtitle: &str,
+    bus_name: &str,
+) -> String {
+    for candidate in [title, tooltip_title, tooltip_subtitle] {
+        if is_user_visible_tray_label(candidate) {
+            return candidate.to_string();
+        }
+    }
+    if is_user_visible_tray_label(id) {
+        return id.to_string();
+    }
+    if let Some(name) = friendly_name_from_bus(bus_name) {
+        return name;
+    }
+    if !tooltip_title.is_empty() {
+        return tooltip_title.to_string();
+    }
+    if !title.is_empty() {
+        return title.to_string();
+    }
+    humanize_tray_id(id)
+}
+
+fn is_user_visible_tray_label(s: &str) -> bool {
+    let s = s.trim();
+    if s.is_empty() {
+        return false;
+    }
+    if is_internal_tray_label(s) {
+        return false;
+    }
+    true
+}
+
+fn is_internal_tray_label(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    lower.starts_with("chrome_status_icon")
+        || lower.starts_with("libappindicator-")
+        || lower.contains("statusnotifieritem")
+        || (lower.contains('_')
+            && !s.contains(' ')
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit()))
+}
+
+fn friendly_name_from_bus(bus_name: &str) -> Option<String> {
+    let bus_name = bus_name.trim();
+    if bus_name.is_empty() || bus_name.starts_with(':') {
+        return None;
+    }
+    let last = bus_name.rsplit('.').next()?;
+    if last.contains("StatusNotifierItem") {
+        return None;
+    }
+    let name = humanize_identifier(last);
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+fn humanize_tray_id(id: &str) -> String {
+    let stripped = id
+        .strip_prefix("chrome_status_icon_")
+        .or_else(|| id.strip_prefix("chrome_status_icon"))
+        .unwrap_or(id);
+    humanize_identifier(stripped)
+}
+
+fn humanize_identifier(raw: &str) -> String {
+    let mut out = String::new();
+    let mut prev_was_sep = false;
+    for ch in raw.chars() {
+        if ch == '-' || ch == '_' {
+            if !out.is_empty() && !prev_was_sep {
+                out.push(' ');
+            }
+            prev_was_sep = true;
+            continue;
+        }
+        if prev_was_sep && ch.is_ascii_lowercase() {
+            out.push(ch.to_ascii_uppercase());
+        } else if out.is_empty() && ch.is_ascii_lowercase() {
+            out.push(ch.to_ascii_uppercase());
+        } else {
+            out.push(ch);
+        }
+        prev_was_sep = false;
+    }
+    out.trim().to_string()
+}
+
+/// `ToolTip` is `(icon_name, icon_pixmap[], title, subtitle)` per the SNI spec.
+fn get_tooltip_strings(props: &HashMap<String, OwnedValue>) -> (String, String) {
+    let Some(val) = props.get("ToolTip") else {
+        return (String::new(), String::new());
+    };
+    let Value::Structure(s) = &**val else {
+        return (String::new(), String::new());
+    };
+    let mut fields = s.fields().iter();
+    let _icon_name = fields.next();
+    let _icon_pixmap = fields.next();
+    let title = fields
+        .next()
+        .and_then(|v| match v {
+            Value::Str(s) => Some(s.as_str().to_string()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    let subtitle = fields
+        .next()
+        .and_then(|v| match v {
+            Value::Str(s) => Some(s.as_str().to_string()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    (title, subtitle)
 }
 
 fn get_string(props: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {

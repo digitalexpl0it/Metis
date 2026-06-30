@@ -1,8 +1,8 @@
 mod loader;
 
 pub use loader::{
-    apply_bar_appearance, apply_menu_opacity, export_embedded_themes_to_config, init_theme,
-    reload_stylesheet,
+    active_tokens, apply_bar_appearance, apply_menu_opacity, export_embedded_themes_to_config,
+    init_theme, reload_stylesheet,
 };
 // Theme tokens, semantic colors, mode, and the stylesheet builder now live in the
 // shared `metis-config` crate; re-export so `crate::ui::theme::...` keeps working
@@ -12,5 +12,4 @@ pub use metis_config::{build_stylesheet, SemanticColors, ThemeMode, ThemeTokens}
 
 pub fn install_theme() {
     let _ = init_theme();
-    crate::ui::icons::install();
 }
