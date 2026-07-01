@@ -15,6 +15,7 @@ mod image_capture;
 mod input;
 mod ipc;
 mod keybinds;
+mod output_prefs;
 mod render;
 mod state;
 mod udev;

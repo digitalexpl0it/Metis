@@ -344,10 +344,10 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
       section lists Bluetooth peripherals with battery + charging status
 - [x] **Sound** — output / input device selection via `pactl` default sink/source;
       volume readout on the settings page (bar volume widget unchanged)
-- [x] **Display (settings UI stub)** — Settings → Display writes per-output scale,
-      enabled, and night-light prefs to `outputs.json` and lists compositor outputs
-      via `ListOutputs` IPC. The compositor does **not** apply these yet; live
-      display control is Phase 5 below.
+- [x] **Display (settings UI)** — Settings → Display: monitor picker chips, per-output
+      scale/enabled, night-light prefs in `outputs.json`; scale applies live via
+      `ReloadOutputs` IPC + compositor file poll. Resolution / mirror / turn-off /
+      night-light compositor pipeline remain Phase 5 below.
 
 ---
 
@@ -358,19 +358,16 @@ Phase 3) — none of these are possible under the nested winit dev session.
 
 ### A. Display settings & mode-setting (Settings → Display)
 
-- [ ] **Wire `outputs.json` to the compositor** — read per-output scale / enabled
-      prefs; `ReloadOutputs` IPC (or file watcher, mirroring `input.json`); apply
-      fractional scale live on each output
-- [ ] **Display picker UX** — detect connected monitors (`ListOutputs` + EDID
-      make/model where available); show a display icon per output; select which
-      monitor the settings page configures (primary labelled, current selection
-      highlighted)
+- [x] **Wire `outputs.json` scale to the compositor** — `ReloadOutputs` IPC +
+      ~1s file poll; fractional scale applied live; window reflow + wallpaper relayout
+- [ ] **Per-output enable/disable** — honour the Display page “Enabled” switch
+      (unmap output, reclaim desktop space, hot-plug safe)
+- [ ] **Display picker UX** — basic monitor chips + per-display panel (make/model
+      from EDID when available); refresh list on hotplug
 - [ ] **Resolution & refresh rate** — list DRM modes per output; let the user pick
       resolution and refresh; apply via Smithay `DrmOutput` mode-setting
 - [ ] **Multi-monitor layout** — extend desktop (independent positions, current
       default), mirror/clone displays, turn off / disable an output
-- [ ] **Per-output enable/disable** — honour the Display page “Enabled” switch
-      (unmap output, reclaim desktop space, hot-plug safe)
 
 ### B. Colour pipeline
 

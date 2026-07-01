@@ -602,6 +602,8 @@ impl MetisState {
         tracing::info!(%name, ?position, "output connected");
 
         self.ensure_desk_for_output(&output);
+        let cfg = self.output_runtime.cached().clone();
+        crate::output_prefs::apply_outputs(self, &cfg);
         self.damaged = true;
     }
 

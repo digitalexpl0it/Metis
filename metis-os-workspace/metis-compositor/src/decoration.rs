@@ -22,7 +22,7 @@ use smithay::backend::renderer::element::{render_elements, Id, Kind};
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::backend::renderer::utils::CommitCounter;
 use smithay::backend::renderer::{Color32F, ImportMem};
-use smithay::utils::{Logical, Physical, Point, Rectangle, Size, Transform};
+use smithay::utils::{Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
 // Muted, desaturated control colors tuned to the dark slate theme rather than the
 // stock bright "traffic light" palette — they read as part of the chrome, not as
@@ -147,6 +147,7 @@ render_elements! {
 }
 
 /// One window's decoration geometry + identity, gathered before drawing.
+#[derive(Clone)]
 pub struct WindowDeco {
     pub id: u32,
     /// Full tile frame in monitor-logical coordinates. For a normal window this is
@@ -291,6 +292,8 @@ pub struct DecorationRuntime {
     /// The thickness is mirrored into `metis_grid`'s client inset.
     window_border: metis_config::WindowBorder,
     last_config_check: Instant,
+    /// Output scale used while building render elements for the current window.
+    build_scale: Scale<f64>,
 }
 
 impl Default for DecorationRuntime {
@@ -313,6 +316,7 @@ impl Default for DecorationRuntime {
             pill_border: read_pill_border(),
             window_border: read_window_border(),
             last_config_check: Instant::now(),
+            build_scale: Scale::from(1.0),
         }
     }
 }
@@ -341,6 +345,175 @@ fn read_window_border() -> metis_config::WindowBorder {
 }
 
 impl DecorationRuntime {
+    /// Force a full decoration re-damage after output scale or geometry changes.
+    pub fn invalidate_all(&mut self) {
+        self.last_sig = 0;
+        self.commit.increment();
+    }
+
+    fn prune_dead_windows(&mut self, live: &std::collections::HashSet<u32>) {
+        self.titles.retain(|id, _| live.contains(id));
+        self.ids.retain(|(id, _), _| live.contains(id));
+        self.buttons.retain(|(id, _), _| live.contains(id));
+        self.titlebars.retain(|id, _| live.contains(id));
+        self.borders.retain(|id, _| live.contains(id));
+        self.shadow_bufs.retain(|id, _| live.contains(id));
+    }
+
+    /// Prune stale caches and bump the damage commit when decoration geometry
+    /// changed since the last frame.
+    pub fn begin_frame(&mut self, windows: &[WindowDeco]) {
+        let live: std::collections::HashSet<u32> = windows.iter().map(|w| w.id).collect();
+        self.prune_dead_windows(&live);
+        let sig = signature(windows) ^ self.titlebar_alpha.to_bits() as u64;
+        if sig != self.last_sig {
+            self.last_sig = sig;
+            self.commit.increment();
+        }
+    }
+
+    fn phys(&self, r: PixelRect) -> Rectangle<i32, Physical> {
+        Rectangle::<i32, Logical>::new(
+            Point::from((r.x, r.y)),
+            Size::from((r.width.max(1), r.height.max(1))),
+        )
+        .to_physical_precise_round(self.build_scale)
+    }
+
+    fn logical_point(&self, x: i32, y: i32) -> Point<i32, Physical> {
+        Point::<i32, Logical>::from((x, y)).to_physical_precise_round(self.build_scale)
+    }
+
+    /// Build render elements for one decorated window at `output_scale`.
+    pub fn window_elements(
+        &mut self,
+        renderer: &mut GlesRenderer,
+        w: &WindowDeco,
+        output_scale: Scale<f64>,
+    ) -> Vec<DecorationElement> {
+        self.build_scale = output_scale;
+        let frame = w.frame;
+        if frame.width <= 2 || frame.height <= APP_TILE_HEADER_PX {
+            return Vec::new();
+        }
+
+        let mut out = Vec::new();
+        let titlebar_rgb = if w.focused {
+            self.palette.titlebar_active
+        } else {
+            self.palette.titlebar_inactive
+        };
+        let border_stops: Vec<[f32; 3]> = if w.focused {
+            resolve_border_stops(
+                self.window_border.mode,
+                &self.window_border.color,
+                &self.window_border.gradient,
+                &self.palette,
+            )
+        } else {
+            vec![[
+                self.palette.border_inactive[0],
+                self.palette.border_inactive[1],
+                self.palette.border_inactive[2],
+            ]]
+        };
+
+        let header = APP_TILE_HEADER_PX.min(frame.height);
+        let b = metis_grid::app_tile_border_px();
+        let chrome = if w.overlay {
+            overlay_chrome_rect(frame, w.overlay_reveal, w.overlay_compact)
+        } else {
+            PixelRect {
+                x: frame.x,
+                y: frame.y,
+                width: frame.width,
+                height: header,
+            }
+        };
+        let bar_x = chrome.x;
+        let bar_y = chrome.y;
+        let bar_w = chrome.width;
+        let titlebar_alpha = if w.overlay {
+            self.titlebar_alpha * metis_grid::ease_out_cubic(w.overlay_reveal.clamp(0.0, 1.0))
+        } else {
+            self.titlebar_alpha
+        };
+        let commit = self.commit;
+
+        if !w.overlay && b > 0 {
+            for elem in self.border_edge_elements(renderer, w, b, header, &border_stops) {
+                out.push(elem);
+            }
+            let t_bottom = if frame.height > 0 {
+                (frame.height - b) as f32 / frame.height as f32
+            } else {
+                1.0
+            };
+            let bc = sample_gradient(&border_stops, t_bottom);
+            out.push(self.solid(
+                w.id,
+                3,
+                PixelRect {
+                    x: frame.x,
+                    y: frame.y + frame.height - b,
+                    width: frame.width,
+                    height: b,
+                },
+                [bc[0], bc[1], bc[2], 1.0],
+                commit,
+            ));
+        }
+
+        let cy = bar_y + (header - BTN_SIZE) / 2;
+        let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
+        let max_x = close_x - (BTN_GAP + BTN_SIZE);
+        let min_x = max_x - (BTN_GAP + BTN_SIZE);
+        for (role, kind, x) in [
+            (4u8, DecoControl::Close, close_x),
+            (5u8, DecoControl::Maximize, max_x),
+            (6u8, DecoControl::Minimize, min_x),
+        ] {
+            if let Some(elem) = self.button_element(renderer, w, role, kind, x, cy) {
+                out.push(elem);
+            }
+        }
+
+        if !w.overlay_compact {
+            let tx = frame.x + TITLE_LEFT_PAD;
+            let max_text_w = (min_x - BTN_GAP - tx).max(0);
+            if max_text_w > 8 {
+                if let Some(elem) = self.title_element(renderer, w, tx, max_text_w, header, bar_y) {
+                    out.push(elem);
+                }
+            }
+        }
+
+        if let Some(elem) = self.titlebar_element(
+            renderer,
+            w,
+            bar_w,
+            header,
+            frame.height,
+            b,
+            titlebar_rgb,
+            titlebar_alpha,
+            &border_stops,
+            bar_x,
+            bar_y,
+            w.overlay,
+        ) {
+            out.push(elem);
+        }
+
+        if !w.overlay {
+            for elem in self.shadow_elements(renderer, w) {
+                out.push(elem);
+            }
+        }
+
+        out
+    }
+
     /// Throttled re-read of `bar.json` + the active theme (~1s) so a Settings app
     /// changing the titlebar opacity / borders / light-dark theme is picked up live.
     /// Returns whether the caller should re-damage and/or relayout windows.
@@ -398,163 +571,18 @@ impl DecorationRuntime {
         &mut self,
         renderer: &mut GlesRenderer,
         windows: &[WindowDeco],
+        output_scale: Scale<f64>,
     ) -> DecoElements {
-        // Drop title caches / ids for windows that no longer exist.
-        let live: std::collections::HashSet<u32> = windows.iter().map(|w| w.id).collect();
-        self.titles.retain(|id, _| live.contains(id));
-        self.ids.retain(|(id, _), _| live.contains(id));
-        self.buttons.retain(|(id, _), _| live.contains(id));
-        self.titlebars.retain(|id, _| live.contains(id));
-        self.borders.retain(|id, _| live.contains(id));
-        self.shadow_bufs.retain(|id, _| live.contains(id));
-
-        // Fold the titlebar alpha into the signature so a live opacity change
-        // re-damages the (otherwise unchanged) decoration rects.
-        let sig = signature(windows) ^ self.titlebar_alpha.to_bits() as u64;
-        if sig != self.last_sig {
-            self.last_sig = sig;
-            self.commit.increment();
-        }
-        let commit = self.commit;
+        self.begin_frame(windows);
 
         let mut below: HashMap<u32, Vec<DecorationElement>> = HashMap::new();
         let mut overlay = Vec::new();
         for w in windows {
-            let frame = w.frame;
-            if frame.width <= 2 || frame.height <= APP_TILE_HEADER_PX {
-                continue;
-            }
-            let out = if w.overlay {
-                &mut overlay
+            let elems = self.window_elements(renderer, w, output_scale);
+            if w.overlay {
+                overlay.extend(elems);
             } else {
-                below.entry(w.id).or_default()
-            };
-
-            let titlebar_rgb = if w.focused {
-                self.palette.titlebar_active
-            } else {
-                self.palette.titlebar_inactive
-            };
-            let border_stops: Vec<[f32; 3]> = if w.focused {
-                resolve_border_stops(
-                    self.window_border.mode,
-                    &self.window_border.color,
-                    &self.window_border.gradient,
-                    &self.palette,
-                )
-            } else {
-                vec![[
-                    self.palette.border_inactive[0],
-                    self.palette.border_inactive[1],
-                    self.palette.border_inactive[2],
-                ]]
-            };
-
-            // Dim only the titlebar fill; the title text and traffic-light buttons
-            let header = APP_TILE_HEADER_PX.min(frame.height);
-            // Runtime-configurable thickness (kept in sync with the grid's client
-            // inset via `set_app_tile_border_px` in `maybe_refresh`).
-            let b = metis_grid::app_tile_border_px();
-            let chrome = if w.overlay {
-                overlay_chrome_rect(frame, w.overlay_reveal, w.overlay_compact)
-            } else {
-                PixelRect {
-                    x: frame.x,
-                    y: frame.y,
-                    width: frame.width,
-                    height: header,
-                }
-            };
-            let bar_x = chrome.x;
-            let bar_y = chrome.y;
-            let bar_w = chrome.width;
-            let titlebar_alpha = if w.overlay {
-                self.titlebar_alpha * metis_grid::ease_out_cubic(w.overlay_reveal.clamp(0.0, 1.0))
-            } else {
-                self.titlebar_alpha
-            };
-
-            // Left / right / bottom borders around the client area. Skipped for the
-            // overlay reveal — it floats only the titlebar over the client, with no
-            // surrounding frame. The two side edges are a shared vertical-gradient
-            // texture; the bottom edge sits at the gradient's tail so a flat solid
-            // (sampled near t=1) suffices.
-            if !w.overlay && b > 0 {
-                for elem in self.border_edge_elements(renderer, w, b, header, &border_stops) {
-                    out.push(elem);
-                }
-                let t_bottom = if frame.height > 0 {
-                    (frame.height - b) as f32 / frame.height as f32
-                } else {
-                    1.0
-                };
-                let bc = sample_gradient(&border_stops, t_bottom);
-                out.push(self.solid(
-                    w.id,
-                    3,
-                    PixelRect {
-                        x: frame.x,
-                        y: frame.y + frame.height - b,
-                        width: frame.width,
-                        height: b,
-                    },
-                    [bc[0], bc[1], bc[2], 1.0],
-                    commit,
-                ));
-            }
-
-            // Control buttons, laid out from the right: close, maximize, minimize.
-            // Each is a cached rounded texture; unfocused windows get gray buttons.
-            let cy = bar_y + (header - BTN_SIZE) / 2;
-            let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
-            let max_x = close_x - (BTN_GAP + BTN_SIZE);
-            let min_x = max_x - (BTN_GAP + BTN_SIZE);
-            for (role, kind, x) in [
-                (4u8, DecoControl::Close, close_x),
-                (5u8, DecoControl::Maximize, max_x),
-                (6u8, DecoControl::Minimize, min_x),
-            ] {
-                if let Some(elem) = self.button_element(renderer, w, role, kind, x, cy) {
-                    out.push(elem);
-                }
-            }
-
-            // Title text + opaque pill — skipped for compact overlay (tabbed browsers).
-            if !w.overlay_compact {
-                let tx = frame.x + TITLE_LEFT_PAD;
-                let max_text_w = (min_x - BTN_GAP - tx).max(0);
-                if max_text_w > 8 {
-                    if let Some(elem) = self.title_element(renderer, w, tx, max_text_w, header, bar_y) {
-                        out.push(elem);
-                    }
-                }
-            }
-
-            // Titlebar background. Pushed LAST so it sits *behind* text and buttons.
-            if let Some(elem) = self.titlebar_element(
-                renderer,
-                w,
-                bar_w,
-                header,
-                frame.height,
-                b,
-                titlebar_rgb,
-                titlebar_alpha,
-                &border_stops,
-                bar_x,
-                bar_y,
-                w.overlay,
-            ) {
-                out.push(elem);
-            }
-
-            // Soft drop shadow, pushed LAST so it sits *behind* the frame, border
-            // and titlebar (first element = top). Only normal framed windows get a
-            // shadow — the auto-hide reveal overlay floats edge-to-edge with none.
-            if !w.overlay {
-                for elem in self.shadow_elements(renderer, w) {
-                    out.push(elem);
-                }
+                below.insert(w.id, elems);
             }
         }
         DecoElements { below, overlay }
@@ -573,7 +601,7 @@ impl DecorationRuntime {
             .entry((window_id, role))
             .or_insert_with(Id::new)
             .clone();
-        let geo = phys(rect);
+        let geo = self.phys(rect);
         DecorationElement::Solid(SolidColorRenderElement::new(
             id,
             geo,
@@ -619,7 +647,7 @@ impl DecorationRuntime {
             Point::from((0.0, 0.0)),
             Size::from((BTN_SIZE as f64, BTN_SIZE as f64)),
         );
-        let loc = Point::<i32, Logical>::from((x, cy)).to_physical(1);
+        let loc = self.logical_point(x, cy);
         Some(DecorationElement::Text(
             TextureRenderElement::from_texture_buffer(
                 loc.to_f64(),
@@ -706,7 +734,7 @@ impl DecorationRuntime {
             Point::from((0.0, 0.0)),
             Size::from((width as f64, header as f64)),
         );
-        let loc = Point::<i32, Logical>::from((bar_x, bar_y)).to_physical(1);
+        let loc = self.logical_point(bar_x, bar_y);
         Some(DecorationElement::Text(
             TextureRenderElement::from_texture_buffer(
                 loc.to_f64(),
@@ -794,7 +822,7 @@ impl DecorationRuntime {
             let Some(buf) = cached.bufs.get(i) else {
                 continue;
             };
-            let loc = Point::<i32, Logical>::from((*x, *y)).to_physical(1);
+            let loc = self.logical_point(*x, *y);
             out.push(DecorationElement::Text(
                 TextureRenderElement::from_texture_buffer(
                     loc.to_f64(),
@@ -908,7 +936,7 @@ impl DecorationRuntime {
             Point::from((0.0, 0.0)),
             Size::from((draw_w as f64, th as f64)),
         );
-        let loc = Point::<i32, Logical>::from((x, y)).to_physical(1);
+        let loc = self.logical_point(x, y);
         Some(DecorationElement::Text(
             TextureRenderElement::from_texture_buffer(
                 loc.to_f64(),
@@ -1019,7 +1047,7 @@ impl DecorationRuntime {
                 Point::from((*sx as f64, *sy as f64)),
                 Size::from((*sw as f64, *sh as f64)),
             );
-            let loc = Point::<i32, Logical>::from((*dx, *dy)).to_physical(1);
+            let loc = self.logical_point(*dx, *dy);
             out.push(DecorationElement::Text(
                 TextureRenderElement::from_texture_buffer(
                     loc.to_f64(),
@@ -1094,14 +1122,6 @@ pub fn control_hitboxes(frame: PixelRect, compact: bool) -> Vec<(DecoControl, Pi
         (DecoControl::Minimize, hit(min_x)),
         (DecoControl::Titlebar, titlebar),
     ]
-}
-
-fn phys(r: PixelRect) -> Rectangle<i32, Physical> {
-    Rectangle::<i32, Logical>::new(
-        Point::from((r.x, r.y)),
-        Size::from((r.width.max(1), r.height.max(1))),
-    )
-    .to_physical(1)
 }
 
 /// Rasterize `text` onto an opaque rounded "pill": a flat solid plate of `pill`

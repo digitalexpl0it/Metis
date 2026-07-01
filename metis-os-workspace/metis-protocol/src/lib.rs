@@ -76,6 +76,8 @@ pub enum CompositorCommand {
     ApplyBackground,
     /// Re-read `input.json` and apply mouse/touchpad/keyboard settings live.
     ReloadInput,
+    /// Re-read `outputs.json` and apply per-output scale (and related prefs) live.
+    ReloadOutputs,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {
@@ -169,13 +171,33 @@ pub struct WindowInfo {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OutputInfo {
     /// Compositor output name (e.g. `metis-0`). This is the key used in
-    /// `wallpaper.json`'s `per_output` map.
+    /// `wallpaper.json`'s `per_output` map and `outputs.json`.
     pub name: String,
     /// Whether this is the primary (first) output.
     #[serde(default)]
     pub primary: bool,
     /// Output position and size in global logical pixels.
     pub rect: MonitorRect,
+    /// Current fractional scale (1.0 = 100%).
+    #[serde(default = "default_output_scale")]
+    pub scale: f64,
+    /// Whether this output is enabled in `outputs.json` (disable/unmap is Phase 5).
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// EDID make when known (may be empty under nested winit).
+    #[serde(default)]
+    pub make: String,
+    /// EDID model when known.
+    #[serde(default)]
+    pub model: String,
+}
+
+fn default_output_scale() -> f64 {
+    1.0
+}
+
+fn default_true() -> bool {
+    true
 }
 
 pub fn ipc_socket_path() -> std::path::PathBuf {

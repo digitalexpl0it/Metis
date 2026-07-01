@@ -10,6 +10,8 @@
 //! and passes that output's global origin, so a half-scrolled column or an
 //! off-output layer surface simply clips against the output bounds.
 
+use std::collections::HashMap;
+
 use smithay::{
     backend::renderer::{
         element::{
@@ -147,15 +149,14 @@ impl MetisState {
             }
         };
 
-        // Server-side window decorations (titlebar + border + controls). Built
-        // here so we have the GL renderer for title-text texture uploads.
-        let crate::decoration::DecoElements {
-            below: mut deco_below,
-            overlay: deco_overlay,
-        } = {
-            let specs = self.decoration_specs();
-            self.decorations.elements(renderer, &specs)
-        };
+        // Server-side window decorations are built per-window below so each uses
+        // the fractional scale of its output (matching client surface placement).
+        let deco_specs = self.decoration_specs();
+        self.decorations.begin_frame(&deco_specs);
+        let deco_by_id: HashMap<u32, crate::decoration::WindowDeco> = deco_specs
+            .into_iter()
+            .map(|w| (w.id, w))
+            .collect();
 
         // Layer-shell surfaces from every output's layer map: background/bottom
         // render beneath windows, top/overlay above them (the Metis bar is Top).
@@ -200,24 +201,32 @@ impl MetisState {
         // Auto-hide titlebar overlays sit below the bar so a revealed titlebar
         // cannot paint through or above the edge bar strip.
         render_elements.extend(upper_layer_elems);
-        render_elements.extend(deco_overlay.into_iter().map(OutputStack::Deco));
+        // Auto-hide titlebar overlays sit below the bar so a revealed titlebar
+        // cannot paint through or above the edge bar strip.
+        for spec in deco_by_id.values().filter(|w| w.overlay) {
+            if let Some(record) = self.windows.get(spec.id) {
+                let win_scale = self.window_output_scale(&record.window, output_scale);
+                let decos = self.decorations.window_elements(renderer, spec, win_scale);
+                render_elements.extend(decos.into_iter().map(OutputStack::Deco));
+            }
+        }
 
-        // Defensive: chrome whose window can't be matched in the stacking below
-        // would otherwise render behind every window. Draw such orphans on top.
+        // Defensive: decorated windows not in the stacking list would otherwise
+        // have no chrome drawn. Draw their decorations on top.
         {
             let stack_ids: std::collections::HashSet<u32> = self
                 .space
                 .elements()
                 .filter_map(|w| self.windows.id_for_window(w))
                 .collect();
-            let orphans: Vec<u32> = deco_below
-                .keys()
-                .copied()
-                .filter(|id| !stack_ids.contains(id))
-                .collect();
-            for id in orphans {
+            for (id, spec) in &deco_by_id {
+                if spec.overlay || stack_ids.contains(id) {
+                    continue;
+                }
                 tracing::warn!(id, "deco: window chrome not matched to a stacked window — drawing on top");
-                if let Some(decos) = deco_below.remove(&id) {
+                if let Some(record) = self.windows.get(*id) {
+                    let win_scale = self.window_output_scale(&record.window, output_scale);
+                    let decos = self.decorations.window_elements(renderer, spec, win_scale);
                     render_elements.extend(decos.into_iter().map(OutputStack::Deco));
                 }
             }
@@ -232,9 +241,10 @@ impl MetisState {
             // mapped location minus the window-geometry offset (CSD shadow
             // margin), then offset to render-target-local coords.
             let id = self.windows.id_for_window(window);
+            let win_scale = self.window_output_scale(window, output_scale);
             let mut loc = (self.space.element_location(window).unwrap_or_default()
                 - window.geometry().loc)
-                .to_physical_precise_round(output_scale)
+                .to_physical_precise_round(win_scale)
                 - render_origin;
             let mut alpha = 1.0f32;
             if let Some(id) = id {
@@ -252,23 +262,23 @@ impl MetisState {
                 if self.is_minimize_genie_active(id) {
                     self.minimize_genie_render(id).map(|(r, _)| {
                         Rectangle::new(
-                            Point::from((r.x, r.y)).to_physical_precise_round(output_scale)
+                            Point::from((r.x, r.y)).to_physical_precise_round(win_scale)
                                 - render_origin,
                             Size::from((r.width.max(1), r.height.max(1)))
-                                .to_physical_precise_round(output_scale),
+                                .to_physical_precise_round(win_scale),
                         )
                     })
                 } else {
-                    self.scroll_window_clip(id, output_scale)
+                    self.scroll_window_clip(id, win_scale)
                         .map(|c| Rectangle::new(c.loc - render_origin, c.size))
                 }
             });
             let elems = AsRenderElements::<GlesRenderer>::render_elements::<
                 WaylandSurfaceRenderElement<GlesRenderer>,
-            >(window, renderer, loc, output_scale, alpha);
+            >(window, renderer, loc, win_scale, alpha);
             if let Some(clip) = clip {
                 for e in elems {
-                    if let Some(c) = CropRenderElement::from_element(e, output_scale, clip) {
+                    if let Some(c) = CropRenderElement::from_element(e, win_scale, clip) {
                         render_elements.push(OutputStack::CropSurface(c));
                     }
                 }
@@ -276,10 +286,11 @@ impl MetisState {
                 render_elements.extend(elems.into_iter().map(OutputStack::Surface));
             }
             if let Some(id) = id {
-                if let Some(decos) = deco_below.remove(&id) {
+                if let Some(spec) = deco_by_id.get(&id).filter(|s| !s.overlay) {
+                    let decos = self.decorations.window_elements(renderer, spec, win_scale);
                     if let Some(clip) = clip {
                         for d in decos {
-                            if let Some(c) = CropRenderElement::from_element(d, output_scale, clip) {
+                            if let Some(c) = CropRenderElement::from_element(d, win_scale, clip) {
                                 render_elements.push(OutputStack::CropDeco(c));
                             }
                         }
@@ -289,7 +300,6 @@ impl MetisState {
                 }
             }
         }
-        debug_assert!(deco_below.is_empty());
 
         // Background/bottom layer surfaces beneath the windows.
         render_elements.extend(lower_layer_elems);

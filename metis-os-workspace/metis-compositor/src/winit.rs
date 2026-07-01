@@ -147,6 +147,9 @@ pub fn init_winit(
         state.wallpaper.start_async_decode();
     }
 
+    let cfg = state.output_runtime.cached().clone();
+    crate::output_prefs::apply_outputs(state, &cfg);
+
     let mut damage_tracker = OutputDamageTracker::from_output(&render_output);
 
     let backend_winit = backend.clone();

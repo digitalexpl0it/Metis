@@ -205,6 +205,7 @@ pub struct MetisState {
     pub blur: crate::blur::BlurRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
+    pub output_runtime: crate::output_prefs::OutputRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
     /// When true, the next winit Redraw performs GL compositing + layer frame delivery.
@@ -486,6 +487,7 @@ impl MetisState {
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
             input_runtime: crate::device_input::InputRuntime::new(),
+            output_runtime: crate::output_prefs::OutputRuntime::new(),
             redraw_trigger: None,
             damaged: true,
             defer_client_flush: false,
@@ -559,6 +561,10 @@ impl MetisState {
 
         if let Some(cfg) = self.input_runtime.maybe_refresh() {
             crate::device_input::apply_keyboard(self, &cfg);
+        }
+
+        if let Some(cfg) = self.output_runtime.maybe_refresh() {
+            crate::output_prefs::apply_outputs(self, &cfg);
         }
 
         if self.tick_scroll_animations() {
@@ -1360,6 +1366,33 @@ impl MetisState {
     /// The output with the given name, if mapped.
     pub fn output_by_name(&self, name: &str) -> Option<smithay::output::Output> {
         self.space.outputs().find(|o| o.name() == name).cloned()
+    }
+
+    /// Fractional scale of the output containing `window`, or `fallback` when the
+    /// window is not on a client-visible output (e.g. during unmap transitions).
+    pub(crate) fn window_output_scale(
+        &self,
+        window: &smithay::desktop::Window,
+        fallback: smithay::utils::Scale<f64>,
+    ) -> smithay::utils::Scale<f64> {
+        let Some(loc) = self.space.element_location(window) else {
+            return fallback;
+        };
+        let geo = window.geometry();
+        let center = loc + (geo.size.to_f64() / 2.0).to_i32_round();
+        for output in self.space.outputs() {
+            if output.name() == "metis-render" {
+                continue;
+            }
+            if let Some(out_geo) = self.space.output_geometry(output) {
+                if out_geo.contains(center) {
+                    return smithay::utils::Scale::from(
+                        output.current_scale().fractional_scale(),
+                    );
+                }
+            }
+        }
+        fallback
     }
 
     /// Desk key (output name) of the primary output, falling back to any existing
@@ -5498,30 +5531,21 @@ impl MetisState {
             },
             CompositorCommand::ListOutputs => {
                 let primary = self.primary_output().map(|o| o.name());
-                let mut entries: Vec<(String, MonitorRect)> = self
+                let mut outputs: Vec<_> = self
                     .space
                     .outputs()
-                    .filter_map(|o| {
-                        let geo = self.space.output_geometry(o)?;
-                        Some((
-                            o.name(),
-                            MonitorRect {
-                                x: geo.loc.x,
-                                y: geo.loc.y,
-                                width: geo.size.w,
-                                height: geo.size.h,
-                            },
-                        ))
-                    })
+                    .filter(|o| o.name() != "metis-render")
+                    .cloned()
                     .collect();
-                entries.sort_by_key(|(_, rect)| (rect.x, rect.y));
-                let outputs = entries
-                    .into_iter()
-                    .map(|(name, rect)| metis_protocol::OutputInfo {
-                        name: name.clone(),
-                        primary: primary.as_deref() == Some(name.as_str()),
-                        rect,
-                    })
+                outputs.sort_by_key(|o| {
+                    self.space
+                        .output_geometry(o)
+                        .map(|g| (g.loc.x, g.loc.y))
+                        .unwrap_or((0, 0))
+                });
+                let outputs = outputs
+                    .iter()
+                    .map(|o| crate::output_prefs::output_info_for(self, o, primary.as_deref()))
                     .collect();
                 CompositorEvent::OutputList { outputs }
             }
@@ -5722,6 +5746,11 @@ impl MetisState {
             CompositorCommand::ReloadInput => {
                 let cfg = self.input_runtime.reload_from_disk();
                 crate::device_input::apply_keyboard(self, &cfg);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadOutputs => {
+                let cfg = self.output_runtime.reload_from_disk();
+                crate::output_prefs::apply_outputs(self, &cfg);
                 CompositorEvent::Pong
             }
             CompositorCommand::SetClipboard {

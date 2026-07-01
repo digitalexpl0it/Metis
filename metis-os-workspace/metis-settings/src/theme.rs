@@ -197,6 +197,23 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-row label {{ color: {text}; }}
         .metis-settings-row-icon {{ color: {muted}; }}
         .metis-settings-hint {{ color: {muted}; font-size: 12px; }}
+        .metis-settings-display-chip {{
+            padding: 8px 12px;
+            border-radius: {rs}px;
+            border: 1px solid {border};
+            background-color: {raised};
+            background-image: none;
+            box-shadow: none;
+            color: {text};
+        }}
+        .metis-settings-display-chip:hover {{ background-color: {surface}; }}
+        .metis-settings-display-chip image {{ color: {muted}; -gtk-icon-style: symbolic; }}
+        .metis-settings-display-chip label {{ color: {text}; font-size: 13px; }}
+        .metis-settings-display-chip-active {{
+            border-color: {accent};
+            background-color: {surface};
+        }}
+        .metis-settings-display-chip-active image {{ color: {accent}; }}
         .metis-settings-value {{ color: {text}; font-weight: 600; font-feature-settings: "tnum"; }}
         .metis-bt-battery-low {{ color: {warning}; font-weight: 700; }}
         .metis-settings-list {{

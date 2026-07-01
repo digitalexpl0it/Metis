@@ -34,6 +34,13 @@ pub fn reload_input() {
     }
 }
 
+/// Re-read `outputs.json` and apply per-output scale immediately. Best-effort.
+pub fn reload_outputs() {
+    if let Err(err) = send_command(CompositorCommand::ReloadOutputs) {
+        tracing::warn!(%err, "failed to reload outputs via compositor IPC");
+    }
+}
+
 /// Apply a layout mode (grid vs. scrolling) to every workspace on every output
 /// immediately, so changing the "New workspace layout" default acts as a live
 /// global on/off rather than only affecting future workspaces. Best-effort.
