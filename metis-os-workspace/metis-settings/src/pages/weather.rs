@@ -22,7 +22,7 @@ struct GeoResult {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Weather");
+    let (scroller, content) = ui::page_for("weather");
     let cfg = Rc::new(RefCell::new(metis_config::load_weather_config()));
 
     // ---- Units ------------------------------------------------------------

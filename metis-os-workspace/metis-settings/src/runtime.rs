@@ -8,6 +8,20 @@ use std::time::Duration;
 
 use metis_protocol::{CompositorCommand, CompositorEvent};
 
+/// Query DRM (or current) video modes for one output.
+pub fn list_output_modes(output: &str) -> (Vec<metis_protocol::OutputModeInfo>, Option<metis_protocol::OutputModeInfo>) {
+    match send_command(CompositorCommand::ListOutputModes {
+        output: output.to_string(),
+    }) {
+        Ok(CompositorEvent::OutputModes { modes, current }) => (modes, current),
+        Ok(_) => (Vec::new(), None),
+        Err(err) => {
+            tracing::warn!(%err, output, "failed to list output modes via compositor IPC");
+            (Vec::new(), None)
+        }
+    }
+}
+
 pub fn send(cmd: &str) {
     let path = metis_protocol::runtime_command_path();
     if let Some(dir) = path.parent() {

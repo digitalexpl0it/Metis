@@ -18,7 +18,7 @@ struct Inner {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Calendars");
+    let (scroller, content) = ui::page_for("calendars");
 
     let (list_card, list_body) = ui::section("Accounts");
     let list = gtk::Box::new(gtk::Orientation::Vertical, 8);

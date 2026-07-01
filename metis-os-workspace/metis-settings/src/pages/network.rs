@@ -22,7 +22,7 @@ struct Sections {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Network");
+    let (scroller, content) = ui::page_for("network");
 
     let stack = gtk::Stack::new();
     stack.set_vexpand(true);

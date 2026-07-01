@@ -13,7 +13,7 @@ use metis_config::MenuConfig;
 use crate::{runtime, ui};
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Metis Menu");
+    let (scroller, content) = ui::page_for("menu");
     let cfg = metis_config::load_menu_config();
 
     // ---- Quick launchers --------------------------------------------------

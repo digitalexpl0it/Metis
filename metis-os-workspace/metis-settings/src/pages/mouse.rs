@@ -7,7 +7,7 @@ use metis_config::MouseConfig;
 use super::input_common::{self, persist};
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = crate::ui::page("Mouse");
+    let (scroller, content) = crate::ui::page_for("mouse");
     let cfg = metis_config::load_input_config();
 
     let (card, body) = input_common::section_card("Pointer", "input-mouse-symbolic");

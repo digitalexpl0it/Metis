@@ -98,20 +98,23 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   (half / quarter / maximize); drag a border to resize. On the default desktop
   layout, windows reopen at the position and size you last left them.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
-  focused window. Each monitor has its own workspaces (configurable).
+  focused window, `Super`+`Alt`+`←`/`→` cycle workspaces (wraps). Each monitor
+  has its own workspaces (configurable).
 - **Cross-output moves** — drag a window onto another monitor (or snap it there)
   and it follows that display's desk; on grid workspaces `Super`+`Shift`+`←`/`→`
   sends the focused window to the adjacent monitor.
 - **Scrolling layout** — toggle any workspace into a niri/PaperWM-style scrolling
   strip with `Super`+`\`; navigate with `Super`+arrows.
-- **Settings** — launch from the app launcher, or `metis-cmd settings`. Control
-  center pages include Appearance, Metis Menu, Weather, Network, Calendars,
-  Input, Bluetooth, Printers, Power, Sound, and Display.
+- **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
+  sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
+  include Display, Appearance, Metis Menu, Weather, Network, Calendars,
+  Input, Bluetooth, Printers, Power, and Sound.
 
 | Shortcut | Action |
 |----------|--------|
 | `Super`+`1`..`9` | Switch workspace (on the monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move focused window to a workspace |
+| `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
 | `Super`+`Shift`+`←` / `→` | (grid) Move focused window to adjacent monitor |
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move active workspace to adjacent monitor (independent mode) |
 | `Super`+`F` | Toggle maximize for the focused window (below the edge bar) |
@@ -148,7 +151,7 @@ Other files are created on demand:
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
 | `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
 | `power.json` | You configure power settings | Power profile, idle timeouts, lid-close action |
-| `outputs.json` | You configure displays | Per-output scale, night-light prefs |
+| `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, night-light prefs |
 
 Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
 within ~1s and theme edits re-apply live. Set `opacity` < 1 for a see-through
@@ -179,7 +182,9 @@ reference.
   (compositor-side protocol + portal Wayland client). Verified with Flameshot
   and other xdg-desktop-portal screenshot apps. ScreenCast stream registration
   works; live PipeWire frame pump is still TODO.
-- **Phase 5 — display pipeline (VRR / colour / HDR):** upcoming.
+- **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — Settings →
+  Display now supports resolution/refresh and multi-monitor arrangement (DRM
+  session); mirror, VRR, night-light compositor, and HDR remain upcoming.
 - **Phase 6 — Flatpak, Steam & gaming:** upcoming — Steam/Proton on Metis,
   portal gaps (Inhibit, ScreenCast pump), Flatpak discovery, Gamescope optional
   wrapper, controller/device permissions docs.

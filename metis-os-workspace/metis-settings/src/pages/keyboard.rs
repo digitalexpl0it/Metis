@@ -7,7 +7,7 @@ use metis_config::{CapsLockBehavior, ComposeKey, KeyboardConfig};
 use super::input_common::{self, persist};
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = crate::ui::page("Keyboard");
+    let (scroller, content) = crate::ui::page_for("keyboard");
     let cfg = metis_config::load_input_config();
 
     let (layout_card, layout_body) =

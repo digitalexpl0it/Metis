@@ -8,7 +8,7 @@ use metis_config::TouchpadConfig;
 use super::input_common::{self, persist};
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = crate::ui::page("Touchpad");
+    let (scroller, content) = crate::ui::page_for("touchpad");
     let cfg = metis_config::load_input_config();
 
     let (card, body) = input_common::section_card("Touchpad", "input-touchpad-symbolic");

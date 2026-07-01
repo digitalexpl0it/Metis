@@ -99,7 +99,10 @@ pub fn init_winit(
                 serial_number: i.to_string(),
             },
         );
-        let _global = output.create_global::<MetisState>(&state.display_handle);
+        let global = output.create_global::<MetisState>(&state.display_handle);
+        state
+            .output_globals
+            .insert(output.name(), global);
         let mode = Mode { size: *size, refresh: 60_000 };
         output.change_current_state(Some(mode), Some(Transform::Flipped180), None, Some(*pos));
         output.set_preferred(mode);
@@ -107,6 +110,7 @@ pub fn init_winit(
         state.ensure_desk_for_output(&output);
         logical_outputs.push(output);
     }
+    state.winit_outputs = logical_outputs.clone();
 
     // Dedicated full-window render output: NOT client-visible and NOT in the
     // Space. It only drives the damage tracker, render scale, wallpaper size, and
@@ -194,6 +198,9 @@ pub fn init_winit(
                 // Re-tile the logical outputs across the new framebuffer size.
                 let layout = output_layout(size, logical_outputs.len().max(1));
                 for (out, (out_size, pos)) in logical_outputs.iter().zip(layout.iter()) {
+                    if !state.output_globals.contains_key(&out.name()) {
+                        continue;
+                    }
                     out.change_current_state(
                         Some(Mode { size: *out_size, refresh: 60_000 }),
                         Some(Transform::Flipped180),

@@ -9,6 +9,9 @@ pub enum CompositorCommand {
     /// List the connected outputs (name + geometry), so the settings app can offer
     /// per-display options (e.g. per-output wallpaper).
     ListOutputs,
+    /// List DRM video modes for one output (resolution + refresh). Returns the
+    /// current mode and every mode the connector advertises.
+    ListOutputModes { output: String },
     GetLayout,
     ListWindows,
     MoveWindow { id: u32, rect: PixelRect },
@@ -106,6 +109,11 @@ pub enum CompositorEvent {
     Monitor { rect: MonitorRect },
     /// Reply to `ListOutputs`: every connected output, primary first.
     OutputList { outputs: Vec<OutputInfo> },
+    /// Reply to `ListOutputModes`: advertised modes for one output.
+    OutputModes {
+        modes: Vec<OutputModeInfo>,
+        current: Option<OutputModeInfo>,
+    },
     LayoutChanged {
         layout: GridLayout,
         gutter_px: u32,
@@ -167,6 +175,17 @@ pub struct WindowInfo {
     pub workspace: u32,
 }
 
+/// A video mode (resolution + refresh) for one output.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct OutputModeInfo {
+    pub width: i32,
+    pub height: i32,
+    /// Refresh rate in millihertz (60_000 = 60 Hz), matching Smithay `output::Mode`.
+    pub refresh_millihz: i32,
+    #[serde(default)]
+    pub preferred: bool,
+}
+
 /// A connected output, as reported to the settings app for per-display options.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OutputInfo {
@@ -181,7 +200,7 @@ pub struct OutputInfo {
     /// Current fractional scale (1.0 = 100%).
     #[serde(default = "default_output_scale")]
     pub scale: f64,
-    /// Whether this output is enabled in `outputs.json` (disable/unmap is Phase 5).
+    /// Whether this output is currently enabled (mapped and visible to clients).
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// EDID make when known (may be empty under nested winit).

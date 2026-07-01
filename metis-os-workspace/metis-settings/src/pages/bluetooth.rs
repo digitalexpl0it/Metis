@@ -20,7 +20,7 @@ struct Sections {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Bluetooth");
+    let (scroller, content) = ui::page_for("bluetooth");
 
     let (adapter_card, adapter_body) = ui::section("Adapter");
     let powered = gtk::Switch::new();

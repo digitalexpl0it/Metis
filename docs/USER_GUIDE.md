@@ -250,6 +250,9 @@ dots or the keyboard:
 
 - `Super`+`1` .. `Super`+`9` — switch to that workspace.
 - `Super`+`Shift`+`1` .. `9` — move the focused window to that workspace.
+- `Super`+`Alt`+`←` / `→` — cycle to the previous / next workspace (wraps at
+  1..=count). Always uses **Super**+**Alt** — not remapped by `METIS_MOD` (see
+  nested sessions below).
 - Click a workspace dot in the bar to switch.
 
 Keybinds and clicks act on the monitor under the pointer.
@@ -340,6 +343,7 @@ scrolling mode; in grid mode they're inert.
 |----------|--------|
 | `Super`+`1`..`9` | Switch to workspace 1–9 (monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move the focused window to workspace 1–9 |
+| `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
 | `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor |
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move the active workspace to the adjacent monitor (independent mode) |
 | `Super`+`F` | Toggle maximize for the focused window (fills the area below the edge bar) |
@@ -351,7 +355,7 @@ scrolling mode; in grid mode they're inert.
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
 
-**Nested in GNOME?** `./run-metis.sh --session` sets `METIS_MOD=alt` — read **Super** as **Alt** in the table above, and click the Metis window first so it has keyboard focus. On a real Metis session, **Super** is the logo / Windows key.
+**Nested in GNOME?** `./run-metis.sh --session` sets `METIS_MOD=alt` — read **Super** as **Alt** in the table above **except** `Super`+`Alt`+`←`/`→`, which always uses the logo/Windows key plus **Alt**. Click the Metis window first so it has keyboard focus. On a real Metis session, **Super** is the logo / Windows key.
 
 ---
 
@@ -364,8 +368,18 @@ metis-cmd settings            # open Settings
 metis-cmd settings appearance # open a specific page
 ```
 
-Pages:
+Pages are grouped in the sidebar (Displays, Desktop, Connectivity, Input,
+System). Use the search field at the top of the sidebar to filter pages.
+Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
+`network`, `power`).
 
+- **Display** — per-output scale, enable/disable, resolution & refresh (DRM mode
+  list on real hardware), and multi-monitor arrangement (drag preview when two or
+  more outputs are connected; **Save display settings** with a keep/revert
+  confirmation). Scale and **Active** apply live; arrangement and resolution
+  changes are batched behind save. Night-light preferences are saved to
+  `outputs.json` (compositor colour shift not wired yet). Rotation and mirror are
+  stubs.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and
@@ -395,8 +409,6 @@ Pages:
   devices** list for Bluetooth peripherals with battery status.
 - **Sound** — default output and input device selection (bar volume widget
   unchanged).
-- **Display** — per-output scale and night-light preferences (resolution / refresh
-  / VRR remain future work).
 
 **Bluetooth battery notes.** Many devices only expose a coarse percentage over
 plain Bluetooth (often updating on reconnect). Charging state requires a driver
@@ -423,8 +435,9 @@ won't fire with Super unless you reconfigure the host.
 
 **Default:** nested sessions set `METIS_MOD=alt`, so every shortcut below that
 says **Super** means **Alt** instead — e.g. **Alt+1** switches workspace,
-**Alt+Shift+←** moves a window to the adjacent monitor. **Click the Metis
-session window first** so it has keyboard focus.
+**Alt+Shift+←** moves a window to the adjacent monitor. **`Super`+`Alt`+←/→`**
+(workspace cycle) always uses the logo/Windows key plus **Alt**, not `METIS_MOD`.
+**Click the Metis session window first** so it has keyboard focus.
 
 Override with `METIS_MOD=super` or `METIS_MOD=ctrl` if you prefer. On a real
 Metis session (future DRM backend), the default is Super.
@@ -444,7 +457,7 @@ Metis session (future DRM backend), the default is Super.
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
-| `outputs.json` | Per-output scale, night-light prefs |
+| `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), night-light prefs |
 
 ### Key `bar.json` fields
 

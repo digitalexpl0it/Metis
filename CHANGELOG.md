@@ -5,6 +5,47 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-30]
+
+### Added
+
+- **Settings — macOS-style control center** — grouped sidebar (Displays, Desktop,
+  Connectivity, Input, System), coloured icon badges per page, headers with
+  subtitles, inset grouped cards, sidebar search, and **Display** as the default
+  landing page.
+- **Display — resolution & refresh** — per-output DRM mode dropdown in
+  Settings → Display; modes saved to `outputs.json` (`mode_width` /
+  `mode_height` / `mode_refresh_millihz`) and applied via `DrmOutput::use_mode`
+  on `ReloadOutputs` (real DRM session).
+- **Display — arrangement canvas** — multi-monitor drag-to-arrange preview with
+  **Save display settings** and a 15-second keep/revert confirmation;
+  single-monitor preview only (no drag).
+- **`ListOutputModes` IPC** — compositor exposes the DRM mode list per output for
+  the settings UI (`OutputModeInfo`, `OutputModes` event).
+
+### Changed
+
+- **Settings navigation** — Display first; Weather and Calendars grouped under
+  Desktop; Input and System sections aligned with GNOME / macOS conventions.
+- **Display save model** — arrangement and resolution changes batch behind
+  **Save display settings**; per-output scale and **Active** still apply live.
+
+### Fixed
+
+- **Settings scroll lag** — capture-phase wheel handler on page scrollers,
+  non-overlay scrollbars, kinetic scrolling disabled; page content scrolls
+  reliably over rows and controls.
+- **Settings search lag and lockups** — plain search field (no GtkSearchEntry
+  delay), 16 ms debounced filter while typing, immediate flush on Backspace/Delete
+  release, selection guard during filter applies, and backspace key-repeat
+  swallowed when the field is already empty.
+- **Display arrangement on one monitor** — drag preview no longer commits layout
+  live (compositor keeps a single output at the origin).
+- **Settings row padding** — printers status, power battery line, and display
+  per-monitor cards use consistent inset rows.
+- **Arrangement save on single output** — no longer displaced the desktop away
+  from the origin (edge bar, title bar, and regions stayed usable).
+
 ## [2026-06-29]
 
 ### Added

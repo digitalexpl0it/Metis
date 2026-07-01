@@ -569,7 +569,9 @@ impl MetisState {
                     if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
                         return Some(hit);
                     }
-                    return None;
+                    // In the bar strip but no subsurface — fall through to the
+                    // priority pass below (root-surface fallback).
+                    break;
                 }
             }
         }
@@ -767,6 +769,15 @@ fn metis_bar_layer_surface_at(
     if let Some((popup, location)) = metis_bar_deepest_popup(root, local) {
         let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
         return Some((popup.wl_surface().clone(), popup_origin_global));
+    }
+
+    // GTK icon buttons may not appear in surface_under on every frame; still
+    // deliver to the layer root so the shell can hit-test widgets internally.
+    if metis_bar_region_contains(layer, layers, rel) {
+        return Some((
+            root.clone(),
+            (local + layer_loc.to_f64() + output_geo.loc.to_f64()),
+        ));
     }
 
     None

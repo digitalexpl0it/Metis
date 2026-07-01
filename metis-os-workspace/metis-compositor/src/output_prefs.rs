@@ -1,10 +1,11 @@
-//! Apply `outputs.json` per-output preferences (fractional scale today).
+//! Apply `outputs.json` per-output preferences (scale + enable/disable).
 
 use std::time::{Duration, Instant};
 
 use metis_config::{load_outputs_config, output_prefs, OutputsConfig};
 use smithay::output::Output;
 use smithay::output::Scale;
+use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use crate::state::MetisState;
 
@@ -48,26 +49,37 @@ impl OutputRuntime {
     }
 }
 
-/// Apply saved preferences to every client-visible output. Returns true when any
-/// output scale changed.
+/// Apply saved preferences to every connected output. Returns true when any
+/// output scale or enabled state changed.
 pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
-    let outputs: Vec<Output> = state
-        .space
-        .outputs()
-        .filter(|o| o.name() != "metis-render")
-        .cloned()
-        .collect();
+    let outputs: Vec<Output> = state.connected_outputs();
     let mut changed = false;
-    for output in outputs {
+    let mut enable_changed = false;
+    for output in &outputs {
+        let name = output.name();
+        let prefs = output_prefs(cfg, &name);
+        if prefs.enabled != state.is_output_enabled(&name) {
+            if state.set_output_enabled(&name, prefs.enabled) {
+                enable_changed = true;
+                changed = true;
+            }
+        }
+    }
+    if enable_changed {
+        state.retile_after_output_prefs();
+    }
+    if apply_output_layout(state, cfg) {
+        changed = true;
+    }
+    if crate::output_modes::apply_output_modes(state, cfg) {
+        changed = true;
+    }
+    for output in state.connected_outputs() {
+        if !state.is_output_enabled(&output.name()) {
+            continue;
+        }
         if apply_output_scale(&output, cfg) {
             changed = true;
-        }
-        let prefs = output_prefs(cfg, &output.name());
-        if !prefs.enabled {
-            tracing::debug!(
-                name = %output.name(),
-                "output marked disabled in outputs.json (disable/unmap not wired yet)"
-            );
         }
     }
     if changed {
@@ -100,29 +112,109 @@ fn clamp_user_scale(raw: f64) -> f64 {
     raw.clamp(1.0, 4.0)
 }
 
+/// Reposition outputs from saved `layout_x` / `layout_y` in `outputs.json`.
+/// With a single active display the desktop always stays at the origin — saved
+/// layout offsets are only meaningful when two or more outputs are enabled.
+pub fn apply_output_layout(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
+    let active: Vec<Output> = state
+        .connected_outputs()
+        .into_iter()
+        .filter(|o| state.is_output_enabled(&o.name()))
+        .collect();
+
+    if active.len() < 2 {
+        let mut changed = false;
+        let origin = Point::from((0i32, 0i32));
+        for output in active {
+            let current = state.space.output_geometry(&output).map(|g| g.loc);
+            if current == Some(origin) {
+                continue;
+            }
+            output.change_current_state(None, None, None, Some(origin));
+            state.space.map_output(&output, origin);
+            tracing::info!(name = %output.name(), "reset single output to origin");
+            changed = true;
+        }
+        return changed;
+    }
+
+    let mut changed = false;
+    for output in active {
+        let prefs = output_prefs(cfg, &output.name());
+        let Some(x) = prefs.layout_x else { continue };
+        let Some(y) = prefs.layout_y else { continue };
+        let pos = Point::from((x, y));
+        let current = state.space.output_geometry(&output).map(|g| g.loc);
+        if current == Some(pos) {
+            continue;
+        }
+        output.change_current_state(None, None, None, Some(pos));
+        state.space.map_output(&output, pos);
+        tracing::info!(name = %output.name(), ?pos, "applied output layout position");
+        changed = true;
+    }
+    changed
+}
+
+/// Default left-to-right placement for a newly connected output.
+pub fn auto_output_position(state: &MetisState) -> Point<i32, Logical> {
+    let x: i32 = state
+        .connected_outputs()
+        .iter()
+        .filter_map(|o| state.space.output_geometry(o))
+        .map(|g| g.loc.x + g.size.w)
+        .max()
+        .unwrap_or(0);
+    Point::from((x, 0))
+}
+
+pub fn output_position_for_connect(
+    state: &MetisState,
+    cfg: &OutputsConfig,
+    name: &str,
+) -> Point<i32, Logical> {
+    let prefs = output_prefs(cfg, name);
+    if let (Some(x), Some(y)) = (prefs.layout_x, prefs.layout_y) {
+        Point::from((x, y))
+    } else {
+        auto_output_position(state)
+    }
+}
+
+pub(crate) fn output_geometry(state: &MetisState, output: &Output) -> Option<Rectangle<i32, Logical>> {
+    state.space.output_geometry(output).or_else(|| {
+        output.current_mode().map(|mode| {
+            Rectangle::new(Point::from((0, 0)), Size::from((mode.size.w, mode.size.h)))
+        })
+    })
+}
+
 pub fn output_info_for(state: &MetisState, output: &Output, primary: Option<&str>) -> metis_protocol::OutputInfo {
     let name = output.name();
-    let geo = state.space.output_geometry(output);
-    let rect = geo.map(|g| metis_protocol::MonitorRect {
-        x: g.loc.x,
-        y: g.loc.y,
-        width: g.size.w,
-        height: g.size.h,
-    }).unwrap_or(metis_protocol::MonitorRect {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0,
-    });
+    let geo = output_geometry(state, output);
+    let rect = geo
+        .map(|g| metis_protocol::MonitorRect {
+            x: g.loc.x,
+            y: g.loc.y,
+            width: g.size.w,
+            height: g.size.h,
+        })
+        .unwrap_or(metis_protocol::MonitorRect {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        });
     let cfg = &state.output_runtime.cached;
     let prefs = output_prefs(cfg, &name);
     let phys = output.physical_properties();
+    let active = state.is_output_enabled(&name);
     metis_protocol::OutputInfo {
         name,
         primary: primary.is_some_and(|p| p == output.name()),
         rect,
         scale: output.current_scale().fractional_scale(),
-        enabled: prefs.enabled,
+        enabled: active && prefs.enabled,
         make: phys.make,
         model: phys.model,
     }

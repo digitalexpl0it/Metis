@@ -2,7 +2,10 @@
 # Launch Metis — Wayland compositor + shell.
 #
 # Usage (from this directory):
-#   ./run-metis.sh --session    # start Metis compositor + shell (full desktop)
+#   ./run-metis.sh --install-session # normal path: build release, install to
+#                                    # /usr/local, log out, pick "Metis" at greeter
+#   ./run-metis.sh --session         # dev only: run compositor+shell from target/
+#                                    # without installing (nested GNOME or bare TTY)
 #   ./run-metis.sh --session -- -c foot   # session + spawn a client app
 #   ./run-metis.sh --session --import-env # also route D-Bus/systemd-activated
 #                                         # apps into the nested session (dev)
@@ -12,10 +15,7 @@
 #   ./run-metis.sh --release-small # smallest install footprint (see Cargo.toml)
 #   ./run-metis.sh --stop       # stop background shell process
 #   ./run-metis.sh --verify-grid # compare compositor vs shell grid layouts
-#   ./run-metis.sh --install-session # build release + install the GDM/login
-#                                    # "Metis" session entry (no sudo — install
-#                                    # steps re-exec sudo when needed)
-#   ./run-metis.sh --session --drm   # run the standalone DRM/TTY backend
+#   ./run-metis.sh --session --drm   # same as --session on a bare TTY (explicit)
 #                                    # (switch to a free VT first; keep SSH open)
 #
 # Logs:
@@ -601,7 +601,13 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     echo
 
     run_section "Session"
-    if [[ "$SESSION" -eq 1 ]] && [[ "$DRM" -eq 1 ]]; then
+    # True when a host compositor already owns the display (GNOME terminal, SSH
+    # with forwarded WAYLAND_DISPLAY, etc.). A bare TTY has neither set.
+    nested_host_session() {
+        [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]
+    }
+
+    if [[ "$SESSION" -eq 1 ]] && { [[ "$DRM" -eq 1 ]] || ! nested_host_session; }; then
         # Standalone DRM/TTY session: own the seat outright. Pin the backend and
         # use the real defaults (Super modifier, wallpaper/briefing ON) rather
         # than the nested dev fallbacks below.
@@ -615,9 +621,14 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         export XDG_CURRENT_DESKTOP
         : "${XDG_SESSION_DESKTOP:=metis}"
         export XDG_SESSION_DESKTOP
-        log "Backend: DRM/KMS (standalone) — METIS_BACKEND=drm"
+        log "Backend: DRM/KMS (TTY / standalone) — METIS_BACKEND=drm"
         log "Escape:  Ctrl+Alt+Backspace quits · Ctrl+Alt+F<n> switches VT"
+        log "Tip:     daily use → ./run-metis.sh --install-session, then pick Metis at greeter"
     elif [[ "$SESSION" -eq 1 ]]; then
+        # Nested dev session inside GNOME/KDE/etc. Never inherit METIS_BACKEND=drm
+        # from a prior login-session environment — DRM cannot open the GPU twice.
+        export METIS_BACKEND=winit
+
         # Nested dev sessions default wallpaper + briefing OFF. Distinguish an
         # explicit empty value (METIS_NO_WALLPAPER=, meaning "enable") from an
         # unset var ("use the session default of disabled"). Using ${VAR-...}
@@ -648,6 +659,15 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-unset}"
     log "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-unset}"
     log "DESKTOP_SESSION=${DESKTOP_SESSION:-unset}"
+    if [[ "$SESSION" -eq 1 ]] && nested_host_session; then
+        log "METIS_BACKEND=${METIS_BACKEND:-unset} (nested dev — winit window inside host desktop)"
+        if [[ -n "${DESKTOP_SESSION:-}" ]] && [[ "${DESKTOP_SESSION}" == metis* ]]; then
+            log "WARN: WAYLAND_DISPLAY is set — you look nested inside another session."
+            log "      For a real TTY desktop: ./run-metis.sh --install-session, log out, pick Metis."
+        fi
+    elif [[ -n "${METIS_BACKEND:-}" ]]; then
+        log "METIS_BACKEND=${METIS_BACKEND}"
+    fi
     if [[ -n "${METIS_MOD:-}" ]]; then
         log "METIS_MOD=${METIS_MOD} (compositor shortcuts use this modifier)"
     fi
@@ -663,7 +683,8 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
     if [[ "$SESSION" -eq 0 ]] && [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
         log "ERROR: WAYLAND_DISPLAY is not set."
-        log "Start the full session: ./run-metis.sh --session"
+        log "Install + greeter login: ./run-metis.sh --install-session"
+        log "Or dev session:          ./run-metis.sh --session"
         exit 1
     fi
 
@@ -820,7 +841,7 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         # installed metis-session) it must provide the Secret Service itself.
         # A nested dev session is skipped — the host desktop's keyring already
         # serves org.freedesktop.secrets on the shared user bus.
-        if [[ "$DRM" -eq 1 ]]; then
+        if [[ "$DRM" -eq 1 ]] || ! nested_host_session; then
             metis_start_secret_service
         fi
 
@@ -834,6 +855,11 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         "$COMP_BIN" "${COMP_ARGS[@]}"
         session_rc=$?
         date +%s >"$LAST_EXIT_FILE" 2>/dev/null || true
+        if [[ "$session_rc" -ne 0 ]] && [[ "${METIS_BACKEND:-}" == "drm" ]]; then
+            log "ERROR: compositor exited with status $session_rc (see log above)."
+            log "       DRM busy? From another VT/SSH: pkill metis-compositor"
+            log "       Daily driver: ./run-metis.sh --install-session → pick Metis at greeter."
+        fi
         exit "$session_rc"
     fi
 

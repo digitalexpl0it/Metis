@@ -6,7 +6,9 @@ pub use layer_shell::handle_layer_commit;
 
 use std::os::unix::io::OwnedFd;
 
-use crate::clipboard::{write_selection_to_fd, MetisSelectionUserData};
+use crate::clipboard::{serve_compositor_selection, MetisSelectionUserData};
+use smithay::wayland::selection::data_device::current_data_device_selection_userdata;
+use smithay::wayland::selection::primary_selection::current_primary_selection_userdata;
 use crate::state::MetisState;
 
 use smithay::input::dnd::{DnDGrab, DndGrabHandler, GrabType, Source};
@@ -107,12 +109,35 @@ impl SelectionHandler for MetisState {
         _seat: Seat<Self>,
         user_data: &Self::SelectionUserData,
     ) {
-        if let Some(offer) = user_data.offer.as_ref() {
-            if offer.mime == mime_type {
-                write_selection_to_fd(fd, offer);
+        let fd = match serve_compositor_selection(user_data, &mime_type, fd) {
+            Ok(()) => return,
+            Err(fd) => fd,
+        };
+
+        let compositor_owned = match ty {
+            SelectionTarget::Clipboard => {
+                current_data_device_selection_userdata(&self.seat).is_some()
+            }
+            SelectionTarget::Primary => current_primary_selection_userdata(&self.seat).is_some(),
+        };
+        if compositor_owned {
+            if user_data.resolve_payload().is_none() {
+                // XWayland advertised Wayland mimes; bytes live on the X11 side.
+                if let Some(xwm) = self.xwm.as_mut() {
+                    if let Err(err) = xwm.send_selection(ty, mime_type, fd) {
+                        tracing::warn!(?err, ?ty, "failed to read X11 selection for Wayland paste");
+                    }
+                }
                 return;
             }
+            tracing::warn!(
+                ?ty,
+                %mime_type,
+                "compositor selection: unsupported mime for recall payload"
+            );
+            return;
         }
+
         if let Some(xwm) = self.xwm.as_mut() {
             if let Err(err) = xwm.send_selection(ty, mime_type, fd) {
                 tracing::warn!(?err, ?ty, "failed to send Wayland selection to XWayland");

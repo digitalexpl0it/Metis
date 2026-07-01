@@ -9,6 +9,22 @@ pub struct OutputPrefs {
     /// Whether this output is enabled (future compositor hook).
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// Logical desktop X origin (pixels). When set, the compositor places this
+    /// output at this position; unset outputs are auto-packed left-to-right.
+    #[serde(default)]
+    pub layout_x: Option<i32>,
+    /// Logical desktop Y origin (pixels).
+    #[serde(default)]
+    pub layout_y: Option<i32>,
+    /// Saved video mode width in pixels (`None` = compositor default / preferred).
+    #[serde(default)]
+    pub mode_width: Option<i32>,
+    /// Saved video mode height in pixels.
+    #[serde(default)]
+    pub mode_height: Option<i32>,
+    /// Saved refresh rate in millihertz (60_000 = 60 Hz).
+    #[serde(default)]
+    pub mode_refresh_millihz: Option<i32>,
     /// Night-light warm shift enabled on this output (Phase 5 precursor).
     #[serde(default)]
     pub night_light: bool,
@@ -27,6 +43,11 @@ impl Default for OutputPrefs {
         Self {
             scale: default_scale(),
             enabled: true,
+            layout_x: None,
+            layout_y: None,
+            mode_width: None,
+            mode_height: None,
+            mode_refresh_millihz: None,
             night_light: false,
         }
     }

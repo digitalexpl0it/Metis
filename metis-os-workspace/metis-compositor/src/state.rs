@@ -237,6 +237,10 @@ pub struct MetisState {
     /// DRM/udev backend state (session, GPUs, per-connector surfaces). `None` in
     /// the nested winit session.
     pub udev: Option<crate::udev::UdevState>,
+    /// Client-visible logical outputs in the nested winit session (empty on DRM).
+    pub winit_outputs: Vec<smithay::output::Output>,
+    /// wl_output globals for winit logical outputs (DRM stores these per-surface).
+    pub output_globals: std::collections::HashMap<String, smithay::reexports::wayland_server::backend::GlobalId>,
     /// Screen capture protocol state (ext-image-copy-capture).
     pub image_capture: crate::image_capture::ImageCaptureRuntime,
 }
@@ -502,6 +506,8 @@ impl MetisState {
             snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
             last_snap_rect: None,
             udev: None,
+            winit_outputs: Vec::new(),
+            output_globals: std::collections::HashMap::new(),
             image_capture: crate::image_capture::ImageCaptureRuntime::new(&dh),
         }
     }
@@ -1216,9 +1222,180 @@ impl MetisState {
     // `space.outputs().next()` call sites. With one output they are equivalent to
     // the old primary-only behavior.
 
-    /// The primary (first-registered) output, if any output is mapped yet.
+    /// The primary (first-registered) enabled output, if any output is mapped yet.
     pub fn primary_output(&self) -> Option<smithay::output::Output> {
         self.space.outputs().next().cloned()
+    }
+
+    /// Every connected client-visible output, including user-disabled ones.
+    pub fn connected_outputs(&self) -> Vec<smithay::output::Output> {
+        if let Some(udev) = &self.udev {
+            udev.surfaces.values().map(|s| s.output.clone()).collect()
+        } else {
+            self.winit_outputs.clone()
+        }
+    }
+
+    /// Whether `name` is currently mapped into the desktop and visible to clients.
+    pub fn is_output_enabled(&self, name: &str) -> bool {
+        self.space
+            .outputs()
+            .any(|o| o.name() == name && o.name() != "metis-render")
+    }
+
+    pub fn enabled_output_count(&self) -> usize {
+        self.space
+            .outputs()
+            .filter(|o| o.name() != "metis-render")
+            .count()
+    }
+
+    /// Move every window on `output_key` to another enabled output before disable.
+    pub fn evacuate_output(&mut self, output_key: &str, fallback_key: &str) {
+        if output_key.is_empty() || fallback_key.is_empty() || output_key == fallback_key {
+            return;
+        }
+        let ids: Vec<u32> = self
+            .windows
+            .ids()
+            .into_iter()
+            .filter(|id| self.desk_key_for_window(*id) == output_key)
+            .collect();
+        for id in ids {
+            self.move_window_to_output(id, fallback_key);
+        }
+    }
+
+    pub(crate) fn fallback_output_key_excluding(&self, skip: &str) -> Option<String> {
+        self.space
+            .outputs()
+            .find(|o| o.name() != skip && o.name() != "metis-render")
+            .map(|o| o.name())
+    }
+
+    pub(crate) fn winit_disable_output(&mut self, name: &str) -> bool {
+        if self.udev.is_some() {
+            return false;
+        }
+        let Some(output) = self.winit_outputs.iter().find(|o| o.name() == name).cloned() else {
+            return false;
+        };
+        if !self.is_output_enabled(name) {
+            return false;
+        }
+        if let Some(global) = self.output_globals.remove(name) {
+            self.display_handle.remove_global::<MetisState>(global);
+        }
+        self.space.unmap_output(&output);
+        tracing::info!(output = %name, "output disabled by user");
+        true
+    }
+
+    pub(crate) fn winit_enable_output(&mut self, name: &str) -> bool {
+        if self.udev.is_some() {
+            return false;
+        }
+        let Some(output) = self.winit_outputs.iter().find(|o| o.name() == name).cloned() else {
+            return false;
+        };
+        if self.is_output_enabled(name) {
+            return false;
+        }
+        let global = output.create_global::<MetisState>(&self.display_handle);
+        self.output_globals.insert(name.to_string(), global);
+        tracing::info!(output = %name, "output re-enabled by user");
+        true
+    }
+
+    pub(crate) fn repack_winit_outputs(&mut self) {
+        if self.udev.is_some() {
+            return;
+        }
+        let mut enabled: Vec<smithay::output::Output> = self
+            .winit_outputs
+            .iter()
+            .filter(|o| self.output_globals.contains_key(&o.name()))
+            .cloned()
+            .collect();
+        enabled.sort_by_key(|o| o.name());
+        let cfg = self.output_runtime.cached().clone();
+        let mut auto_x = 0_i32;
+        for output in enabled {
+            let width = output
+                .current_mode()
+                .map(|m| m.size.w)
+                .unwrap_or(self.monitor.width.max(1));
+            let prefs = metis_config::output_prefs(&cfg, &output.name());
+            let pos = if let (Some(x), Some(y)) = (prefs.layout_x, prefs.layout_y) {
+                smithay::utils::Point::from((x, y))
+            } else {
+                let pos = smithay::utils::Point::from((auto_x, 0));
+                auto_x += width;
+                pos
+            };
+            output.change_current_state(None, None, None, Some(pos));
+            self.space.map_output(&output, pos);
+        }
+        if let Some(geo) = self
+            .space
+            .outputs()
+            .next()
+            .and_then(|o| self.space.output_geometry(o))
+        {
+            self.monitor.width = geo.size.w;
+            self.monitor.height = geo.size.h;
+        }
+    }
+
+    pub(crate) fn retile_after_output_prefs(&mut self) {
+        if self.udev.is_some() {
+            self.retile_outputs();
+        } else {
+            self.repack_winit_outputs();
+            let (wp_full, wp_regions) = self.wallpaper_layout();
+            self.wallpaper.set_layout(wp_full, wp_regions);
+            self.wallpaper.start_async_decode();
+            self.reflow_for_bar_geometry_change();
+            self.emit_monitor_changed();
+            self.damaged = true;
+            self.schedule_redraw();
+        }
+    }
+
+    pub(crate) fn set_output_enabled(&mut self, name: &str, enabled: bool) -> bool {
+        let currently = self.is_output_enabled(name);
+        if enabled == currently {
+            return false;
+        }
+        if !enabled {
+            if self.enabled_output_count() <= 1 {
+                tracing::warn!(output = %name, "refusing to disable last enabled output");
+                return false;
+            }
+            let Some(fallback) = self.fallback_output_key_excluding(name) else {
+                return false;
+            };
+            let fallback = fallback.clone();
+            self.evacuate_output(name, &fallback);
+            let ok = if self.udev.is_some() {
+                self.udev_disable_output(name)
+            } else {
+                self.winit_disable_output(name)
+            };
+            if !ok {
+                return false;
+            }
+        } else {
+            let ok = if self.udev.is_some() {
+                self.udev_enable_output(name)
+            } else {
+                self.winit_enable_output(name)
+            };
+            if !ok {
+                return false;
+            }
+        }
+        true
     }
 
     /// Global logical geometry of `output` as a `MonitorRect`.
@@ -3844,6 +4021,63 @@ impl MetisState {
             .set(&app_id, crate::window_state::SavedGeometry::from_rect(rect));
     }
 
+    /// Mapped client body in logical coords (element location + buffer size).
+    pub(crate) fn window_client_body_rect(
+        &self,
+        id: u32,
+        window: &smithay::desktop::Window,
+    ) -> Option<PixelRect> {
+        let record = self.windows.get(id)?;
+        if self.windows.is_minimized(id) {
+            return None;
+        }
+        if record.fullscreen {
+            let geo = self.space.element_geometry(window)?;
+            return Some(PixelRect {
+                x: geo.loc.x,
+                y: geo.loc.y,
+                width: geo.size.w,
+                height: geo.size.h,
+            });
+        }
+        let loc = self.space.element_location(window)?;
+        let size = window.geometry().size;
+        if size.w <= 0 || size.h <= 0 {
+            return None;
+        }
+        Some(PixelRect {
+            x: loc.x,
+            y: loc.y,
+            width: size.w,
+            height: size.h,
+        })
+    }
+
+    /// True when a window stacked above `below_id` has client pixels at `(x, y)`.
+    pub(crate) fn higher_window_client_occludes(
+        &self,
+        x: i32,
+        y: i32,
+        below_id: u32,
+    ) -> bool {
+        use crate::desk_input::point_in_rect;
+
+        for window in self.space.elements().rev() {
+            let Some(id) = self.windows.id_for_window(window) else {
+                continue;
+            };
+            if id == below_id {
+                break;
+            }
+            if let Some(body) = self.window_client_body_rect(id, window) {
+                if point_in_rect(x, y, body) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Handle a pointer press that may land on a server-side decoration (titlebar,
     /// control buttons, or border). Returns true when the press was consumed by the
     /// decoration (so the caller must not forward it to a client surface).
@@ -3926,6 +4160,9 @@ impl MetisState {
                 if point_in_rect(x, y, metis_grid::app_tile_body_rect(frame)) {
                     // Inside the client body → not a decoration hit; let it pass through.
                     return false;
+                }
+                if self.higher_window_client_occludes(x, y, spec.id) {
+                    continue;
                 }
             }
             // Clicking any of a window's chrome focuses it, so the taskbar
@@ -4752,7 +4989,11 @@ impl MetisState {
         let Some(frame) = frame else {
             return;
         };
-        if !point_in_rect(loc.x as i32, loc.y as i32, frame) {
+        let (x, y) = (loc.x as i32, loc.y as i32);
+        if !point_in_rect(x, y, frame) {
+            return;
+        }
+        if self.higher_window_client_occludes(x, y, preferred) {
             return;
         }
         self.raise_stacking_window(preferred, false);
@@ -5530,24 +5771,26 @@ impl MetisState {
                 rect: self.monitor,
             },
             CompositorCommand::ListOutputs => {
-                let primary = self.primary_output().map(|o| o.name());
-                let mut outputs: Vec<_> = self
+                let primary = self
                     .space
                     .outputs()
-                    .filter(|o| o.name() != "metis-render")
-                    .cloned()
-                    .collect();
+                    .find(|o| o.name() != "metis-render")
+                    .map(|o| o.name());
+                let mut outputs: Vec<_> = self.connected_outputs();
                 outputs.sort_by_key(|o| {
-                    self.space
-                        .output_geometry(o)
-                        .map(|g| (g.loc.x, g.loc.y))
-                        .unwrap_or((0, 0))
+                    crate::output_prefs::output_geometry(self, o)
+                        .map(|g| (g.loc.x, g.loc.y, o.name()))
+                        .unwrap_or((0, 0, o.name()))
                 });
                 let outputs = outputs
                     .iter()
                     .map(|o| crate::output_prefs::output_info_for(self, o, primary.as_deref()))
                     .collect();
                 CompositorEvent::OutputList { outputs }
+            }
+            CompositorCommand::ListOutputModes { output } => {
+                let (modes, current) = crate::output_modes::list_output_modes(self, &output);
+                CompositorEvent::OutputModes { modes, current }
             }
             CompositorCommand::GetLayout => {
                 let key = self.primary_key();

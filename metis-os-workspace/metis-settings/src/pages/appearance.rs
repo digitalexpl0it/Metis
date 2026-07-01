@@ -34,7 +34,7 @@ struct ColorButtons {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Appearance");
+    let (scroller, content) = ui::page_for("appearance");
 
     let mode = metis_config::load_theme_preference().unwrap_or(ThemeMode::Dark);
     let name = effective_name(&mode);

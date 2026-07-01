@@ -15,7 +15,7 @@ struct Sections {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Printers");
+    let (scroller, content) = ui::page_for("printers");
 
     let open = gtk::Button::with_label("Open printer settings…");
     open.add_css_class("suggested-action");
@@ -24,7 +24,10 @@ pub fn build() -> gtk::Widget {
     let (card, body) = ui::section("Installed printers");
     let status = gtk::Label::new(None);
     status.set_xalign(0.0);
-    body.append(&status);
+    let status_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    status_row.add_css_class("metis-settings-row");
+    status_row.append(&status);
+    body.append(&status_row);
     let list = gtk::Box::new(gtk::Orientation::Vertical, 6);
     list.add_css_class("metis-settings-list");
     body.append(&list);
@@ -79,7 +82,10 @@ fn render(sections: &Sections, snap: &PrintersSnapshot) {
         let empty = gtk::Label::new(Some("No printers configured."));
         empty.set_xalign(0.0);
         empty.add_css_class("metis-settings-hint");
-        sections.list.append(&empty);
+        let empty_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        empty_row.add_css_class("metis-settings-row");
+        empty_row.append(&empty);
+        sections.list.append(&empty_row);
         return;
     }
     for p in &snap.printers {

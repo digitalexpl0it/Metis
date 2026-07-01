@@ -45,7 +45,7 @@ use smithay::{
             timer::{TimeoutAction, Timer},
             EventLoop, LoopHandle, RegistrationToken,
         },
-        drm::control::{connector, crtc, ModeTypeFlags},
+        drm::control::{connector, crtc, Mode, ModeTypeFlags},
         input::Libinput,
         rustix::fs::OFlags,
         wayland_server::backend::GlobalId,
@@ -84,6 +84,10 @@ pub struct SurfaceData {
     pub output: Output,
     pub global: Option<GlobalId>,
     pub drm_output: MetisDrmOutput,
+    /// Modes advertised by the connector when this output was connected.
+    pub modes: Vec<Mode>,
+    /// User turned this output off in Settings while the connector stays connected.
+    pub user_disabled: bool,
     /// A frame is committed and awaiting its vblank; do not render again until
     /// `frame_submitted` clears this.
     pub queued: bool,
@@ -503,12 +507,11 @@ impl MetisState {
             connector.interface_id()
         );
 
-        let mode_id = connector
-            .modes()
-            .iter()
-            .position(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
-            .unwrap_or(0);
-        let Some(drm_mode) = connector.modes().get(mode_id).copied() else {
+        let cfg = self.output_runtime.cached().clone();
+        let modes: Vec<Mode> = connector.modes().to_vec();
+        let prefs = metis_config::output_prefs(&cfg, &name);
+        let mode_id = crate::output_modes::pick_drm_mode_index(&modes, &prefs);
+        let Some(drm_mode) = modes.get(mode_id).copied() else {
             tracing::warn!(%name, "connector has no modes");
             return;
         };
@@ -541,15 +544,8 @@ impl MetisState {
         );
         let global = output.create_global::<MetisState>(&self.display_handle);
 
-        // Tile outputs left-to-right in global space.
-        let x: i32 = self
-            .space
-            .outputs()
-            .filter_map(|o| self.space.output_geometry(o))
-            .map(|g| g.loc.x + g.size.w)
-            .max()
-            .unwrap_or(0);
-        let position = Point::from((x, 0));
+        // Place the output using saved layout or auto-pack left-to-right.
+        let position = crate::output_prefs::output_position_for_connect(self, &cfg, &name);
         output.set_preferred(wl_mode);
         output.change_current_state(Some(wl_mode), Some(Transform::Normal), None, Some(position));
         self.space.map_output(&output, position);
@@ -595,6 +591,8 @@ impl MetisState {
                 output: output.clone(),
                 global: Some(global),
                 drm_output,
+                modes,
+                user_disabled: false,
                 queued: false,
                 pending: true,
             },
@@ -630,7 +628,9 @@ impl MetisState {
             self.damaged = false;
             if let Some(udev) = self.udev.as_mut() {
                 for surface in udev.surfaces.values_mut() {
-                    surface.pending = true;
+                    if !surface.user_disabled {
+                        surface.pending = true;
+                    }
                 }
             }
         }
@@ -640,7 +640,7 @@ impl MetisState {
             .map(|u| {
                 u.surfaces
                     .iter()
-                    .filter(|(_, s)| s.pending && !s.queued)
+                    .filter(|(_, s)| !s.user_disabled && s.pending && !s.queued)
                     .map(|(c, _)| *c)
                     .collect()
             })
@@ -686,6 +686,16 @@ impl MetisState {
             Some(r) => r,
             None => return,
         };
+
+        let user_disabled = self
+            .udev
+            .as_ref()
+            .and_then(|u| u.surfaces.get(&crtc))
+            .is_some_and(|s| s.user_disabled);
+        if user_disabled {
+            self.udev.as_mut().unwrap().renderer = Some(renderer);
+            return;
+        }
 
         let output = match self
             .udev
@@ -846,10 +856,28 @@ impl MetisState {
     /// leaves a hole (and a reconnect never overlaps). Order is kept stable by
     /// current x then name, so the surviving outputs don't shuffle unexpectedly.
     fn repack_outputs(&mut self) {
-        let mut outputs: Vec<Output> = self.space.outputs().cloned().collect();
+        let mut outputs: Vec<Output> = self
+            .udev
+            .as_ref()
+            .map(|u| {
+                u.surfaces
+                    .values()
+                    .filter(|s| !s.user_disabled)
+                    .map(|s| s.output.clone())
+                    .collect()
+            })
+            .unwrap_or_else(|| self.space.outputs().cloned().collect());
         outputs.sort_by(|a, b| {
-            let ax = self.space.output_geometry(a).map(|g| g.loc.x).unwrap_or(0);
-            let bx = self.space.output_geometry(b).map(|g| g.loc.x).unwrap_or(0);
+            let ax = self
+                .space
+                .output_geometry(a)
+                .map(|g| g.loc.x)
+                .unwrap_or(0);
+            let bx = self
+                .space
+                .output_geometry(b)
+                .map(|g| g.loc.x)
+                .unwrap_or(0);
             ax.cmp(&bx).then_with(|| a.name().cmp(&b.name()))
         });
         let mut x = 0;
@@ -858,12 +886,11 @@ impl MetisState {
                 .space
                 .output_geometry(&output)
                 .map(|g| g.size.w)
+                .or_else(|| output.current_mode().map(|m| m.size.w))
                 .unwrap_or(0);
             let position = Point::from((x, 0));
-            if self.space.output_geometry(&output).map(|g| g.loc) != Some(position) {
-                output.change_current_state(None, None, None, Some(position));
-                self.space.map_output(&output, position);
-            }
+            output.change_current_state(None, None, None, Some(position));
+            self.space.map_output(&output, position);
             x += width;
         }
     }
@@ -976,6 +1003,56 @@ impl MetisState {
                 // Secondary-GPU hotplug handled in Stage G (multi-renderer).
             }
         }
+    }
+
+    /// Turn off a connected DRM output without disconnecting the connector.
+    pub(crate) fn udev_disable_output(&mut self, name: &str) -> bool {
+        let Some(udev) = self.udev.as_mut() else {
+            return false;
+        };
+        let crtc = udev
+            .surfaces
+            .iter()
+            .find(|(_, s)| s.output.name() == name && !s.user_disabled)
+            .map(|(c, _)| *c);
+        let Some(crtc) = crtc else {
+            return false;
+        };
+        let surface = udev.surfaces.get_mut(&crtc).unwrap();
+        let output = surface.output.clone();
+        if let Some(global) = surface.global.take() {
+            self.display_handle.remove_global::<MetisState>(global);
+        }
+        self.space.unmap_output(&output);
+        surface.user_disabled = true;
+        surface.pending = false;
+        surface.queued = false;
+        tracing::info!(output = %name, "output disabled by user");
+        true
+    }
+
+    /// Re-enable a user-disabled DRM output.
+    pub(crate) fn udev_enable_output(&mut self, name: &str) -> bool {
+        let Some(udev) = self.udev.as_mut() else {
+            return false;
+        };
+        let crtc = udev
+            .surfaces
+            .iter()
+            .find(|(_, s)| s.output.name() == name && s.user_disabled)
+            .map(|(c, _)| *c);
+        let Some(crtc) = crtc else {
+            return false;
+        };
+        let surface = udev.surfaces.get_mut(&crtc).unwrap();
+        let output = surface.output.clone();
+        let global = output.create_global::<MetisState>(&self.display_handle);
+        surface.global = Some(global);
+        surface.user_disabled = false;
+        surface.pending = true;
+        tracing::info!(output = %name, "output re-enabled by user");
+        let _ = output;
+        true
     }
 }
 

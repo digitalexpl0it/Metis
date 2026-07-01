@@ -23,12 +23,15 @@ struct Sections {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Power");
+    let (scroller, content) = ui::page_for("power");
 
     let (bat_card, bat_body) = ui::section("Battery");
     let battery_label = gtk::Label::new(Some("No battery detected"));
     battery_label.set_xalign(0.0);
-    bat_body.append(&battery_label);
+    let battery_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    battery_row.add_css_class("metis-settings-row");
+    battery_row.append(&battery_label);
+    bat_body.append(&battery_row);
     content.append(&bat_card);
 
     let (prof_card, prof_body) = ui::section("Power mode");
@@ -53,7 +56,6 @@ pub fn build() -> gtk::Widget {
     let devices_empty = gtk::Label::new(Some("No wireless devices connected"));
     devices_empty.set_xalign(0.0);
     devices_empty.add_css_class("metis-settings-hint");
-    devices_body.append(&devices_empty);
     content.append(&dev_card);
 
     let sections = Rc::new(Sections {
@@ -184,7 +186,10 @@ fn render_devices(sections: &Sections, bt: &BluetoothSnapshot) {
         } else {
             "No Bluetooth adapter"
         });
-        sections.devices_body.append(&sections.devices_empty);
+        let empty_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        empty_row.add_css_class("metis-settings-row");
+        empty_row.append(&sections.devices_empty);
+        sections.devices_body.append(&empty_row);
         return;
     }
 

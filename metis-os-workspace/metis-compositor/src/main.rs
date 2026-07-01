@@ -15,6 +15,7 @@ mod image_capture;
 mod input;
 mod ipc;
 mod keybinds;
+mod output_modes;
 mod output_prefs;
 mod render;
 mod state;
@@ -95,7 +96,17 @@ enum Backend {
 fn select_backend() -> Backend {
     match std::env::var("METIS_BACKEND").ok().as_deref() {
         Some("winit") => return Backend::Winit,
-        Some("drm") | Some("udev") | Some("tty") => return Backend::Drm,
+        Some("drm") | Some("udev") | Some("tty") => {
+            let nested = std::env::var_os("WAYLAND_DISPLAY").is_some()
+                || std::env::var_os("DISPLAY").is_some();
+            if nested {
+                tracing::warn!(
+                    "METIS_BACKEND=drm ignored while nested in a host session — using winit"
+                );
+                return Backend::Winit;
+            }
+            return Backend::Drm;
+        }
         Some(other) if !other.is_empty() => {
             tracing::warn!(%other, "unknown METIS_BACKEND, autodetecting");
         }

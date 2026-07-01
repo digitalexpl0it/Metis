@@ -2,9 +2,10 @@
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. Next major tracks: **Phase 5** (display mode-setting,
-resolution/mirror/extend, VRR, colour management, HDR), **Phase 6** (Flatpak, Steam
-& gaming), and **Phase 7** (remote access / full desktop sharing).
+Device + System pages. **Phase 5** is in progress — resolution/refresh and
+multi-monitor arrangement landed in Settings → Display (2026-06-30); mirror, VRR,
+and colour management remain. Next tracks: **Phase 6** (Flatpak, Steam & gaming)
+and **Phase 7** (remote access / full desktop sharing).
 
 ---
 
@@ -84,6 +85,9 @@ decorations so it (and every app) gets a real titlebar.
 ### `metis-settings` shell
 - [x] New `metis-settings` binary — sidebar nav + content stack, `--page` preselect
 - [x] Launch from the bar launcher icon and via `metis-cmd settings [page]`
+- [x] **macOS-style sidebar** (2026-06-30) — grouped sections (Displays, Desktop,
+      Connectivity, Input, System), coloured icon badges, page headers with
+      subtitles, inset cards, sidebar search filter, Display as default page
 - [x] Appearance page — Light/Dark style chooser, accent/secondary/semantic
       colors, opacity, blur + blur radius (writes `themes/*.json` + `bar.json`,
       live reload)
@@ -94,6 +98,9 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Network page — wired/NIC config (DHCP vs static), Wi-Fi scan/connect/forget;
       bar "wired-only" network click opens this page
 - [x] Calendars page — moved CalDAV/MS365 account config out of the clock popover
+- [ ] **Split Appearance page** — extract Background, Edge bar, and Windows into
+      separate sidebar pages (Appearance still holds theme + all three today;
+      per-display wallpaper should move to Display)
 
 ### Window decorations (server-side)
 - [x] `zxdg_decoration_manager_v1` + `XdgDecorationHandler`; force SSD so GTK
@@ -345,9 +352,10 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
 - [x] **Sound** — output / input device selection via `pactl` default sink/source;
       volume readout on the settings page (bar volume widget unchanged)
 - [x] **Display (settings UI)** — Settings → Display: monitor picker chips, per-output
-      scale/enabled, night-light prefs in `outputs.json`; scale applies live via
-      `ReloadOutputs` IPC + compositor file poll. Resolution / mirror / turn-off /
-      night-light compositor pipeline remain Phase 5 below.
+      scale/enabled, night-light prefs in `outputs.json`; scale and enable/disable
+      apply live via `ReloadOutputs` IPC + compositor file poll. Resolution /
+      refresh and multi-monitor arrangement are Phase 5 below; mirror / night-light
+      compositor pipeline remain open.
 
 ---
 
@@ -360,14 +368,18 @@ Phase 3) — none of these are possible under the nested winit dev session.
 
 - [x] **Wire `outputs.json` scale to the compositor** — `ReloadOutputs` IPC +
       ~1s file poll; fractional scale applied live; window reflow + wallpaper relayout
-- [ ] **Per-output enable/disable** — honour the Display page “Enabled” switch
-      (unmap output, reclaim desktop space, hot-plug safe)
-- [ ] **Display picker UX** — basic monitor chips + per-display panel (make/model
-      from EDID when available); refresh list on hotplug
-- [ ] **Resolution & refresh rate** — list DRM modes per output; let the user pick
-      resolution and refresh; apply via Smithay `DrmOutput` mode-setting
-- [ ] **Multi-monitor layout** — extend desktop (independent positions, current
-      default), mirror/clone displays, turn off / disable an output
+- [x] **Per-output enable/disable** — honour the Display page “Enabled” switch
+      (unmap output, reclaim desktop space, evacuate windows to another display)
+- [x] **Display picker UX** — basic monitor chips + per-display panel (make/model
+      from EDID when available); refresh list on hotplug / manual refresh
+- [x] **Resolution & refresh rate** — `ListOutputModes` IPC, DRM mode list in
+      Settings, saved to `outputs.json` (`mode_width`/`mode_height`/
+      `mode_refresh_millihz`), applied via `DrmOutput::use_mode` on
+      `ReloadOutputs`; Windows-style keep/revert confirmation on save
+- [x] **Multi-monitor arrangement** — draggable canvas preview (multi-monitor
+      only; single output is preview-only), `layout_x`/`layout_y` in
+      `outputs.json`, **Save display settings** + 15 s keep/revert dialog
+- [ ] **Mirror / clone displays** — UI stub only; compositor path not wired
 
 ### B. Colour pipeline
 
@@ -577,7 +589,7 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
-| `outputs.json` | Per-output scale, enabled, night-light prefs (UI writes today; compositor apply + resolution/mirror/extend in Phase 5) |
+| `outputs.json` | Per-output scale, enabled, layout, saved video mode, night-light prefs |
 
 ### `bar.json` (defaults)
 

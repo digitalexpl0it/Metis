@@ -22,7 +22,7 @@ struct Sections {
 }
 
 pub fn build() -> gtk::Widget {
-    let (scroller, content) = ui::page("Sound");
+    let (scroller, content) = ui::page_for("sound");
 
     let (out_card, out_body) = ui::section("Output");
     let output_combo = gtk::DropDown::new(None::<gtk::StringList>, None::<&gtk::Expression>);

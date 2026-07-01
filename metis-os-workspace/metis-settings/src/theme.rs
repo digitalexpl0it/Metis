@@ -158,45 +158,201 @@ fn settings_css(t: &ThemeTokens) -> String {
             border: none;
         }}
 
-        .metis-settings-sidebar {{ background-color: {surface}; }}
-        .metis-settings-sidebar list {{ background-color: transparent; padding: 8px; }}
-        .metis-settings-sidebar row {{ border-radius: {rl}px; padding: 8px 12px; }}
-        .metis-settings-sidebar row label {{ color: {text}; }}
-        .metis-settings-sidebar row image {{ color: {muted}; -gtk-icon-size: 16px; }}
-        .metis-settings-sidebar row:hover {{ background-color: {raised}; }}
-        .metis-settings-sidebar row:selected {{ background-color: {accent}; }}
-        .metis-settings-sidebar row:selected label {{ color: {on_accent}; font-weight: 700; }}
-        .metis-settings-sidebar row:selected image {{ color: {on_accent}; }}
+        .metis-settings-sidebar {{ background-color: {surface}; padding-bottom: 12px; }}
+        .metis-settings-sidebar-title {{
+            font-size: 22px;
+            font-weight: 800;
+            color: {text};
+            letter-spacing: -0.02em;
+        }}
+        .metis-settings-search {{
+            min-height: 32px;
+            border-radius: 8px;
+            background-color: color-mix(in srgb, {raised} 85%, {surface});
+            border: 1px solid color-mix(in srgb, {border} 80%, transparent);
+            transition: border-color 140ms ease, box-shadow 140ms ease;
+        }}
+        .metis-settings-search:focus-within {{
+            border-color: {accent};
+            box-shadow: 0 0 0 3px color-mix(in srgb, {accent} 22%, transparent);
+        }}
+        .metis-settings-nav-scroll {{
+            background-color: transparent;
+        }}
+        .metis-settings-nav list,
+        .metis-settings-sidebar list {{
+            background-color: transparent;
+            padding: 4px 10px 8px;
+        }}
+        .metis-settings-nav-section-row {{
+            background-color: transparent;
+            min-height: 0;
+            padding: 0;
+            margin-top: 10px;
+        }}
         .metis-settings-nav-section {{
             color: {muted};
             font-size: 11px;
             font-weight: 700;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
-            padding: 12px 12px 4px;
+            padding: 8px 8px 4px;
+        }}
+        .metis-settings-nav-row {{
+            border-radius: {rl}px;
+            padding: 0;
+            margin: 2px 0;
+            min-height: 36px;
+            transition: background-color 160ms ease, transform 120ms ease;
+        }}
+        .metis-settings-nav-row-inner {{
+            padding: 6px 10px 6px 8px;
+        }}
+        .metis-settings-nav-icon-wrap {{
+            border-radius: 7px;
+            background-color: color-mix(in srgb, {accent} 16%, {raised});
+        }}
+        .metis-nav-hue-blue {{
+            background-color: color-mix(in srgb, #0a84ff 22%, {raised});
+        }}
+        .metis-nav-hue-purple {{
+            background-color: color-mix(in srgb, #bf5af2 22%, {raised});
+        }}
+        .metis-nav-hue-pink {{
+            background-color: color-mix(in srgb, #ff375f 20%, {raised});
+        }}
+        .metis-nav-hue-orange {{
+            background-color: color-mix(in srgb, #ff9f0a 22%, {raised});
+        }}
+        .metis-nav-hue-teal {{
+            background-color: color-mix(in srgb, #64d2ff 22%, {raised});
+        }}
+        .metis-nav-hue-green {{
+            background-color: color-mix(in srgb, #30d158 22%, {raised});
+        }}
+        .metis-nav-hue-yellow {{
+            background-color: color-mix(in srgb, #ffd60a 24%, {raised});
+        }}
+        .metis-nav-hue-gray {{
+            background-color: color-mix(in srgb, {muted} 18%, {raised});
+        }}
+        .metis-settings-nav-icon {{
+            color: {text};
+            -gtk-icon-style: symbolic;
+        }}
+        .metis-settings-nav-label {{ color: {text}; font-size: 13px; font-weight: 500; }}
+        .metis-settings-nav-row:hover {{ background-color: {raised}; }}
+        .metis-settings-nav-row:selected {{
+            background-color: color-mix(in srgb, {accent} 18%, {raised});
+        }}
+        .metis-settings-nav-row:selected .metis-settings-nav-label {{
+            color: {text};
+            font-weight: 700;
+        }}
+        .metis-settings-nav-row:selected .metis-settings-nav-icon {{
+            color: {accent};
+        }}
+
+        .metis-settings-content {{ background-color: {bg}; }}
+        .metis-settings-scroller {{
+            background-color: transparent;
         }}
 
         .metis-settings-page {{ background-color: {bg}; }}
-        .metis-settings-title {{ font-size: 26px; font-weight: 800; color: {text}; }}
+        .metis-settings-page-header {{
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+        }}
+        .metis-settings-page-icon-wrap {{
+            border-radius: 14px;
+            background-color: color-mix(in srgb, {accent} 14%, {surface});
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            transition: transform 200ms ease, box-shadow 200ms ease;
+        }}
+        .metis-settings-page-header:hover .metis-settings-page-icon-wrap {{
+            transform: scale(1.03);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+        }}
+        .metis-nav-hue-blue .metis-settings-page-icon {{ color: #0a84ff; }}
+        .metis-nav-hue-purple .metis-settings-page-icon {{ color: #bf5af2; }}
+        .metis-nav-hue-pink .metis-settings-page-icon {{ color: #ff375f; }}
+        .metis-nav-hue-orange .metis-settings-page-icon {{ color: #ff9f0a; }}
+        .metis-nav-hue-teal .metis-settings-page-icon {{ color: #32ade6; }}
+        .metis-nav-hue-green .metis-settings-page-icon {{ color: #30d158; }}
+        .metis-nav-hue-gray .metis-settings-page-icon {{ color: {muted}; }}
+        .metis-nav-hue-yellow .metis-settings-page-icon {{ color: #ffd60a; }}
+        .metis-settings-page-icon {{
+            color: {accent};
+            -gtk-icon-style: symbolic;
+        }}
+        .metis-settings-title {{
+            font-size: 28px;
+            font-weight: 800;
+            color: {text};
+            letter-spacing: -0.03em;
+        }}
+        .metis-settings-subtitle {{
+            font-size: 13px;
+            color: {muted};
+            line-height: 1.35;
+        }}
         .metis-settings-section {{
             background-color: {surface};
             border: 1px solid {border};
             border-radius: {rl}px;
-            padding: 18px;
+            padding: 0;
+            margin-bottom: 14px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+            transition: box-shadow 180ms ease, border-color 180ms ease;
         }}
-        .metis-settings-section-header {{ margin-bottom: 2px; }}
+        .metis-settings-section:hover {{
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+        }}
+        .metis-settings-section-header {{
+            margin: 14px 16px 6px;
+        }}
         .metis-settings-section-title {{
-            font-size: 12px;
-            font-weight: 800;
+            font-size: 11px;
+            font-weight: 700;
             color: {muted};
-            letter-spacing: 1px;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
+            padding: 14px 16px 8px;
+        }}
+        .metis-settings-section-header .metis-settings-section-title {{
+            padding: 0;
+        }}
+        .metis-settings-section-body {{
+            padding: 0 0 4px;
+        }}
+        .metis-settings-section-body > .metis-settings-section {{
+            margin: 4px 12px 10px;
+        }}
+        .metis-settings-section-body > .metis-settings-hint,
+        .metis-settings-section-body > label.metis-settings-hint {{
+            padding: 4px 16px 10px;
+        }}
+        .metis-display-arrangement {{
+            padding: 8px 12px 12px;
         }}
         .metis-settings-section-icon {{ color: {accent}; }}
-        .metis-settings-row {{ padding: 6px 0; }}
+        .metis-settings-row {{
+            padding: 10px 16px;
+            border-top: 1px solid color-mix(in srgb, {border} 65%, transparent);
+            transition: background-color 140ms ease;
+        }}
+        .metis-settings-section-body > box.metis-settings-row:first-child,
+        .metis-settings-section-body > .metis-settings-row:first-child {{
+            border-top: none;
+        }}
+        .metis-settings-row:hover {{ background-color: color-mix(in srgb, {raised} 70%, transparent); }}
         .metis-settings-row label {{ color: {text}; }}
-        .metis-settings-row-icon {{ color: {muted}; }}
-        .metis-settings-hint {{ color: {muted}; font-size: 12px; }}
+        .metis-settings-row-icon {{ color: {muted}; -gtk-icon-style: symbolic; }}
+        .metis-settings-hint {{
+            color: {muted};
+            font-size: 12px;
+            padding: 0 16px 12px;
+        }}
         .metis-settings-display-chip {{
             padding: 8px 12px;
             border-radius: {rs}px;
@@ -214,6 +370,38 @@ fn settings_css(t: &ThemeTokens) -> String {
             background-color: {surface};
         }}
         .metis-settings-display-chip-active image {{ color: {accent}; }}
+        .metis-display-arrangement-canvas {{
+            background-color: {raised};
+            border: 1px solid {border};
+            border-radius: {rl}px;
+            overflow: hidden;
+        }}
+        .metis-display-block {{
+            border-radius: {rs}px;
+            border: 2px solid transparent;
+            background-color: {surface};
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        }}
+        .metis-display-block-selected {{
+            border-color: {accent};
+            box-shadow: 0 4px 16px color-mix(in srgb, {accent} 28%, transparent);
+        }}
+        .metis-display-block-menubar {{
+            background-color: rgba(255, 255, 255, 0.92);
+            border-radius: {rs}px {rs}px 0 0;
+            min-height: 6px;
+        }}
+        .metis-display-block-label {{
+            color: {text};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 6px 8px;
+        }}
+        .metis-display-block-0 {{ background-color: color-mix(in srgb, {accent} 22%, {surface}); }}
+        .metis-display-block-1 {{ background-color: color-mix(in srgb, #2ec4b6 22%, {surface}); }}
+        .metis-display-block-2 {{ background-color: color-mix(in srgb, #e76f51 22%, {surface}); }}
+        .metis-display-block-3 {{ background-color: color-mix(in srgb, #9b5de5 22%, {surface}); }}
         .metis-settings-value {{ color: {text}; font-weight: 600; font-feature-settings: "tnum"; }}
         .metis-bt-battery-low {{ color: {warning}; font-weight: 700; }}
         .metis-settings-list {{
@@ -284,9 +472,10 @@ fn settings_css(t: &ThemeTokens) -> String {
             border: 1px solid {border};
             border-radius: {rs}px;
             box-shadow: none;
+            transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
         }}
         button:hover {{ background-color: {surface}; }}
-        button:active, button:checked {{ background-color: {surface}; }}
+        button:active, button:checked {{ background-color: {surface}; transform: scale(0.98); }}
         button label {{ color: {text}; }}
         button image {{ color: {text}; }}
         button:disabled {{ color: {muted}; }}
@@ -295,6 +484,10 @@ fn settings_css(t: &ThemeTokens) -> String {
         button.suggested-action {{
             background-color: {accent};
             border-color: {accent};
+            box-shadow: 0 2px 8px color-mix(in srgb, {accent} 35%, transparent);
+        }}
+        button.suggested-action:hover {{
+            background-color: color-mix(in srgb, {accent} 88%, white);
         }}
         button.suggested-action label {{ color: {on_accent}; }}
         button.destructive-action image {{ color: {error}; }}

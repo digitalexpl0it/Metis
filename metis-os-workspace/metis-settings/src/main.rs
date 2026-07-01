@@ -5,6 +5,7 @@
 
 mod bluetooth;
 mod msauth;
+mod nav;
 mod net;
 mod pages;
 mod power;
@@ -14,109 +15,14 @@ mod sound;
 mod theme;
 mod ui;
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::time::Duration;
+
 use gtk::glib;
 use gtk::prelude::*;
 
-/// One sidebar row: either a section header or a navigable page.
-struct NavItem {
-    page_id: Option<&'static str>,
-    title: &'static str,
-    icon: Option<&'static str>,
-}
-
-const NAV: &[NavItem] = &[
-    NavItem {
-        page_id: None,
-        title: "Personalization",
-        icon: None,
-    },
-    NavItem {
-        page_id: Some("appearance"),
-        title: "Appearance",
-        icon: Some("preferences-desktop-appearance-symbolic"),
-    },
-    NavItem {
-        page_id: Some("menu"),
-        title: "Metis Menu",
-        icon: Some("view-app-grid-symbolic"),
-    },
-    NavItem {
-        page_id: Some("weather"),
-        title: "Weather",
-        icon: Some("weather-few-clouds-symbolic"),
-    },
-    NavItem {
-        page_id: Some("network"),
-        title: "Network",
-        icon: Some("network-wireless-symbolic"),
-    },
-    NavItem {
-        page_id: Some("calendars"),
-        title: "Calendars",
-        icon: Some("x-office-calendar-symbolic"),
-    },
-    NavItem {
-        page_id: None,
-        title: "Input",
-        icon: None,
-    },
-    NavItem {
-        page_id: Some("mouse"),
-        title: "Mouse",
-        icon: Some("input-mouse-symbolic"),
-    },
-    NavItem {
-        page_id: Some("touchpad"),
-        title: "Touchpad",
-        icon: Some("input-touchpad-symbolic"),
-    },
-    NavItem {
-        page_id: Some("keyboard"),
-        title: "Keyboard",
-        icon: Some("input-keyboard-symbolic"),
-    },
-    NavItem {
-        page_id: None,
-        title: "Devices",
-        icon: None,
-    },
-    NavItem {
-        page_id: Some("bluetooth"),
-        title: "Bluetooth",
-        icon: Some("bluetooth-symbolic"),
-    },
-    NavItem {
-        page_id: Some("printers"),
-        title: "Printers",
-        icon: Some("printer-symbolic"),
-    },
-    NavItem {
-        page_id: None,
-        title: "System",
-        icon: None,
-    },
-    NavItem {
-        page_id: Some("sound"),
-        title: "Sound",
-        icon: Some("audio-volume-high-symbolic"),
-    },
-    NavItem {
-        page_id: Some("power"),
-        title: "Power",
-        icon: Some("battery-level-100-symbolic"),
-    },
-    NavItem {
-        page_id: Some("display"),
-        title: "Display",
-        icon: Some("video-display-symbolic"),
-    },
-];
-
-fn page_ids() -> Vec<&'static str> {
-    NAV.iter()
-        .filter_map(|item| item.page_id)
-        .collect()
-}
+use nav::{NavHue, NAV};
 
 fn main() {
     tracing_subscriber::fmt()
@@ -128,8 +34,6 @@ fn main() {
 
     let page = parse_page_arg();
 
-    // Same rationale as metis-shell: GtkApplication startup does a sync portal
-    // proxy that blocks ~25s when xdg-desktop-portal cold-starts in a bare session.
     if let Err(err) = gtk::init() {
         tracing::error!(?err, "gtk::init() failed");
         std::process::exit(1);
@@ -138,7 +42,6 @@ fn main() {
     glib::MainLoop::new(None, false).run();
 }
 
-/// Parse `--page <name>` / `--page=<name>` from the process args.
 fn parse_page_arg() -> Option<String> {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -156,7 +59,7 @@ fn parse_page_arg() -> Option<String> {
 
 fn normalize_page(name: &str) -> Option<String> {
     let name = name.trim().to_lowercase();
-    page_ids()
+    nav::page_ids()
         .into_iter()
         .find(|id| *id == name)
         .map(str::to_string)
@@ -167,10 +70,24 @@ fn build_ui(page: Option<String>) {
 
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
+    stack.set_transition_duration(0);
     stack.set_hexpand(true);
     stack.set_vexpand(true);
 
-    stack.add_titled(&pages::appearance::build(), Some("appearance"), "Appearance");
+    let under_metis = std::env::var_os("METIS_SESSION").is_some();
+    let window = gtk::Window::builder()
+        .title("Settings")
+        .default_width(960)
+        .default_height(680)
+        .decorated(!under_metis)
+        .build();
+    window.add_css_class("metis-settings-window");
+
+    stack.add_titled(
+        &pages::appearance::build(),
+        Some("appearance"),
+        "Appearance",
+    );
     stack.add_titled(&pages::menu::build(), Some("menu"), "Metis Menu");
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
     stack.add_titled(&pages::network::build(), Some("network"), "Network");
@@ -182,26 +99,24 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
-    stack.add_titled(&pages::display::build(), Some("display"), "Display");
+    stack.add_titled(
+        &pages::display::build(&window),
+        Some("display"),
+        "Display",
+    );
 
     let nav = gtk::ListBox::new();
+    nav.add_css_class("metis-settings-nav");
     nav.set_selection_mode(gtk::SelectionMode::Single);
     for item in NAV {
         let row = if let Some(icon) = item.icon {
-            let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-            let img = gtk::Image::from_icon_name(icon);
-            let label = gtk::Label::new(Some(item.title));
-            label.set_xalign(0.0);
-            row_box.append(&img);
-            row_box.append(&label);
-            let row = gtk::ListBoxRow::new();
-            row.set_child(Some(&row_box));
-            row
+            build_nav_row(item.title, icon, item.hue)
         } else {
             let label = gtk::Label::new(Some(item.title));
             label.set_xalign(0.0);
             label.add_css_class("metis-settings-nav-section");
             let row = gtk::ListBoxRow::new();
+            row.add_css_class("metis-settings-nav-section-row");
             row.set_selectable(false);
             row.set_activatable(false);
             row.set_child(Some(&label));
@@ -209,9 +124,19 @@ fn build_ui(page: Option<String>) {
         };
         nav.append(&row);
     }
+
+    let selecting = Rc::new(Cell::new(false));
+    let last_query = Rc::new(RefCell::new(String::new()));
+    let pending_query = Rc::new(RefCell::new(String::new()));
+    let filter_debounce = Rc::new(RefCell::new(None::<glib::SourceId>));
+
     {
         let stack = stack.clone();
+        let selecting = selecting.clone();
         nav.connect_row_selected(move |list, row| {
+            if selecting.get() {
+                return;
+            }
             let Some(row) = row else {
                 return;
             };
@@ -220,9 +145,13 @@ fn build_ui(page: Option<String>) {
                 return;
             };
             if let Some(id) = item.page_id {
-                stack.set_visible_child_name(id);
+                if stack.visible_child_name().as_deref() != Some(id) {
+                    stack.set_visible_child_name(id);
+                }
             } else if let Some(next) = list.row_at_index(row.index() + 1) {
+                selecting.set(true);
                 list.select_row(Some(&next));
+                selecting.set(false);
             }
         });
     }
@@ -231,19 +160,106 @@ fn build_ui(page: Option<String>) {
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .vexpand(true)
+        .overlay_scrolling(false)
         .child(&nav)
         .build();
+    nav_scroll.add_css_class("metis-settings-nav-scroll");
+    nav_scroll.set_kinetic_scrolling(false);
+
+    let search = gtk::Entry::builder()
+        .placeholder_text("Search")
+        .hexpand(true)
+        .build();
+    search.add_css_class("metis-settings-search");
+    search.set_margin_start(14);
+    search.set_margin_end(14);
+    search.set_margin_bottom(8);
+
+    // Held backspace on an empty field still generates key-repeat events that can
+    // bubble to the sidebar list and flood the main loop — swallow them here.
+    {
+        let search_key = search.clone();
+        let key = gtk::EventControllerKey::new();
+        key.connect_key_pressed(move |_, key, _, _| {
+            if key == gtk::gdk::Key::BackSpace && search_key.text().is_empty() {
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
+        });
+        search.add_controller(key);
+    }
+
+    {
+        let nav = nav.clone();
+        let stack = stack.clone();
+        let selecting = selecting.clone();
+        let last_query = last_query.clone();
+        let pending_query = pending_query.clone();
+        let filter_debounce = filter_debounce.clone();
+        search.connect_changed(move |entry| {
+            *pending_query.borrow_mut() = entry.text().trim().to_ascii_lowercase();
+            schedule_nav_filter(
+                &nav,
+                &stack,
+                &selecting,
+                &last_query,
+                &pending_query,
+                &filter_debounce,
+            );
+        });
+    }
+
+    {
+        let nav = nav.clone();
+        let stack = stack.clone();
+        let selecting = selecting.clone();
+        let last_query = last_query.clone();
+        let pending_query = pending_query.clone();
+        let filter_debounce = filter_debounce.clone();
+        let search_key = search.clone();
+        let key = gtk::EventControllerKey::new();
+        key.connect_key_released(move |_, key, _, _| {
+            if key == gtk::gdk::Key::BackSpace || key == gtk::gdk::Key::Delete {
+                *pending_query.borrow_mut() = search_key.text().trim().to_ascii_lowercase();
+                flush_nav_filter(
+                    &nav,
+                    &stack,
+                    &selecting,
+                    &last_query,
+                    &pending_query,
+                    &filter_debounce,
+                );
+            }
+        });
+        search.add_controller(key);
+    }
 
     let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     sidebar.add_css_class("metis-settings-sidebar");
-    sidebar.set_width_request(200);
+    sidebar.set_width_request(248);
     sidebar.set_vexpand(true);
+
+    let sidebar_title = gtk::Label::new(Some("Settings"));
+    sidebar_title.set_xalign(0.0);
+    sidebar_title.add_css_class("metis-settings-sidebar-title");
+    sidebar_title.set_margin_top(18);
+    sidebar_title.set_margin_bottom(10);
+    sidebar_title.set_margin_start(20);
+    sidebar_title.set_margin_end(16);
+    sidebar.append(&sidebar_title);
+    sidebar.append(&search);
     sidebar.append(&nav_scroll);
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    content.add_css_class("metis-settings-content");
+    content.set_hexpand(true);
+    content.set_vexpand(true);
+    content.append(&stack);
 
     let layout = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     layout.append(&sidebar);
     layout.append(&gtk::Separator::new(gtk::Orientation::Vertical));
-    layout.append(&stack);
+    layout.append(&content);
     layout.add_css_class("metis-settings-root");
 
     let initial_row = page
@@ -254,14 +270,127 @@ fn build_ui(page: Option<String>) {
         nav.select_row(Some(&row));
     }
 
-    let under_metis = std::env::var_os("METIS_SESSION").is_some();
-    let window = gtk::Window::builder()
-        .title("Metis Settings")
-        .default_width(880)
-        .default_height(640)
-        .decorated(!under_metis)
-        .build();
-    window.add_css_class("metis-settings-window");
     window.set_child(Some(&layout));
     window.present();
+}
+
+const FILTER_DEBOUNCE_MS: u64 = 16;
+
+fn schedule_nav_filter(
+    nav: &gtk::ListBox,
+    stack: &gtk::Stack,
+    selecting: &Rc<Cell<bool>>,
+    last_query: &Rc<RefCell<String>>,
+    pending_query: &Rc<RefCell<String>>,
+    debounce: &Rc<RefCell<Option<glib::SourceId>>>,
+) {
+    let mut slot = debounce.borrow_mut();
+    if let Some(id) = slot.take() {
+        id.remove();
+    }
+    let nav = nav.clone();
+    let stack = stack.clone();
+    let selecting = selecting.clone();
+    let last_query = last_query.clone();
+    let pending_query = pending_query.clone();
+    let debounce = debounce.clone();
+    let id = glib::timeout_add_local(Duration::from_millis(FILTER_DEBOUNCE_MS), move || {
+        *debounce.borrow_mut() = None;
+        let query = pending_query.borrow().clone();
+        if *last_query.borrow() == query {
+            return glib::ControlFlow::Break;
+        }
+        *last_query.borrow_mut() = query.clone();
+        apply_nav_filter(&nav, &query, &selecting, &stack);
+        glib::ControlFlow::Break
+    });
+    *slot = Some(id);
+}
+
+fn flush_nav_filter(
+    nav: &gtk::ListBox,
+    stack: &gtk::Stack,
+    selecting: &Rc<Cell<bool>>,
+    last_query: &Rc<RefCell<String>>,
+    pending_query: &Rc<RefCell<String>>,
+    debounce: &Rc<RefCell<Option<glib::SourceId>>>,
+) {
+    if let Some(id) = debounce.borrow_mut().take() {
+        id.remove();
+    }
+    let query = pending_query.borrow().clone();
+    if *last_query.borrow() == query {
+        return;
+    }
+    *last_query.borrow_mut() = query.clone();
+    apply_nav_filter(nav, &query, selecting, stack);
+}
+
+/// Apply sidebar search by toggling row visibility (avoids ListBox filter/selection loops).
+fn apply_nav_filter(nav: &gtk::ListBox, query: &str, selecting: &Cell<bool>, stack: &gtk::Stack) {
+    selecting.set(true);
+
+    let mut first_visible_page: Option<usize> = None;
+
+    for index in 0..NAV.len() {
+        let Some(row) = nav.row_at_index(index as i32) else {
+            continue;
+        };
+        let visible = nav::row_visible_for_search(index, query);
+        if row.is_visible() != visible {
+            row.set_visible(visible);
+        }
+        if visible && NAV[index].page_id.is_some() && first_visible_page.is_none() {
+            first_visible_page = Some(index);
+        }
+    }
+
+    if let Some(selected) = nav.selected_row() {
+        if !selected.is_visible() {
+            if let Some(idx) = first_visible_page {
+                if let Some(row) = nav.row_at_index(idx as i32) {
+                    nav.select_row(Some(&row));
+                    if let Some(id) = NAV[idx].page_id {
+                        if stack.visible_child_name().as_deref() != Some(id) {
+                            stack.set_visible_child_name(id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selecting.set(false);
+}
+
+fn build_nav_row(title: &str, icon: &str, hue: Option<NavHue>) -> gtk::ListBoxRow {
+    let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    row_box.add_css_class("metis-settings-nav-row-inner");
+
+    let icon_wrap = gtk::Box::builder()
+        .width_request(30)
+        .height_request(30)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .build();
+    icon_wrap.add_css_class("metis-settings-nav-icon-wrap");
+    if let Some(hue) = hue {
+        icon_wrap.add_css_class(hue.css_class());
+    }
+    let img = gtk::Image::from_icon_name(icon);
+    img.set_pixel_size(16);
+    img.add_css_class("metis-settings-nav-icon");
+    icon_wrap.append(&img);
+    row_box.append(&icon_wrap);
+
+    let label = gtk::Label::new(Some(title));
+    label.set_xalign(0.0);
+    label.set_hexpand(true);
+    label.add_css_class("metis-settings-nav-label");
+    row_box.append(&label);
+
+    let row = gtk::ListBoxRow::new();
+    row.add_css_class("metis-settings-nav-row");
+    row.set_child(Some(&row_box));
+    row
 }

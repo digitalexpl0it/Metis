@@ -35,6 +35,7 @@ use smithay::{
     },
 };
 
+use crate::clipboard::serve_compositor_selection;
 use crate::focus::KeyboardFocusTarget;
 use crate::state::MetisState;
 
@@ -266,11 +267,43 @@ impl XwmHandler for MetisState {
     ) {
         match selection {
             SelectionTarget::Clipboard => {
+                let mut fd = fd;
+                if let Some(user_data) = current_data_device_selection_userdata(&self.seat) {
+                    match serve_compositor_selection(&user_data, &mime_type, fd) {
+                        Ok(()) => return,
+                        Err(returned_fd) => {
+                            if user_data.resolve_payload().is_some() {
+                                tracing::warn!(
+                                    %mime_type,
+                                    "recalled clipboard: unsupported mime for XWayland paste"
+                                );
+                                return;
+                            }
+                            fd = returned_fd;
+                        }
+                    }
+                }
                 if let Err(err) = request_data_device_client_selection(&self.seat, mime_type, fd) {
                     tracing::warn!(?err, "failed to read Wayland clipboard for XWayland");
                 }
             }
             SelectionTarget::Primary => {
+                let mut fd = fd;
+                if let Some(user_data) = current_primary_selection_userdata(&self.seat) {
+                    match serve_compositor_selection(&user_data, &mime_type, fd) {
+                        Ok(()) => return,
+                        Err(returned_fd) => {
+                            if user_data.resolve_payload().is_some() {
+                                tracing::warn!(
+                                    %mime_type,
+                                    "recalled primary: unsupported mime for XWayland paste"
+                                );
+                                return;
+                            }
+                            fd = returned_fd;
+                        }
+                    }
+                }
                 if let Err(err) = request_primary_client_selection(&self.seat, mime_type, fd) {
                     tracing::warn!(?err, "failed to read Wayland primary selection for XWayland");
                 }

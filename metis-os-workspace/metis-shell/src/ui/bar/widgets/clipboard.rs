@@ -368,9 +368,7 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
 
     let entry_click = entry.clone();
     body.connect_clicked(move |_| {
-        if let Err(err) = recall_entry(&entry_click) {
-            tracing::warn!(%err, "clipboard recall failed");
-        }
+        let _ = recall_entry(&entry_click);
     });
     row.append(&body);
 

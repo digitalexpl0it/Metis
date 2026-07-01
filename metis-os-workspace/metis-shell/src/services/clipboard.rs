@@ -305,27 +305,57 @@ pub fn toggle_favorite(id: u64) {
 }
 
 pub fn recall_entry(entry: &ClipboardEntry) -> Result<(), String> {
-    let result = if let Some(text) = entry.preview_text.as_deref() {
-        crate::compositor::client::set_clipboard(entry.mime.clone(), Some(text.to_string()), None)
-            .map_err(|e| e.to_string())
-    } else if let Some(path) = entry.image_path.as_deref() {
+    if entry.preview_text.is_none() && entry.image_path.is_none() {
+        return Err("empty clipboard entry".into());
+    }
+    if let Some(path) = entry.image_path.as_deref() {
         if !Path::new(path).exists() {
             return Err("image no longer available".into());
         }
-        crate::compositor::client::set_clipboard(
-            entry.mime.clone(),
-            None,
-            Some(path.to_string()),
-        )
-        .map_err(|e| e.to_string())
+    }
+
+    let entry = entry.clone();
+    glib::idle_add_local_once(move || {
+        let result = recall_entry_now(&entry);
+        if result.is_ok() {
+            set_active_entry_id(Some(entry.id));
+            notify_refresh();
+        } else if let Err(err) = result {
+            tracing::warn!(%err, "clipboard recall failed");
+        }
+    });
+    Ok(())
+}
+
+fn recall_entry_now(entry: &ClipboardEntry) -> Result<(), String> {
+    if let Some(text) = entry.preview_text.as_deref() {
+        crate::compositor::client::set_clipboard(entry.mime.clone(), Some(text.to_string()), None)
+            .map_err(|e| e.to_string())
+    } else if let Some(path) = entry.image_path.as_deref() {
+        let mime = effective_image_mime(entry, path);
+        crate::compositor::client::set_clipboard(mime, None, Some(path.to_string()))
+            .map_err(|e| e.to_string())
     } else {
         Err("empty clipboard entry".into())
-    };
-    if result.is_ok() {
-        set_active_entry_id(Some(entry.id));
-        notify_refresh();
     }
-    result
+}
+
+fn effective_image_mime(entry: &ClipboardEntry, path: &str) -> String {
+    if entry.mime.starts_with("image/") {
+        return entry.mime.clone();
+    }
+    match Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png".into(),
+        Some("jpg") | Some("jpeg") => "image/jpeg".into(),
+        Some("webp") => "image/webp".into(),
+        Some("bmp") => "image/bmp".into(),
+        _ => entry.mime.clone(),
+    }
 }
 
 impl Default for ClipboardStore {
