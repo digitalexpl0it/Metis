@@ -1427,6 +1427,13 @@ impl MetisState {
     }
 
     pub fn desktop_bounds(&self) -> smithay::utils::Rectangle<i32, Logical> {
+        if self.mirror_mode_active() {
+            if let Some(source) = self.resolve_mirror_source() {
+                if let Some(g) = self.space.output_geometry(&source) {
+                    return g;
+                }
+            }
+        }
         let mut bounds: Option<smithay::utils::Rectangle<i32, Logical>> = None;
         for o in self.space.outputs() {
             if let Some(g) = self.space.output_geometry(o) {
@@ -1449,6 +1456,17 @@ impl MetisState {
     /// output. Used to route placement, snapping, and maximize to the monitor a
     /// window or the cursor is actually on.
     pub fn output_at(&self, point: Point<i32, Logical>) -> Option<smithay::output::Output> {
+        if self.mirror_mode_active() {
+            if let Some(source) = self.resolve_mirror_source() {
+                if self
+                    .space
+                    .output_geometry(&source)
+                    .is_some_and(|g| g.contains(point))
+                {
+                    return Some(source);
+                }
+            }
+        }
         self.space
             .outputs()
             .find(|o| {
@@ -5771,20 +5789,32 @@ impl MetisState {
                 rect: self.monitor,
             },
             CompositorCommand::ListOutputs => {
-                let primary = self
-                    .space
-                    .outputs()
-                    .find(|o| o.name() != "metis-render")
-                    .map(|o| o.name());
+                let mirror_source = self.resolve_mirror_source_name();
+                let primary = if self.mirror_mode_active() {
+                    mirror_source.clone()
+                } else {
+                    self.space
+                        .outputs()
+                        .find(|o| o.name() != "metis-render")
+                        .map(|o| o.name())
+                };
                 let mut outputs: Vec<_> = self.connected_outputs();
                 outputs.sort_by_key(|o| {
                     crate::output_prefs::output_geometry(self, o)
                         .map(|g| (g.loc.x, g.loc.y, o.name()))
                         .unwrap_or((0, 0, o.name()))
                 });
+                let mirror_ref = mirror_source.as_deref();
                 let outputs = outputs
                     .iter()
-                    .map(|o| crate::output_prefs::output_info_for(self, o, primary.as_deref()))
+                    .map(|o| {
+                        crate::output_prefs::output_info_for(
+                            self,
+                            o,
+                            primary.as_deref(),
+                            mirror_ref,
+                        )
+                    })
                     .collect();
                 CompositorEvent::OutputList { outputs }
             }

@@ -374,12 +374,13 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
 `network`, `power`).
 
 - **Display** — per-output scale, enable/disable, resolution & refresh (DRM mode
-  list on real hardware), and multi-monitor arrangement (drag preview when two or
-  more outputs are connected; **Save display settings** with a keep/revert
-  confirmation). Scale and **Active** apply live; arrangement and resolution
-  changes are batched behind save. Night-light preferences are saved to
-  `outputs.json` (compositor colour shift not wired yet). Rotation and mirror are
-  stubs.
+  list on real hardware), **Duplicate displays** (mirror clone with scale-to-fit
+  letterboxing on DRM hardware), and multi-monitor arrangement (drag preview when
+  two or more outputs are connected; hidden while duplicating; **Save display
+  settings** with a keep/revert confirmation). Scale and **Active** apply live;
+  duplicate mode, arrangement, and resolution changes are batched behind save.
+  Night-light preferences are saved to `outputs.json` (compositor colour shift
+  not wired yet). Rotation is still upcoming.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and
@@ -457,7 +458,7 @@ Metis session (future DRM backend), the default is Super.
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
-| `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), night-light prefs |
+| `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |
 
 ### Key `bar.json` fields
 

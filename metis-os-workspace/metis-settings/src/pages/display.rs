@@ -10,7 +10,9 @@ use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
-use metis_config::{load_outputs_config, output_prefs, save_outputs_config};
+use metis_config::{
+    load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode, OutputsConfig,
+};
 use metis_protocol::{OutputInfo, OutputModeInfo};
 
 use crate::runtime;
@@ -43,6 +45,34 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     night_note.add_css_class("metis-settings-hint");
     global_body.append(&night_note);
     content.append(&global_card);
+
+    let (mode_card, mode_body) = ui::section("Display mode");
+    let duplicate = gtk::Switch::new();
+    duplicate.set_active(cfg.borrow().display_mode == DisplayLayoutMode::Mirror);
+    mode_body.append(&ui::row("Duplicate displays", &duplicate));
+
+    let source_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    source_row.set_visible(cfg.borrow().display_mode == DisplayLayoutMode::Mirror);
+    let source_label = gtk::Label::new(Some("Show on"));
+    source_label.set_xalign(0.0);
+    source_row.append(&source_label);
+    let source_dd = gtk::DropDown::new(
+        Some(gtk::StringList::new(&[] as &[&str])),
+        gtk::Expression::NONE,
+    );
+    source_dd.set_hexpand(true);
+    source_row.append(&source_dd);
+    mode_body.append(&source_row);
+
+    let mirror_hint = gtk::Label::new(Some(
+        "Duplicate displays requires a DRM session with two or more active monitors. \
+         Nested dev sessions save this preference but the compositor stays in extend mode.",
+    ));
+    mirror_hint.set_wrap(true);
+    mirror_hint.set_xalign(0.0);
+    mirror_hint.add_css_class("metis-settings-hint");
+    mode_body.append(&mirror_hint);
+    content.append(&mode_card);
 
     let (arrange_card, arrange_body) = ui::section("Arrangement");
     content.append(&arrange_card);
@@ -104,6 +134,45 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         })
     };
 
+    let refresh_source_dropdown: Rc<dyn Fn()> = {
+        let cfg = cfg.clone();
+        let outputs = outputs.clone();
+        let source_dd = source_dd.clone();
+        let source_row = source_row.clone();
+        let duplicate = duplicate.clone();
+        Rc::new(move || {
+            let list = outputs.borrow();
+            let enabled: Vec<&OutputInfo> = list.iter().filter(|o| o.enabled).collect();
+            let mirror_on = cfg.borrow().display_mode == DisplayLayoutMode::Mirror;
+            source_row.set_visible(mirror_on && enabled.len() >= 2);
+            if !mirror_on || enabled.len() < 2 {
+                return;
+            }
+            let labels: Vec<String> = enabled
+                .iter()
+                .enumerate()
+                .map(|(i, o)| panel_title(o, i))
+                .collect();
+            let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+            let model = gtk::StringList::new(&refs);
+            source_dd.set_model(Some(&model));
+            let selected_name = cfg
+                .borrow()
+                .mirror_source
+                .clone()
+                .or_else(|| enabled.first().map(|o| o.name.clone()));
+            if let Some(name) = selected_name {
+                if let Some(idx) = enabled.iter().position(|o| o.name == name) {
+                    let idx = idx as u32;
+                    if source_dd.selected() != idx {
+                        source_dd.set_selected(idx);
+                    }
+                }
+            }
+            duplicate.set_sensitive(enabled.len() >= 2);
+        })
+    };
+
     let rebuild_detail: Rc<dyn Fn()> = {
         let cfg = cfg.clone();
         let outputs = outputs.clone();
@@ -134,12 +203,21 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         let outputs = outputs.clone();
         let selected = selected.clone();
         let arrange_body = arrange_body.clone();
+        let arrange_card = arrange_card.clone();
         let canvas_slot = canvas_slot.clone();
         let rebuild_detail = rebuild_detail.clone();
         let empty_hint = empty_hint.clone();
         let set_display_pending = set_display_pending.clone();
+        let refresh_source_dropdown = refresh_source_dropdown.clone();
+        let duplicate = duplicate.clone();
         Rc::new(move || {
-            let list = outputs.borrow();
+            let mirror_on = cfg.borrow().display_mode == DisplayLayoutMode::Mirror;
+            if duplicate.is_active() != mirror_on {
+                duplicate.set_active(mirror_on);
+            }
+            refresh_source_dropdown();
+            arrange_card.set_visible(!mirror_on);
+            let list = outputs.borrow().clone();
             if list.is_empty() {
                 while let Some(child) = arrange_body.first_child() {
                     arrange_body.remove(&child);
@@ -181,7 +259,6 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                 arrange_body.append(canvas.widget());
                 *canvas_slot.borrow_mut() = Some(canvas);
             } else if let Some(canvas) = canvas_slot.borrow().as_ref() {
-                *outputs.borrow_mut() = list.clone();
                 canvas.rebuild_blocks();
             }
             rebuild_detail();
@@ -192,6 +269,44 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     {
         let cfg = cfg.clone();
+        let mark_display_dirty = mark_display_dirty.clone();
+        let rebuild_arrangement = rebuild_arrangement.clone();
+        let refresh_source_dropdown = refresh_source_dropdown.clone();
+        duplicate.connect_active_notify(move |sw| {
+            let mut c = cfg.borrow_mut();
+            c.display_mode = if sw.is_active() {
+                DisplayLayoutMode::Mirror
+            } else {
+                DisplayLayoutMode::Extend
+            };
+            if c.display_mode == DisplayLayoutMode::Mirror && c.mirror_source.is_none() {
+                if let Some(first) = runtime::list_outputs().into_iter().find(|o| o.enabled) {
+                    c.mirror_source = Some(first.name);
+                }
+            }
+            drop(c);
+            refresh_source_dropdown();
+            mark_display_dirty();
+            rebuild_arrangement();
+        });
+    }
+    {
+        let cfg = cfg.clone();
+        let outputs = outputs.clone();
+        let mark_display_dirty = mark_display_dirty.clone();
+        source_dd.connect_selected_notify(move |dd| {
+            let list = outputs.borrow();
+            let enabled: Vec<&OutputInfo> = list.iter().filter(|o| o.enabled).collect();
+            let Some(out) = enabled.get(dd.selected() as usize) else {
+                return;
+            };
+            let mut c = cfg.borrow_mut();
+            c.mirror_source = Some(out.name.clone());
+            mark_display_dirty();
+        });
+    }
+
+    {
         let parent = parent.clone();
         let canvas_slot = canvas_slot.clone();
         let outputs = outputs.clone();
@@ -261,8 +376,13 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         let refresh_save_buttons = refresh_save_buttons.clone();
         let rebuild_detail = rebuild_detail.clone();
         let rebuild_arrangement = rebuild_arrangement.clone();
+        let duplicate = duplicate.clone();
         revert_display_btn.connect_clicked(move |_| {
             *cfg.borrow_mut() = load_outputs_config();
+            let mirror_on = cfg.borrow().display_mode == DisplayLayoutMode::Mirror;
+            if duplicate.is_active() != mirror_on {
+                duplicate.set_active(mirror_on);
+            }
             *display_dirty.borrow_mut() = false;
             if let Some(canvas) = canvas_slot.borrow().as_ref() {
                 canvas.revert_layout();
@@ -341,6 +461,24 @@ fn build_output_panel(
         body.append(&primary_row);
     }
 
+    if out.mirror_source {
+        let label = gtk::Label::new(Some("Mirror source — other displays duplicate this one"));
+        label.add_css_class("metis-settings-hint");
+        label.set_xalign(0.0);
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        row.add_css_class("metis-settings-row");
+        row.append(&label);
+        body.append(&row);
+    } else if out.mirrored {
+        let label = gtk::Label::new(Some("Duplicating another display"));
+        label.add_css_class("metis-settings-hint");
+        label.set_xalign(0.0);
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        row.add_css_class("metis-settings-row");
+        row.append(&label);
+        body.append(&row);
+    }
+
     let (live_card, live_body) = ui::section("Applies live");
     live_body.add_css_class("metis-display-live-section");
 
@@ -403,11 +541,6 @@ fn build_output_panel(
     rotation.set_xalign(0.0);
     rotation.add_css_class("metis-settings-hint");
     mode_body.append(&ui::row("Rotation", &rotation));
-
-    let mirror = gtk::Label::new(Some("Mirror displays — coming soon"));
-    mirror.set_xalign(0.0);
-    mirror.add_css_class("metis-settings-hint");
-    mode_body.append(&ui::row("Mirror displays", &mirror));
     body.append(&mode_card);
 
     let applied = gtk::Label::new(Some(&format!(

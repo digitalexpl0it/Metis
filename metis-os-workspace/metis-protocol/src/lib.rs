@@ -209,6 +209,12 @@ pub struct OutputInfo {
     /// EDID model when known.
     #[serde(default)]
     pub model: String,
+    /// This output clones another when mirror mode is active.
+    #[serde(default)]
+    pub mirrored: bool,
+    /// This output is the mirror source (duplicate mode).
+    #[serde(default)]
+    pub mirror_source: bool,
 }
 
 fn default_output_scale() -> f64 {

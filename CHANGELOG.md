@@ -5,6 +5,17 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-01]
+
+### Added
+
+- **Display — duplicate (mirror) mode** — Settings → Display **Duplicate displays**
+  toggle with a **Show on** source picker; persisted in `outputs.json`
+  (`display_mode`, `mirror_source`). On a DRM session with two or more monitors,
+  the compositor maps all outputs to the origin, renders the source once per
+  frame, and scale-to-fits onto each CRTC with letterboxing when resolutions
+  differ. Uses the existing **Save display settings** keep/revert flow.
+
 ## [2026-06-30]
 
 ### Added

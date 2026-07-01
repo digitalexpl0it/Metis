@@ -2,10 +2,9 @@
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. **Phase 5** is in progress — resolution/refresh and
-multi-monitor arrangement landed in Settings → Display (2026-06-30); mirror, VRR,
-and colour management remain. Next tracks: **Phase 6** (Flatpak, Steam & gaming)
-and **Phase 7** (remote access / full desktop sharing).
+Device + System pages. **Phase 5** is in progress — mirror/clone displays landed
+(2026-07-01); VRR and colour management remain. Next tracks: **Phase 6** (Flatpak,
+Steam & gaming) and **Phase 7** (remote access / full desktop sharing).
 
 ---
 
@@ -354,7 +353,7 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
 - [x] **Display (settings UI)** — Settings → Display: monitor picker chips, per-output
       scale/enabled, night-light prefs in `outputs.json`; scale and enable/disable
       apply live via `ReloadOutputs` IPC + compositor file poll. Resolution /
-      refresh and multi-monitor arrangement are Phase 5 below; mirror / night-light
+      refresh and multi-monitor arrangement are Phase 5 below; night-light
       compositor pipeline remain open.
 
 ---
@@ -379,7 +378,11 @@ Phase 3) — none of these are possible under the nested winit dev session.
 - [x] **Multi-monitor arrangement** — draggable canvas preview (multi-monitor
       only; single output is preview-only), `layout_x`/`layout_y` in
       `outputs.json`, **Save display settings** + 15 s keep/revert dialog
-- [ ] **Mirror / clone displays** — UI stub only; compositor path not wired
+- [x] **Mirror / clone displays** — Settings **Duplicate displays** toggle +
+      **Show on** source picker; `display_mode` / `mirror_source` in
+      `outputs.json`; DRM compositor renders source once per frame and
+      scale-to-fits (letterbox) onto every enabled output; arrangement canvas
+      hidden while duplicating; nested winit ignores mirror prefs
 
 ### B. Colour pipeline
 

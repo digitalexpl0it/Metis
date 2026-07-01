@@ -151,7 +151,7 @@ Other files are created on demand:
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
 | `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
 | `power.json` | You configure power settings | Power profile, idle timeouts, lid-close action |
-| `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, night-light prefs |
+| `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, `display_mode` / `mirror_source`, night-light prefs |
 
 Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
 within ~1s and theme edits re-apply live. Set `opacity` < 1 for a see-through
@@ -183,8 +183,9 @@ reference.
   and other xdg-desktop-portal screenshot apps. ScreenCast stream registration
   works; live PipeWire frame pump is still TODO.
 - **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — Settings →
-  Display now supports resolution/refresh and multi-monitor arrangement (DRM
-  session); mirror, VRR, night-light compositor, and HDR remain upcoming.
+  Display now supports resolution/refresh, multi-monitor arrangement, and
+  duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR
+  remain upcoming.
 - **Phase 6 — Flatpak, Steam & gaming:** upcoming — Steam/Proton on Metis,
   portal gaps (Inhibit, ScreenCast pump), Flatpak discovery, Gamescope optional
   wrapper, controller/device permissions docs.

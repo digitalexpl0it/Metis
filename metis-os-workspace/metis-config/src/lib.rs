@@ -159,8 +159,8 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
 }
 
 pub use outputs::{
-    load_outputs_config, output_prefs, outputs_config_path, save_outputs_config, OutputPrefs,
-    OutputsConfig,
+    load_outputs_config, output_prefs, outputs_config_path, save_outputs_config,
+    DisplayLayoutMode, OutputPrefs, OutputsConfig,
 };
 pub use power::{
     load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,

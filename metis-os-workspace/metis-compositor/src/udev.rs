@@ -45,7 +45,7 @@ use smithay::{
             timer::{TimeoutAction, Timer},
             EventLoop, LoopHandle, RegistrationToken,
         },
-        drm::control::{connector, crtc, Mode, ModeTypeFlags},
+        drm::control::{connector, crtc, Mode},
         input::Libinput,
         rustix::fs::OFlags,
         wayland_server::backend::GlobalId,
@@ -122,6 +122,8 @@ pub struct UdevState {
     pub cursor_theme: String,
     /// Cache of uploaded cursor frames, keyed by the source xcursor image.
     pub pointer_buffers: Vec<(XCursorImage, MemoryRenderBuffer)>,
+    /// Cached mirror-source frame for the current damage-dispatch batch.
+    pub mirror_batch: Option<crate::mirror::MirrorBatchCache>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -185,6 +187,7 @@ pub fn init_udev(
         },
         cursor_theme: state.xcursor_config().0.to_string(),
         pointer_buffers: Vec::new(),
+        mirror_batch: None,
     };
 
     // 4. dmabuf global from the primary renderer's formats so EGL/GPU clients
@@ -627,6 +630,7 @@ impl MetisState {
         if self.damaged {
             self.damaged = false;
             if let Some(udev) = self.udev.as_mut() {
+                udev.mirror_batch = None;
                 for surface in udev.surfaces.values_mut() {
                     if !surface.user_disabled {
                         surface.pending = true;
@@ -714,24 +718,26 @@ impl MetisState {
             s.pending = false;
         }
 
-        let scale = Scale::from(output.current_scale().fractional_scale());
-        let origin: Point<i32, Physical> = self
-            .space
-            .output_geometry(&output)
-            .map(|g| g.loc.to_physical_precise_round(scale))
-            .unwrap_or_default();
+        let outcome: Result<bool, String> = if self.mirror_mode_active() {
+            crate::mirror::render_mirror_surface(self, &mut renderer, crtc)
+        } else {
+            let scale = Scale::from(output.current_scale().fractional_scale());
+            let origin: Point<i32, Physical> = self
+                .space
+                .output_geometry(&output)
+                .map(|g| g.loc.to_physical_precise_round(scale))
+                .unwrap_or_default();
 
-        let mut elements = self.build_render_elements(&mut renderer, origin, scale);
+            let mut elements = self.build_render_elements(&mut renderer, origin, scale);
 
-        // Pointer goes on top of everything; only on the output under the cursor.
-        let cursor = self.build_cursor_elements(&mut renderer, &output, scale);
-        if !cursor.is_empty() {
-            let mut stacked = cursor;
-            stacked.append(&mut elements);
-            elements = stacked;
-        }
+            // Pointer goes on top of everything; only on the output under the cursor.
+            let cursor = self.build_cursor_elements(&mut renderer, &output, scale);
+            if !cursor.is_empty() {
+                let mut stacked = cursor;
+                stacked.append(&mut elements);
+                elements = stacked;
+            }
 
-        let outcome: Result<bool, String> = {
             let udev = self.udev.as_mut().unwrap();
             let surface = udev.surfaces.get_mut(&crtc).unwrap();
             match surface.drm_output.render_frame(
@@ -856,6 +862,11 @@ impl MetisState {
     /// leaves a hole (and a reconnect never overlaps). Order is kept stable by
     /// current x then name, so the surviving outputs don't shuffle unexpectedly.
     fn repack_outputs(&mut self) {
+        if self.mirror_mode_active() {
+            let cfg = self.output_runtime.cached().clone();
+            crate::mirror::apply_mirror_layout(self, &cfg);
+            return;
+        }
         let mut outputs: Vec<Output> = self
             .udev
             .as_ref()

@@ -15,6 +15,7 @@ mod image_capture;
 mod input;
 mod ipc;
 mod keybinds;
+mod mirror;
 mod output_modes;
 mod output_prefs;
 mod render;

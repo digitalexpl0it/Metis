@@ -68,18 +68,28 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
     if enable_changed {
         state.retile_after_output_prefs();
     }
-    if apply_output_layout(state, cfg) {
+    if state.mirror_mode_active() {
+        if crate::mirror::apply_mirror_layout(state, cfg) {
+            changed = true;
+        }
+    } else if apply_output_layout(state, cfg) {
         changed = true;
     }
     if crate::output_modes::apply_output_modes(state, cfg) {
         changed = true;
     }
-    for output in state.connected_outputs() {
-        if !state.is_output_enabled(&output.name()) {
-            continue;
-        }
-        if apply_output_scale(&output, cfg) {
+    if state.mirror_mode_active() {
+        if crate::mirror::apply_mirror_scales(state, cfg) {
             changed = true;
+        }
+    } else {
+        for output in state.connected_outputs() {
+            if !state.is_output_enabled(&output.name()) {
+                continue;
+            }
+            if apply_output_scale(&output, cfg) {
+                changed = true;
+            }
         }
     }
     if changed {
@@ -101,6 +111,7 @@ fn apply_output_scale(output: &Output, cfg: &OutputsConfig) -> bool {
 }
 
 fn post_output_geometry_change(state: &mut MetisState) {
+    state.clear_mirror_batch_cache();
     state.decorations.invalidate_all();
     state.reflow_for_bar_geometry_change();
     let (full, regions) = state.wallpaper_layout();
@@ -189,7 +200,12 @@ pub(crate) fn output_geometry(state: &MetisState, output: &Output) -> Option<Rec
     })
 }
 
-pub fn output_info_for(state: &MetisState, output: &Output, primary: Option<&str>) -> metis_protocol::OutputInfo {
+pub fn output_info_for(
+    state: &MetisState,
+    output: &Output,
+    primary: Option<&str>,
+    mirror_source: Option<&str>,
+) -> metis_protocol::OutputInfo {
     let name = output.name();
     let geo = output_geometry(state, output);
     let rect = geo
@@ -209,6 +225,12 @@ pub fn output_info_for(state: &MetisState, output: &Output, primary: Option<&str
     let prefs = output_prefs(cfg, &name);
     let phys = output.physical_properties();
     let active = state.is_output_enabled(&name);
+    let mirror_active = state.mirror_mode_active();
+    let is_mirror_source = mirror_active && mirror_source.is_some_and(|s| s == name);
+    let is_mirrored = mirror_active
+        && !is_mirror_source
+        && active
+        && prefs.enabled;
     metis_protocol::OutputInfo {
         name,
         primary: primary.is_some_and(|p| p == output.name()),
@@ -217,5 +239,7 @@ pub fn output_info_for(state: &MetisState, output: &Output, primary: Option<&str
         enabled: active && prefs.enabled,
         make: phys.make,
         model: phys.model,
+        mirrored: is_mirrored,
+        mirror_source: is_mirror_source,
     }
 }

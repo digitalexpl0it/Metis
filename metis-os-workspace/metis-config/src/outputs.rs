@@ -1,5 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+/// How multiple displays are arranged: extended desktop or duplicated (mirror).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DisplayLayoutMode {
+    #[default]
+    Extend,
+    Mirror,
+}
+
 /// Per-output display preferences. Keys match compositor output names (`metis-0`, …).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OutputPrefs {
@@ -64,6 +73,13 @@ pub struct OutputsConfig {
     /// Colour temperature in kelvin when night light is on (e.g. 4000).
     #[serde(default = "default_night_temp")]
     pub night_light_temperature: u32,
+    /// Extended desktop vs duplicate (mirror) mode.
+    #[serde(default)]
+    pub display_mode: DisplayLayoutMode,
+    /// Output name to mirror from when `display_mode` is `Mirror`. `None` uses the
+    /// first enabled output (leftmost saved layout, else name order).
+    #[serde(default)]
+    pub mirror_source: Option<String>,
 }
 
 fn default_night_temp() -> u32 {
