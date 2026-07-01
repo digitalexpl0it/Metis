@@ -2,9 +2,9 @@
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. Next major tracks: **Phase 5** (display pipeline: VRR,
-colour management, HDR), **Phase 6** (Flatpak, Steam & gaming), and **Phase 7**
-(remote access / full desktop sharing).
+Device + System pages. Next major tracks: **Phase 5** (display mode-setting,
+resolution/mirror/extend, VRR, colour management, HDR), **Phase 6** (Flatpak, Steam
+& gaming), and **Phase 7** (remote access / full desktop sharing).
 
 ---
 
@@ -344,23 +344,42 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
       section lists Bluetooth peripherals with battery + charging status
 - [x] **Sound** — output / input device selection via `pactl` default sink/source;
       volume readout on the settings page (bar volume widget unchanged)
-- [x] **Display** — per-output scale + night-light prefs in `outputs.json`; lists
-      compositor outputs via `ListOutputs` IPC. Resolution / refresh / VRR remain
-      Phase 5 (DRM mode-setting)
+- [x] **Display (settings UI stub)** — Settings → Display writes per-output scale,
+      enabled, and night-light prefs to `outputs.json` and lists compositor outputs
+      via `ListOutputs` IPC. The compositor does **not** apply these yet; live
+      display control is Phase 5 below.
 
 ---
 
-## Phase 5 — Display pipeline (HDR / VRR / colour)
+## Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour)
 
 Advanced output features, all gated on the real DRM/udev backend (deferred in
 Phase 3) — none of these are possible under the nested winit dev session.
+
+### A. Display settings & mode-setting (Settings → Display)
+
+- [ ] **Wire `outputs.json` to the compositor** — read per-output scale / enabled
+      prefs; `ReloadOutputs` IPC (or file watcher, mirroring `input.json`); apply
+      fractional scale live on each output
+- [ ] **Display picker UX** — detect connected monitors (`ListOutputs` + EDID
+      make/model where available); show a display icon per output; select which
+      monitor the settings page configures (primary labelled, current selection
+      highlighted)
+- [ ] **Resolution & refresh rate** — list DRM modes per output; let the user pick
+      resolution and refresh; apply via Smithay `DrmOutput` mode-setting
+- [ ] **Multi-monitor layout** — extend desktop (independent positions, current
+      default), mirror/clone displays, turn off / disable an output
+- [ ] **Per-output enable/disable** — honour the Display page “Enabled” switch
+      (unmap output, reclaim desktop space, hot-plug safe)
+
+### B. Colour pipeline
 
 - [ ] **VRR / adaptive sync** — enable per-output via Smithay's DRM VRR support;
       opt-in toggle surfaced in the Display settings page
 - [ ] **Colour management** — ICC / per-output colour profiles and the
       `wp_color_management` protocol; groundwork shared with HDR
-- [ ] **Night light / colour temperature** — scheduled warm-shift (also exposed in
-      Display settings); a simpler precursor that exercises the colour pipeline
+- [ ] **Night light / colour temperature** — scheduled warm-shift (UI toggle exists
+      in Display settings today; compositor colour pipeline not wired yet)
 - [ ] **HDR** — wide-gamut / 10-bit GLES render path + DRM colour pipeline on top of
       colour management (long-term; gated on protocol + Smithay maturity). A genuinely
       rare thing for a lightweight DE — worth doing right rather than fast
@@ -561,7 +580,7 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
-| `outputs.json` | Per-output scale, night-light prefs (resolution/VRR in Phase 5) |
+| `outputs.json` | Per-output scale, enabled, night-light prefs (UI writes today; compositor apply + resolution/mirror/extend in Phase 5) |
 
 ### `bar.json` (defaults)
 
