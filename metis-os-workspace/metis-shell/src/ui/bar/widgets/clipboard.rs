@@ -4,9 +4,9 @@ use std::rc::Rc;
 use gtk::prelude::*;
 
 use crate::services::{
-    clear_history, delete_entry, filtered_entries, load_history, private_mode,
-    recall_entry, register_clipboard_refresh, set_page_size, set_private_mode, toggle_favorite,
-    active_entry_id, ClipboardEntry, ClipboardPage,
+    active_entry_id, clear_history, delete_entry, filtered_entries, load_history, page_size,
+    private_mode, recall_entry, register_clipboard_refresh, set_page_size, set_private_mode,
+    toggle_favorite, ClipboardEntry, ClipboardPage,
 };
 use crate::ui::icons;
 
@@ -134,37 +134,63 @@ impl ClipboardWidget {
             })
         };
 
-        let settings_popover = gtk::Popover::new();
+        let settings_popover = gtk::Popover::builder().has_arrow(true).build();
+        settings_popover.add_css_class("metis-bar-popover");
         settings_popover.set_parent(&settings_btn);
-        let settings_box = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(4)
-            .margin_top(8)
-            .margin_bottom(8)
-            .margin_start(10)
-            .margin_end(10)
-            .build();
+        let settings_panel = super::super::dropdown::build_panel();
+        settings_panel.add_css_class("metis-clipboard-settings-menu");
+        settings_panel.set_spacing(2);
+        settings_panel.set_width_request(220);
+
+        let settings_items: Rc<RefCell<Vec<(gtk::Button, gtk::Image, usize)>>> =
+            Rc::new(RefCell::new(Vec::new()));
         for (label, size) in [
             ("25 entries per page", 25_usize),
             ("50 entries per page", 50),
             ("100 entries per page", 100),
         ] {
-            let btn = gtk::Button::with_label(label);
+            let btn = gtk::Button::builder().has_frame(false).hexpand(true).build();
             btn.add_css_class("metis-clipboard-settings-item");
+
+            let row = gtk::Box::builder()
+                .orientation(gtk::Orientation::Horizontal)
+                .spacing(8)
+                .build();
+            let check = icons::image("object-select-symbolic");
+            check.add_css_class("metis-clipboard-settings-check");
+            let text = gtk::Label::builder()
+                .label(label)
+                .halign(gtk::Align::Start)
+                .hexpand(true)
+                .build();
+            text.add_css_class("metis-clipboard-settings-label");
+            row.append(&check);
+            row.append(&text);
+            btn.set_child(Some(&row));
+
             let popover = settings_popover.clone();
+            let items = settings_items.clone();
             let repaint = refresh.clone();
-            btn.connect_clicked(move |_| {
+            btn.connect_clicked(move |b| {
                 set_page_size(size);
+                sync_settings_selection(&items, size);
                 popover.popdown();
                 repaint();
             });
-            settings_box.append(&btn);
+            settings_items
+                .borrow_mut()
+                .push((btn.clone(), check, size));
+            settings_panel.append(&btn);
         }
-        settings_popover.set_child(Some(&settings_box));
+        settings_popover.set_child(Some(&settings_panel));
 
         settings_btn.connect_clicked({
             let settings_popover = settings_popover.clone();
-            move |_| settings_popover.popup()
+            let items = settings_items.clone();
+            move |_| {
+                sync_settings_selection(&items, page_size());
+                settings_popover.popup();
+            }
         });
 
         search.connect_search_changed({
@@ -230,6 +256,21 @@ impl ClipboardWidget {
 
     pub fn update(&self) {
         (self.refresh)();
+    }
+}
+
+fn sync_settings_selection(
+    items: &Rc<RefCell<Vec<(gtk::Button, gtk::Image, usize)>>>,
+    active_size: usize,
+) {
+    for (btn, check, size) in items.borrow().iter() {
+        let selected = *size == active_size;
+        check.set_visible(selected);
+        if selected {
+            btn.add_css_class("metis-clipboard-settings-active");
+        } else {
+            btn.remove_css_class("metis-clipboard-settings-active");
+        }
     }
 }
 
@@ -333,25 +374,21 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
     });
     row.append(&body);
 
-    let star_btn = icon_button(
+    let pin_btn = icon_button(
+        "view-pin-symbolic",
         if entry.favorited {
-            "starred-symbolic"
+            "Unpin (allow auto-removal)"
         } else {
-            "star-outline-symbolic"
-        },
-        if entry.favorited {
-            "Unfavorite"
-        } else {
-            "Keep forever"
+            "Pin (keep forever)"
         },
     );
-    star_btn.add_css_class("metis-clipboard-row-action");
+    pin_btn.add_css_class("metis-clipboard-row-action");
     if entry.favorited {
-        star_btn.add_css_class("metis-clipboard-starred");
+        pin_btn.add_css_class("metis-clipboard-pinned");
     }
     let entry_id = entry.id;
-    star_btn.connect_clicked(move |_| toggle_favorite(entry_id));
-    row.append(&star_btn);
+    pin_btn.connect_clicked(move |_| toggle_favorite(entry_id));
+    row.append(&pin_btn);
 
     let delete_btn = icon_button("user-trash-symbolic", "Delete entry");
     delete_btn.add_css_class("metis-clipboard-row-action");

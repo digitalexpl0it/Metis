@@ -848,16 +848,31 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-image: none;
         border: none;
         box-shadow: none;
-        color: {text};
+        color: {muted};
+    }}
+
+    .metis-clipboard-row-action image,
+    .metis-clipboard-icon-btn image,
+    .metis-clipboard-footer-btn image {{
+        color: {muted};
+        -gtk-icon-style: symbolic;
     }}
 
     .metis-clipboard-row-action:hover,
     .metis-clipboard-icon-btn:hover,
     .metis-clipboard-footer-btn:hover {{
         background-color: rgba({text_rgb}, 0.08);
+        color: {text};
     }}
 
-    .metis-clipboard-starred {{
+    .metis-clipboard-row-action:hover image,
+    .metis-clipboard-icon-btn:hover image,
+    .metis-clipboard-footer-btn:hover image {{
+        color: {text};
+    }}
+
+    .metis-clipboard-pinned,
+    .metis-clipboard-pinned image {{
         color: {accent};
     }}
 
@@ -866,8 +881,44 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-top: 1px solid rgba({text_rgb}, 0.08);
     }}
 
-    .metis-clipboard-settings-item {{
-        justify-content: flex-start;
+    .metis-clipboard-settings-menu {{
+        min-width: 220px;
+        padding: 6px;
+    }}
+
+    .metis-bar-dropdown-panel .metis-clipboard-settings-item,
+    .metis-clipboard-settings-menu .metis-clipboard-settings-item {{
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        padding: 8px 10px;
+        border-radius: {rs}px;
+        color: {text};
+    }}
+
+    .metis-clipboard-settings-item:hover {{
+        background-color: rgba({text_rgb}, 0.08);
+    }}
+
+    .metis-clipboard-settings-item.metis-clipboard-settings-active {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+
+    .metis-clipboard-settings-item.metis-clipboard-settings-active
+    .metis-clipboard-settings-label {{
+        font-weight: 600;
+    }}
+
+    .metis-clipboard-settings-label {{
+        color: {text};
+        font-size: 13px;
+    }}
+
+    .metis-clipboard-settings-check {{
+        min-width: 18px;
+        color: {accent};
+        -gtk-icon-style: symbolic;
     }}
 
     .metis-bar-volume-scale {{

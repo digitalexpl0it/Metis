@@ -19,7 +19,7 @@ pub use calendar::{
 };
 pub use clipboard::{
     apply_clipboard_event, clear_history, delete_entry, filtered_entries, load_history,
-    private_mode, recall_entry, register_refresh as register_clipboard_refresh,
+    private_mode, recall_entry, register_refresh as register_clipboard_refresh, page_size,
     runtime_clipboard_entries, set_page_size, set_private_mode, toggle_favorite,
     active_entry_id, ClipboardEntry, ClipboardPage,
 };

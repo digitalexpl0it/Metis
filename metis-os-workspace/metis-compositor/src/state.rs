@@ -4952,6 +4952,25 @@ impl MetisState {
         }
     }
 
+    /// Step to the previous/next workspace (wrapping at 1..=`workspace_count()`),
+    /// honoring linked vs. separate multi-monitor mode.
+    pub fn cycle_workspace_routed(&mut self, requested_output: &str, delta: i32) {
+        let count = self.workspace_count();
+        let current = self.active_workspace_for(requested_output);
+        let target = if delta >= 0 {
+            if current >= count {
+                1
+            } else {
+                current + 1
+            }
+        } else if current <= 1 {
+            count
+        } else {
+            current - 1
+        };
+        self.switch_workspace_routed(requested_output, target);
+    }
+
     /// Show a different virtual workspace on a single output. Stashes that
     /// output's visible app tiles (and unmaps their windows), then restores the
     /// target workspace's tiles and remaps its windows. Other outputs and the

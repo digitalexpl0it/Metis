@@ -191,7 +191,8 @@ so each milestone is shippable on its own:
 - [x] **Virtual workspaces (single output)** — fixed-N workspaces on the one
       output, each its own set of tiled app windows with shared desk widgets.
       `SwitchWorkspace`/`MoveWindowToWorkspace` commands + `WorkspaceChanged`
-      event; `Super`+`1..9` / `Super`+`Shift`+`1..9` keybinds; bar dots wired
+      event; `Super`+`1..9` / `Super`+`Shift`+`1..9` keybinds; `Super`+`Alt`+`←`/`→`
+      cycles workspaces in order (wraps at 1..=count); bar dots wired
       through IPC; `WindowInfo.workspace` populated. Count from `bar.json`
       `workspace_count`. (Per-output split comes with the refactor below.)
 - [x] **Output-agnostic refactor** — remove the `space.outputs().next()` /

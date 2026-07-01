@@ -87,6 +87,32 @@ impl MetisState {
                                     return FilterResult::Intercept(());
                                 }
                             }
+                            // Super+Alt+←/→ cycles workspaces in order (wraps at
+                            // 1..=count). Always Super+Alt regardless of METIS_MOD.
+                            if modifiers.logo
+                                && modifiers.alt
+                                && !modifiers.shift
+                                && !modifiers.ctrl
+                            {
+                                let key = state
+                                    .output_under_pointer()
+                                    .map(|o| o.name())
+                                    .unwrap_or_else(|| state.primary_key());
+                                let cycled = match sym {
+                                    keysyms::KEY_Left => {
+                                        state.cycle_workspace_routed(&key, -1);
+                                        true
+                                    }
+                                    keysyms::KEY_Right => {
+                                        state.cycle_workspace_routed(&key, 1);
+                                        true
+                                    }
+                                    _ => false,
+                                };
+                                if cycled {
+                                    return FilterResult::Intercept(());
+                                }
+                            }
                             if mod_active(modifiers) {
                                 if let Some(ws) = workspace_from_keysym(digit_sym) {
                                     if modifiers.shift {
