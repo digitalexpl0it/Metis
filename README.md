@@ -168,7 +168,9 @@ reference.
 - **Phase 2 — Settings app + window decorations:** complete. A standalone
   `metis-settings` app (Appearance, Metis Menu, Weather, Network, Calendars),
   compositor-drawn server-side titlebars/borders, edge snapping, auto-hide
-  titlebars, and XWayland.
+  titlebars, and first-class XWayland windows (Metis titlebar, placement,
+  move/resize/snap, dock/IPC). Electron/Chromium apps are steered onto native
+  Wayland for stability.
 - **Phase 3 — Multi-monitor, workspaces & tiling:** largely complete. Per-output
   edge bars, wallpaper, and usable areas; independent or linked per-output
   workspaces; a taskbar dock that follows the output + workspace; and an optional

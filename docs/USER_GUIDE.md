@@ -216,7 +216,10 @@ is **Steam + Proton working on a Metis session** on Ubuntu and similar distros.
 ## 5. Window management
 
 Metis draws **server-side decorations**, so every window (Wayland or XWayland)
-gets a consistent titlebar and border that follow your theme.
+gets a consistent titlebar and border that follow your theme. Electron/Chromium
+apps (Cursor, Claude Desktop, …) are steered onto native Wayland when launched
+from Metis, which is more stable than their default XWayland path and still gets
+the Metis titlebar.
 
 - **Move** — drag the titlebar.
 - **Close / minimize / maximize** — the three titlebar buttons (× / − / +).
@@ -489,6 +492,7 @@ changes live.
 | Symptom | Try |
 |---------|-----|
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk-4-layer-shell` is installed |
+| Electron app (e.g. Claude Desktop) opens then immediately closes | Metis launches Electron/Chromium apps on native Wayland by default (`ELECTRON_OZONE_PLATFORM_HINT=auto`, and `CLAUDE_USE_WAYLAND=1` for Claude), which is stable; their XWayland path can quit on launch. Re-login after `./run-metis.sh --install-session` so the session env applies. To force XWayland for one app, launch it with `ELECTRON_OZONE_PLATFORM_HINT=x11` (or `CLAUDE_USE_WAYLAND=0`) |
 | Apps slow to open / black screen on login | Ensure portal files are installed (`./run-metis.sh --install-session` or rebuild with `--session`); see [`CHANGELOG.md`](../CHANGELOG.md) 2026-06-28 |
 | Screenshot / Flameshot fails | Re-login after `./run-metis.sh --install-session`; run `metis-portal --capture-test /tmp/test.png` to isolate portal vs app issues; grant the first-time portal permission |
 | Flatpak app won't start / no Wayland | Install `flatpak` + portal packages; ensure app has `socket=wayland` (`flatpak info --show-permissions …`) |

@@ -5,16 +5,6 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026-06-28]
-
-### Added
-
-- **`wp_color_management_v1` compositor handler** — Metis can advertise the colour
-  management protocol when `METIS_COLOR_MGMT=1` (off by default). Per-output ICC
-  profiles from `outputs.json` are loaded on apply/reload. Disabled by default
-  because Chromium/Ozone currently destabilises the DRM session when the global
-  is present.
-
 ## [2026-07-02]
 
 ### Added
@@ -159,6 +149,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Colour profile paths** — per-output ICC file picker in Settings → Display;
   paths saved to `outputs.json` and loaded by the compositor on apply (GPU
   colour transforms still pending).
+- **`wp_color_management_v1` compositor handler** — Metis can advertise the colour
+  management protocol when `METIS_COLOR_MGMT=1` (off by default). Per-output ICC
+  profiles from `outputs.json` are loaded on apply/reload. Disabled by default
+  because Chromium/Ozone currently destabilises the DRM session when the global
+  is present.
 
 ### Fixed
 

@@ -148,6 +148,15 @@ decorations so it (and every app) gets a real titlebar.
       the screen-edge gap survives
 - [x] XWayland — spawn/manage an X11 server (`X11Wm`/`XwmHandler`) so X11-only
       apps run in the nested session alongside Wayland clients
+- [x] **First-class XWayland windows** — X11 toplevels join the shared window
+      registry via a `WindowSurface` enum, get a Metis server-side titlebar,
+      bar-aware floating placement, move/resize/snap, focus/stacking, and
+      dock/IPC events; override-redirect surfaces stay undecorated (2026-07-02).
+- [x] **Electron apps prefer native Wayland** — the compositor's client-spawn env
+      (and `metis-session` / `run-metis.sh --session`) set
+      `ELECTRON_OZONE_PLATFORM_HINT=auto` + `CLAUDE_USE_WAYLAND=1`, since Electron's
+      XWayland launch juggling is unstable under Metis (Claude Desktop "opened then
+      closed"). Overridable per app (2026-07-02).
 - [x] **Client xdg fullscreen** — Chromium / Firefox video fullscreen and other
       `xdg_toplevel.set_fullscreen` requests map the window to the output under
       the cursor (`fullscreen_request` / `unfullscreen_request` wired 2026-07-01).
