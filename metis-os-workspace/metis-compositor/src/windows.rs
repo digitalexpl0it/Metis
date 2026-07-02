@@ -4,16 +4,44 @@ use metis_grid::PixelRect;
 use metis_protocol::WindowInfo;
 use smithay::reexports::wayland_server::backend::ObjectId;
 use smithay::reexports::wayland_server::Resource;
+use smithay::xwayland::X11Surface;
 use smithay::{
     desktop::Window,
     wayland::shell::xdg::ToplevelSurface,
 };
 
+/// The shell surface backing a managed window. Native clients drive an
+/// `xdg_toplevel`; XWayland clients drive an `X11Surface`. Both are mapped into
+/// the same `Space<Window>` and share Metis's registry, decoration, placement,
+/// grab and IPC machinery — only the "tell the client its geometry / state"
+/// leaf calls differ, so they are funneled through helpers on [`MetisState`].
+#[derive(Clone)]
+pub enum WindowSurface {
+    Wayland(ToplevelSurface),
+    X11(X11Surface),
+}
+
+impl WindowSurface {
+    pub fn wayland(&self) -> Option<&ToplevelSurface> {
+        match self {
+            WindowSurface::Wayland(toplevel) => Some(toplevel),
+            WindowSurface::X11(_) => None,
+        }
+    }
+
+    pub fn x11(&self) -> Option<&X11Surface> {
+        match self {
+            WindowSurface::X11(surface) => Some(surface),
+            WindowSurface::Wayland(_) => None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct WindowRecord {
     pub id: u32,
     pub window: Window,
-    pub toplevel: ToplevelSurface,
+    pub surface: WindowSurface,
     pub title: String,
     pub app_id: Option<String>,
     pub target_rect: PixelRect,
@@ -46,6 +74,21 @@ pub struct WindowRecord {
     pub decoration_bound: bool,
     /// True when entering fullscreen while maximized — restored on fullscreen exit.
     pub pre_fullscreen_maximized: bool,
+    /// XWayland windows are managed as floating surfaces (no grid tiling/snap):
+    /// they carry no `xdg_toplevel` state and are positioned via `configure`.
+    pub is_x11: bool,
+}
+
+impl WindowRecord {
+    /// The `xdg_toplevel` for native Wayland windows, `None` for XWayland.
+    pub fn wl_toplevel(&self) -> Option<&ToplevelSurface> {
+        self.surface.wayland()
+    }
+
+    /// The backing `X11Surface` for XWayland windows, `None` for native Wayland.
+    pub fn x11(&self) -> Option<&X11Surface> {
+        self.surface.x11()
+    }
 }
 
 pub struct WindowRegistry {
@@ -55,6 +98,10 @@ pub struct WindowRegistry {
     // is only unique per client connection, so surfaces from two different clients
     // (shell, terminal, settings, …) can share a number and clobber each other.
     surface_to_id: HashMap<ObjectId, u32>,
+    // XWayland windows are keyed by their stable X11 window id: their `wl_surface`
+    // may not be associated yet at registration (it arrives via xwayland-shell),
+    // and X11 protocol callbacks (`XwmHandler`) only carry the `X11Surface`.
+    x11_to_id: HashMap<u32, u32>,
 }
 
 impl WindowRegistry {
@@ -63,27 +110,37 @@ impl WindowRegistry {
             next_id: 1,
             by_id: HashMap::new(),
             surface_to_id: HashMap::new(),
+            x11_to_id: HashMap::new(),
         }
     }
 
-    pub fn register(&mut self, window: Window, title: String, app_id: Option<String>) -> u32 {
+    fn alloc_id(&mut self) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
-        let toplevel = window.toplevel().unwrap().clone();
-        let surface_id = toplevel.wl_surface().id();
+        id
+    }
+
+    fn insert_record(
+        &mut self,
+        id: u32,
+        window: Window,
+        surface: WindowSurface,
+        title: String,
+        app_id: Option<String>,
+    ) {
+        let is_x11 = matches!(surface, WindowSurface::X11(_));
         let rect = PixelRect {
             x: 0,
             y: 0,
             width: 800,
             height: 600,
         };
-        self.surface_to_id.insert(surface_id, id);
         self.by_id.insert(
             id,
             WindowRecord {
                 id,
                 window,
-                toplevel,
+                surface,
                 title,
                 app_id,
                 target_rect: rect,
@@ -100,9 +157,48 @@ impl WindowRegistry {
                 decoration_negotiated: false,
                 decoration_bound: false,
                 pre_fullscreen_maximized: false,
+                is_x11,
             },
         );
+    }
+
+    pub fn register(&mut self, window: Window, title: String, app_id: Option<String>) -> u32 {
+        let id = self.alloc_id();
+        let toplevel = window.toplevel().unwrap().clone();
+        self.surface_to_id.insert(toplevel.wl_surface().id(), id);
+        self.insert_record(id, window, WindowSurface::Wayland(toplevel), title, app_id);
         id
+    }
+
+    /// Register an XWayland toplevel. Keyed by the X11 window id (stable and
+    /// available in every `XwmHandler` callback); the `wl_surface` is also indexed
+    /// when already associated so the shared commit/activation path can find it.
+    pub fn register_x11(
+        &mut self,
+        window: Window,
+        x11: X11Surface,
+        title: String,
+        app_id: Option<String>,
+    ) -> u32 {
+        let id = self.alloc_id();
+        self.x11_to_id.insert(x11.window_id(), id);
+        if let Some(surface) = x11.wl_surface() {
+            self.surface_to_id.insert(surface.id(), id);
+        }
+        self.insert_record(id, window, WindowSurface::X11(x11), title, app_id);
+        id
+    }
+
+    /// Index an XWayland window's `wl_surface` once it has been associated (it may
+    /// arrive after `register_x11`). Safe to call repeatedly.
+    pub fn index_x11_surface(&mut self, x11_window: u32, surface_id: ObjectId) {
+        if let Some(id) = self.x11_to_id.get(&x11_window).copied() {
+            self.surface_to_id.insert(surface_id, id);
+        }
+    }
+
+    pub fn id_for_x11_window(&self, x11_window: u32) -> Option<u32> {
+        self.x11_to_id.get(&x11_window).copied()
     }
 
     pub fn decoration_bound(&self, id: u32) -> bool {
@@ -178,9 +274,18 @@ impl WindowRegistry {
     }
 
     pub fn id_for_window(&self, window: &Window) -> Option<u32> {
-        window
-            .toplevel()
-            .and_then(|t| self.id_for_surface(t.wl_surface()))
+        if let Some(toplevel) = window.toplevel() {
+            return self.id_for_surface(toplevel.wl_surface());
+        }
+        if let Some(x11) = window.x11_surface() {
+            if let Some(id) = self.x11_to_id.get(&x11.window_id()).copied() {
+                return Some(id);
+            }
+            if let Some(surface) = x11.wl_surface() {
+                return self.id_for_surface(&surface);
+            }
+        }
+        None
     }
 
     pub fn set_target_rect(&mut self, id: u32, rect: PixelRect) {
@@ -307,8 +412,10 @@ impl WindowRegistry {
 
     pub fn unregister(&mut self, id: u32) -> Option<WindowRecord> {
         let record = self.by_id.remove(&id)?;
-        let surface_id = record.toplevel.wl_surface().id();
-        self.surface_to_id.remove(&surface_id);
+        // Drop every surface-index entry pointing at this id (an XWayland window's
+        // `wl_surface` may have been indexed after registration).
+        self.surface_to_id.retain(|_, mapped| *mapped != id);
+        self.x11_to_id.retain(|_, mapped| *mapped != id);
         Some(record)
     }
 }

@@ -24,7 +24,7 @@ impl OutputRuntime {
 
     pub fn reload_from_disk(&mut self) -> OutputsConfig {
         let cfg = metis_config::load_outputs_config_with_fallback(&self.cached);
-        tracing::info!("reloading outputs.json");
+        tracing::debug!("reloading outputs.json");
         self.cached = cfg.clone();
         cfg
     }

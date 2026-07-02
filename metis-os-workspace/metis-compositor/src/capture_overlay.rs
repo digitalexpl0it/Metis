@@ -5,11 +5,9 @@ use smithay::utils::{Logical, Point};
 
 use crate::state::MetisState;
 
-/// Fraction of the virtual desktop a floating window must cover to be treated as
-/// an interactive capture overlay (screenshot region picker, color sampler, …).
-const DESKTOP_COVERAGE_RATIO: f64 = 0.85;
-
 /// Pixel slack when comparing a window rect to [`MetisState::desktop_bounds`].
+/// A capture overlay must span the whole desktop (including the edge-bar strip);
+/// normal/maximized apps sit below the bar and never match.
 const DESKTOP_SPAN_MARGIN: i32 = 12;
 
 #[derive(Debug, Default)]
@@ -89,23 +87,6 @@ impl MetisState {
             && rect.y + rect.height >= bounds.loc.y + bounds.size.h - DESKTOP_SPAN_MARGIN
     }
 
-    fn window_covers_desktop(&self, id: u32) -> bool {
-        let bounds = self.desktop_bounds();
-        let area = (bounds.size.w as i64) * (bounds.size.h as i64);
-        if area <= 0 {
-            return false;
-        }
-        let Some(rect) = self
-            .windows
-            .target_rect(id)
-            .or_else(|| self.window_body_rect(id))
-        else {
-            return false;
-        };
-        let covered = (rect.width as i64) * (rect.height as i64);
-        covered as f64 / area as f64 >= DESKTOP_COVERAGE_RATIO
-    }
-
     fn is_capture_overlay_candidate(&self, id: u32) -> bool {
         let Some(record) = self.windows.get(id) else {
             return false;
@@ -130,13 +111,14 @@ impl MetisState {
             return true;
         }
 
-        // Floating near-fullscreen overlays (screenshot pickers). Must be floating
-        // so maximized browsers are never mistaken during startup.
-        if !self.floating.contains(&id) || !self.window_covers_desktop(id) {
-            return false;
-        }
-
-        true
+        // Geometry fallback for capture tools that do NOT go through the portal
+        // (e.g. Flameshot): only a floating window that spans the ENTIRE desktop
+        // — including over the edge-bar strip at y≈0 — qualifies. A normal or
+        // maximized app always sits below the bar, so it never matches. Using an
+        // exact full-desktop span (not a coverage ratio) prevents large apps like
+        // Electron/Chromium windows from being mistaken for a capture overlay and
+        // yanked under the bar.
+        self.floating.contains(&id) && self.window_spans_desktop(id)
     }
 
     /// Detect portal or geometry-based capture overlays, elevate them, and span
@@ -199,16 +181,18 @@ impl MetisState {
 
         let loc = Point::<i32, Logical>::from((rect.x, rect.y));
         let size = Size::<i32, Logical>::from((rect.width, rect.height));
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Maximized);
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.states.unset(xdg_toplevel::State::TiledLeft);
-            state.states.unset(xdg_toplevel::State::TiledRight);
-            state.states.unset(xdg_toplevel::State::TiledTop);
-            state.states.unset(xdg_toplevel::State::TiledBottom);
-            state.size = Some(size);
-            state.fullscreen_output = None;
-        });
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Maximized);
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.states.unset(xdg_toplevel::State::TiledLeft);
+                state.states.unset(xdg_toplevel::State::TiledRight);
+                state.states.unset(xdg_toplevel::State::TiledTop);
+                state.states.unset(xdg_toplevel::State::TiledBottom);
+                state.size = Some(size);
+                state.fullscreen_output = None;
+            });
+        }
 
         let mapped = self
             .space
@@ -219,7 +203,7 @@ impl MetisState {
         } else {
             self.space.map_element(record.window.clone(), loc, true);
         }
-        record.toplevel.send_pending_configure();
+        self.send_window_configure(&record, loc, size);
         self.focus_window_id(id);
         self.schedule_redraw();
     }
@@ -279,18 +263,23 @@ impl MetisState {
         if !record.fullscreen {
             return;
         }
+        // XWayland fullscreen is driven by explicit X11 requests, not inferred
+        // from surface commits.
+        let Some(toplevel) = record.wl_toplevel() else {
+            return;
+        };
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 
         // Do not infer exit while a fullscreen configure is still in flight —
         // committed state lags until the client acks our configure.
-        let pending_fullscreen = record.toplevel.with_pending_state(|state| {
+        let pending_fullscreen = toplevel.with_pending_state(|state| {
             state.states.contains(xdg_toplevel::State::Fullscreen)
         });
         if pending_fullscreen {
             return;
         }
 
-        let client_fullscreen = record.toplevel.with_committed_state(|state| {
+        let client_fullscreen = toplevel.with_committed_state(|state| {
             state
                 .map(|s| s.states.contains(xdg_toplevel::State::Fullscreen))
                 .unwrap_or(false)
@@ -301,7 +290,7 @@ impl MetisState {
 
         // Only act after the client has acked at least one configure; otherwise
         // `last_acked` is empty on first commits and we would spuriously exit.
-        let has_acked = record.toplevel.with_committed_state(|state| state.is_some());
+        let has_acked = toplevel.with_committed_state(|state| state.is_some());
         if !has_acked {
             return;
         }

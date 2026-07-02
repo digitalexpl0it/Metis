@@ -12,12 +12,34 @@
 use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode;
 
 /// No native window chrome — Metis draws titlebar + traffic lights.
+///
+/// Terminals are listed by BOTH their bare Wayland `app_id` (what they actually
+/// report at runtime — `kitty`, `Alacritty`, `foot`, …) and any reverse-DNS
+/// desktop id, because `id_matches_list` only accepts an exact or `.suffix`
+/// match. Listing only the reverse-DNS form silently let terminals fall through
+/// to the CSD fallback and lose Metis chrome.
 const SSD_APP_IDS: &[&str] = &[
+    // Alacritty reports `Alacritty` (WM class); keep the reverse-DNS form too.
+    "alacritty",
     "org.alacritty",
+    // Ghostty.
+    "ghostty",
     "com.mitchellh.ghostty",
-    "org.wezfwez.foot",
+    // foot / footclient.
+    "foot",
+    "footclient",
+    "org.codeberg.dnkl.foot",
+    // WezTerm.
+    "wezterm",
+    "org.wezfurlong.wezterm",
+    // kitty reports bare `kitty`.
+    "kitty",
     "org.kitty",
     "net.kovidgoyal.kitty",
+    // Other common terminals with no native titlebar.
+    "xterm",
+    "st",
+    "urxvt",
     "com.metis.Settings",
     // GNOME Text Editor ships a libadwaita headerbar; Metis SSD gives consistent
     // tiling controls and avoids double-chrome layout fights in grid mode.
@@ -78,6 +100,25 @@ pub fn id_looks_chromium_family(app_id: &str) -> bool {
         || id.starts_with("com.microsoft.edge")
 }
 
+/// Executable base names of the real Chromium-family *browsers* (which draw
+/// their own window controls). Matched loosely (`contains`) so distro wrappers
+/// like `chromium-browser`, `google-chrome-stable`, or `brave-browser` count.
+fn exe_is_chromium_browser(exe: &str) -> bool {
+    let base = exe.rsplit('/').next().unwrap_or(exe).to_lowercase();
+    ["chrome", "chromium", "brave", "msedge", "microsoft-edge", "vivaldi", "opera"]
+        .iter()
+        .any(|b| base.contains(b))
+}
+
+/// Frameless Electron apps (e.g. Claude Desktop) report the generic `chromium`
+/// Wayland `app_id` but, unlike the real browser, draw no titlebar or controls.
+/// They can't be told apart by `app_id` alone, so we use the client executable:
+/// a chromium-class window whose process is **not** one of the known browsers is
+/// an Electron shell that needs Metis server-side chrome.
+pub fn chromium_class_needs_ssd(app_id: &str, exe: &str) -> bool {
+    id_looks_chromium_family(app_id) && !exe_is_chromium_browser(exe)
+}
+
 /// True for Mozilla Firefox builds (snap `firefox_firefox`, deb `firefox`, …).
 pub fn id_looks_firefox(app_id: &str) -> bool {
     norm_app_id(app_id).contains("firefox")
@@ -121,6 +162,15 @@ pub fn resolve_uses_ssd(
     negotiated_mode: Option<DecorationMode>,
     decoration_bound: bool,
 ) -> bool {
+    // An explicit server-side request always wins — including over the CSD
+    // heuristics below. Frameless Electron shells report the generic `chromium`
+    // app_id but launch with Ozone `WaylandWindowDecorations` + no custom
+    // titlebar, so they ask the compositor to decorate and draw nothing
+    // themselves (e.g. Claude Desktop). Real Chromium/Firefox browsers request
+    // client-side instead, so this never forces SSD on them.
+    if matches!(negotiated_mode, Some(DecorationMode::ServerSide)) {
+        return true;
+    }
     if let Some(app_id) = app_id.filter(|id| !id.is_empty()) {
         if id_looks_ssd(app_id) {
             return true;
@@ -206,6 +256,24 @@ mod tests {
         assert!(id_looks_csd("chromium"));
     }
 
+    /// A chromium-class client that explicitly requests server-side decorations
+    /// (a frameless Electron shell like Claude Desktop, built with Ozone
+    /// `WaylandWindowDecorations`) must get Metis SSD — the request overrides the
+    /// "chromium ⇒ CSD browser" heuristic. Real browsers request client-side.
+    #[test]
+    fn chromium_server_side_request_gets_ssd() {
+        assert!(resolve_uses_ssd(
+            Some("chromium"),
+            Some(DecorationMode::ServerSide),
+            true,
+        ));
+        assert!(!resolve_uses_ssd(
+            Some("chromium"),
+            Some(DecorationMode::ClientSide),
+            true,
+        ));
+    }
+
     #[test]
     fn gnome_apps_keep_client_headerbar() {
         assert!(!resolve_uses_ssd(Some("org.gnome.Cheese"), None, false));
@@ -216,8 +284,34 @@ mod tests {
     #[test]
     fn metis_and_terminals_use_ssd() {
         assert!(resolve_uses_ssd(Some("org.kitty"), None, false));
-        assert!(resolve_uses_ssd(Some("org.wezfwez.foot"), None, false));
         assert!(resolve_uses_ssd(Some("com.metis.Settings"), None, false));
+    }
+
+    /// Terminals report bare WM-class app_ids at runtime, and they bind
+    /// xdg-decoration early — so without an explicit list entry they would hit
+    /// the `decoration_bound → CSD` fallback and lose Metis chrome. Pin the real
+    /// runtime ids, including with `decoration_bound = true`.
+    #[test]
+    fn bare_terminal_ids_use_ssd() {
+        for id in [
+            "kitty",
+            "Alacritty",
+            "alacritty",
+            "foot",
+            "footclient",
+            "ghostty",
+            "wezterm",
+        ] {
+            assert!(
+                resolve_uses_ssd(Some(id), None, false),
+                "{id} should use Metis SSD"
+            );
+            // Even after binding xdg-decoration without an explicit mode.
+            assert!(
+                resolve_uses_ssd(Some(id), None, true),
+                "{id} should use Metis SSD even when decoration is bound"
+            );
+        }
     }
 
     #[test]
@@ -261,6 +355,27 @@ mod tests {
         assert!(!defer_ssd_paint(None, None, false));
         assert!(!defer_ssd_paint(Some("org.kitty"), None, true));
         assert!(!defer_ssd_paint(None, Some(DecorationMode::ClientSide), true));
+    }
+
+    /// Frameless Electron apps report `chromium` but draw no chrome; a real
+    /// browser process keeps native CSD. Disambiguated by the client executable.
+    #[test]
+    fn frameless_electron_chromium_gets_metis_ssd() {
+        // Claude Desktop and generic Electron shells → Metis SSD.
+        assert!(chromium_class_needs_ssd("chromium", "/usr/bin/claude-desktop"));
+        assert!(chromium_class_needs_ssd("chromium", "electron"));
+        assert!(chromium_class_needs_ssd("chromium", "/opt/SomeApp/someapp"));
+        // Real Chromium-family browsers → native CSD (never Metis SSD).
+        assert!(!chromium_class_needs_ssd("chromium", "/usr/lib/chromium/chromium"));
+        assert!(!chromium_class_needs_ssd("chrome", "/opt/google/chrome/chrome"));
+        assert!(!chromium_class_needs_ssd(
+            "chromium",
+            "/usr/bin/chromium-browser"
+        ));
+        assert!(!chromium_class_needs_ssd("com.brave.Browser", "brave-browser"));
+        // Non-chromium windows are never affected by this path.
+        assert!(!chromium_class_needs_ssd("kitty", "/usr/bin/kitty"));
+        assert!(!chromium_class_needs_ssd("firefox", "/usr/bin/firefox"));
     }
 
     #[test]

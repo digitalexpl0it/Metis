@@ -35,6 +35,22 @@ export GDK_BACKEND="${GDK_BACKEND:-wayland}"
 export METIS_SHELL_GSK_RENDERER="${METIS_SHELL_GSK_RENDERER:-${GSK_RENDERER:-cairo}}"
 export GSK_RENDERER="${GSK_RENDERER:-$METIS_SHELL_GSK_RENDERER}"
 
+# --- Electron / Chromium: prefer native Wayland ----------------------------
+# Metis is a Wayland compositor; its XWayland path is a fallback. Electron/Ozone
+# apps default to XWayland unless hinted otherwise, and their XWayland map/unmap
+# lifecycle is flaky under nested/self-managed WMs (observed: Claude Desktop's
+# window juggling ends in a clean `window-all-closed` quit — it opens and
+# immediately closes). Native Wayland is stable and avoids the XWayland round
+# trip entirely, so we opt apps into it:
+#   * ELECTRON_OZONE_PLATFORM_HINT=auto — the standard switch most Electron apps
+#     (Cursor, VS Code, Discord, Signal, …) honor to pick Wayland when present.
+#   * CLAUDE_USE_WAYLAND=1 — Claude Desktop's launcher force-passes
+#     `--ozone-platform=x11` and only respects native Wayland via this opt-in.
+# Both are overridable so a user can force XWayland per-app if a specific app
+# renders better there.
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+export CLAUDE_USE_WAYLAND="${CLAUDE_USE_WAYLAND:-1}"
+
 # --- GTK startup hardening for a standalone (non-GNOME) session ------------
 # Metis serves org.freedesktop.portal.Settings via metis-portal (started by the
 # compositor). The AT-SPI accessibility bus is still disabled — GTK connects to
@@ -138,6 +154,7 @@ SESSION_VARS=(
     WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
     XDG_SESSION_ID DISPLAY GDK_BACKEND METIS_SHELL_GSK_RENDERER GTK_A11Y NO_AT_BRIDGE
     SSH_AUTH_SOCK XDG_DATA_DIRS XDG_CONFIG_DIRS
+    ELECTRON_OZONE_PLATFORM_HINT CLAUDE_USE_WAYLAND
 )
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
     dbus-update-activation-environment --systemd "${SESSION_VARS[@]}" 2>/dev/null || true

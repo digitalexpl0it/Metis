@@ -15,6 +15,121 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   because Chromium/Ozone currently destabilises the DRM session when the global
   is present.
 
+## [2026-07-02]
+
+### Added
+
+- **First-class XWayland window management** — X11 windows are now full Metis
+  citizens instead of bare centered surfaces. They enter the shared window
+  registry, receive a Metis server-side titlebar (drag-move, close/maximize/
+  minimize controls, edge-resize), are placed as bar-aware floating windows
+  (restoring saved per-app geometry), participate in focus/stacking, and appear
+  in the dock with open/close/focus IPC events. This is what actually fixes
+  **Claude Desktop**: its launcher defaults to `--ozone-platform=x11`
+  (`use_x11_on_wayland=true` unless `CLAUDE_USE_WAYLAND=1`), so Claude runs as an
+  XWayland client and never used the native-Wayland `xdg-decoration` path the
+  previous fix targeted — which is why it kept loading under the edge bar with no
+  titlebar and no way to move or resize it.
+  - `WindowRecord` now holds a `WindowSurface` enum (`Wayland(ToplevelSurface)` /
+    `X11(X11Surface)`); `WindowRegistry::register_x11` keys X11 windows by their
+    stable X11 window id (their `wl_surface` may associate later).
+  - A single `send_window_configure` seam pushes geometry to either client type
+    (Wayland pending-size + configure, X11 absolute `configure`), so
+    `apply_window_rect`, maximize, snap-restore, and resize all work for both.
+  - X11 windows are floating-only (kept out of the tiling grid); maximize and
+    fullscreen route through the X11 `set_maximized` / dedicated fullscreen path.
+  - Move/resize grabs and titlebar hit-testing were switched from surface-keyed
+    to `id_for_window` lookups so they no longer panic on X11 windows.
+  - Override-redirect surfaces (menus/tooltips) stay undecorated and untracked.
+
+### Fixed
+
+- **Electron apps launched from the Metis menu prefer native Wayland (fixes Claude
+  Desktop "opens then closes")** — Claude Desktop launched from the menu opened for a
+  moment and immediately quit. Its own launcher log showed `Electron exited with
+  code: 0` (a clean `window-all-closed` quit, not a crash): Claude defaults to the
+  **XWayland** backend (`--ozone-platform=x11`), and Electron's XWayland map/unmap
+  window juggling on launch is unstable under Metis, so it tore its own windows down
+  and quit. Launching it as a native Wayland client (`CLAUDE_USE_WAYLAND=1`) is
+  stable. Metis now injects native-Wayland preference into every app it spawns —
+  `ELECTRON_OZONE_PLATFORM_HINT=auto` (standard Electron opt-in) and
+  `CLAUDE_USE_WAYLAND=1` (Claude's launcher ignores the hint and force-passes
+  `--ozone-platform=x11` otherwise) — from the compositor's client-spawn env, the
+  installed `metis-session`, and the dev `run-metis.sh --session`. Both defer to any
+  value the surrounding session already set, so XWayland can still be forced per app.
+- **Restoring an XWayland app from its system tray no longer flashes open and
+  closes** — a client-driven remap (e.g. left-clicking Claude Desktop's tray icon)
+  went straight through `map_x11_toplevel` without adopting the active workspace,
+  unlike the dock-activate path. `apply_window_rect`'s visibility guard then unmapped
+  the window whose stale workspace no longer matched the active one, so it opened for
+  a frame and vanished. The remap path now re-homes the window to the current
+  workspace before applying geometry.
+- **XWayland snap zones now apply correctly** — dragging an X11 window into an edge
+  snap zone tiled it to the wrong size: the move-grab release ran an unconditional
+  X11 position-sync `configure` *after* `apply_snap`, clobbering the snapped size
+  with the client's pre-snap size. The sync is now scoped to plain drags only
+  (snap/tile paths already push geometry to the client themselves).
+- **Electron "close to tray" no longer leaves a hollow dock window, and tray restore
+  no longer flashes open-and-closed** — when an X11 app (Claude Desktop) withdraws
+  its window to the system tray, Metis drops it from the dock/tasklist (matching
+  GNOME/KDE) instead of keeping a stale entry that restored to an empty frame. The
+  withdraw is now **debounced** (600 ms): Electron unmaps/remaps its X11 window
+  constantly during normal operation and while restoring from the tray, so reacting
+  to every unmap thrashed the dock and made the window flash open then vanish. Metis
+  now only treats a *sustained* unmap as a real withdraw; a re-map within the grace
+  period cancels it. The registry record is retained keyed by X11 window id, so a
+  genuine tray restore re-announces (WindowOpened) and re-shows the window with focus
+  on the current workspace.
+- **XWayland windows no longer snap to the top-left corner under the edge bar** —
+  `configure_notify` was mapping the compositor-side element to whatever position
+  the X11 client reported. Chromium/Electron apps (Claude Desktop) map at `(0,0)`
+  and re-assert their own position, so right after Metis placed the window below
+  the bar the client's next configure dragged it back into the corner — both on
+  first map and immediately after an interactive move. Metis now owns placement
+  for managed X11 toplevels and ignores client-driven position changes (only
+  override-redirect surfaces track their own geometry); the move grab syncs the X
+  server to the final on-screen position on release so client popups/menus still
+  land correctly.
+- **Terminals get Metis server-side titlebars again** — `SSD_APP_IDS` now lists the
+  bare runtime `app_id`s terminals actually report (`kitty`, `Alacritty`, `foot`,
+  `ghostty`, `wezterm`, `xterm`, …) instead of only reverse-DNS forms. Terminals
+  bind `xdg-decoration` early, so an unlisted id fell through to the CSD fallback
+  and lost Metis chrome. Also removed the garbled `org.wezfwez.foot` entry.
+- **Frameless Electron apps (e.g. Claude Desktop) get a Metis titlebar** — these
+  apps report the generic `chromium` Wayland `app_id`, so Metis treated them like
+  the Chromium browser (client-side decorations) — but they launch Ozone with
+  `WaylandWindowDecorations` + no custom titlebar, i.e. they *ask the compositor*
+  to decorate and draw no controls themselves. That left them with no titlebar,
+  no resize borders, unmovable, and mapped under the edge bar. `resolve_uses_ssd`
+  now **honors an explicit `xdg-decoration` server-side request over the
+  `chromium ⇒ CSD` heuristic**, so such apps get full Metis server-side chrome
+  (titlebar, drag-move, resize, correct placement below the bar). Real browsers
+  request client-side, so they're unaffected. As a secondary signal, a
+  chromium-class window whose client process (`/proc/<pid>/comm`) isn't a known
+  browser is also treated as an Electron shell.
+- **Capture-overlay detection no longer grabs large app windows** — the non-portal
+  geometry heuristic now requires a floating window to span the *entire* desktop
+  (including the edge-bar strip at y≈0), rather than merely covering ≥85% of it. A
+  normal or maximized app always sits below the bar, so it can no longer be mistaken
+  for a screenshot overlay (Flameshot) and yanked under the bar or have its stacking
+  hijacked.
+- **System tray icons clear when an app exits** — the `StatusNotifierWatcher` now
+  watches `org.freedesktop.DBus.NameOwnerChanged` and drops any tray item whose
+  owning connection vanishes. Apps usually exit without calling
+  `UnregisterStatusNotifierItem`, so their tray icon previously lingered until a
+  later interaction failed with `ServiceUnknown`. Matches both items registered
+  under a unique connection name (Claude: `:1.55`) and those advertising a
+  well-known name (Flameshot / most Qt/KDE apps: `org.kde.StatusNotifierItem-…`),
+  and reports the item's destination bus name so the bar UI actually removes it.
+- **`outputs.json` reload feedback loop** — the night-light schedule time picker
+  wrote its entry programmatically (`refresh` / reformat), which re-fired GTK's
+  `changed` signal, rescheduled the 450 ms debounce, and called `save_and_apply`
+  → `ReloadOutputs` again — an endless ~2×/sec loop that started with no user
+  interaction while the Settings **Display** page was open. The picker now
+  suppresses `changed` during its own writes and skips no-op applies. As
+  defense-in-depth the compositor now treats a `ReloadOutputs` whose on-disk
+  config is unchanged as a no-op (no wallpaper re-decode / reflow / log spam).
+
 ## [2026-07-01]
 
 ### Added

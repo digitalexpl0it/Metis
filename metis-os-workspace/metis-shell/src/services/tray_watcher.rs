@@ -13,7 +13,8 @@ use zbus::zvariant::{OwnedValue, Value};
 
 use super::tray::{TrayCommand, TrayEvent, TrayItem};
 use super::tray_dbus_types::{
-    parse_item_props, resolve_tray_display_title, service_parts, MenuLayout, ServiceParts,
+    item_unique_name, parse_item_props, resolve_tray_display_title, service_parts, MenuLayout,
+    ServiceParts,
 };
 use super::tray_menu::{parse_menu_layout, TrayMenu};
 
@@ -125,6 +126,7 @@ pub async fn run(
     };
 
     spawn_item_listener(conn.clone(), item_tx.clone());
+    spawn_name_owner_listener(conn.clone(), state.clone(), item_tx.clone());
     sync_registered_items(&conn, &item_tx).await;
 
     tokio::select! {
@@ -280,6 +282,72 @@ fn spawn_item_listener(conn: Arc<zbus::Connection>, item_tx: mpsc::UnboundedSend
             };
             tracing::info!(service = args.service(), "tray: StatusNotifierItemRegistered");
             sync_registered_items(&conn, &item_tx).await;
+        }
+    });
+}
+
+/// Most SNI apps (Electron/Chromium, Qt, …) never call
+/// `UnregisterStatusNotifierItem` on exit — they just drop their D-Bus
+/// connection. Without watching `NameOwnerChanged` the item lingers forever
+/// (and every later property/menu fetch fails with `ServiceUnknown`). When a
+/// unique connection name that backs a tray item loses its owner, drop the item.
+fn spawn_name_owner_listener(
+    conn: Arc<zbus::Connection>,
+    state: Arc<Mutex<WatcherState>>,
+    item_tx: mpsc::UnboundedSender<ItemMsg>,
+) {
+    tokio::spawn(async move {
+        let dbus = match zbus::fdo::DBusProxy::new(&conn).await {
+            Ok(proxy) => proxy,
+            Err(err) => {
+                tracing::warn!(%err, "tray: DBus proxy for NameOwnerChanged failed");
+                return;
+            }
+        };
+        let mut stream = match dbus.receive_name_owner_changed().await {
+            Ok(stream) => stream,
+            Err(err) => {
+                tracing::warn!(%err, "tray: NameOwnerChanged subscribe failed");
+                return;
+            }
+        };
+        while let Some(signal) = stream.next().await {
+            let Ok(args) = signal.args() else {
+                continue;
+            };
+            // Only a *released* name (empty new owner) drops an item; acquisitions
+            // and ownership transfers keep it.
+            if args.new_owner().is_some() {
+                continue;
+            }
+            let name = args.name().to_string();
+            // An item is owned by `name` when it registered under that unique
+            // connection (Claude: `:1.55:1.55`) or advertised it as its
+            // destination well-known name (Flameshot: `:1.241org.kde...`). Match
+            // either, and report the item's *destination* bus name so the UI —
+            // which keys tray items by that — actually drops it.
+            let removed: Vec<String> = {
+                let mut state = state.lock().expect("watcher state lock");
+                let mut removed = Vec::new();
+                state.items.retain(|item| {
+                    let dest = service_parts(item).map(|p| p.bus_name);
+                    let owned = item_unique_name(item).as_deref() == Some(name.as_str())
+                        || dest.as_deref() == Some(name.as_str());
+                    if owned {
+                        if let Some(dest) = dest {
+                            removed.push(dest);
+                        }
+                        false
+                    } else {
+                        true
+                    }
+                });
+                removed
+            };
+            for bus_name in removed {
+                tracing::info!(%bus_name, vanished = %name, "tray: item owner vanished — removing");
+                let _ = item_tx.send(ItemMsg::Remove { bus_name });
+            }
         }
     });
 }

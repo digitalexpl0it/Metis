@@ -85,6 +85,25 @@ pub fn service_parts(item_id: &str) -> Option<ServiceParts> {
     }
 }
 
+/// The unique connection name (`:1.x`) that registered an item id. Item ids are
+/// `{unique}{service}` (see [`service_parts`]); the sender is always the leading
+/// `:digits.digits` run. Used to drop an item when its owning connection's name
+/// vanishes, regardless of whether the item registered under its unique name
+/// (Claude) or a well-known name (Flameshot / most Qt/KDE apps).
+pub fn item_unique_name(item_id: &str) -> Option<String> {
+    let rest = item_id.strip_prefix(':')?;
+    let bus_len = rest
+        .char_indices()
+        .take_while(|(_, c)| c.is_ascii_digit() || *c == '.')
+        .map(|(i, c)| i + c.len_utf8())
+        .last()
+        .unwrap_or(0);
+    if bus_len == 0 {
+        return None;
+    }
+    Some(format!(":{}", &rest[..bus_len]))
+}
+
 fn normalize_object_path(service: &str) -> String {
     if service.is_empty() {
         DEFAULT_SNI_PATH.into()

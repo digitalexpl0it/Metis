@@ -145,7 +145,7 @@ impl MetisState {
             .or_else(|| self.space.outputs().next().cloned())
     }
 
-    fn apply_x11_fullscreen(&mut self, window: X11Surface) {
+    pub(crate) fn apply_x11_fullscreen(&mut self, window: X11Surface) {
         let Some(elem) = self.x11_element(&window) else {
             tracing::debug!("X11 fullscreen request before map");
             return;
@@ -180,7 +180,7 @@ impl MetisState {
         self.schedule_redraw();
     }
 
-    fn apply_x11_unfullscreen(&mut self, window: X11Surface) {
+    pub(crate) fn apply_x11_unfullscreen(&mut self, window: X11Surface) {
         let Some(elem) = self.x11_element(&window) else {
             return;
         };
@@ -223,25 +223,9 @@ impl XwmHandler for MetisState {
     fn new_override_redirect_window(&mut self, _xwm: XwmId, _window: X11Surface) {}
 
     fn map_window_request(&mut self, _xwm: XwmId, window: X11Surface) {
-        if let Err(err) = window.set_mapped(true) {
-            tracing::warn!(%err, "failed to map X11 window");
-            return;
-        }
-        let elem = Window::new_x11_window(window.clone());
-        // Map once at the origin so the space can resolve the element's natural
-        // size, then re-map centered.
-        self.space.map_element(elem.clone(), (0, 0), true);
-        let size = self
-            .space
-            .element_bbox(&elem)
-            .map(|bbox| bbox.size)
-            .unwrap_or_else(|| window.geometry().size);
-        let loc = self.centered_loc(size);
-        self.space.map_element(elem.clone(), loc, true);
-        let _ = window.configure(Rectangle::new(loc, size));
-        let _ = window.set_activated(true);
-        self.focus_x11(&elem);
-        self.schedule_redraw();
+        // Full Metis management (registry, SSD titlebar, bar-aware floating
+        // placement, dock/IPC) lives in `map_x11_toplevel`.
+        self.map_x11_toplevel(window);
     }
 
     fn mapped_override_redirect_window(&mut self, _xwm: XwmId, window: X11Surface) {
@@ -252,9 +236,7 @@ impl XwmHandler for MetisState {
     }
 
     fn unmapped_window(&mut self, _xwm: XwmId, window: X11Surface) {
-        if let Some(elem) = self.x11_element(&window) {
-            self.space.unmap_elem(&elem);
-        }
+        self.unmap_x11_toplevel(&window);
         if !window.is_override_redirect() {
             let _ = window.set_mapped(false);
         }
@@ -262,24 +244,28 @@ impl XwmHandler for MetisState {
     }
 
     fn destroyed_window(&mut self, _xwm: XwmId, window: X11Surface) {
-        if window.is_fullscreen() {
-            if let Some(elem) = self.x11_element(&window) {
-                if let Some(output) = self.output_for_x11_element(&elem) {
-                    self.note_output_fullscreen(&output, false);
-                }
-            }
-        }
         self.x11_fullscreen_restore
             .remove(&MetisState::x11_window_id(&window));
+        self.destroy_x11_toplevel(&window);
         self.schedule_redraw();
     }
 
     fn fullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
-        self.apply_x11_fullscreen(window);
+        // Route through the shared path so the registry fullscreen flag + bar
+        // visibility stay in sync; it delegates to `apply_x11_fullscreen`.
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.set_fullscreen(id, true, None);
+        } else {
+            self.apply_x11_fullscreen(window);
+        }
     }
 
     fn unfullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
-        self.apply_x11_unfullscreen(window);
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.set_fullscreen(id, false, None);
+        } else {
+            self.apply_x11_unfullscreen(window);
+        }
     }
 
     fn configure_request(
@@ -323,6 +309,17 @@ impl XwmHandler for MetisState {
         let Some(elem) = self.x11_element(&window) else {
             return;
         };
+        // Metis owns placement for managed (registered) toplevels: rendering
+        // follows the compositor-side element position, not the X server's. Many
+        // X11 clients (Chromium/Electron) map at (0,0) and re-assert their own
+        // position, so blindly following `geometry.loc` here would repeatedly drag
+        // the window into the top-left corner under the edge bar — both on first
+        // map and right after an interactive move. Ignore client-driven position;
+        // only unmanaged / override-redirect surfaces track their own geometry.
+        if self.windows.id_for_x11_window(window.window_id()).is_some() {
+            self.schedule_redraw();
+            return;
+        }
         self.space.map_element(elem, geometry.loc, false);
         self.schedule_redraw();
     }

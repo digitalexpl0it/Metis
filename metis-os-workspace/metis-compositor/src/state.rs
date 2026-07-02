@@ -16,6 +16,7 @@ use smithay::{
         },
     },
     utils::{IsAlive, Logical, Point, Rectangle, Size},
+    xwayland::X11Surface,
     wayland::{
         compositor::{CompositorClientState, CompositorState},
         output::OutputManagerState,
@@ -162,6 +163,13 @@ pub struct MetisState {
     titlebar_press_pending: Option<(u32, Point<f64, Logical>, smithay::utils::Serial)>,
     /// Minimize genie animations keyed by window id (window still mapped until done).
     minimize_genie_fx: std::collections::HashMap<u32, crate::window_fx::MinimizeGenieFx>,
+    /// XWayland windows that have been unmapped by their client, pending a debounce
+    /// before we treat it as a real withdraw ("close to tray"). Electron apps
+    /// (Claude Desktop) unmap/remap constantly during normal operation, so reacting
+    /// to every unmap would thrash the dock and flicker the window; we only tear the
+    /// dock entry down if the window stays unmapped past the grace period. Keyed by
+    /// window id → the instant the unmap was observed.
+    x11_pending_withdraw: std::collections::HashMap<u32, std::time::Instant>,
     /// Persisted per-app floating geometry, so apps reopen where they were left.
     pub window_state: crate::window_state::WindowStateStore,
 
@@ -380,6 +388,20 @@ fn apply_spawned_client_env(
     }
     cmd.env("GTK_A11Y", "none");
     cmd.env("NO_AT_BRIDGE", "1");
+    // Prefer native Wayland for Electron/Chromium apps. Metis is a Wayland
+    // compositor and its XWayland path is a fallback; Electron's XWayland
+    // map/unmap lifecycle is unstable here (Claude Desktop juggles windows on
+    // launch and cleanly quits via `window-all-closed` — it "opens then closes").
+    // `ELECTRON_OZONE_PLATFORM_HINT=auto` is the standard opt-in most Electron
+    // apps honor; Claude Desktop's launcher force-passes `--ozone-platform=x11`
+    // and only switches to Wayland via `CLAUDE_USE_WAYLAND=1`. Both defer to a
+    // value the surrounding session already set, so a user can force XWayland.
+    if std::env::var_os("ELECTRON_OZONE_PLATFORM_HINT").is_none() {
+        cmd.env("ELECTRON_OZONE_PLATFORM_HINT", "auto");
+    }
+    if std::env::var_os("CLAUDE_USE_WAYLAND").is_none() {
+        cmd.env("CLAUDE_USE_WAYLAND", "1");
+    }
     // Nested dev sessions run inside GNOME/KDE — disable GTK's portal proxy so
     // startup does not block on the host portal stack.
     if std::env::var_os("METIS_NESTED").is_some() {
@@ -478,6 +500,7 @@ impl MetisState {
             titlebar_last_click: None,
             titlebar_press_pending: None,
             minimize_genie_fx: std::collections::HashMap::new(),
+            x11_pending_withdraw: std::collections::HashMap::new(),
             window_state: crate::window_state::WindowStateStore::load(),
             desks: std::collections::HashMap::new(),
             default_layout: grid_layout,
@@ -630,6 +653,10 @@ impl MetisState {
         if self.tick_minimize_genie_fx() {
             self.damaged = true;
         }
+
+        if self.tick_x11_withdraws() {
+            self.damaged = true;
+        }
     }
 
     /// True while the startup splash layer is on-screen (backdrop blur is deferred
@@ -705,6 +732,68 @@ impl MetisState {
         self.windows.id_for_surface(surface.wl_surface())
     }
 
+    /// Push a target geometry to a window's client. Native Wayland toplevels get a
+    /// pending `size` + `configure`; XWayland surfaces get an absolute `configure`
+    /// (the X server tracks position, so it needs the location too). This is the
+    /// single seam every non-tiling relayout path uses so X11 and Wayland windows
+    /// share `apply_window_rect` and friends.
+    pub(crate) fn send_window_configure(
+        &self,
+        record: &crate::windows::WindowRecord,
+        loc: Point<i32, Logical>,
+        size: Size<i32, Logical>,
+    ) {
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.size = Some(size);
+            });
+            toplevel.send_pending_configure();
+        } else if let Some(x11) = record.x11() {
+            let _ = x11.configure(Rectangle::new(loc, size));
+        }
+    }
+
+    /// The xdg-decoration mode a window negotiated, or `None` for XWayland (which
+    /// has no client-side decoration protocol — Metis always owns its chrome).
+    pub(crate) fn window_decoration_mode(
+        &self,
+        record: &crate::windows::WindowRecord,
+    ) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode> {
+        record.wl_toplevel().and_then(read_toplevel_decoration_mode)
+    }
+
+    /// Title + app_id for a window. XWayland windows have no Wayland `app_id`; we
+    /// use their X11 `class` (WM_CLASS) so decoration heuristics and the dock can
+    /// still identify them (Chrome, Steam, JetBrains IDEs, …).
+    pub(crate) fn read_window_metadata(
+        &self,
+        record: &crate::windows::WindowRecord,
+    ) -> (String, Option<String>) {
+        if let Some(toplevel) = record.wl_toplevel() {
+            return read_toplevel_metadata(toplevel);
+        }
+        if let Some(x11) = record.x11() {
+            let title = {
+                let t = x11.title();
+                if t.trim().is_empty() {
+                    "Application".to_string()
+                } else {
+                    t
+                }
+            };
+            let app_id = {
+                let class = x11.class();
+                if class.trim().is_empty() {
+                    None
+                } else {
+                    Some(class)
+                }
+            };
+            return (title, app_id);
+        }
+        ("Application".into(), None)
+    }
+
     /// True when Metis should draw server-side titlebar/border chrome for this window.
     pub(crate) fn window_uses_ssd(&self, id: u32) -> bool {
         self.windows.uses_ssd(id)
@@ -724,7 +813,7 @@ impl MetisState {
         let Some(record) = self.windows.get(id) else {
             return false;
         };
-        let negotiated_mode = read_toplevel_decoration_mode(&record.toplevel);
+        let negotiated_mode = self.window_decoration_mode(record);
         !crate::decoration_policy::defer_ssd_paint(
             record.app_id.as_deref(),
             negotiated_mode,
@@ -759,18 +848,65 @@ impl MetisState {
         self.should_auto_hide_titlebar(id)
     }
 
+    /// The client process name backing a toplevel, resolved via the connection's
+    /// pid. Used to disambiguate Electron shells that all report the generic
+    /// `chromium` `app_id`. Reads `/proc/<pid>/comm`, which is world-readable even
+    /// for sandboxed / non-dumpable Electron processes — unlike the `exe` symlink,
+    /// which returns EACCES for them. Falls back to `exe` when `comm` is empty.
+    fn client_executable_for_window(&self, id: u32) -> Option<String> {
+        use smithay::reexports::wayland_server::Resource;
+        let record = self.windows.get(id)?;
+        // Only native Wayland clients expose a connection pid this way; XWayland
+        // windows always default to Metis SSD, so they never reach this path.
+        let client = record.wl_toplevel()?.wl_surface().client()?;
+        let pid = client.get_credentials(&self.display_handle).ok()?.pid;
+        if let Ok(comm) = std::fs::read_to_string(format!("/proc/{pid}/comm")) {
+            let name = comm.trim();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+        let path = std::fs::read_link(format!("/proc/{pid}/exe")).ok()?;
+        Some(path.file_name()?.to_string_lossy().into_owned())
+    }
+
+    /// True when a chromium-class window is actually a frameless Electron shell
+    /// (e.g. Claude Desktop) that draws no chrome, so Metis should decorate it.
+    /// Real Chromium-family browsers keep native CSD.
+    pub(crate) fn chromium_window_needs_ssd(&self, id: u32, app_id: Option<&str>) -> bool {
+        let Some(app_id) = app_id else {
+            return false;
+        };
+        if !crate::decoration_policy::id_looks_chromium_family(app_id) {
+            return false;
+        }
+        let Some(exe) = self.client_executable_for_window(id) else {
+            return false;
+        };
+        crate::decoration_policy::chromium_class_needs_ssd(app_id, &exe)
+    }
+
     /// Reconcile `uses_ssd` with xdg-decoration negotiation and app-id heuristics.
     pub(crate) fn refresh_window_decoration_mode(&mut self, id: u32) {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
         let was_draw = self.should_draw_metis_ssd(id);
-        let negotiated_mode = read_toplevel_decoration_mode(&record.toplevel);
-        let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
-            record.app_id.as_deref(),
-            negotiated_mode,
-            record.decoration_bound,
-        );
+        let negotiated_mode = self.window_decoration_mode(&record);
+        // XWayland windows have no client-side decoration protocol; Metis always
+        // owns their chrome (real CSD X11 apps are rare and draw inside anyway).
+        let mut uses_ssd = if record.is_x11 {
+            true
+        } else {
+            crate::decoration_policy::resolve_uses_ssd(
+                record.app_id.as_deref(),
+                negotiated_mode,
+                record.decoration_bound,
+            )
+        };
+        if !uses_ssd && self.chromium_window_needs_ssd(id, record.app_id.as_deref()) {
+            uses_ssd = true;
+        }
         let mode_changed = uses_ssd != record.uses_ssd;
         if mode_changed {
             tracing::info!(
@@ -793,8 +929,10 @@ impl MetisState {
             .app_id
             .as_ref()
             .is_some_and(|id| !id.is_empty());
-        if app_id_known || record.decoration_negotiated || !uses_ssd {
-            self.push_preferred_decoration_mode(&record.toplevel, uses_ssd);
+        if let Some(toplevel) = record.wl_toplevel() {
+            if app_id_known || record.decoration_negotiated || !uses_ssd {
+                self.push_preferred_decoration_mode(toplevel, uses_ssd);
+            }
         }
         let now_draw = self.should_draw_metis_ssd(id);
         if mode_changed || was_draw != now_draw {
@@ -950,18 +1088,20 @@ impl MetisState {
             rect
         };
         let size = Size::from((body.width.max(1), body.height.max(1)));
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Maximized);
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.states.set(xdg_toplevel::State::TiledLeft);
-            state.states.set(xdg_toplevel::State::TiledRight);
-            state.states.set(xdg_toplevel::State::TiledTop);
-            state.states.set(xdg_toplevel::State::TiledBottom);
-            state.size = Some(size);
-        });
-        self.space
-            .map_element(record.window.clone(), Point::from((body.x, body.y)), true);
-        record.toplevel.send_pending_configure();
+        let loc = Point::from((body.x, body.y));
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Maximized);
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.states.set(xdg_toplevel::State::TiledLeft);
+                state.states.set(xdg_toplevel::State::TiledRight);
+                state.states.set(xdg_toplevel::State::TiledTop);
+                state.states.set(xdg_toplevel::State::TiledBottom);
+                state.size = Some(size);
+            });
+        }
+        self.space.map_element(record.window.clone(), loc, true);
+        self.send_window_configure(&record, loc, size);
         self.windows.set_target_rect(id, body);
         if uses_ssd && top_touching && self.should_auto_hide_titlebar(id) {
             self.auto_hide_titlebar.insert(id);
@@ -982,13 +1122,15 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(State::TiledLeft);
-            state.states.unset(State::TiledRight);
-            state.states.unset(State::TiledTop);
-            state.states.unset(State::TiledBottom);
-        });
-        record.toplevel.send_pending_configure();
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(State::TiledLeft);
+                state.states.unset(State::TiledRight);
+                state.states.unset(State::TiledTop);
+                state.states.unset(State::TiledBottom);
+            });
+            toplevel.send_pending_configure();
+        }
     }
 
     /// Drop a window's auto-hide-titlebar state (e.g. on unmaximize, unsnap,
@@ -1112,20 +1254,22 @@ impl MetisState {
         };
         body = self.clamp_floating_rect_for(id, body);
 
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Maximized);
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.states.unset(xdg_toplevel::State::TiledLeft);
-            state.states.unset(xdg_toplevel::State::TiledRight);
-            state.states.unset(xdg_toplevel::State::TiledTop);
-            state.states.unset(xdg_toplevel::State::TiledBottom);
-            state.size = Some(Size::from((body.width, body.height)));
-            state.fullscreen_output = None;
-        });
         let loc = Point::from((body.x, body.y));
-        self.space
-            .map_element(record.window.clone(), loc, true);
-        record.toplevel.send_pending_configure();
+        let size = Size::from((body.width, body.height));
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Maximized);
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.states.unset(xdg_toplevel::State::TiledLeft);
+                state.states.unset(xdg_toplevel::State::TiledRight);
+                state.states.unset(xdg_toplevel::State::TiledTop);
+                state.states.unset(xdg_toplevel::State::TiledBottom);
+                state.size = Some(size);
+                state.fullscreen_output = None;
+            });
+        }
+        self.space.map_element(record.window.clone(), loc, true);
+        self.send_window_configure(&record, loc, size);
         self.windows.set_target_rect(id, body);
         self.schedule_redraw();
         loc
@@ -2898,9 +3042,7 @@ impl MetisState {
     pub fn focused_window_id(&self) -> Option<u32> {
         let focus = self.seat.get_keyboard()?.current_focus()?;
         match focus {
-            KeyboardFocusTarget::Window(window) => {
-                self.windows.id_for_surface(window.toplevel()?.wl_surface())
-            }
+            KeyboardFocusTarget::Window(window) => self.windows.id_for_window(&window),
             _ => None,
         }
     }
@@ -2932,7 +3074,11 @@ impl MetisState {
         self.maximize_fx_started.remove(&id);
         self.minimize_genie_fx.remove(&id);
         if let Some(record) = self.windows.get(id).cloned() {
-            record.toplevel.send_close();
+            if let Some(toplevel) = record.wl_toplevel() {
+                toplevel.send_close();
+            } else if let Some(x11) = record.x11() {
+                let _ = x11.close();
+            }
         }
     }
 
@@ -2951,6 +3097,33 @@ impl MetisState {
 
         if self.windows.is_minimized(id) {
             self.unminimize_window(id);
+        }
+
+        // XWayland fullscreen goes through the dedicated X11 path (which sets the
+        // X11 fullscreen property + reconfigures the surface); the Wayland
+        // `xdg_toplevel`-state body below does not apply to it.
+        if let Some(x11) = record.x11().cloned() {
+            let output_for_event = requested_output
+                .as_ref()
+                .and_then(|wl| self.output_for_wl_output(wl))
+                .or_else(|| self.output_for_window(id))
+                .or_else(|| self.primary_output());
+            if enabled {
+                self.apply_x11_fullscreen(x11);
+            } else {
+                self.apply_x11_unfullscreen(x11);
+            }
+            self.windows.set_fullscreen(id, enabled);
+            if let Some(output) = output_for_event {
+                self.event_bus
+                    .emit(&metis_protocol::CompositorEvent::WindowFullscreen {
+                        id,
+                        fullscreen: enabled,
+                        output: output.name(),
+                    });
+            }
+            self.schedule_redraw();
+            return;
         }
 
         let output_for_event = if enabled {
@@ -2973,12 +3146,13 @@ impl MetisState {
                 return;
             };
             let geo = self.space.output_geometry(&output).unwrap();
-            let wl_surface = record.toplevel.wl_surface().clone();
-            let wl_output = self
-                .display_handle
-                .get_client(wl_surface.id())
-                .ok()
-                .and_then(|client| output.client_outputs(&client).next());
+            let wl_surface = record.wl_toplevel().map(|t| t.wl_surface().clone());
+            let wl_output = wl_surface.as_ref().and_then(|wl_surface| {
+                self.display_handle
+                    .get_client(wl_surface.id())
+                    .ok()
+                    .and_then(|client| output.client_outputs(&client).next())
+            });
 
             let current = self
                 .window_body_rect(id)
@@ -2992,12 +3166,14 @@ impl MetisState {
             }
             self.floating.insert(id);
 
-            record.toplevel.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Maximized);
-                state.states.set(xdg_toplevel::State::Fullscreen);
-                state.size = Some(geo.size);
-                state.fullscreen_output = wl_output;
-            });
+            if let Some(toplevel) = record.wl_toplevel() {
+                toplevel.with_pending_state(|state| {
+                    state.states.unset(xdg_toplevel::State::Maximized);
+                    state.states.set(xdg_toplevel::State::Fullscreen);
+                    state.size = Some(geo.size);
+                    state.fullscreen_output = wl_output;
+                });
+            }
             self.space
                 .map_element(record.window.clone(), geo.loc, true);
             self.windows.set_fullscreen(id, true);
@@ -3006,10 +3182,12 @@ impl MetisState {
             self.note_output_fullscreen(&output, true);
             self.focus_window_id(id);
         } else {
-            record.toplevel.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Fullscreen);
-                state.fullscreen_output = None;
-            });
+            if let Some(toplevel) = record.wl_toplevel() {
+                toplevel.with_pending_state(|state| {
+                    state.states.unset(xdg_toplevel::State::Fullscreen);
+                    state.fullscreen_output = None;
+                });
+            }
             self.windows.set_fullscreen(id, false);
             let was_maximized = self.windows.take_pre_fullscreen_maximized(id);
             if let Some(output) = output_for_event {
@@ -3038,7 +3216,9 @@ impl MetisState {
         }
 
         if let Some(record) = self.windows.get(id) {
-            record.toplevel.send_pending_configure();
+            if let Some(toplevel) = record.wl_toplevel() {
+                toplevel.send_pending_configure();
+            }
         }
         self.schedule_redraw();
     }
@@ -3098,6 +3278,14 @@ impl MetisState {
         self.outputs_reload_due = None;
         let before = self.output_runtime.cached().clone();
         let cfg = self.output_runtime.reload_from_disk();
+        // A `ReloadOutputs` where nothing on disk actually changed must not
+        // re-run the (expensive) output apply — that re-decodes the wallpaper,
+        // invalidates decorations, and reflows. A misbehaving client that spams
+        // the IPC otherwise pins the compositor busy several times a second.
+        if cfg == before {
+            return;
+        }
+        tracing::info!("outputs.json changed via ReloadOutputs — reapplying");
         if before.primary_output != cfg.primary_output {
             self.emit_monitor_changed();
         }
@@ -3172,14 +3360,19 @@ impl MetisState {
                 return;
             };
 
-            record.toplevel.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Fullscreen);
-                state.states.set(xdg_toplevel::State::Maximized);
-                state.size = Some(client_size);
-                state.fullscreen_output = None;
-            });
-            self.space
-                .map_element(record.window.clone(), Point::from((client.x, client.y)), true);
+            let loc = Point::from((client.x, client.y));
+            if let Some(toplevel) = record.wl_toplevel() {
+                toplevel.with_pending_state(|state| {
+                    state.states.unset(xdg_toplevel::State::Fullscreen);
+                    state.states.set(xdg_toplevel::State::Maximized);
+                    state.size = Some(client_size);
+                    state.fullscreen_output = None;
+                });
+            } else if let Some(x11) = record.x11() {
+                let _ = x11.set_maximized(true);
+            }
+            self.space.map_element(record.window.clone(), loc, true);
+            self.send_window_configure(&record, loc, client_size);
             self.windows.set_rect(id, client);
             self.reclamp_auto_hide(id);
             self.windows.set_snapped(id, true);
@@ -3197,7 +3390,11 @@ impl MetisState {
             }
         }
 
-        record.toplevel.send_pending_configure();
+        // Wayland maximize/demote set pending states above; flush them (X11 was
+        // already reconfigured via `send_window_configure` / `demote_maximized`).
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.send_pending_configure();
+        }
         self.focus_window_id(id);
         self.restore_focus_stacking();
         self.schedule_redraw();
@@ -3234,13 +3431,14 @@ impl MetisState {
         {
             return;
         }
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.states.set(xdg_toplevel::State::Maximized);
-            state.size = Some(client_size);
-            state.fullscreen_output = None;
-        });
-        let loc = Point::from((client.x, client.y));
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.states.set(xdg_toplevel::State::Maximized);
+                state.size = Some(client_size);
+                state.fullscreen_output = None;
+            });
+        }
         let mapped = self
             .space
             .elements()
@@ -3252,7 +3450,7 @@ impl MetisState {
         }
         self.windows.set_rect(id, client);
         self.reclamp_auto_hide(id);
-        record.toplevel.send_pending_configure();
+        self.send_window_configure(&record, loc, client_size);
     }
 
     /// Usable-zone footprint for a maximized window on its current output.
@@ -3291,10 +3489,14 @@ impl MetisState {
         // path returns immediately and the window stays at its maximized map origin
         // (often tucked under the edge bar once chrome is restored).
         self.windows.set_maximized(id, false);
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Maximized);
-            state.size = None;
-        });
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Maximized);
+                state.size = None;
+            });
+        } else if let Some(x11) = record.x11() {
+            let _ = x11.set_maximized(false);
+        }
         self.clear_tiled_states(id);
         self.clear_auto_hide(id);
         self.windows.set_snapped(id, false);
@@ -3327,13 +3529,15 @@ impl MetisState {
             return;
         };
 
-        record.toplevel.with_pending_state(|state| {
-            state.states.unset(xdg_toplevel::State::Maximized);
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.size = None;
-            state.fullscreen_output = None;
-        });
-        record.toplevel.send_pending_configure();
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.unset(xdg_toplevel::State::Maximized);
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.size = None;
+                state.fullscreen_output = None;
+            });
+            toplevel.send_pending_configure();
+        }
 
         self.space.unmap_elem(&record.window);
         self.windows.set_minimized(id, true);
@@ -3470,13 +3674,17 @@ impl MetisState {
         let Some(geo) = self.space.output_geometry(&output) else {
             return;
         };
-        let wl_surface = record.toplevel.wl_surface().clone();
+        // XWayland fullscreen geometry is owned by the X11 configure path.
+        let Some(toplevel) = record.wl_toplevel() else {
+            return;
+        };
+        let wl_surface = toplevel.wl_surface().clone();
         let wl_output = self
             .display_handle
             .get_client(wl_surface.id())
             .ok()
             .and_then(|client| output.client_outputs(&client).next());
-        record.toplevel.with_pending_state(|state| {
+        toplevel.with_pending_state(|state| {
             state.states.set(xdg_toplevel::State::Fullscreen);
             state.size = Some(geo.size);
             state.fullscreen_output = wl_output;
@@ -3491,7 +3699,7 @@ impl MetisState {
             self.space
                 .map_element(record.window.clone(), geo.loc, false);
         }
-        record.toplevel.send_pending_configure();
+        toplevel.send_pending_configure();
         self.schedule_redraw();
     }
 
@@ -3593,10 +3801,7 @@ impl MetisState {
             if prev_loc != Some(loc) {
                 self.space.relocate_element(&record.window, loc);
             }
-            record.toplevel.with_pending_state(|state| {
-                state.size = Some(size);
-            });
-            record.toplevel.send_pending_configure();
+            self.send_window_configure(&record, loc, size);
             self.windows.set_target_rect(id, rect);
             self.sync_auto_hide_titlebar(id);
             self.reclamp_auto_hide(id);
@@ -3605,10 +3810,7 @@ impl MetisState {
         }
         // First map — insert without stealing keyboard activation.
         self.space.map_element(record.window.clone(), loc, false);
-        record.toplevel.with_pending_state(|state| {
-            state.size = Some(size);
-        });
-        record.toplevel.send_pending_configure();
+        self.send_window_configure(&record, loc, size);
         self.windows.set_target_rect(id, rect);
         // An auto-hide (maximized / edge-snapped) window may refuse to shrink to
         // its footprint; re-anchor it so the screen-edge gap survives.
@@ -3741,16 +3943,18 @@ impl MetisState {
         {
             return;
         }
-        record.toplevel.with_pending_state(|state| {
-            use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
-            state.states.unset(xdg_toplevel::State::Fullscreen);
-            state.states.set(xdg_toplevel::State::Maximized);
-            state.size = Some(expected_size);
-            state.fullscreen_output = None;
-        });
+        if let Some(toplevel) = record.wl_toplevel() {
+            toplevel.with_pending_state(|state| {
+                use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
+                state.states.unset(xdg_toplevel::State::Fullscreen);
+                state.states.set(xdg_toplevel::State::Maximized);
+                state.size = Some(expected_size);
+                state.fullscreen_output = None;
+            });
+        }
         self.space.relocate_element(&record.window, expected_loc);
         self.windows.set_rect(id, expected);
-        record.toplevel.send_pending_configure();
+        self.send_window_configure(&record, expected_loc, expected_size);
         self.schedule_redraw();
         tracing::debug!(
             id,
@@ -5151,14 +5355,15 @@ impl MetisState {
             keyboard.set_focus(self, Some(window.clone().into()), serial);
         }
 
-        let toplevel = window.toplevel().unwrap();
-        toplevel.with_pending_state(|state| {
-            state.states.set(
-                smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Resizing,
-            );
-            state.size = Some(initial_window_size);
-        });
-        toplevel.send_pending_configure();
+        if let Some(toplevel) = window.toplevel() {
+            toplevel.with_pending_state(|state| {
+                state.states.set(
+                    smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Resizing,
+                );
+                state.size = Some(initial_window_size);
+            });
+            toplevel.send_pending_configure();
+        }
 
         let Some(pointer) = self.seat.get_pointer() else {
             return false;
@@ -5633,7 +5838,8 @@ impl MetisState {
             .filter_map(|id| {
                 self.windows
                     .get(id)
-                    .map(|record| record.toplevel.wl_surface().clone())
+                    .and_then(|record| record.wl_toplevel())
+                    .map(|toplevel| toplevel.wl_surface().clone())
             })
             .collect();
         for surface in pending {
@@ -6566,6 +6772,284 @@ impl MetisState {
         self.ensure_app_tile_for_window(id);
     }
 
+    /// Bring an XWayland toplevel under full Metis management: register it in the
+    /// shared window registry, give it a Metis server-side titlebar, place it as a
+    /// bar-aware floating window, and announce it to the shell (dock/IPC). X11
+    /// windows do not participate in the tiling grid — they are always floating.
+    pub(crate) fn map_x11_toplevel(&mut self, window: X11Surface) {
+        use metis_protocol::CompositorEvent;
+
+        let is_remap = self.windows.id_for_x11_window(window.window_id()).is_some();
+        tracing::info!(
+            x11_window = window.window_id(),
+            override_redirect = window.is_override_redirect(),
+            class = %window.class(),
+            title = %window.title(),
+            remap = is_remap,
+            "x11: map request"
+        );
+
+        if window.is_override_redirect() {
+            // Menus / tooltips / drag surfaces: map at their requested location and
+            // leave them undecorated and untracked.
+            let loc = window.geometry().loc;
+            let elem = Window::new_x11_window(window);
+            self.space.map_element(elem, loc, true);
+            self.schedule_redraw();
+            return;
+        }
+
+        if let Err(err) = window.set_mapped(true) {
+            tracing::warn!(%err, "failed to map X11 window");
+            return;
+        }
+
+        // A remap of an already-tracked window (e.g. an Electron app restoring from
+        // its tray) re-applies geometry and re-announces to the shell — the withdraw
+        // in `unmap_x11_toplevel` dropped the dock entry, so we re-emit WindowOpened.
+        if let Some(existing) = self.windows.id_for_x11_window(window.window_id()) {
+            self.windows.set_minimized(existing, false);
+            // Cancel any pending withdraw: this remap proves the earlier unmap was
+            // transient (Electron churn / a tray restore), not a real close.
+            self.x11_pending_withdraw.remove(&existing);
+            let was_ready = self.windows.is_ready(existing);
+            self.windows.set_ready(existing, true);
+            // Restoring from the tray (a client-driven remap) must surface the
+            // window on the workspace the user is actually looking at. The dock
+            // path does this via `activate_window_by_id`; without it here,
+            // `apply_window_rect`'s visibility guard would unmap a window whose
+            // stale workspace no longer matches the active one — the window would
+            // flash open and immediately vanish ("opens then closes").
+            let key = self.desk_key_for_window(existing);
+            self.windows
+                .set_workspace(existing, self.active_workspace_for(&key));
+            self.apply_window_rect(existing);
+            if !was_ready {
+                if let Some(record) = self.windows.get(existing).cloned() {
+                    let (title, app_id) = self.read_window_metadata(&record);
+                    let suggested_rect = self.windows.target_rect(existing).unwrap_or(PixelRect {
+                        x: 0,
+                        y: 0,
+                        width: 800,
+                        height: 600,
+                    });
+                    self.event_bus.emit(&CompositorEvent::WindowOpened {
+                        id: existing,
+                        title,
+                        app_id,
+                        suggested_rect,
+                    });
+                }
+            }
+            let _ = window.set_activated(true);
+            self.note_window_focus(existing);
+            self.focus_window_id(existing);
+            self.event_bus
+                .emit(&CompositorEvent::WindowFocused { id: existing });
+            self.schedule_redraw();
+            return;
+        }
+
+        let elem = Window::new_x11_window(window.clone());
+        // Map once so the space can resolve the element before we position it.
+        self.space.map_element(elem.clone(), (0, 0), false);
+
+        let title = {
+            let t = window.title();
+            if t.trim().is_empty() {
+                "Application".to_string()
+            } else {
+                t
+            }
+        };
+        let app_id = {
+            let class = window.class();
+            if class.trim().is_empty() {
+                None
+            } else {
+                Some(class)
+            }
+        };
+
+        let id = self
+            .windows
+            .register_x11(elem, window.clone(), title.clone(), app_id.clone());
+        if let Some(surface) = window.wl_surface() {
+            use smithay::reexports::wayland_server::Resource;
+            self.windows.index_x11_surface(window.window_id(), surface.id());
+        }
+
+        let key = self
+            .output_under_pointer()
+            .map(|o| o.name())
+            .unwrap_or_else(|| self.primary_key());
+        self.windows.set_output(id, key.clone());
+        self.windows.set_workspace(id, self.active_workspace_for(&key));
+        // X11 windows are floating; never reserve a grid tile for them.
+        self.floating.insert(id);
+        self.refresh_window_decoration_mode(id);
+        self.place_x11_window(id, window.geometry().size, app_id.as_deref());
+        self.apply_window_rect(id);
+        self.windows.set_ready(id, true);
+        let _ = window.set_activated(true);
+
+        self.persist_layout();
+        self.emit_layout_changed();
+        let suggested_rect = self.windows.target_rect(id).unwrap_or(PixelRect {
+            x: 0,
+            y: 0,
+            width: 800,
+            height: 600,
+        });
+        self.event_bus.emit(&CompositorEvent::WindowOpened {
+            id,
+            title,
+            app_id,
+            suggested_rect,
+        });
+        self.note_window_focus(id);
+        self.focus_window_id(id);
+        self.event_bus.emit(&CompositorEvent::WindowFocused { id });
+        self.schedule_redraw();
+    }
+
+    /// Floating placement for a freshly mapped X11 window: restore saved geometry
+    /// when the app has been seen before, otherwise center the client's natural
+    /// size under the bar. Placement is locked in afterward.
+    fn place_x11_window(&mut self, id: u32, natural: Size<i32, Logical>, app_id: Option<&str>) {
+        if let Some(app_id) = app_id {
+            if let Some(saved) = self.window_state.get(app_id) {
+                let saved_rect = saved.to_rect();
+                if saved_rect.width >= MIN_SAVED_WINDOW_PX
+                    && saved_rect.height >= MIN_SAVED_WINDOW_PX
+                {
+                    let rect = self.restore_body_for_window(id, saved_rect);
+                    self.windows.set_target_rect(id, rect);
+                    self.windows.set_placement_chosen(id, true);
+                    return;
+                }
+            }
+        }
+        let w = if natural.w > 0 {
+            natural.w
+        } else {
+            DEFAULT_FLOAT_W
+        };
+        let h = if natural.h > 0 {
+            natural.h
+        } else {
+            DEFAULT_FLOAT_H
+        };
+        let rect = self.centered_body_for_window(id, w, h);
+        self.windows.set_target_rect(id, rect);
+        self.windows.set_placement_chosen(id, true);
+    }
+
+    /// Handle a client-initiated unmap of an X11 window. This is *deferred*: we hide
+    /// the (now bufferless) element immediately, but only arm a pending-withdraw
+    /// timer rather than tearing the window down. Electron apps (Claude Desktop)
+    /// unmap/remap their X11 window constantly during normal operation and, notably,
+    /// as part of restoring from the tray — reacting to each unmap would thrash the
+    /// dock and make the window flash open and vanish. `tick_x11_withdraws` promotes
+    /// a still-unmapped window to a real "close to tray" after a grace period;
+    /// `map_x11_toplevel` cancels the pending withdraw if the window comes back.
+    pub(crate) fn unmap_x11_toplevel(&mut self, window: &X11Surface) {
+        let Some(id) = self.windows.id_for_x11_window(window.window_id()) else {
+            return;
+        };
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        self.space.unmap_elem(&record.window);
+        self.x11_pending_withdraw
+            .entry(id)
+            .or_insert_with(std::time::Instant::now);
+        tracing::info!(id, x11_window = window.window_id(), "x11: unmap (withdraw armed)");
+        self.schedule_redraw();
+    }
+
+    /// Grace period before a client-unmapped X11 window is treated as withdrawn to
+    /// the tray. Long enough to swallow Electron's transient unmap/remap churn, short
+    /// enough that a genuine close-to-tray drops from the dock promptly.
+    const X11_WITHDRAW_GRACE: std::time::Duration = std::time::Duration::from_millis(600);
+
+    /// Promote X11 windows that have stayed unmapped past the grace period to a real
+    /// withdraw: drop them from the dock/tasklist (like GNOME/KDE do for tray apps)
+    /// so a stale entry can't restore to an empty frame. The registry record is kept,
+    /// keyed by X11 window id, so a later remap re-announces and re-shows the window.
+    /// Returns true if anything changed (so the caller can flag damage).
+    fn tick_x11_withdraws(&mut self) -> bool {
+        if self.x11_pending_withdraw.is_empty() {
+            return false;
+        }
+        let now = std::time::Instant::now();
+        let due: Vec<u32> = self
+            .x11_pending_withdraw
+            .iter()
+            .filter(|(_, t)| now.duration_since(**t) >= Self::X11_WITHDRAW_GRACE)
+            .map(|(id, _)| *id)
+            .collect();
+        if due.is_empty() {
+            return false;
+        }
+        for id in due {
+            self.x11_pending_withdraw.remove(&id);
+            // A window that no longer exists, or is already mapped again, needs no
+            // teardown (the remap path clears the pending entry, but guard anyway).
+            if self.windows.get(id).is_none() {
+                continue;
+            }
+            tracing::info!(id, "x11: withdraw confirmed — dropping dock entry");
+            if self.windows.get(id).is_some_and(|r| r.fullscreen) {
+                if let Some(output) = self.output_for_window(id).or_else(|| self.primary_output())
+                {
+                    self.note_output_fullscreen(&output, false);
+                }
+            }
+            self.windows.set_ready(id, false);
+            self.windows.set_fullscreen(id, false);
+            self.windows.set_maximized(id, false);
+            self.clear_auto_hide(id);
+            if self.last_focused_window == Some(id) {
+                self.last_focused_window = None;
+            }
+            if self.focused_window_id() == Some(id) {
+                let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+                if let Some(kbd) = self.seat.get_keyboard() {
+                    kbd.set_focus(self, Option::<KeyboardFocusTarget>::None, serial);
+                }
+            }
+            self.event_bus
+                .emit(&metis_protocol::CompositorEvent::WindowClosed { id });
+            self.emit_layout_changed();
+        }
+        true
+    }
+
+    /// Tear down a destroyed X11 window: drop it from the registry, close out any
+    /// fullscreen bookkeeping, and notify the shell (dock/IPC) like a Wayland close.
+    pub(crate) fn destroy_x11_toplevel(&mut self, window: &X11Surface) {
+        let Some(id) = self.windows.id_for_x11_window(window.window_id()) else {
+            return;
+        };
+        tracing::info!(id, x11_window = window.window_id(), "x11: window destroyed");
+        self.x11_pending_withdraw.remove(&id);
+        let ready = self.windows.is_ready(id);
+        if self.windows.get(id).is_some_and(|r| r.fullscreen) {
+            if let Some(output) = self.output_for_window(id).or_else(|| self.primary_output()) {
+                self.note_output_fullscreen(&output, false);
+            }
+        }
+        self.save_window_geometry(id);
+        if let Some(record) = self.windows.unregister(id) {
+            self.space.unmap_elem(&record.window);
+        }
+        if ready {
+            self.on_window_destroyed(id);
+        }
+        self.schedule_redraw();
+    }
+
     /// Send the initial xdg configure as soon as the client makes its first
     /// commit, rather than waiting for a later layout/placement pass.
     ///
@@ -6582,12 +7066,17 @@ impl MetisState {
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
-        if record.toplevel.is_initial_configure_sent() {
+        // XWayland windows are configured/placed synchronously when they map
+        // (see `activate_x11_window`); they have no xdg initial-configure gate.
+        let Some(toplevel) = record.wl_toplevel() else {
+            return;
+        };
+        if toplevel.is_initial_configure_sent() {
             return;
         }
         // Make sure metadata + placement are decided before the configure goes
         // out, so the size is correct on the very first map.
-        let (title, app_id) = read_toplevel_metadata(&record.toplevel);
+        let (title, app_id) = read_toplevel_metadata(toplevel);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
         if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
@@ -6623,7 +7112,7 @@ impl MetisState {
             return;
         };
 
-        let (title, app_id) = read_toplevel_metadata(&record.toplevel);
+        let (title, app_id) = self.read_window_metadata(&record);
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
         self.refresh_window_decoration_mode(id);

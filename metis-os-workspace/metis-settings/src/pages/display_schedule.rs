@@ -18,6 +18,10 @@ pub struct ScheduleTimePicker {
     hhmm: Rc<RefCell<String>>,
     use_12h: Rc<Cell<bool>>,
     on_change: Rc<dyn Fn(String)>,
+    /// Set while we write the entry programmatically (`refresh`, reformatting
+    /// after a parse) so our own `set_text` doesn't re-fire `connect_changed` and
+    /// spin the debounce → `on_change` → save → reload loop forever.
+    suppress: Rc<Cell<bool>>,
 }
 
 impl ScheduleTimePicker {
@@ -30,7 +34,9 @@ impl ScheduleTimePicker {
         let label = format_schedule_hhmm(&hhmm, self.use_12h.get())
             .unwrap_or_else(|| hhmm.clone());
         self.button.set_label(&label);
+        self.suppress.set(true);
         self.popover_entry.set_text(&label);
+        self.suppress.set(false);
         self.rebuild_presets();
     }
 
@@ -63,6 +69,7 @@ pub fn build_schedule_time_picker(
     on_change: Rc<dyn Fn(String)>,
 ) -> ScheduleTimePicker {
     let hhmm = Rc::new(RefCell::new(initial_hhmm.to_string()));
+    let suppress = Rc::new(Cell::new(false));
     let root = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     let title = gtk::Label::new(Some(label));
     title.set_xalign(0.0);
@@ -154,15 +161,23 @@ pub fn build_schedule_time_picker(
             let on_change = on_change.clone();
             let button = button.clone();
             let popover_entry = popover_entry.clone();
+            let suppress = suppress.clone();
             Rc::new(move || {
                 let text = popover_entry.text().to_string();
                 let Some(parsed) = parse_schedule_input(&text, use_12h.get()) else {
                     return;
                 };
+                // Nothing actually changed (e.g. our own reformat re-parsed to the
+                // same value) — don't churn the compositor with a save + reload.
+                if *hhmm.borrow() == parsed {
+                    return;
+                }
                 *hhmm.borrow_mut() = parsed.clone();
                 if let Some(display) = format_schedule_hhmm(&parsed, use_12h.get()) {
                     button.set_label(&display);
+                    suppress.set(true);
                     popover_entry.set_text(&display);
+                    suppress.set(false);
                 }
                 on_change(parsed);
             })
@@ -174,7 +189,13 @@ pub fn build_schedule_time_picker(
         popover_entry.connect_changed({
             let apply_custom = apply_custom.clone();
             let debounce = debounce.clone();
+            let suppress = suppress.clone();
             move |_| {
+                // Ignore programmatic writes (refresh / reformat); only a real
+                // user edit should schedule an apply.
+                if suppress.get() {
+                    return;
+                }
                 let mut slot = debounce.borrow_mut();
                 if let Some(id) = slot.take() {
                     id.remove();
@@ -225,6 +246,7 @@ pub fn build_schedule_time_picker(
         hhmm,
         use_12h,
         on_change,
+        suppress,
     };
     picker.refresh();
 

@@ -366,11 +366,14 @@ impl MetisState {
         self.windows.set_decoration_bound(id, true);
         let app_id = self.windows.get(id).and_then(|r| r.app_id.clone());
         let negotiated_mode = requested.or_else(|| read_toplevel_decoration_mode(&toplevel));
-        let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
+        let mut uses_ssd = crate::decoration_policy::resolve_uses_ssd(
             app_id.as_deref(),
             negotiated_mode,
             true,
         );
+        if !uses_ssd && self.chromium_window_needs_ssd(id, app_id.as_deref()) {
+            uses_ssd = true;
+        }
         let granted = crate::decoration_policy::grant_decoration_mode(uses_ssd);
         toplevel.with_pending_state(|state| {
             state.decoration_mode = Some(granted);

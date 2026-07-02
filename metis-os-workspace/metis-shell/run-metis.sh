@@ -692,6 +692,12 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         # Nested compositor: Cairo renderer avoids blank/hung GTK layer-shell on some drivers.
         export GDK_BACKEND="${GDK_BACKEND:-wayland}"
         export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+        # Prefer native Wayland for Electron/Chromium apps — their XWayland
+        # map/unmap lifecycle is flaky under Metis (Claude Desktop opens then
+        # cleanly quits). CLAUDE_USE_WAYLAND flips Claude's launcher off its
+        # forced `--ozone-platform=x11`; the Ozone hint covers other Electron apps.
+        export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+        export CLAUDE_USE_WAYLAND="${CLAUDE_USE_WAYLAND:-1}"
         # Nested session: ignore stale IPC sockets from a prior crashed run.
         rm -f "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor.sock" \
               "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor-events.sock" 2>/dev/null || true

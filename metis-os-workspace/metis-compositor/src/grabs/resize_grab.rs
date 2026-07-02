@@ -52,12 +52,16 @@ impl ResizeSurfaceGrab {
         edges: ResizeEdge,
         initial_window_rect: Rectangle<i32, Logical>,
     ) -> Self {
-        ResizeSurfaceState::with(window.toplevel().unwrap().wl_surface(), |state| {
-            *state = ResizeSurfaceState::Resizing {
-                edges,
-                initial_rect: initial_window_rect,
-            };
-        });
+        // The last-commit origin correction is tracked on the wl_surface; XWayland
+        // windows are corrected live in `motion`/`button` instead.
+        if let Some(toplevel) = window.toplevel() {
+            ResizeSurfaceState::with(toplevel.wl_surface(), |state| {
+                *state = ResizeSurfaceState::Resizing {
+                    edges,
+                    initial_rect: initial_window_rect,
+                };
+            });
+        }
 
         Self {
             start_data,
@@ -102,12 +106,19 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
             new_window_height = (self.initial_rect.size.h as f64 + delta.y) as i32;
         }
 
-        let (min_size, max_size) =
-            compositor::with_states(self.window.toplevel().unwrap().wl_surface(), |states| {
+        let (min_size, max_size) = if let Some(toplevel) = self.window.toplevel() {
+            compositor::with_states(toplevel.wl_surface(), |states| {
                 let mut guard = states.cached_state.get::<SurfaceCachedState>();
                 let cached = guard.current();
                 (cached.min_size, cached.max_size)
-            });
+            })
+        } else {
+            let x11 = self.window.x11_surface();
+            (
+                x11.and_then(|x| x.min_size()).unwrap_or_default(),
+                x11.and_then(|x| x.max_size()).unwrap_or_default(),
+            )
+        };
 
         let min_width = min_size.w.max(1);
         let min_height = min_size.h.max(1);
@@ -119,26 +130,31 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
             new_window_height.max(min_height).min(max_height),
         ));
 
-        let xdg = self.window.toplevel().unwrap();
-        xdg.with_pending_state(|state| {
-            state.states.set(xdg_toplevel::State::Resizing);
-            state.size = Some(self.last_window_size);
-        });
-        xdg.send_pending_configure();
+        // Origin shifts for top/left resizes so the opposite edge stays anchored.
+        let mut origin = self.initial_rect.loc;
+        if self.edges.intersects(ResizeEdge::LEFT) {
+            origin.x = self.initial_rect.loc.x + (self.initial_rect.size.w - self.last_window_size.w);
+        }
+        if self.edges.intersects(ResizeEdge::TOP) {
+            origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - self.last_window_size.h);
+        }
 
-        // Shift the window origin live for top/left resizes so feedback is not
+        if let Some(xdg) = self.window.toplevel() {
+            xdg.with_pending_state(|state| {
+                state.states.set(xdg_toplevel::State::Resizing);
+                state.size = Some(self.last_window_size);
+            });
+            xdg.send_pending_configure();
+        } else if let Some(x11) = self.window.x11_surface() {
+            let _ = x11.configure(Rectangle::new(origin, self.last_window_size));
+        }
+
+        // Shift the mapped element live for top/left resizes so feedback is not
         // delayed until the client's commit lands.
-        if self.edges.intersects(ResizeEdge::TOP | ResizeEdge::LEFT) {
-            let mut origin = self.initial_rect.loc;
-            if self.edges.intersects(ResizeEdge::LEFT) {
-                origin.x = self.initial_rect.loc.x + (self.initial_rect.size.w - self.last_window_size.w);
-            }
-            if self.edges.intersects(ResizeEdge::TOP) {
-                origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - self.last_window_size.h);
-            }
-            if data.space.element_location(&self.window).is_some_and(|loc| loc != origin) {
-                data.space.map_element(self.window.clone(), origin, false);
-            }
+        if self.edges.intersects(ResizeEdge::TOP | ResizeEdge::LEFT)
+            && data.space.element_location(&self.window).is_some_and(|loc| loc != origin)
+        {
+            data.space.map_element(self.window.clone(), origin, false);
         }
 
         data.schedule_redraw();
@@ -163,21 +179,7 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
         handle.button(data, event);
         if handle.current_pressed().is_empty() {
             handle.unset_grab(self, data, event.serial, event.time, true);
-            let xdg = self.window.toplevel().unwrap();
-            xdg.with_pending_state(|state| {
-                state.states.unset(xdg_toplevel::State::Resizing);
-                state.size = Some(self.last_window_size);
-            });
-            xdg.send_pending_configure();
-            ResizeSurfaceState::with(xdg.wl_surface(), |state| {
-                *state = ResizeSurfaceState::WaitingForLastCommit {
-                    edges: self.edges,
-                    initial_rect: self.initial_rect,
-                };
-            });
 
-            // Persist the final floating geometry so a later reposition (or the
-            // window-state store) keeps the resized size instead of snapping back.
             // Mirror handle_commit's top/left origin shift so x/y are correct for
             // those edges before the last commit lands.
             let final_size = self.last_window_size;
@@ -188,7 +190,29 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
             if self.edges.intersects(ResizeEdge::TOP) {
                 origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - final_size.h);
             }
-            if let Some(id) = data.windows.id_for_surface(xdg.wl_surface()) {
+
+            if let Some(xdg) = self.window.toplevel() {
+                xdg.with_pending_state(|state| {
+                    state.states.unset(xdg_toplevel::State::Resizing);
+                    state.size = Some(final_size);
+                });
+                xdg.send_pending_configure();
+                ResizeSurfaceState::with(xdg.wl_surface(), |state| {
+                    *state = ResizeSurfaceState::WaitingForLastCommit {
+                        edges: self.edges,
+                        initial_rect: self.initial_rect,
+                    };
+                });
+            } else if let Some(x11) = self.window.x11_surface() {
+                let _ = x11.configure(Rectangle::new(origin, final_size));
+                if data.space.element_location(&self.window).is_some_and(|loc| loc != origin) {
+                    data.space.map_element(self.window.clone(), origin, false);
+                }
+            }
+
+            // Persist the final floating geometry so a later reposition (or the
+            // window-state store) keeps the resized size instead of snapping back.
+            if let Some(id) = data.windows.id_for_window(&self.window) {
                 data.windows.set_target_rect(
                     id,
                     metis_grid::PixelRect {

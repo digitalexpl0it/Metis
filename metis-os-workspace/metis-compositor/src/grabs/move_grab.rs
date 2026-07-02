@@ -8,7 +8,7 @@ use smithay::{
         PointerInnerHandle, RelativeMotionEvent,
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
-    utils::{Logical, Point},
+    utils::{Logical, Point, Rectangle},
 };
 
 pub struct MoveSurfaceGrab {
@@ -38,10 +38,7 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
             }
             self.drag_active = true;
             if self.pending_maximized_demote {
-                if let Some(id) = data
-                    .windows
-                    .id_for_surface(self.window.toplevel().unwrap().wl_surface())
-                {
+                if let Some(id) = data.windows.id_for_window(&self.window) {
                     data.unmaximize_for_titlebar_drag(id);
                     if let Some(loc) = data.space.element_location(&self.window) {
                         self.initial_window_location = loc;
@@ -102,10 +99,7 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
         data.space
             .map_element(self.window.clone(), new_location.to_i32_round(), true);
 
-        if let Some(id) = data
-            .windows
-            .id_for_surface(self.window.toplevel().unwrap().wl_surface())
-        {
+        if let Some(id) = data.windows.id_for_window(&self.window) {
             let loc = new_location.to_i32_round();
             let geo = self.window.geometry();
             data.windows.set_target_rect(
@@ -150,13 +144,13 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
             // would always be `None` (the window would never actually snap).
             let snap = data.snap_preview.take();
             handle.unset_grab(self, data, event.serial, event.time, true);
-            if let Some(id) = data
-                .windows
-                .id_for_surface(self.window.toplevel().unwrap().wl_surface())
-            {
+            if let Some(id) = data.windows.id_for_window(&self.window) {
                 if !self.drag_active {
                     // Click without drag — leave maximized windows maximized.
                 } else if let Some((rect, label)) = snap {
+                    // `apply_snap` already pushes the snapped geometry to the client
+                    // (X11 included) via `send_window_configure`; don't re-sync below
+                    // or we'd clobber the snapped size with the pre-snap one.
                     data.apply_snap(id, rect, label);
                 } else if self.drag_active {
                     // Drop on a different monitor: re-home the window's desk tile
@@ -166,6 +160,15 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
                         data.enforce_grid_window_geometry(id);
                     } else {
                         data.save_window_geometry(id);
+                    }
+                    // XWayland only: sync the X server to the final on-screen
+                    // position so the client reports correct root coordinates
+                    // (popup/menu placement). configure_notify for managed windows
+                    // is ignored, so this can't loop.
+                    if let Some(x11) = self.window.x11_surface() {
+                        if let Some(loc) = data.space.element_location(&self.window) {
+                            let _ = x11.configure(Rectangle::new(loc, self.window.geometry().size));
+                        }
                     }
                 }
             }
