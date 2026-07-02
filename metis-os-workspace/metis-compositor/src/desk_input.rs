@@ -352,6 +352,26 @@ impl MetisState {
                         return Some((window.clone(), loc));
                     }
                 }
+            } else if self.window_uses_csd_overlay_controls(id)
+                && self.auto_hide_titlebar.contains(&id)
+                && self.titlebar_reveal_window == Some(id)
+                && self.titlebar_reveal_progress > 0.0
+            {
+                let client_frame = PixelRect {
+                    x: loc.x,
+                    y: loc.y,
+                    width: size.w,
+                    height: size.h,
+                };
+                let compact = self.window_uses_compact_overlay(id);
+                let chrome = overlay_chrome_rect(
+                    client_frame,
+                    self.titlebar_reveal_progress,
+                    compact,
+                );
+                if point_in_rect(x, y, chrome) {
+                    return Some((window.clone(), loc));
+                }
             }
 
             if let Some(geo) = self.space.element_geometry(window) {

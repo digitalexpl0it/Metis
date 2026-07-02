@@ -16,6 +16,7 @@ use smithay::{
 };
 
 use crate::ipc;
+use crate::night_light::RenderTargetInfo;
 use crate::render::CLEAR_COLOR;
 use crate::state::MetisState;
 
@@ -288,6 +289,10 @@ pub fn init_winit(
                                 renderer,
                                 Point::<i32, Physical>::from((0, 0)),
                                 output_scale,
+                                RenderTargetInfo {
+                                    size: Size::from((size.w, size.h)),
+                                    output_name: None,
+                                },
                             );
 
                             // Winit re-binds the same framebuffer each frame, so it

@@ -1,5 +1,9 @@
 use gtk::prelude::*;
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::time::{Duration, Instant};
+
 use crate::ui::icons::{self, names};
 
 use crate::services::{BluetoothDevice, BluetoothStatus, EthernetStatus, WifiNetwork};
@@ -80,11 +84,14 @@ impl BatteryWidget {
 pub struct BluetoothWidget {
     root: gtk::Button,
     icon: gtk::Image,
+    power_switch: gtk::Switch,
+    updating_switch: Rc<Cell<bool>>,
+    suppress_until: Rc<Cell<Instant>>,
     /// Status line shown when no devices are connected ("On" / "Off").
     status_label: gtk::Label,
     /// Container the connected-device rows are rebuilt into on each update.
     device_list: gtk::Box,
-    last_status: std::cell::RefCell<Option<BluetoothStatus>>,
+    last_status: RefCell<Option<BluetoothStatus>>,
 }
 
 impl BluetoothWidget {
@@ -101,10 +108,42 @@ impl BluetoothWidget {
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(8);
         panel.set_width_request(260);
-        let title = gtk::Label::new(Some("Bluetooth"));
-        title.set_xalign(0.0);
+
+        let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let title = gtk::Label::builder()
+            .label("Bluetooth")
+            .halign(gtk::Align::Start)
+            .hexpand(true)
+            .build();
         title.add_css_class("metis-bar-section-title");
-        panel.append(&title);
+        header.append(&title);
+
+        let updating_switch = Rc::new(Cell::new(false));
+        let suppress_until = Rc::new(Cell::new(Instant::now()));
+        let power_switch = gtk::Switch::new();
+        power_switch.set_valign(gtk::Align::Center);
+        power_switch.add_css_class("metis-net-switch");
+        {
+            let updating_switch = updating_switch.clone();
+            let suppress_until = suppress_until.clone();
+            let icon = icon.clone();
+            let root = root.clone();
+            power_switch.connect_state_set(move |_, state| {
+                if !updating_switch.get() {
+                    bump_suppress(&suppress_until);
+                    crate::services::bluetooth_set_powered(state);
+                    icons::set_icon(&icon, names::bluetooth(state, false));
+                    root.set_tooltip_text(Some(if state {
+                        "Bluetooth on"
+                    } else {
+                        "Bluetooth off"
+                    }));
+                }
+                glib::Propagation::Proceed
+            });
+        }
+        header.append(&power_switch);
+        panel.append(&header);
 
         let status_label = gtk::Label::new(Some("Off"));
         status_label.set_xalign(0.0);
@@ -128,9 +167,12 @@ impl BluetoothWidget {
         Self {
             root,
             icon,
+            power_switch,
+            updating_switch,
+            suppress_until,
             status_label,
             device_list,
-            last_status: std::cell::RefCell::new(None),
+            last_status: RefCell::new(None),
         }
     }
 
@@ -143,24 +185,34 @@ impl BluetoothWidget {
         if !status.adapter_present {
             return;
         }
+
+        let suppressed = Instant::now() < self.suppress_until.get();
+        if !suppressed {
+            self.updating_switch.set(true);
+            self.power_switch.set_active(status.powered);
+            self.updating_switch.set(false);
+        }
+
         if self.last_status.borrow().as_ref() == Some(status) {
             return;
         }
         self.last_status.replace(Some(status.clone()));
 
-        icons::set_icon(
-            &self.icon,
-            names::bluetooth(status.powered, status.connected),
-        );
+        if !suppressed {
+            icons::set_icon(
+                &self.icon,
+                names::bluetooth(status.powered, status.connected),
+            );
 
-        let tip = if !status.powered {
-            "Bluetooth off".to_string()
-        } else if let Some(name) = &status.device_name {
-            format!("Connected to {name}")
-        } else {
-            "Bluetooth on".to_string()
-        };
-        self.root.set_tooltip_text(Some(&tip));
+            let tip = if !status.powered {
+                "Bluetooth off".to_string()
+            } else if let Some(name) = &status.device_name {
+                format!("Connected to {name}")
+            } else {
+                "Bluetooth on".to_string()
+            };
+            self.root.set_tooltip_text(Some(&tip));
+        }
 
         self.rebuild_devices(status);
     }
@@ -623,10 +675,6 @@ fn network_signature(
     }
     s
 }
-
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
-use std::time::{Duration, Instant};
 
 /// One labelled row: a mute icon-button on the left, a slider filling the rest.
 struct AudioRow {

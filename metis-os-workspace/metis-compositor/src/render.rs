@@ -30,6 +30,7 @@ use smithay::{
     wayland::shell::wlr_layer::Layer,
 };
 
+use crate::night_light::{night_light_element, RenderTargetInfo};
 use crate::state::MetisState;
 
 smithay::backend::renderer::element::render_elements! {
@@ -38,7 +39,7 @@ smithay::backend::renderer::element::render_elements! {
     Surface=WaylandSurfaceRenderElement<GlesRenderer>,
     Deco=crate::decoration::DecorationElement,
     Blur=crate::blur::BlurElement,
-    Snap=SolidColorRenderElement,
+    Overlay=SolidColorRenderElement,
     // Scroll-managed windows + their chrome, clipped to their own output so a
     // half-scrolled column never bleeds onto the adjacent display.
     CropSurface=CropRenderElement<WaylandSurfaceRenderElement<GlesRenderer>>,
@@ -79,6 +80,7 @@ impl MetisState {
         renderer: &mut GlesRenderer,
         render_origin: Point<i32, Physical>,
         output_scale: Scale<f64>,
+        target: RenderTargetInfo<'_>,
     ) -> Vec<OutputStack> {
         // Render-target-local physical origin of the full-desktop wallpaper.
         let wallpaper_origin: Point<f64, Physical> =
@@ -195,7 +197,7 @@ impl MetisState {
 
         // Snap preview sits on top of all windows.
         if let Some(snap) = snap_element {
-            render_elements.push(OutputStack::Snap(snap));
+            render_elements.push(OutputStack::Overlay(snap));
         }
         // Top/overlay layer surfaces (the bar) above window chrome and clients.
         // Auto-hide titlebar overlays sit below the bar so a revealed titlebar
@@ -307,6 +309,11 @@ impl MetisState {
         render_elements.extend(blur_elements.into_iter().map(OutputStack::Blur));
         if let Some(wallpaper) = wallpaper_owned {
             render_elements.push(OutputStack::Wallpaper(wallpaper));
+        }
+
+        // Night light is the topmost scene layer (cursor is drawn after the stack).
+        if let Some(tint) = night_light_element(self, &target) {
+            render_elements.insert(0, OutputStack::Overlay(tint));
         }
 
         render_elements

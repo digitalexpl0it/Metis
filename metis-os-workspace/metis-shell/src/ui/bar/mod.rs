@@ -38,6 +38,8 @@ struct BarHandle {
     /// Compositor output name this bar is bound to (e.g. `metis-0`), used so its
     /// workspace widget switches/reads that output's own workspaces.
     output: Option<String>,
+    /// True while a client on this output is in true fullscreen (edge bar hidden).
+    chrome_suppressed: Cell<bool>,
 }
 
 
@@ -182,6 +184,34 @@ fn build_bar(
         config,
         widget_refs,
         output,
+        chrome_suppressed: Cell::new(false),
+    }
+}
+
+/// Hide or restore the edge bar on the output that has a true-fullscreen client.
+pub fn set_edge_bar_visible(output: &str, visible: bool) {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if !bar_matches_output(handle.output.as_deref(), output) {
+                continue;
+            }
+            handle.chrome_suppressed.set(!visible);
+            if visible {
+                handle.window.set_visible(true);
+                apply_layer_geometry(&handle.window, &handle.config.borrow());
+            } else {
+                dropdown::close_all();
+                handle.window.set_exclusive_zone(0);
+                handle.window.set_visible(false);
+            }
+        }
+    });
+}
+
+fn bar_matches_output(bar_output: Option<&str>, event_output: &str) -> bool {
+    match bar_output {
+        Some(name) => name == event_output,
+        None => true,
     }
 }
 
@@ -544,6 +574,15 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     window.queue_resize();
 }
 
+fn apply_bar_visibility(handle: &BarHandle) {
+    if handle.chrome_suppressed.get() {
+        handle.window.set_exclusive_zone(0);
+        handle.window.set_visible(false);
+    } else {
+        handle.window.set_visible(true);
+    }
+}
+
 /// Re-apply geometry/widgets to every existing bar in place (keeps the layer
 /// surfaces — used for live theme/opacity/position edits that don't change the
 /// set of outputs).
@@ -556,6 +595,7 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
         for handle in bars.iter_mut() {
             configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
             apply_layer_geometry(&handle.window, &cfg);
+            apply_bar_visibility(handle);
             handle.window.set_default_size(win_w, win_h);
             handle.outer.queue_resize();
             handle.column.queue_resize();
@@ -598,6 +638,7 @@ fn apply_bars_live(config: Rc<RefCell<BarConfig>>) {
         for handle in bars.borrow_mut().iter_mut() {
             configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
             apply_layer_geometry(&handle.window, &cfg);
+            apply_bar_visibility(handle);
             handle.window.set_default_size(win_w, win_h);
             handle.outer.queue_resize();
             handle.column.queue_resize();

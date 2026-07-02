@@ -2,9 +2,10 @@
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. **Phase 5** is in progress — mirror/clone displays landed
-(2026-07-01); VRR and colour management remain. Next tracks: **Phase 6** (Flatpak,
-Steam & gaming) and **Phase 7** (remote access / full desktop sharing).
+Device + System pages. **Phase 5** is in progress — mirror/clone, VRR, night-light
+schedule, and ICC profile config landed (2026-07-01); `wp_color_management`
+compositor handler and HDR remain. Next tracks: **Phase 6** (Flatpak, Steam &
+gaming) and **Phase 7** (remote access / full desktop sharing).
 
 ---
 
@@ -147,6 +148,12 @@ decorations so it (and every app) gets a real titlebar.
       the screen-edge gap survives
 - [x] XWayland — spawn/manage an X11 server (`X11Wm`/`XwmHandler`) so X11-only
       apps run in the nested session alongside Wayland clients
+- [x] **Client xdg fullscreen** — Chromium / Firefox video fullscreen and other
+      `xdg_toplevel.set_fullscreen` requests map the window to the output under
+      the cursor (`fullscreen_request` / `unfullscreen_request` wired 2026-07-01).
+- [x] **X11 / XWayland fullscreen** — `_NET_WM_STATE_FULLSCREEN` requests from
+      X11 clients (e.g. Steam, legacy video players) map to the output the window
+      is on and restore prior geometry on exit.
 
 ### Weather
 Backend: **Open-Meteo** (keyless) — reuse/extend `briefing/connectors/weather.rs`
@@ -386,12 +393,16 @@ Phase 3) — none of these are possible under the nested winit dev session.
 
 ### B. Colour pipeline
 
-- [ ] **VRR / adaptive sync** — enable per-output via Smithay's DRM VRR support;
-      opt-in toggle surfaced in the Display settings page
-- [ ] **Colour management** — ICC / per-output colour profiles and the
-      `wp_color_management` protocol; groundwork shared with HDR
-- [ ] **Night light / colour temperature** — scheduled warm-shift (UI toggle exists
-      in Display settings today; compositor colour pipeline not wired yet)
+- [x] **VRR / adaptive sync** — per-output opt-in toggle in Settings → Display
+      (**Adaptive sync** under Applies live); saved as `vrr_enabled` in
+      `outputs.json`; compositor sets DRM `VRR_ENABLED` via Smithay on real DRM
+      sessions when the connector advertises `vrr_capable`
+- [ ] **Colour management** — ICC paths saved per output in Settings; compositor
+      validates on apply. **`wp_color_management_v1` handler** (Smithay) still
+      required for clients to receive profiles — follow-up
+- [x] **Night light schedule** — local-time From/To window in Settings → Display;
+      compositor toggles the warm overlay inside the schedule while the master
+      night-light switch is on
 - [ ] **HDR** — wide-gamut / 10-bit GLES render path + DRM colour pipeline on top of
       colour management (long-term; gated on protocol + Smithay maturity). A genuinely
       rare thing for a lightweight DE — worth doing right rather than fast

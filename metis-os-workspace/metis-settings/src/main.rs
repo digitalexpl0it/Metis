@@ -24,6 +24,8 @@ use gtk::prelude::*;
 
 use nav::{NavHue, NAV};
 
+const SIDEBAR_WIDTH: i32 = 248;
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -160,6 +162,7 @@ fn build_ui(page: Option<String>) {
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .vexpand(true)
+        .hexpand(true)
         .overlay_scrolling(false)
         .child(&nav)
         .build();
@@ -236,7 +239,9 @@ fn build_ui(page: Option<String>) {
 
     let sidebar = gtk::Box::new(gtk::Orientation::Vertical, 0);
     sidebar.add_css_class("metis-settings-sidebar");
-    sidebar.set_width_request(248);
+    sidebar.set_size_request(SIDEBAR_WIDTH, -1);
+    sidebar.set_hexpand(false);
+    sidebar.set_halign(gtk::Align::Start);
     sidebar.set_vexpand(true);
 
     let sidebar_title = gtk::Label::new(Some("Settings"));
@@ -253,6 +258,7 @@ fn build_ui(page: Option<String>) {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
     content.add_css_class("metis-settings-content");
     content.set_hexpand(true);
+    content.set_halign(gtk::Align::Fill);
     content.set_vexpand(true);
     content.append(&stack);
 

@@ -2087,6 +2087,7 @@ dependencies = [
 name = "metis-config"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "directories",
  "serde",
  "serde_json",

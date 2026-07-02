@@ -159,8 +159,10 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
 }
 
 pub use outputs::{
-    load_outputs_config, output_prefs, outputs_config_path, save_outputs_config,
-    DisplayLayoutMode, OutputPrefs, OutputsConfig,
+    load_outputs_config, load_outputs_config_with_fallback, night_light_effective, output_prefs, outputs_config_path,
+    parse_hhmm, save_outputs_config, DisplayLayoutMode, NightLightSchedule, OutputPrefs,
+    OutputsConfig, format_schedule_hhmm, format_schedule_minutes, minutes_to_hhmm,
+    parse_schedule_input, schedule_half_hour_presets,
 };
 pub use power::{
     load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,

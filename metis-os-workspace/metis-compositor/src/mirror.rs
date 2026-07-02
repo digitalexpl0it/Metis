@@ -18,6 +18,7 @@ use smithay::output::Output;
 use smithay::reexports::drm::control::crtc;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
+use crate::night_light::RenderTargetInfo;
 use crate::render::{OutputStack, CLEAR_COLOR};
 use crate::state::MetisState;
 
@@ -175,7 +176,15 @@ fn ensure_mirror_batch_cache(state: &mut MetisState, renderer: &mut GlesRenderer
         .map(|g| g.loc.to_physical_precise_round(output_scale))
         .unwrap_or_default();
 
-    let mut elements = state.build_render_elements(renderer, render_origin, output_scale);
+    let mut elements = state.build_render_elements(
+        renderer,
+        render_origin,
+        output_scale,
+        RenderTargetInfo {
+            size: src_size,
+            output_name: Some(source.name().as_str()),
+        },
+    );
     let mut cursor = state.build_cursor_elements(renderer, &source, output_scale);
     if !cursor.is_empty() {
         cursor.append(&mut elements);
@@ -240,16 +249,19 @@ pub fn render_mirror_surface(
         (cache.src_size, cache.buffer.clone())
     };
 
-    let udev = state.udev.as_mut().ok_or("no udev")?;
-    let surface = udev.surfaces.get_mut(&crtc).ok_or("no surface")?;
-    let output = &surface.output;
-    let dst_mode = output
-        .current_mode()
-        .ok_or_else(|| "mirror target missing mode".to_string())?;
-    let dst_size: Size<i32, Physical> = dst_mode.size;
-    if dst_size.w <= 0 || dst_size.h <= 0 {
-        return Err("mirror target has zero size".into());
-    }
+    let dst_size = {
+        let udev = state.udev.as_ref().ok_or("no udev")?;
+        let surface = udev.surfaces.get(&crtc).ok_or("no surface")?;
+        let dst_mode = surface
+            .output
+            .current_mode()
+            .ok_or_else(|| "mirror target missing mode".to_string())?;
+        let dst_size: Size<i32, Physical> = dst_mode.size;
+        if dst_size.w <= 0 || dst_size.h <= 0 {
+            return Err("mirror target has zero size".into());
+        }
+        dst_size
+    };
 
     let src_w = src_size.w;
     let src_h = src_size.h;
@@ -274,6 +286,9 @@ pub fn render_mirror_surface(
     );
     let elements: Vec<OutputStack> = vec![OutputStack::Wallpaper(tex)];
 
+    crate::output_vrr::prepare_vrr_for_render(state, crtc);
+    let udev = state.udev.as_mut().ok_or("no udev")?;
+    let surface = udev.surfaces.get_mut(&crtc).ok_or("no surface")?;
     let outcome = surface
         .drm_output
         .render_frame(

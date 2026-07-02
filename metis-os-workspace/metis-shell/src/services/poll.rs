@@ -245,6 +245,12 @@ pub fn wifi_set_radio(on: bool) {
     queue_network(NetworkCommand::SetRadio(on));
 }
 
+/// Enable or disable the Bluetooth adapter radio.
+pub fn bluetooth_set_powered(on: bool) {
+    let state = if on { "on" } else { "off" };
+    spawn_bluetoothctl(vec!["power".into(), state.into()], Duration::from_secs(8));
+}
+
 fn run_wifi_connect(ssid: String, password: Option<String>) {
     let mut args = vec![
         "dev".to_string(),
@@ -285,6 +291,33 @@ fn spawn_nmcli(args: Vec<String>, timeout: Duration) {
                 Err(_) => return,
             }
             if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                return;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
+/// Spawn a `bluetoothctl` invocation on a detached thread.
+fn spawn_bluetoothctl(args: Vec<String>, timeout: Duration) {
+    thread::spawn(move || {
+        let mut cmd = std::process::Command::new("bluetoothctl");
+        cmd.args(&args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        let Ok(mut child) = cmd.spawn() else {
+            return;
+        };
+        let deadline = Instant::now() + timeout;
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => {}
+                Err(_) => return,
+            }
+            if Instant::now() >= deadline {
                 let _ = child.kill();
                 let _ = child.wait();
                 return;

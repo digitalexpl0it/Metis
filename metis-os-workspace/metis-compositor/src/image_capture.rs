@@ -179,7 +179,15 @@ pub(crate) fn render_output_to_buffer(
         .map(|g| g.loc.to_physical_precise_round(output_scale))
         .unwrap_or_default();
 
-    let mut elements = state.build_render_elements(renderer, render_origin, output_scale);
+    let mut elements = state.build_render_elements(
+        renderer,
+        render_origin,
+        output_scale,
+        crate::night_light::RenderTargetInfo {
+            size: size_phys,
+            output_name: Some(output.name().as_str()),
+        },
+    );
     if draw_cursor {
         let mut cursor = state.build_cursor_elements(renderer, output, output_scale);
         if !cursor.is_empty() {

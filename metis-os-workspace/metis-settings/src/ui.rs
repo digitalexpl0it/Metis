@@ -147,6 +147,37 @@ pub fn wire_vertical_scroll(scroller: &gtk::ScrolledWindow) {
     scroller.add_controller(ctrl);
 }
 
+/// Keep wheel events on a GtkScale/GtkRange from adjusting the value; scroll the
+/// enclosing settings page instead (otherwise scrolling the Display page drags
+/// the night-light slider and spams compositor reload IPC).
+pub fn forward_wheel_to_page_scroller(widget: &impl IsA<gtk::Widget>) {
+    let ctrl = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
+    ctrl.set_propagation_phase(gtk::PropagationPhase::Capture);
+    ctrl.connect_scroll(move |controller, _, dy| {
+        let mut parent = controller.widget().parent();
+        while let Some(p) = parent {
+            if let Ok(scroller) = p.clone().downcast::<gtk::ScrolledWindow>() {
+                let vadj = scroller.vadjustment();
+                let delta = if dy.abs() <= 3.0 {
+                    dy * vadj.step_increment().max(48.0)
+                } else {
+                    dy
+                };
+                let page = vadj.page_size();
+                let max = (vadj.upper() - page).max(vadj.lower());
+                let new_val = (vadj.value() + delta).clamp(vadj.lower(), max);
+                if (new_val - vadj.value()).abs() > f64::EPSILON {
+                    vadj.set_value(new_val);
+                }
+                return glib::Propagation::Stop;
+            }
+            parent = p.parent();
+        }
+        glib::Propagation::Stop
+    });
+    widget.add_controller(ctrl);
+}
+
 /// A titled card grouping related controls. Returns the body box to fill.
 pub fn section(title: &str) -> (gtk::Box, gtk::Box) {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -216,4 +247,39 @@ pub fn row(label: &str, control: &impl IsA<gtk::Widget>) -> gtk::Box {
     row.append(&lbl);
     row.append(control);
     row
+}
+
+/// Settings row with a trailing switch. Clicking the label toggles the switch
+/// (GNOME-style) so users are not forced to hit the small thumb target.
+pub fn switch_row(label: &str) -> (gtk::Box, gtk::Switch) {
+    let sw = gtk::Switch::new();
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    row.add_css_class("metis-settings-row");
+    let lbl = gtk::Label::new(Some(label));
+    lbl.set_xalign(0.0);
+    lbl.set_hexpand(true);
+    lbl.add_css_class("metis-settings-switch-label");
+    let sw_toggle = sw.clone();
+    let gesture = gtk::GestureClick::new();
+    gesture.connect_released(move |_, _, _, _| {
+        sw_toggle.set_active(!sw_toggle.is_active());
+    });
+    lbl.add_controller(gesture);
+    row.append(&lbl);
+    row.append(&sw);
+    (row, sw)
+}
+
+/// Run `action` on the next main-loop idle turn so GTK can paint the switch
+/// state before any file I/O or IPC in the handler.
+pub fn defer_switch_active_notify<F>(sw: &gtk::Switch, action: F) -> glib::SignalHandlerId
+where
+    F: Fn(bool) + 'static,
+{
+    let action = std::rc::Rc::new(action);
+    sw.connect_active_notify(move |switch| {
+        let active = switch.is_active();
+        let action = action.clone();
+        glib::idle_add_local_once(move || action(active));
+    })
 }

@@ -54,6 +54,11 @@ pub fn set_powered(on: bool) {
     let _ = btctl(&["power", if on { "on" } else { "off" }]);
 }
 
+/// Fire-and-forget adapter power toggle (never blocks the GTK main thread).
+pub fn set_powered_async(on: bool) {
+    std::thread::spawn(move || set_powered(on));
+}
+
 pub fn start_scan() {
     let _ = btctl(&["scan", "on"]);
 }

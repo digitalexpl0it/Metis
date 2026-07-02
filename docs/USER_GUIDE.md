@@ -379,7 +379,7 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   two or more outputs are connected; hidden while duplicating; **Save display
   settings** with a keep/revert confirmation). Scale and **Active** apply live;
   duplicate mode, arrangement, and resolution changes are batched behind save.
-  Night-light preferences are saved to `outputs.json` (compositor colour shift
+  Night-light preferences apply live in the compositor (warm overlay; schedule
   not wired yet). Rotation is still upcoming.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three

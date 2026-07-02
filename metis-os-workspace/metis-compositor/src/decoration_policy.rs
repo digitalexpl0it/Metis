@@ -27,14 +27,6 @@ const SSD_APP_IDS: &[&str] = &[
     "org.mozilla.firefox",
     "org.mozilla.Firefox",
     "firefox_firefox",
-    // Chromium-based browsers on Wayland often ship only a close button in their
-    // client chrome while the portal tells them the compositor owns decorations.
-    // Metis grants ServerSide over xdg-decoration so they drop CSD entirely.
-    "com.google.Chrome",
-    "org.chromium.Chromium",
-    "com.brave.Browser",
-    "com.microsoft.Edge",
-    "com.microsoft.EdgeDev",
 ];
 
 /// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
@@ -85,15 +77,23 @@ pub fn id_looks_firefox(app_id: &str) -> bool {
 
 /// True when the app has no native titlebar and needs Metis chrome.
 pub fn id_looks_ssd(app_id: &str) -> bool {
-    id_matches_list(app_id, SSD_APP_IDS)
-        || id_looks_chromium_family(app_id)
-        || id_looks_firefox(app_id)
+    id_matches_list(app_id, SSD_APP_IDS) || id_looks_firefox(app_id)
+}
+
+/// Chromium on Ozone/Wayland crashes when forced SSD + Maximized; keep native
+/// decorations and draw Metis compact controls as a CSD overlay instead.
+pub fn id_needs_csd_overlay_controls(app_id: &str) -> bool {
+    id_looks_chromium_family(app_id)
 }
 
 /// True when the app ships its own titlebar (GNOME/libadwaita, browsers, …).
 pub fn id_looks_csd(app_id: &str) -> bool {
     if id_looks_ssd(app_id) {
         return false;
+    }
+    // Native decorations — Metis draws a hover overlay for window controls instead.
+    if id_looks_chromium_family(app_id) {
+        return true;
     }
     let id = norm_app_id(app_id);
     if id_matches_list(app_id, CSD_APP_IDS) {
@@ -186,6 +186,15 @@ mod tests {
     }
 
     #[test]
+    fn chromium_uses_client_side_with_csd_overlay() {
+        assert!(!resolve_uses_ssd(Some("org.chromium.Chromium"), None));
+        assert!(!resolve_uses_ssd(Some("com.google.Chrome"), None));
+        assert!(!resolve_uses_ssd(Some("chromium"), None));
+        assert!(id_needs_csd_overlay_controls("org.chromium.Chromium"));
+        assert!(id_uses_compact_overlay("chromium"));
+    }
+
+    #[test]
     fn gnome_apps_keep_client_headerbar() {
         assert!(!resolve_uses_ssd(Some("org.gnome.Cheese"), None));
         assert!(!resolve_uses_ssd(Some("org.gnome.Calculator"), None));
@@ -195,21 +204,6 @@ mod tests {
     fn metis_and_terminals_use_ssd() {
         assert!(resolve_uses_ssd(Some("org.kitty"), None));
         assert!(resolve_uses_ssd(Some("com.metis.Settings"), None));
-    }
-
-    #[test]
-    fn chromium_browsers_use_ssd() {
-        assert!(resolve_uses_ssd(Some("org.chromium.Chromium"), None));
-        assert!(resolve_uses_ssd(Some("com.google.Chrome"), None));
-        assert!(resolve_uses_ssd(Some("chromium"), None));
-        assert!(resolve_uses_ssd(
-            Some("org.chromium.Chromium"),
-            Some(DecorationMode::ClientSide)
-        ));
-        assert!(resolve_uses_ssd(
-            Some("chromium"),
-            Some(DecorationMode::ClientSide)
-        ));
     }
 
     #[test]

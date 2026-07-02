@@ -182,6 +182,21 @@ pub fn apply_event(evt: &CompositorEvent) {
                     false
                 }
             }
+            CompositorEvent::WindowFullscreen {
+                id,
+                fullscreen,
+                output,
+            } => {
+                if let Some(w) = store.windows.iter_mut().find(|w| w.id == *id) {
+                    w.fullscreen = *fullscreen;
+                    if !output.is_empty() {
+                        w.output.clone_from(output);
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     });

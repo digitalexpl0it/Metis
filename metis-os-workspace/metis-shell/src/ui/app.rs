@@ -60,6 +60,11 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                         // the now-visible workspace (and any cross-workspace move).
                         crate::services::windows::reconcile_now();
                     }
+                    if let metis_protocol::CompositorEvent::EdgeBarVisible { output, visible } =
+                        &evt
+                    {
+                        crate::ui::bar::set_edge_bar_visible(output, *visible);
+                    }
                     crate::services::windows::apply_event(&evt);
                     // A freshly opened window arrives without its output/workspace
                     // (the event doesn't carry them); reconcile so dock filtering

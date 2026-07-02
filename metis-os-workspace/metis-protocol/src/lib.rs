@@ -129,6 +129,17 @@ pub enum CompositorEvent {
     WindowClosed { id: u32 },
     WindowFocused { id: u32 },
     WindowMinimized { id: u32, minimized: bool },
+    /// True fullscreen on `output` — shell hides the edge bar until `visible` is true.
+    EdgeBarVisible {
+        output: String,
+        visible: bool,
+    },
+    WindowFullscreen {
+        id: u32,
+        fullscreen: bool,
+        #[serde(default)]
+        output: String,
+    },
     WindowMetadata {
         id: u32,
         title: String,
@@ -215,6 +226,12 @@ pub struct OutputInfo {
     /// This output is the mirror source (duplicate mode).
     #[serde(default)]
     pub mirror_source: bool,
+    /// DRM driver advertises VRR / adaptive sync on this connector.
+    #[serde(default)]
+    pub vrr_available: bool,
+    /// VRR is currently active on the CRTC (may differ from saved pref until apply).
+    #[serde(default)]
+    pub vrr_active: bool,
 }
 
 fn default_output_scale() -> f64 {

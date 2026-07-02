@@ -9,12 +9,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Night light compositor** — Settings → Display night light toggle and colour
+  temperature now apply live via a warm fullscreen overlay (`outputs.json`
+  `night_light_enabled` / `night_light_temperature`); works in nested winit and
+  DRM sessions.
 - **Display — duplicate (mirror) mode** — Settings → Display **Duplicate displays**
   toggle with a **Show on** source picker; persisted in `outputs.json`
   (`display_mode`, `mirror_source`). On a DRM session with two or more monitors,
   the compositor maps all outputs to the origin, renders the source once per
   frame, and scale-to-fits onto each CRTC with letterboxing when resolutions
   differ. Uses the existing **Save display settings** keep/revert flow.
+- **VRR / adaptive sync** — Settings → Display **Adaptive sync** toggle per
+  output (Applies live); persisted as `vrr_enabled` in `outputs.json` and
+  applied via DRM `VRR_ENABLED` on real hardware when supported.
+- **Night light schedule** — Settings → Display **Use schedule** with local
+  **From** / **To** times (overnight ranges supported); compositor applies the
+  warm overlay only inside the window while night light is enabled.
+- **Colour profile paths** — per-output ICC file picker in Settings → Display;
+  paths saved to `outputs.json` and validated on compositor apply (full
+  `wp_color_management` client protocol pending Smithay).
+
+### Fixed
+
+- **Chromium / video fullscreen** — client `xdg_toplevel` fullscreen requests
+  (e.g. YouTube in Chromium) now enter true fullscreen on the correct output
+  instead of being ignored.
+- **X11 / XWayland fullscreen** — `_NET_WM_STATE_FULLSCREEN` from X11 clients
+  (Steam, legacy players, etc.) now fills the monitor and restores the prior
+  window geometry on exit.
+- **Settings → Detect displays crash** — clicking **Detect displays** no longer
+  panics with `RefCell already borrowed`; the display arrangement canvas now
+  releases the selection borrow before updating the selected monitor.
+- **Settings sidebar width on maximize** — left nav stays fixed at 248 px; only
+  the page content expands when the window is maximized.
 
 ## [2026-06-30]
 

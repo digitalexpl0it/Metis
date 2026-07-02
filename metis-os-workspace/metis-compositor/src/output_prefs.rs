@@ -23,7 +23,7 @@ impl OutputRuntime {
     }
 
     pub fn reload_from_disk(&mut self) -> OutputsConfig {
-        let cfg = load_outputs_config();
+        let cfg = metis_config::load_outputs_config_with_fallback(&self.cached);
         tracing::info!("reloading outputs.json");
         self.cached = cfg.clone();
         cfg
@@ -34,18 +34,57 @@ impl OutputRuntime {
     }
 
     /// Throttled re-read of `outputs.json` (~1s), mirroring `input.json`.
-    pub fn maybe_refresh(&mut self) -> Option<OutputsConfig> {
+    pub fn maybe_refresh(&mut self) -> Option<(OutputsConfig, OutputsConfig)> {
         if self.last_check.elapsed() < Duration::from_secs(1) {
             return None;
         }
         self.last_check = Instant::now();
-        let cfg = load_outputs_config();
+        let before = self.cached.clone();
+        let cfg = metis_config::load_outputs_config_with_fallback(&self.cached);
         if cfg == self.cached {
             return None;
         }
         tracing::info!("outputs.json changed — reapplying output preferences");
         self.cached = cfg.clone();
-        Some(cfg)
+        Some((before, cfg))
+    }
+}
+
+/// True when the only differences between two configs are night-light fields.
+pub fn is_night_light_only_change(before: &OutputsConfig, after: &OutputsConfig) -> bool {
+    let night_changed = before.night_light_enabled != after.night_light_enabled
+        || before.night_light_temperature != after.night_light_temperature
+        || before.night_light_schedule != after.night_light_schedule
+        || before.night_light_schedule_12h != after.night_light_schedule_12h;
+    if !night_changed {
+        return false;
+    }
+    let mut normalized = after.clone();
+    normalized.night_light_enabled = before.night_light_enabled;
+    normalized.night_light_temperature = before.night_light_temperature;
+    normalized.night_light_schedule = before.night_light_schedule.clone();
+    normalized.night_light_schedule_12h = before.night_light_schedule_12h;
+    normalized == *before
+}
+
+/// Apply night-light field changes already loaded into `output_runtime.cached`.
+pub fn refresh_night_light(state: &mut MetisState, before: &OutputsConfig) {
+    let cfg = state.output_runtime.cached().clone();
+    sync_night_light_schedule_state(state, &cfg);
+    let vis_before = metis_config::night_light_effective(before);
+    let vis_after = metis_config::night_light_effective(&cfg);
+    if vis_before != vis_after || before.night_light_temperature != cfg.night_light_temperature {
+        state.night_light_commit.increment();
+    }
+    state.schedule_redraw();
+}
+
+fn sync_night_light_schedule_state(state: &mut MetisState, cfg: &OutputsConfig) {
+    if cfg.night_light_schedule.enabled {
+        state.night_light_schedule_effective =
+            Some(metis_config::night_light_effective(cfg));
+    } else {
+        state.night_light_schedule_effective = None;
     }
 }
 
@@ -78,6 +117,10 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
     if crate::output_modes::apply_output_modes(state, cfg) {
         changed = true;
     }
+    if crate::output_vrr::apply_output_vrrs(state, cfg) {
+        changed = true;
+    }
+    crate::color_management::apply_color_profiles(state, cfg);
     if state.mirror_mode_active() {
         if crate::mirror::apply_mirror_scales(state, cfg) {
             changed = true;
@@ -95,6 +138,9 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
     if changed {
         post_output_geometry_change(state);
     }
+    sync_night_light_schedule_state(state, cfg);
+    state.night_light_commit.increment();
+    state.schedule_redraw();
     changed
 }
 
@@ -231,6 +277,8 @@ pub fn output_info_for(
         && !is_mirror_source
         && active
         && prefs.enabled;
+    let vrr_support = crate::output_vrr::query_vrr_support(state, &name);
+    let vrr_active = crate::output_vrr::query_vrr_active(state, &name);
     metis_protocol::OutputInfo {
         name,
         primary: primary.is_some_and(|p| p == output.name()),
@@ -241,5 +289,7 @@ pub fn output_info_for(
         model: phys.model,
         mirrored: is_mirrored,
         mirror_source: is_mirror_source,
+        vrr_available: crate::output_vrr::vrr_available(vrr_support),
+        vrr_active,
     }
 }

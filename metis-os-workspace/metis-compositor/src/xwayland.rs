@@ -131,6 +131,81 @@ impl MetisState {
             );
         }
     }
+
+    fn x11_window_id(window: &X11Surface) -> u32 {
+        window.window_id()
+    }
+
+    fn output_for_x11_element(&self, elem: &Window) -> Option<smithay::output::Output> {
+        self.space
+            .outputs_for_element(elem)
+            .first()
+            .cloned()
+            .or_else(|| self.primary_output())
+            .or_else(|| self.space.outputs().next().cloned())
+    }
+
+    fn apply_x11_fullscreen(&mut self, window: X11Surface) {
+        let Some(elem) = self.x11_element(&window) else {
+            tracing::debug!("X11 fullscreen request before map");
+            return;
+        };
+        let wid = Self::x11_window_id(&window);
+        let restore = self
+            .space
+            .element_bbox(&elem)
+            .or_else(|| Some(window.geometry()));
+        if let Some(restore) = restore {
+            self.x11_fullscreen_restore.insert(wid, restore);
+        }
+
+        let Some(output) = self.output_for_x11_element(&elem) else {
+            tracing::warn!("X11 fullscreen: no output available");
+            return;
+        };
+        let Some(geo) = self.space.output_geometry(&output) else {
+            return;
+        };
+
+        if let Err(err) = window.set_fullscreen(true) {
+            tracing::warn!(%err, "X11 set_fullscreen failed");
+        }
+        if let Err(err) = window.configure(geo) {
+            tracing::warn!(%err, "X11 fullscreen configure failed");
+            return;
+        }
+        self.space.map_element(elem.clone(), geo.loc, true);
+        self.note_output_fullscreen(&output, true);
+        self.focus_x11(&elem);
+        self.schedule_redraw();
+    }
+
+    fn apply_x11_unfullscreen(&mut self, window: X11Surface) {
+        let Some(elem) = self.x11_element(&window) else {
+            return;
+        };
+        let wid = Self::x11_window_id(&window);
+        if let Some(output) = self.output_for_x11_element(&elem) {
+            self.note_output_fullscreen(&output, false);
+        }
+        if let Err(err) = window.set_fullscreen(false) {
+            tracing::warn!(%err, "X11 unset fullscreen failed");
+        }
+        let restore = self
+            .x11_fullscreen_restore
+            .remove(&wid)
+            .unwrap_or_else(|| {
+                let size = window.geometry().size;
+                Rectangle::new(self.centered_loc(size), size)
+            });
+        if let Err(err) = window.configure(restore) {
+            tracing::warn!(%err, "X11 unfullscreen configure failed");
+            return;
+        }
+        self.space.map_element(elem.clone(), restore.loc, true);
+        self.focus_x11(&elem);
+        self.schedule_redraw();
+    }
 }
 
 impl XWaylandShellHandler for MetisState {
@@ -186,8 +261,25 @@ impl XwmHandler for MetisState {
         self.schedule_redraw();
     }
 
-    fn destroyed_window(&mut self, _xwm: XwmId, _window: X11Surface) {
+    fn destroyed_window(&mut self, _xwm: XwmId, window: X11Surface) {
+        if window.is_fullscreen() {
+            if let Some(elem) = self.x11_element(&window) {
+                if let Some(output) = self.output_for_x11_element(&elem) {
+                    self.note_output_fullscreen(&output, false);
+                }
+            }
+        }
+        self.x11_fullscreen_restore
+            .remove(&MetisState::x11_window_id(&window));
         self.schedule_redraw();
+    }
+
+    fn fullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        self.apply_x11_fullscreen(window);
+    }
+
+    fn unfullscreen_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        self.apply_x11_unfullscreen(window);
     }
 
     fn configure_request(
@@ -200,6 +292,16 @@ impl XwmHandler for MetisState {
         h: Option<u32>,
         _reorder: Option<Reorder>,
     ) {
+        if window.is_fullscreen() {
+            if let Some(elem) = self.x11_element(&window) {
+                if let Some(output) = self.output_for_x11_element(&elem) {
+                    if let Some(geo) = self.space.output_geometry(&output) {
+                        let _ = window.configure(geo);
+                    }
+                }
+            }
+            return;
+        }
         // Honor client size requests, but keep placement under our control.
         let mut geo = window.geometry();
         if let Some(w) = w {

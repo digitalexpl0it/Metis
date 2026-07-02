@@ -147,7 +147,14 @@ fn settings_css(t: &ThemeTokens) -> String {
             border: none;
             box-shadow: none;
         }}
-        .metis-settings-sidebar {{ box-shadow: none; border: none; }}
+        .metis-settings-sidebar {{
+            box-shadow: none;
+            border: none;
+            background-color: {surface};
+            padding-bottom: 12px;
+            min-width: 248px;
+            max-width: 248px;
+        }}
         /* Kill GTK's dark scroll edge fades (undershoot) and bounce glows
            (overshoot) on every edge — they don't suit the light theme. */
         undershoot.top, undershoot.bottom, undershoot.left, undershoot.right,
@@ -157,8 +164,6 @@ fn settings_css(t: &ThemeTokens) -> String {
             box-shadow: none;
             border: none;
         }}
-
-        .metis-settings-sidebar {{ background-color: {surface}; padding-bottom: 12px; }}
         .metis-settings-sidebar-title {{
             font-size: 22px;
             font-weight: 800;
@@ -322,6 +327,38 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-section-header .metis-settings-section-title {{
             padding: 0;
         }}
+        .metis-settings-schedule-times {{
+            padding: 4px 0 8px;
+        }}
+        .metis-settings-schedule-popover {{
+            padding: 0;
+        }}
+        .metis-settings-schedule-entry {{
+            min-height: 36px;
+            font-size: 14px;
+            font-feature-settings: "tnum";
+        }}
+        .metis-settings-schedule-presets {{
+            border-radius: {rs}px;
+            background-color: {raised};
+        }}
+        .metis-settings-schedule-list row {{
+            min-height: 40px;
+        }}
+        .metis-settings-schedule-preset-row:hover {{
+            background-color: {surface};
+        }}
+        label.metis-settings-schedule-preset {{
+            color: {text};
+            font-size: 14px;
+            font-weight: 500;
+            font-feature-settings: "tnum";
+            letter-spacing: 0.01em;
+        }}
+        .metis-settings-schedule-preset-row:selected label.metis-settings-schedule-preset {{
+            color: {on_accent};
+            font-weight: 600;
+        }}
         .metis-settings-section-body {{
             padding: 0 0 4px;
         }}
@@ -447,6 +484,12 @@ fn settings_css(t: &ThemeTokens) -> String {
         scale highlight {{ background-color: {accent}; }}
         scale value {{ color: {muted}; }}
         scale slider {{ background-color: {text}; }}
+        switch, switch slider {{
+            transition: none;
+        }}
+        label.metis-settings-switch-label {{
+            cursor: pointer;
+        }}
 
         /* Text inputs (search boxes, CalDAV fields, etc.). */
         entry, entry.flat, spinbutton {{

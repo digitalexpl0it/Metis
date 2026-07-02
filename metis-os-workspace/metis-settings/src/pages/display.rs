@@ -4,14 +4,18 @@
 mod display_arrangement;
 #[path = "display_confirm.rs"]
 mod display_confirm;
+#[path = "display_schedule.rs"]
+mod display_schedule;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
 use metis_config::{
-    load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode, OutputsConfig,
+    load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode,
 };
 use metis_protocol::{OutputInfo, OutputModeInfo};
 
@@ -19,26 +23,108 @@ use crate::runtime;
 use crate::ui;
 
 use display_arrangement::ArrangementCanvas;
+use display_schedule::build_schedule_time_picker;
 
 pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let (scroller, content) = ui::page_for("display");
 
     let cfg = Rc::new(RefCell::new(load_outputs_config()));
     let outputs = Rc::new(RefCell::new(runtime::list_outputs()));
-    let selected = Rc::new(RefCell::new(0_usize));
+    let selected_name: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(
+        outputs.borrow().first().map(|o| o.name.clone()),
+    ));
     let canvas_slot: Rc<RefCell<Option<Rc<ArrangementCanvas>>>> = Rc::new(RefCell::new(None));
     let display_dirty: Rc<RefCell<bool>> = Rc::new(RefCell::new(false));
+    let rebuild_arrangement_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    // Guards programmatic mirror-toggle sync from re-entering `rebuild_arrangement`.
+    let syncing_arrangement = Rc::new(std::cell::Cell::new(false));
+
+    let modes_cache: Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>> =
+        Rc::new(RefCell::new(HashMap::new()));
 
     let (global_card, global_body) = ui::section("Night light");
-    let night = gtk::Switch::new();
+    let (night_row, night) = ui::switch_row("Enable night light");
     night.set_active(cfg.borrow().night_light_enabled);
-    global_body.append(&ui::row("Enable night light", &night));
-    let temp = gtk::SpinButton::with_range(2700.0, 6500.0, 100.0);
+    global_body.append(&night_row);
+    let temp = gtk::Scale::with_range(gtk::Orientation::Horizontal, 2700.0, 6500.0, 50.0);
     temp.set_digits(0);
     temp.set_value(cfg.borrow().night_light_temperature as f64);
-    global_body.append(&ui::row("Colour temperature (K)", &temp));
+    temp.set_size_request(220, -1);
+    temp.set_draw_value(true);
+    temp.set_sensitive(cfg.borrow().night_light_enabled);
+    temp.add_css_class("metis-settings-scale");
+    ui::forward_wheel_to_page_scroller(&temp);
+    let temp_row = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    temp_row.append(&temp);
+    let temp_hint = gtk::Label::new(Some("Warmer ← drag → cooler"));
+    temp_hint.set_xalign(0.0);
+    temp_hint.add_css_class("metis-settings-hint");
+    temp_row.append(&temp_hint);
+    global_body.append(&ui::row("Colour temperature", &temp_row));
+
+    let (schedule_row, schedule_sw) = ui::switch_row("Use schedule");
+    schedule_sw.set_active(cfg.borrow().night_light_schedule.enabled);
+    global_body.append(&schedule_row);
+
+    let use_12h = Rc::new(Cell::new(cfg.borrow().night_light_schedule_12h));
+    let (format_row, format_12h_sw) = ui::switch_row("12-hour time");
+    format_12h_sw.set_active(use_12h.get());
+    format_12h_sw.set_sensitive(cfg.borrow().night_light_schedule.enabled);
+    global_body.append(&format_row);
+
+    let schedule_apply_start = {
+        let cfg = cfg.clone();
+        Rc::new(move |hhmm: String| {
+            cfg.borrow_mut().night_light_schedule.start = hhmm;
+            save_and_apply(&cfg.borrow());
+        })
+    };
+    let schedule_apply_end = {
+        let cfg = cfg.clone();
+        Rc::new(move |hhmm: String| {
+            cfg.borrow_mut().night_light_schedule.end = hhmm;
+            save_and_apply(&cfg.borrow());
+        })
+    };
+
+    let start_picker = Rc::new(build_schedule_time_picker(
+        "From",
+        &cfg.borrow().night_light_schedule.start,
+        use_12h.clone(),
+        schedule_apply_start,
+    ));
+    let end_picker = Rc::new(build_schedule_time_picker(
+        "To",
+        &cfg.borrow().night_light_schedule.end,
+        use_12h.clone(),
+        schedule_apply_end,
+    ));
+    start_picker.set_sensitive(cfg.borrow().night_light_schedule.enabled);
+    end_picker.set_sensitive(cfg.borrow().night_light_schedule.enabled);
+
+    let schedule_times = gtk::Box::new(gtk::Orientation::Horizontal, 20);
+    schedule_times.add_css_class("metis-settings-schedule-times");
+    schedule_times.set_margin_start(16);
+    schedule_times.set_margin_end(16);
+    schedule_times.set_halign(gtk::Align::Start);
+    schedule_times.append(&start_picker.root);
+    schedule_times.append(&end_picker.root);
+    global_body.append(&schedule_times);
+
+    let schedule_hint = gtk::Label::new(Some(
+        "Pick a preset or type a custom time at the top of each menu. Overnight ranges \
+         work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night light only tints \
+         inside that window.",
+    ));
+    schedule_hint.set_wrap(true);
+    schedule_hint.set_xalign(0.0);
+    schedule_hint.add_css_class("metis-settings-hint");
+    schedule_hint.set_sensitive(cfg.borrow().night_light_schedule.enabled);
+    global_body.append(&schedule_hint);
+
     let night_note = gtk::Label::new(Some(
-        "Saved to outputs.json. Compositor colour shift is not wired yet.",
+        "Applies live. Drag left for a warmer evening tint (like GNOME Night Light); \
+         drag right toward normal daylight colour.",
     ));
     night_note.set_wrap(true);
     night_note.set_xalign(0.0);
@@ -176,9 +262,12 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let rebuild_detail: Rc<dyn Fn()> = {
         let cfg = cfg.clone();
         let outputs = outputs.clone();
-        let selected = selected.clone();
+        let selected_name = selected_name.clone();
         let detail_host = detail_host.clone();
         let mark_display_dirty = mark_display_dirty.clone();
+        let rebuild_arrangement_slot = rebuild_arrangement_slot.clone();
+        let parent = parent.clone();
+        let modes_cache = modes_cache.clone();
         Rc::new(move || {
             while let Some(child) = detail_host.first_child() {
                 detail_host.remove(&child);
@@ -187,13 +276,17 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             if list.is_empty() {
                 return;
             }
-            let sel = (*selected.borrow()).min(list.len().saturating_sub(1));
+            let (out, index) = resolve_selected_output(&list, &selected_name);
             detail_host.append(&build_output_panel(
-                &list[sel],
-                sel,
+                out,
+                index,
                 &cfg,
                 &outputs,
+                &modes_cache,
                 &mark_display_dirty,
+                list.len() >= 2,
+                &rebuild_arrangement_slot,
+                &parent,
             ));
         })
     };
@@ -201,7 +294,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let rebuild_arrangement: Rc<dyn Fn()> = {
         let cfg = cfg.clone();
         let outputs = outputs.clone();
-        let selected = selected.clone();
+        let selected_name = selected_name.clone();
         let arrange_body = arrange_body.clone();
         let arrange_card = arrange_card.clone();
         let canvas_slot = canvas_slot.clone();
@@ -210,69 +303,69 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         let set_display_pending = set_display_pending.clone();
         let refresh_source_dropdown = refresh_source_dropdown.clone();
         let duplicate = duplicate.clone();
+        let syncing_arrangement = syncing_arrangement.clone();
         Rc::new(move || {
+            if syncing_arrangement.get() {
+                return;
+            }
+            syncing_arrangement.set(true);
+
             let mirror_on = cfg.borrow().display_mode == DisplayLayoutMode::Mirror;
             if duplicate.is_active() != mirror_on {
                 duplicate.set_active(mirror_on);
             }
             refresh_source_dropdown();
             arrange_card.set_visible(!mirror_on);
-            let list = outputs.borrow().clone();
-            if list.is_empty() {
-                while let Some(child) = arrange_body.first_child() {
-                    arrange_body.remove(&child);
-                }
-                arrange_body.append(&empty_hint);
-                *canvas_slot.borrow_mut() = None;
-                rebuild_detail();
-                return;
-            }
+            update_arrangement_view(
+                &outputs,
+                &selected_name,
+                &arrange_body,
+                &empty_hint,
+                &canvas_slot,
+                &cfg,
+                &set_display_pending,
+                &rebuild_detail,
+            );
+            syncing_arrangement.set(false);
+        })
+    };
 
-            let needs_new = canvas_slot
-                .borrow()
-                .as_ref()
-                .is_none_or(|c| c.output_count() != list.len());
-
-            if needs_new {
-                while let Some(child) = arrange_body.first_child() {
-                    arrange_body.remove(&child);
-                }
-                let on_select = {
-                    let selected = selected.clone();
-                    let rebuild_detail = rebuild_detail.clone();
-                    Rc::new(move |idx: usize| {
-                        *selected.borrow_mut() = idx;
-                        rebuild_detail();
-                    })
-                };
-                let on_pending_changed = {
-                    let set_display_pending = set_display_pending.clone();
-                    Rc::new(move |pending| set_display_pending(pending))
-                };
-                let canvas = ArrangementCanvas::new(
-                    cfg.clone(),
-                    outputs.clone(),
-                    selected.clone(),
-                    on_select,
-                    on_pending_changed,
-                );
-                arrange_body.append(canvas.widget());
-                *canvas_slot.borrow_mut() = Some(canvas);
-            } else if let Some(canvas) = canvas_slot.borrow().as_ref() {
-                canvas.rebuild_blocks();
-            }
-            rebuild_detail();
+    let refresh_detected_outputs: Rc<dyn Fn()> = {
+        let outputs = outputs.clone();
+        let selected_name = selected_name.clone();
+        let arrange_body = arrange_body.clone();
+        let canvas_slot = canvas_slot.clone();
+        let cfg = cfg.clone();
+        let empty_hint = empty_hint.clone();
+        let set_display_pending = set_display_pending.clone();
+        let rebuild_detail = rebuild_detail.clone();
+        Rc::new(move || {
+            update_arrangement_view(
+                &outputs,
+                &selected_name,
+                &arrange_body,
+                &empty_hint,
+                &canvas_slot,
+                &cfg,
+                &set_display_pending,
+                &rebuild_detail,
+            );
         })
     };
 
     rebuild_arrangement();
+    *rebuild_arrangement_slot.borrow_mut() = Some(rebuild_arrangement.clone());
 
     {
         let cfg = cfg.clone();
         let mark_display_dirty = mark_display_dirty.clone();
         let rebuild_arrangement = rebuild_arrangement.clone();
         let refresh_source_dropdown = refresh_source_dropdown.clone();
+        let syncing_arrangement = syncing_arrangement.clone();
         duplicate.connect_active_notify(move |sw| {
+            if syncing_arrangement.get() {
+                return;
+            }
             let mut c = cfg.borrow_mut();
             c.display_mode = if sw.is_active() {
                 DisplayLayoutMode::Mirror
@@ -333,7 +426,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             }
             *display_dirty.borrow_mut() = false;
             refresh_save_buttons();
-            runtime::reload_outputs();
+            runtime::reload_outputs_async();
             *outputs.borrow_mut() = runtime::list_outputs();
             canvas.sync_positions();
 
@@ -358,7 +451,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                 let refresh_save_buttons = refresh_save_buttons.clone();
                 Rc::new(move || {
                     canvas.cancel_trial();
-                    runtime::reload_outputs();
+                    runtime::reload_outputs_async();
                     *outputs.borrow_mut() = runtime::list_outputs();
                     canvas.sync_positions();
                     *display_dirty.borrow_mut() = false;
@@ -395,24 +488,62 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     {
         let cfg = cfg.clone();
-        let outputs = outputs.clone();
-        let rebuild_arrangement = rebuild_arrangement.clone();
-        night.connect_active_notify(move |sw| {
-            let mut c = cfg.borrow_mut();
-            c.night_light_enabled = sw.is_active();
-            save_and_apply(&c);
-            refresh_outputs(&outputs, &rebuild_arrangement);
+        let temp = temp.clone();
+        ui::defer_switch_active_notify(&night, move |active| {
+            temp.set_sensitive(active);
+            cfg.borrow_mut().night_light_enabled = active;
+            save_and_apply(&cfg.borrow());
         });
     }
     {
         let cfg = cfg.clone();
-        let outputs = outputs.clone();
-        let rebuild_arrangement = rebuild_arrangement.clone();
-        temp.connect_value_changed(move |spin| {
-            let mut c = cfg.borrow_mut();
-            c.night_light_temperature = spin.value() as u32;
-            save_and_apply(&c);
-            refresh_outputs(&outputs, &rebuild_arrangement);
+        let temp_debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+        temp.connect_value_changed(move |scale| {
+            let value = scale.value().round() as u32;
+            {
+                let mut c = cfg.borrow_mut();
+                c.night_light_temperature = value;
+            }
+            let mut slot = temp_debounce.borrow_mut();
+            if let Some(id) = slot.take() {
+                id.remove();
+            }
+            let cfg = cfg.clone();
+            let temp_debounce = temp_debounce.clone();
+            let id = glib::timeout_add_local(Duration::from_millis(120), move || {
+                *temp_debounce.borrow_mut() = None;
+                save_and_apply(&cfg.borrow());
+                glib::ControlFlow::Break
+            });
+            *slot = Some(id);
+        });
+    }
+    {
+        let cfg = cfg.clone();
+        let start_picker = start_picker.clone();
+        let end_picker = end_picker.clone();
+        let format_12h_sw = format_12h_sw.clone();
+        let schedule_hint = schedule_hint.clone();
+        ui::defer_switch_active_notify(&schedule_sw, move |active| {
+            start_picker.set_sensitive(active);
+            end_picker.set_sensitive(active);
+            format_12h_sw.set_sensitive(active);
+            schedule_hint.set_sensitive(active);
+            cfg.borrow_mut().night_light_schedule.enabled = active;
+            save_and_apply(&cfg.borrow());
+        });
+    }
+    {
+        let cfg = cfg.clone();
+        let use_12h = use_12h.clone();
+        let start_picker = start_picker.clone();
+        let end_picker = end_picker.clone();
+        ui::defer_switch_active_notify(&format_12h_sw, move |active| {
+            use_12h.set(active);
+            cfg.borrow_mut().night_light_schedule_12h = active;
+            start_picker.refresh();
+            end_picker.refresh();
+            save_and_apply(&cfg.borrow());
         });
     }
 
@@ -425,9 +556,11 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     refresh_btn.add_css_class("metis-settings-secondary");
     {
         let outputs = outputs.clone();
-        let rebuild_arrangement = rebuild_arrangement.clone();
+        let modes_cache = modes_cache.clone();
+        let refresh_detected_outputs = refresh_detected_outputs.clone();
         refresh_btn.connect_clicked(move |_| {
-            refresh_outputs(&outputs, &rebuild_arrangement);
+            modes_cache.borrow_mut().clear();
+            refresh_outputs(&outputs, &refresh_detected_outputs);
         });
     }
     btn_row.append(&refresh_btn);
@@ -446,19 +579,51 @@ fn build_output_panel(
     index: usize,
     cfg: &Rc<RefCell<metis_config::OutputsConfig>>,
     outputs: &Rc<RefCell<Vec<OutputInfo>>>,
+    modes_cache: &Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>>,
     mark_display_dirty: &Rc<dyn Fn()>,
+    multi_display: bool,
+    rebuild_arrangement: &Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    parent: &gtk::Window,
 ) -> gtk::Widget {
     let title = panel_title(out, index);
     let (card, body) = ui::section(&title);
 
-    if out.primary {
-        let primary = gtk::Label::new(Some("Primary display"));
-        primary.add_css_class("metis-settings-hint");
-        primary.set_xalign(0.0);
-        let primary_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        primary_row.add_css_class("metis-settings-row");
-        primary_row.append(&primary);
-        body.append(&primary_row);
+    if multi_display {
+        if is_primary_output(&cfg.borrow(), out) {
+            let primary = gtk::Label::new(Some("Primary display"));
+            primary.add_css_class("metis-settings-hint");
+            primary.set_xalign(0.0);
+            let primary_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+            primary_row.add_css_class("metis-settings-row");
+            primary_row.append(&primary);
+            body.append(&primary_row);
+        } else {
+            let set_primary = gtk::Button::with_label("Set as primary display");
+            set_primary.add_css_class("metis-settings-secondary");
+            let cfg = cfg.clone();
+            let name = out.name.clone();
+            let outputs = outputs.clone();
+            let rebuild_arrangement = rebuild_arrangement.clone();
+            set_primary.connect_clicked(move |_| {
+                cfg.borrow_mut().primary_output = Some(name.clone());
+                save_and_apply(&cfg.borrow());
+                if let Some(rebuild) = rebuild_arrangement.borrow().as_ref() {
+                    rebuild();
+                }
+                glib::timeout_add_seconds_local(1, {
+                    let outputs = outputs.clone();
+                    let rebuild_arrangement = rebuild_arrangement.clone();
+                    move || {
+                        *outputs.borrow_mut() = runtime::list_outputs();
+                        if let Some(rebuild) = rebuild_arrangement.borrow().as_ref() {
+                            rebuild();
+                        }
+                        glib::ControlFlow::Break
+                    }
+                });
+            });
+            body.append(&ui::row("Primary", &set_primary));
+        }
     }
 
     if out.mirror_source {
@@ -490,10 +655,46 @@ fn build_output_panel(
     let enabled = gtk::Switch::new();
     enabled.set_active(out.enabled);
     live_body.append(&ui::row("Active", &enabled));
+
+    if out.vrr_available {
+        let vrr = gtk::Switch::new();
+        vrr.set_active(output_prefs(&cfg.borrow(), &out.name).vrr_enabled);
+        live_body.append(&ui::row("Adaptive sync", &vrr));
+        let name = out.name.clone();
+        let cfg = cfg.clone();
+        let outputs = outputs.clone();
+        vrr.connect_active_notify({
+            let cfg = cfg.clone();
+            let name = name.clone();
+            let outputs = outputs.clone();
+            move |sw| {
+                let active = sw.is_active();
+                let cfg = cfg.clone();
+                let name = name.clone();
+                let outputs = outputs.clone();
+                glib::idle_add_local_once(move || {
+                    {
+                        let mut c = cfg.borrow_mut();
+                        let entry = c.outputs.entry(name.clone()).or_default();
+                        entry.vrr_enabled = active;
+                    }
+                    save_and_apply(&cfg.borrow());
+                    glib::timeout_add_seconds_local(1, {
+                        let outputs = outputs.clone();
+                        move || {
+                            *outputs.borrow_mut() = runtime::list_outputs();
+                            glib::ControlFlow::Break
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     body.append(&live_card);
 
     let (mode_card, mode_body) = ui::section("Display mode");
-    let (modes, current) = runtime::list_output_modes(&out.name);
+    let (modes, current) = cached_output_modes(modes_cache, &out.name);
     if modes.is_empty() {
         let hint = gtk::Label::new(Some(
             "No DRM mode list available — connect displays in a Metis session on real hardware.",
@@ -542,6 +743,114 @@ fn build_output_panel(
     rotation.add_css_class("metis-settings-hint");
     mode_body.append(&ui::row("Rotation", &rotation));
     body.append(&mode_card);
+
+    let (color_card, color_body) = ui::section("Colour profile");
+    let profile_path = output_prefs(&cfg.borrow(), &out.name)
+        .color_profile
+        .clone()
+        .unwrap_or_default();
+    let profile_label = gtk::Label::new(None);
+    profile_label.set_xalign(0.0);
+    profile_label.set_wrap(true);
+    profile_label.add_css_class("metis-settings-hint");
+    profile_label.set_text(if profile_path.is_empty() {
+        "Default (sRGB) — compositor colour pipeline apply pending"
+    } else {
+        &profile_path
+    });
+    color_body.append(&profile_label);
+    let profile_actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let pick_profile = gtk::Button::with_label("Choose ICC profile…");
+    pick_profile.add_css_class("metis-settings-secondary");
+    let clear_profile = gtk::Button::with_label("Clear");
+    clear_profile.add_css_class("metis-settings-secondary");
+    clear_profile.set_sensitive(!profile_path.is_empty());
+    profile_actions.set_margin_start(16);
+    profile_actions.set_margin_end(16);
+    profile_actions.set_margin_bottom(4);
+    profile_actions.append(&pick_profile);
+    profile_actions.append(&clear_profile);
+    color_body.append(&profile_actions);
+    let color_hint = gtk::Label::new(Some(
+        "Saved to outputs.json. Full ICC apply via wp_color_management is planned \
+         for a follow-up compositor release.",
+    ));
+    color_hint.set_wrap(true);
+    color_hint.set_xalign(0.0);
+    color_hint.add_css_class("metis-settings-hint");
+    color_body.append(&color_hint);
+    body.append(&color_card);
+
+    {
+        let parent = parent.clone();
+        pick_profile.connect_clicked({
+            let cfg = cfg.clone();
+            let name = out.name.clone();
+            let profile_label = profile_label.clone();
+            let clear_profile = clear_profile.clone();
+            let parent = parent.clone();
+            move |_| {
+                let dialog = gtk::FileChooserDialog::builder()
+                    .title("Choose ICC colour profile")
+                    .action(gtk::FileChooserAction::Open)
+                    .modal(true)
+                    .transient_for(&parent)
+                    .build();
+                dialog.add_button("Cancel", gtk::ResponseType::Cancel);
+                dialog.add_button("Open", gtk::ResponseType::Accept);
+                let filter = gtk::FileFilter::new();
+                filter.set_name(Some("ICC profiles"));
+                filter.add_mime_type("application/vnd.iccprofile");
+                filter.add_pattern("*.icc");
+                filter.add_pattern("*.icm");
+                dialog.add_filter(&filter);
+                dialog.connect_response({
+                    let cfg = cfg.clone();
+                    let name = name.clone();
+                    let profile_label = profile_label.clone();
+                    let clear_profile = clear_profile.clone();
+                    move |d, response| {
+                        if response == gtk::ResponseType::Accept {
+                            if let Some(file) = d.file() {
+                                if let Some(path) = file.path() {
+                                    let path = path.display().to_string();
+                                    {
+                                        let mut c = cfg.borrow_mut();
+                                        c.outputs
+                                            .entry(name.clone())
+                                            .or_default()
+                                            .color_profile = Some(path.clone());
+                                    }
+                                    profile_label.set_text(&path);
+                                    clear_profile.set_sensitive(true);
+                                    save_and_apply(&cfg.borrow());
+                                }
+                            }
+                        }
+                        d.close();
+                    }
+                });
+                dialog.show();
+            }
+        });
+        clear_profile.connect_clicked({
+            let cfg = cfg.clone();
+            let name = out.name.clone();
+            let profile_label = profile_label.clone();
+            let clear_profile = clear_profile.clone();
+            move |_| {
+                {
+                    let mut c = cfg.borrow_mut();
+                    c.outputs.entry(name.clone()).or_default().color_profile = None;
+                }
+                profile_label.set_text(
+                    "Default (sRGB) — compositor colour pipeline apply pending",
+                );
+                clear_profile.set_sensitive(false);
+                save_and_apply(&cfg.borrow());
+            }
+        });
+    }
 
     let applied = gtk::Label::new(Some(&format!(
         "Compositor: {}% scale · desktop position ({}, {})",
@@ -665,17 +974,156 @@ fn mode_index_for_prefs(
     modes.iter().position(|m| m.width == w && m.height == h && m.refresh_millihz == r)
 }
 
-fn save_and_apply(cfg: &metis_config::OutputsConfig) {
-    if let Err(err) = save_outputs_config(cfg) {
-        tracing::warn!(%err, "failed to save outputs.json");
+fn cached_output_modes(
+    cache: &Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>>,
+    output: &str,
+) -> (Vec<OutputModeInfo>, Option<OutputModeInfo>) {
+    if let Some(entry) = cache.borrow().get(output) {
+        return entry.clone();
     }
-    runtime::reload_outputs();
+    let modes = runtime::list_output_modes(output);
+    cache.borrow_mut().insert(output.to_string(), modes.clone());
+    modes
+}
+
+thread_local! {
+    static SAVE_DEBOUNCE: RefCell<Option<glib::SourceId>> = RefCell::new(None);
+}
+
+fn save_and_apply(cfg: &metis_config::OutputsConfig) {
+    let cfg = cfg.clone();
+    SAVE_DEBOUNCE.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if let Some(id) = slot.take() {
+            id.remove();
+        }
+        let id = glib::timeout_add_local(Duration::from_millis(350), move || {
+            SAVE_DEBOUNCE.with(|slot| *slot.borrow_mut() = None);
+            let cfg = cfg.clone();
+            std::thread::spawn(move || {
+                if let Err(err) = save_outputs_config(&cfg) {
+                    tracing::warn!(%err, "failed to save outputs.json");
+                    return;
+                }
+                runtime::reload_outputs();
+            });
+            glib::ControlFlow::Break
+        });
+        *slot = Some(id);
+    });
 }
 
 fn refresh_outputs(outputs: &Rc<RefCell<Vec<OutputInfo>>>, rebuild: &Rc<dyn Fn()>) {
-    *outputs.borrow_mut() = runtime::list_outputs();
+    let outputs = outputs.clone();
     let rebuild = rebuild.clone();
+    // Defer IPC + UI refresh so the click handler returns before compositor I/O.
     glib::idle_add_local_once(move || {
+        *outputs.borrow_mut() = runtime::list_outputs();
         rebuild();
     });
+}
+
+fn update_arrangement_view(
+    outputs: &Rc<RefCell<Vec<OutputInfo>>>,
+    selected_name: &Rc<RefCell<Option<String>>>,
+    arrange_body: &gtk::Box,
+    empty_hint: &gtk::Label,
+    canvas_slot: &Rc<RefCell<Option<Rc<ArrangementCanvas>>>>,
+    cfg: &Rc<RefCell<metis_config::OutputsConfig>>,
+    set_display_pending: &Rc<dyn Fn(bool)>,
+    rebuild_detail: &Rc<dyn Fn()>,
+) {
+    let list = outputs.borrow().clone();
+    if list.is_empty() {
+        while let Some(child) = arrange_body.first_child() {
+            arrange_body.remove(&child);
+        }
+        arrange_body.append(empty_hint);
+        *canvas_slot.borrow_mut() = None;
+        *selected_name.borrow_mut() = None;
+        rebuild_detail();
+        return;
+    }
+    let reset_selection = {
+        let sel = selected_name.borrow();
+        sel.is_none() || !list.iter().any(|o| Some(&o.name) == sel.as_ref())
+    };
+    if reset_selection {
+        *selected_name.borrow_mut() = list.first().map(|o| o.name.clone());
+    }
+
+    let needs_new = canvas_slot
+        .borrow()
+        .as_ref()
+        .is_none_or(|c| c.output_count() != list.len());
+
+    if needs_new {
+        while let Some(child) = arrange_body.first_child() {
+            arrange_body.remove(&child);
+        }
+        let on_select = {
+            let selected_name = selected_name.clone();
+            let outputs = outputs.clone();
+            let rebuild_detail = rebuild_detail.clone();
+            let canvas_slot = canvas_slot.clone();
+            Rc::new(move |idx: usize| {
+                if let Some(name) = outputs.borrow().get(idx).map(|o| o.name.clone()) {
+                    *selected_name.borrow_mut() = Some(name);
+                }
+                if let Some(canvas) = canvas_slot.borrow().as_ref().cloned() {
+                    canvas.set_selected(idx);
+                }
+                rebuild_detail();
+            })
+        };
+        let on_pending_changed = {
+            let set_display_pending = set_display_pending.clone();
+            Rc::new(move |pending| set_display_pending(pending))
+        };
+        let canvas = ArrangementCanvas::new(
+            cfg.clone(),
+            outputs.clone(),
+            selected_name.clone(),
+            on_select,
+            on_pending_changed,
+        );
+        arrange_body.append(canvas.widget());
+        *canvas_slot.borrow_mut() = Some(canvas);
+    } else if let Some(canvas) = canvas_slot.borrow().as_ref().cloned() {
+        canvas.rebuild_blocks();
+        // Clone selection before set_selected — it borrow_mut's selected_name; holding
+        // selected_name.borrow() across that call panics (Detect displays path).
+        let sel_idx = selected_name
+            .borrow()
+            .clone()
+            .and_then(|name| list.iter().position(|o| o.name == name));
+        if let Some(idx) = sel_idx {
+            canvas.set_selected(idx);
+        }
+    }
+    rebuild_detail();
+    if let Some(canvas) = canvas_slot.borrow().as_ref().cloned() {
+        glib::idle_add_local_once(move || canvas.refresh_layout());
+    }
+}
+
+fn resolve_selected_output<'a>(
+    list: &'a [OutputInfo],
+    selected_name: &RefCell<Option<String>>,
+) -> (&'a OutputInfo, usize) {
+    if let Some(ref name) = *selected_name.borrow() {
+        if let Some((idx, out)) = list.iter().enumerate().find(|(_, o)| &o.name == name) {
+            return (out, idx);
+        }
+    }
+    list.first()
+        .map(|o| (o, 0))
+        .expect("non-empty output list")
+}
+
+fn is_primary_output(cfg: &metis_config::OutputsConfig, out: &OutputInfo) -> bool {
+    if let Some(ref name) = cfg.primary_output {
+        return name == &out.name;
+    }
+    out.primary
 }

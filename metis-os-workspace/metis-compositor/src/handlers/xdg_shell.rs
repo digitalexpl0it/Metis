@@ -229,6 +229,26 @@ impl XdgShellHandler for MetisState {
         }
     }
 
+    fn fullscreen_request(
+        &mut self,
+        surface: ToplevelSurface,
+        output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
+    ) {
+        if let Some(id) = self.window_id_for_toplevel(&surface) {
+            self.set_fullscreen(id, true, output);
+        } else if surface.is_initial_configure_sent() {
+            surface.send_configure();
+        }
+    }
+
+    fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
+        if let Some(id) = self.window_id_for_toplevel(&surface) {
+            self.set_fullscreen(id, false, None);
+        } else if surface.is_initial_configure_sent() {
+            surface.send_configure();
+        }
+    }
+
     fn minimize_request(&mut self, surface: ToplevelSurface) {
         if let Some(id) = self.window_id_for_toplevel(&surface) {
             if let Some(tile_id) = self.tile_id_for_window(id) {

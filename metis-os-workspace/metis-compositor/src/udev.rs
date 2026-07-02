@@ -61,6 +61,7 @@ use smithay_drm_extras::{
     drm_scanner::{DrmScanEvent, DrmScanner},
 };
 
+use crate::night_light::RenderTargetInfo;
 use crate::render::{OutputStack, CLEAR_COLOR};
 use crate::state::MetisState;
 
@@ -84,6 +85,7 @@ pub struct SurfaceData {
     pub output: Output,
     pub global: Option<GlobalId>,
     pub drm_output: MetisDrmOutput,
+    pub connector: connector::Handle,
     /// Modes advertised by the connector when this output was connected.
     pub modes: Vec<Mode>,
     /// User turned this output off in Settings while the connector stays connected.
@@ -594,6 +596,7 @@ impl MetisState {
                 output: output.clone(),
                 global: Some(global),
                 drm_output,
+                connector: connector.handle(),
                 modes,
                 user_disabled: false,
                 queued: false,
@@ -728,7 +731,18 @@ impl MetisState {
                 .map(|g| g.loc.to_physical_precise_round(scale))
                 .unwrap_or_default();
 
-            let mut elements = self.build_render_elements(&mut renderer, origin, scale);
+            let mut elements = self.build_render_elements(
+                &mut renderer,
+                origin,
+                scale,
+                RenderTargetInfo {
+                    size: output
+                        .current_mode()
+                        .map(|m| m.size)
+                        .unwrap_or_default(),
+                    output_name: Some(output.name().as_str()),
+                },
+            );
 
             // Pointer goes on top of everything; only on the output under the cursor.
             let cursor = self.build_cursor_elements(&mut renderer, &output, scale);
@@ -738,6 +752,7 @@ impl MetisState {
                 elements = stacked;
             }
 
+            crate::output_vrr::prepare_vrr_for_render(self, crtc);
             let udev = self.udev.as_mut().unwrap();
             let surface = udev.surfaces.get_mut(&crtc).unwrap();
             match surface.drm_output.render_frame(

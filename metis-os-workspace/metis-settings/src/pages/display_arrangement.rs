@@ -37,7 +37,7 @@ pub struct ArrangementCanvas {
     hint: gtk::Label,
     cfg: Rc<RefCell<OutputsConfig>>,
     outputs: Rc<RefCell<Vec<OutputInfo>>>,
-    selected: Rc<RefCell<usize>>,
+    selected_name: Rc<RefCell<Option<String>>>,
     on_select: Rc<dyn Fn(usize)>,
     on_pending_changed: Rc<dyn Fn(bool)>,
     blocks: Rc<RefCell<Vec<BlockState>>>,
@@ -56,7 +56,7 @@ impl ArrangementCanvas {
     pub fn new(
         cfg: Rc<RefCell<OutputsConfig>>,
         outputs: Rc<RefCell<Vec<OutputInfo>>>,
-        selected: Rc<RefCell<usize>>,
+        selected_name: Rc<RefCell<Option<String>>>,
         on_select: Rc<dyn Fn(usize)>,
         on_pending_changed: Rc<dyn Fn(bool)>,
     ) -> Rc<Self> {
@@ -85,7 +85,7 @@ impl ArrangementCanvas {
             hint,
             cfg,
             outputs,
-            selected,
+            selected_name,
             on_select,
             on_pending_changed,
             blocks: Rc::new(RefCell::new(Vec::new())),
@@ -100,13 +100,27 @@ impl ArrangementCanvas {
             resize_debounce: Rc::new(RefCell::new(None)),
         });
         {
-            let canvas = this.canvas.clone();
             let this_w = this.clone();
-            canvas.connect_notify_local(Some("width"), move |widget, _| {
-                let alloc = widget.allocation();
-                if alloc.width() > 0 && alloc.height() > 0 {
-                    this_w.schedule_layout_for_size(alloc.width() as f64, alloc.height() as f64);
+            let on_alloc = {
+                let this_w = this_w.clone();
+                move |widget: &gtk::Fixed| {
+                    let alloc = widget.allocation();
+                    if alloc.width() > 0 && alloc.height() > 0 {
+                        this_w.schedule_layout_for_size(alloc.width() as f64, alloc.height() as f64);
+                    }
                 }
+            };
+            let on_width = Rc::new(on_alloc);
+            let on_height = on_width.clone();
+            this.canvas.connect_notify_local(Some("width"), move |widget, _| {
+                on_width(widget);
+            });
+            this.canvas.connect_notify_local(Some("height"), move |widget, _| {
+                on_height(widget);
+            });
+            let this_w = this.clone();
+            this.root.connect_map(move |_| {
+                this_w.refresh_layout();
             });
         }
         this.rebuild_blocks();
@@ -137,12 +151,35 @@ impl ArrangementCanvas {
     }
 
     fn canvas_dims(self: &Rc<Self>) -> (f64, f64) {
+        self.sync_canvas_size_from_allocation();
+        *self.canvas_size.borrow()
+    }
+
+    /// Pick up the canvas (or parent) width so layout works before the first
+    /// `width` notify, and after rebuilds while the Display stack page is shown.
+    fn sync_canvas_size_from_allocation(self: &Rc<Self>) {
         let alloc = self.canvas.allocation();
-        if alloc.width() > 0 && alloc.height() > 0 {
-            (alloc.width() as f64, alloc.height() as f64)
-        } else {
-            *self.canvas_size.borrow()
+        let mut width = alloc.width().max(0) as f64;
+        let mut height = alloc
+            .height()
+            .max(self.canvas.height_request())
+            .max(CANVAS_MIN_H) as f64;
+        if width < 120.0 {
+            if let Some(parent) = self.canvas.parent() {
+                let palloc = parent.allocation();
+                if palloc.width() > 0 {
+                    width = palloc.width() as f64;
+                }
+            }
         }
+        if width >= 120.0 && height >= 80.0 {
+            *self.canvas_size.borrow_mut() = (width, height);
+        }
+    }
+
+    pub fn refresh_layout(self: &Rc<Self>) {
+        self.sync_canvas_size_from_allocation();
+        self.recompute_layout();
     }
 
     fn recompute_layout(self: &Rc<Self>) {
@@ -151,6 +188,11 @@ impl ArrangementCanvas {
             return;
         }
         let (canvas_w, canvas_h) = self.canvas_dims();
+        // The Display page lives in a hidden stack child at build time — skip until
+        // GTK has given the canvas a real allocation (see connect_map/size_allocate).
+        if canvas_w < 120.0 || canvas_h < 80.0 {
+            return;
+        }
         let (scale, min_x, min_y) = fit_scale(&blocks, canvas_w, canvas_h);
         *self.scale.borrow_mut() = scale;
         *self.origin.borrow_mut() = (min_x, min_y);
@@ -239,7 +281,8 @@ impl ArrangementCanvas {
             return;
         }
         *self.pending.borrow_mut() = dirty;
-        (self.on_pending_changed)(dirty);
+        let cb = self.on_pending_changed.clone();
+        glib::idle_add_local_once(move || cb(dirty));
     }
 
     /// Full rebuild when the output list changes.
@@ -252,33 +295,35 @@ impl ArrangementCanvas {
             self.set_pending(false);
         }
 
-        let list = self.outputs.borrow();
-        if list.is_empty() {
-            self.hint.set_label(
-                "No displays detected — start a Metis session or click Detect displays.",
-            );
-            *self.draggable.borrow_mut() = false;
-            return;
-        }
+        let blocks = {
+            let list = self.outputs.borrow();
+            if list.is_empty() {
+                self.hint.set_label(
+                    "No displays detected — start a Metis session or click Detect displays.",
+                );
+                *self.draggable.borrow_mut() = false;
+                return;
+            }
 
-        let can_arrange = list.len() >= 2 && !self.in_trial();
-        *self.draggable.borrow_mut() = can_arrange;
-        if self.in_trial() {
-            self.hint.set_label(
-                "Confirm the new arrangement in the dialog. Changes revert automatically if you do not accept.",
-            );
-        } else if can_arrange {
-            self.hint.set_label(
-                "Drag displays to match their physical positions, then click Save display settings \
+            let can_arrange = list.len() >= 2 && !self.in_trial();
+            *self.draggable.borrow_mut() = can_arrange;
+            if self.in_trial() {
+                self.hint.set_label(
+                    "Confirm the new arrangement in the dialog. Changes revert automatically if you do not accept.",
+                );
+            } else if can_arrange {
+                self.hint.set_label(
+                    "Drag displays to match their physical positions, then click Save display settings \
          at the bottom of the page. This controls how the pointer moves between screens.",
-            );
-        } else {
-            self.hint.set_label(
-                "Single display preview. Connect another monitor to arrange relative positions.",
-            );
-        }
+                );
+            } else {
+                self.hint.set_label(
+                    "Single display preview. Connect another monitor to arrange relative positions.",
+                );
+            }
 
-        let blocks = build_blocks(&list, &self.cfg.borrow());
+            build_blocks(&list, &self.cfg.borrow())
+        };
         if blocks.is_empty() {
             return;
         }
@@ -288,7 +333,7 @@ impl ArrangementCanvas {
             *self.committed_blocks.borrow_mut() = blocks.clone();
         }
 
-        let sel = *self.selected.borrow();
+        let sel = self.selected_index();
         let draggable = *self.draggable.borrow();
         let mut widgets = Vec::with_capacity(blocks.len());
         for (idx, block) in blocks.iter().enumerate() {
@@ -302,10 +347,23 @@ impl ArrangementCanvas {
             self.canvas.put(&widget, PAD, PAD);
         }
         *self.block_widgets.borrow_mut() = widgets;
-        self.recompute_layout();
+        let this = self.clone();
+        glib::idle_add_local_once(move || {
+            this.refresh_layout();
+            // One more pass after GTK sizes the new block widgets.
+            glib::idle_add_local_once(move || this.refresh_layout());
+        });
     }
 
     pub fn set_selected(self: &Rc<Self>, index: usize) {
+        let name = self
+            .blocks
+            .borrow()
+            .get(index)
+            .map(|b| b.name.clone());
+        if let Some(name) = name {
+            *self.selected_name.borrow_mut() = Some(name);
+        }
         for (idx, widget) in self.block_widgets.borrow().iter().enumerate() {
             if idx == index {
                 widget.add_css_class("metis-display-block-selected");
@@ -315,15 +373,29 @@ impl ArrangementCanvas {
         }
     }
 
+    fn selected_index(self: &Rc<Self>) -> usize {
+        let name = self.selected_name.borrow().clone();
+        let blocks = self.blocks.borrow();
+        if let Some(ref n) = name {
+            if let Some(idx) = blocks.iter().position(|b| &b.name == n) {
+                return idx;
+            }
+        }
+        0
+    }
+
     fn reposition_widgets(self: &Rc<Self>) {
         self.recompute_layout();
     }
 
     /// Refresh block positions from the latest compositor output list (after apply).
     pub fn sync_positions(self: &Rc<Self>) {
-        let list = self.outputs.borrow();
-        let blocks = build_blocks(&list, &self.cfg.borrow());
-        if blocks.len() != self.block_widgets.borrow().len() {
+        let blocks = {
+            let list = self.outputs.borrow();
+            build_blocks(&list, &self.cfg.borrow())
+        };
+        let widget_count = self.block_widgets.borrow().len();
+        if blocks.len() != widget_count {
             self.rebuild_blocks();
             return;
         }
@@ -336,6 +408,7 @@ impl ArrangementCanvas {
 }
 
 fn build_blocks(list: &[OutputInfo], cfg: &OutputsConfig) -> Vec<BlockState> {
+    let primary = configured_primary_name(cfg, list);
     list.iter()
         .enumerate()
         .map(|(i, out)| {
@@ -355,11 +428,23 @@ fn build_blocks(list: &[OutputInfo], cfg: &OutputsConfig) -> Vec<BlockState> {
                 width: out.rect.width.max(1),
                 height: out.rect.height.max(1),
                 label: short_label(out, i),
-                primary: out.primary,
+                primary: primary.as_deref() == Some(out.name.as_str()),
                 color_idx: i % BLOCK_COLORS.len(),
             }
         })
         .collect()
+}
+
+fn configured_primary_name(cfg: &OutputsConfig, list: &[OutputInfo]) -> Option<String> {
+    if let Some(ref name) = cfg.primary_output {
+        if list.iter().any(|o| o.name == *name && o.enabled) {
+            return Some(name.clone());
+        }
+    }
+    list.iter()
+        .find(|o| o.primary)
+        .map(|o| o.name.clone())
+        .or_else(|| list.first().map(|o| o.name.clone()))
 }
 
 fn short_label(out: &OutputInfo, index: usize) -> String {
@@ -471,7 +556,6 @@ fn wire_select(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize
     gesture.connect_pressed({
         let canvas = canvas.clone();
         move |_, _, _, _| {
-            *canvas.selected.borrow_mut() = index;
             canvas.set_selected(index);
             (canvas.on_select)(index);
         }
@@ -530,7 +614,6 @@ fn wire_drag(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize) 
             let moved = ox.hypot(oy) >= TAP_THRESHOLD_PX;
 
             if !moved {
-                *canvas.selected.borrow_mut() = index;
                 canvas.set_selected(index);
                 (canvas.on_select)(index);
                 return;

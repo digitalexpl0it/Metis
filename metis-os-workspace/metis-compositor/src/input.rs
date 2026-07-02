@@ -268,7 +268,7 @@ impl MetisState {
                                         .get(id)
                                         .is_some_and(|w| w.fullscreen)
                                     {
-                                        state.set_fullscreen(id, false);
+                                        state.set_fullscreen(id, false, None);
                                     } else if state
                                         .windows
                                         .get(id)

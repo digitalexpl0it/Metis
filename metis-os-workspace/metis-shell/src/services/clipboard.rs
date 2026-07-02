@@ -97,22 +97,32 @@ pub fn load_history() {
     }
 }
 
+fn set_active_entry_id(id: Option<u64>) {
+    ACTIVE_ID.with(|a| *a.borrow_mut() = id);
+}
+
 fn persist_history() {
     let path = clipboard_json_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let entries = runtime_clipboard_entries();
+    let entries = ENTRIES.with(|cell| cell.borrow().clone());
     let store = ClipboardStore {
         max_entries: DEFAULT_MAX_ENTRIES,
-        page_size: page_size(),
-        private_mode: private_mode(),
-        active_id: active_entry_id(),
+        page_size: PAGE_SIZE.with(|p| *p.borrow()),
+        private_mode: PRIVATE_MODE.with(|m| *m.borrow()),
+        active_id: ACTIVE_ID.with(|a| *a.borrow()),
         entries,
     };
     if let Ok(json) = serde_json::to_string_pretty(&store) {
         let _ = std::fs::write(path, json);
     }
+}
+
+fn persist_and_notify_active(id: Option<u64>) {
+    set_active_entry_id(id);
+    persist_history();
+    notify_refresh();
 }
 
 pub fn clipboard_state_dir() -> PathBuf {
@@ -155,11 +165,6 @@ pub fn set_page_size(size: usize) {
 
 pub fn active_entry_id() -> Option<u64> {
     ACTIVE_ID.with(|a| *a.borrow())
-}
-
-fn set_active_entry_id(id: Option<u64>) {
-    ACTIVE_ID.with(|a| *a.borrow_mut() = id);
-    persist_history();
 }
 
 pub fn filtered_entries(search: &str, page: usize) -> ClipboardPage {
@@ -226,15 +231,14 @@ pub fn apply_clipboard_event(
         return;
     }
 
-    let new_id = ENTRIES.with(|cell| {
+    let active_id = ENTRIES.with(|cell| {
         let mut entries = cell.borrow_mut();
         if let Some(first) = entries.first() {
             if first.mime == mime
                 && first.preview_text == preview_text
                 && first.image_path == image_path
             {
-                set_active_entry_id(Some(first.id));
-                return None;
+                return Some(first.id);
             }
         }
         let id = NEXT_ID.with(|n| {
@@ -256,10 +260,8 @@ pub fn apply_clipboard_event(
         trim_entries(&mut entries);
         Some(id)
     });
-    if let Some(id) = new_id {
-        set_active_entry_id(Some(id));
-        persist_history();
-        notify_refresh();
+    if let Some(id) = active_id {
+        persist_and_notify_active(Some(id));
     }
 }
 
@@ -272,9 +274,7 @@ pub fn clear_history() {
         }
         cell.borrow_mut().clear();
     });
-    set_active_entry_id(None);
-    persist_history();
-    notify_refresh();
+    persist_and_notify_active(None);
 }
 
 pub fn delete_entry(id: u64) {

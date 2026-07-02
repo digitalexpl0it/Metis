@@ -55,6 +55,12 @@ pub fn reload_outputs() {
     }
 }
 
+/// Like [`reload_outputs`], but never blocks the GTK main thread (used for live
+/// toggles such as night light where `bluetoothctl`-class latency is unacceptable).
+pub fn reload_outputs_async() {
+    std::thread::spawn(|| reload_outputs());
+}
+
 /// Apply a layout mode (grid vs. scrolling) to every workspace on every output
 /// immediately, so changing the "New workspace layout" default acts as a live
 /// global on/off rather than only affecting future workspaces. Best-effort.
