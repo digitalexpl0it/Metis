@@ -5,10 +5,26 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-28]
+
+### Added
+
+- **`wp_color_management_v1` compositor handler** — Metis can advertise the colour
+  management protocol when `METIS_COLOR_MGMT=1` (off by default). Per-output ICC
+  profiles from `outputs.json` are loaded on apply/reload. Disabled by default
+  because Chromium/Ozone currently destabilises the DRM session when the global
+  is present.
+
 ## [2026-07-01]
 
 ### Added
 
+- **Generic capture-overlay session** — Screenshot/screencast portal requests notify the
+  compositor via `BeginCaptureOverlay` / `EndCaptureOverlay` IPC. Floating windows that
+  span the desktop are elevated automatically (no per-app whitelist). While active,
+  pointer routing and focus stacking ignore apps beneath the overlay so hover cannot
+  steal stacking from tools like Flameshot; region-drag clicks stay on the overlay
+  instead of raising apps beneath transparent areas.
 - **Night light compositor** — Settings → Display night light toggle and colour
   temperature now apply live via a warm fullscreen overlay (`outputs.json`
   `night_light_enabled` / `night_light_temperature`); works in nested winit and
@@ -26,14 +42,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   **From** / **To** times (overnight ranges supported); compositor applies the
   warm overlay only inside the window while night light is enabled.
 - **Colour profile paths** — per-output ICC file picker in Settings → Display;
-  paths saved to `outputs.json` and validated on compositor apply (full
-  `wp_color_management` client protocol pending Smithay).
+  paths saved to `outputs.json` and loaded by the compositor on apply (GPU
+  colour transforms still pending).
 
 ### Fixed
 
+- **Chromium / Cursor session crash** — `wp_color_management_v1` is now **off by
+  default** (`METIS_COLOR_MGMT=1` to enable). Chromium/Ozone was crashing the
+  DRM session once colour info was delivered; disabling the global restores the
+  pre-protocol launch path while ICC profile loading in `outputs.json` remains
+  for follow-up GPU transforms.
+- **CSD browser chrome + resize** — grant `ClientSide` xdg-decoration as soon as
+  app_id classifies Chromium/Cursor; defer decoration pushes until app_id is
+  known; include `decoration_mode` on the first configure (Chromium latched
+  server-side / close-only when an early bare configure raced ahead); restore
+  compositor edge resize bands on native CSD footprints.
 - **Chromium / video fullscreen** — client `xdg_toplevel` fullscreen requests
   (e.g. YouTube in Chromium) now enter true fullscreen on the correct output
-  instead of being ignored.
+  instead of being ignored; exiting video fullscreen from a maximized window
+  restores maximize below the edge bar instead of leaving the window under the
+  bar or losing maximized state (re-seat maximized CSD clients on commit and
+  when the edge bar layer reclaims its exclusive zone).
+- **Capture overlay false positive** — maximized Chromium was mistaken for a
+  screenshot overlay (session lockup, window under the edge bar). Overlay
+  detection now requires a floating near-fullscreen window and excludes browsers;
+  input blocking only applies while an overlay window is actually registered.
 - **X11 / XWayland fullscreen** — `_NET_WM_STATE_FULLSCREEN` from X11 clients
   (Steam, legacy players, etc.) now fills the monitor and restores the prior
   window geometry on exit.

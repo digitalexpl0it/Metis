@@ -352,26 +352,6 @@ impl MetisState {
                         return Some((window.clone(), loc));
                     }
                 }
-            } else if self.window_uses_csd_overlay_controls(id)
-                && self.auto_hide_titlebar.contains(&id)
-                && self.titlebar_reveal_window == Some(id)
-                && self.titlebar_reveal_progress > 0.0
-            {
-                let client_frame = PixelRect {
-                    x: loc.x,
-                    y: loc.y,
-                    width: size.w,
-                    height: size.h,
-                };
-                let compact = self.window_uses_compact_overlay(id);
-                let chrome = overlay_chrome_rect(
-                    client_frame,
-                    self.titlebar_reveal_progress,
-                    compact,
-                );
-                if point_in_rect(x, y, chrome) {
-                    return Some((window.clone(), loc));
-                }
             }
 
             if let Some(geo) = self.space.element_geometry(window) {
@@ -394,17 +374,23 @@ impl MetisState {
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
-        let (window, location) = self
+        let (window, _location) = self
             .topmost_window_at_pointer(pos)
             .or_else(|| {
                 self.space
                     .element_under(pos)
                     .map(|(window, location)| (window.clone(), location))
             })?;
-        let map_loc = self
-            .space
-            .element_location(&window)
-            .unwrap_or(location);
+        self.window_surface_for(pos, &window)
+    }
+
+    /// Pointer target while a capture overlay session is active.
+    pub(crate) fn window_surface_for(
+        &self,
+        pos: Point<f64, Logical>,
+        window: &smithay::desktop::Window,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        let map_loc = self.space.element_location(window)?;
         // Match smithay's render origin: mapped location minus the client's
         // geometry offset (CSD shadow margins Firefox keeps while unmaximized).
         let geo = window.geometry();
@@ -432,6 +418,9 @@ impl MetisState {
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        if self.capture_overlay_active() {
+            return self.capture_overlay_surface_at(pos);
+        }
         self.surface_under(pos)
             .or_else(|| self.window_surface_at(pos))
     }
@@ -554,6 +543,10 @@ impl MetisState {
 
     /// Route pointer hits: app bodies pass through, then layer-shell UI, then windows.
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
+        if self.capture_overlay_active() {
+            return self.capture_overlay_surface_at(pos);
+        }
+
         let output = self.space.outputs().find(|o| {
             self.space
                 .output_geometry(o)
@@ -666,6 +659,12 @@ impl MetisState {
 
     /// Keyboard focus follows the same desk/app passthrough rules as pointer routing.
     pub fn focus_target_at(&self, location: Point<f64, Logical>) -> Option<KeyboardFocusTarget> {
+        if self.capture_overlay_active() {
+            return self
+                .top_capture_overlay_window()
+                .map(|window| window.into());
+        }
+
         let output = self
             .space
             .outputs()

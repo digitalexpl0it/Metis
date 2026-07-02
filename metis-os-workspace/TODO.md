@@ -2,9 +2,9 @@
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. **Phase 5** is in progress — mirror/clone, VRR, night-light
-schedule, and ICC profile config landed (2026-07-01); `wp_color_management`
-compositor handler and HDR remain. Next tracks: **Phase 6** (Flatpak, Steam &
+Device + System pages. **Phase 5** is in progress — mirror/clone, VRR, night-light schedule, ICC profile
+config, and `wp_color_management_v1` compositor handler landed (2026-06-28); HDR
+and GPU colour transforms remain. Next tracks: **Phase 6** (Flatpak, Steam &
 gaming) and **Phase 7** (remote access / full desktop sharing).
 
 ---
@@ -397,9 +397,12 @@ Phase 3) — none of these are possible under the nested winit dev session.
       (**Adaptive sync** under Applies live); saved as `vrr_enabled` in
       `outputs.json`; compositor sets DRM `VRR_ENABLED` via Smithay on real DRM
       sessions when the connector advertises `vrr_capable`
-- [ ] **Colour management** — ICC paths saved per output in Settings; compositor
-      validates on apply. **`wp_color_management_v1` handler** (Smithay) still
-      required for clients to receive profiles — follow-up
+- [x] **Colour management** — ICC paths saved per output in Settings → Display;
+      compositor loads profiles from `outputs.json`. `wp_color_management_v1` is
+      implemented but **disabled by default** (`METIS_COLOR_MGMT=1`) because
+      Chromium/Ozone currently crashes the DRM session when the protocol is
+      advertised. **Follow-up:** stabilise the protocol handler, then GPU/DRM
+      colour transforms and HDR
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
       compositor toggles the warm overlay inside the schedule while the master
       night-light switch is on

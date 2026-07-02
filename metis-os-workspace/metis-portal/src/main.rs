@@ -1,4 +1,5 @@
 mod capture;
+mod compositor_ipc;
 mod pipewire;
 mod screenshot;
 mod screencast;

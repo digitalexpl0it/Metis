@@ -1,6 +1,7 @@
 #![allow(irrefutable_let_patterns)]
 
 mod blur;
+mod capture_overlay;
 mod clipboard;
 mod cursor;
 mod decoration;

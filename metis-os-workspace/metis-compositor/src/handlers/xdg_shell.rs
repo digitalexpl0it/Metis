@@ -288,11 +288,10 @@ impl XdgDecorationHandler for MetisState {
         if let Some(id) = self.window_id_for_toplevel(&toplevel) {
             self.windows.set_decoration_bound(id, true);
             self.refresh_window_decoration_mode(id);
-        } else {
-            toplevel.with_pending_state(|state| {
-                state.decoration_mode = Some(DecorationMode::ServerSide);
-            });
         }
+        // Orphan decoration objects (toplevel not tracked yet) get their mode from
+        // `refresh_window_decoration_mode` once the window is registered — do not
+        // pre-grant ServerSide here or Chromium draws a lone close button.
         if toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
         }
@@ -331,17 +330,11 @@ pub fn track_popup(state: &mut MetisState, surface: PopupSurface) {
     }
 }
 
-pub fn handle_commit(popups: &mut PopupManager, space: &Space<Window>, surface: &WlSurface) {
-    if let Some(toplevel) = space
-        .elements()
-        .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == surface))
-        .and_then(|w| w.toplevel().cloned())
-    {
-        if !toplevel.is_initial_configure_sent() {
-            toplevel.send_configure();
-        }
-    }
-
+pub fn handle_commit(popups: &mut PopupManager, _space: &Space<Window>, surface: &WlSurface) {
+    // Toplevel initial configure is sent from `compositor::commit` via
+    // `ensure_initial_configure` so the first event includes `decoration_mode`
+    // and placement size. An early bare `send_configure` here made Chromium
+    // latch server-side mode (close button only) before app_id was known.
     popups.commit(surface);
     if let Some(popup) = popups.find_popup(surface) {
         if let PopupKind::Xdg(ref xdg) = popup {
@@ -376,6 +369,7 @@ impl MetisState {
         let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
             app_id.as_deref(),
             negotiated_mode,
+            true,
         );
         let granted = crate::decoration_policy::grant_decoration_mode(uses_ssd);
         toplevel.with_pending_state(|state| {
@@ -415,11 +409,13 @@ impl MetisState {
         self.windows.set_metadata(id, title.clone(), app_id.clone());
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
         self.refresh_window_decoration_mode(id);
-        // GTK frequently sets app_id just after its first buffer commit, so the
-        // initial activation can miss it. Now that it's known, place the window
-        // (center default-floating apps / restore saved geometry) if it hasn't
-        // already been positioned.
-        self.maybe_autoplace_window(id);
+        if !self.maybe_register_capture_overlay(id) {
+            // GTK frequently sets app_id just after its first buffer commit, so the
+            // initial activation can miss it. Now that it's known, place the window
+            // (center default-floating apps / restore saved geometry) if it hasn't
+            // already been positioned.
+            self.maybe_autoplace_window(id);
+        }
         if self.windows.is_ready(id) {
             use metis_protocol::CompositorEvent;
             self.event_bus.emit(&CompositorEvent::WindowMetadata {

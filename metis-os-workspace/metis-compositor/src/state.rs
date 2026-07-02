@@ -200,6 +200,8 @@ pub struct MetisState {
     /// when keyboard focus moves to the edge bar so bulk layout sync does not
     /// re-raise a maximized window over the app the user just picked.
     last_focused_window: Option<u32>,
+    /// Screenshot / screencast overlay windows elevated above ordinary clients.
+    pub(crate) capture_overlay: crate::capture_overlay::CaptureOverlaySession,
     /// Active snap-zone preview while a window is being dragged by its titlebar:
     /// the target rect (already inset) plus a short label. `None` when no drag is
     /// in progress or the pointer isn't over a snap band. Drives both the live
@@ -256,6 +258,7 @@ pub struct MetisState {
     pub output_globals: std::collections::HashMap<String, smithay::reexports::wayland_server::backend::GlobalId>,
     /// Screen capture protocol state (ext-image-copy-capture).
     pub image_capture: crate::image_capture::ImageCaptureRuntime,
+    pub(crate) color_mgmt: crate::color_management::ColorManagementRuntime,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -501,6 +504,7 @@ impl MetisState {
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             hover_cursor: None,
             last_focused_window: None,
+            capture_overlay: crate::capture_overlay::CaptureOverlaySession::default(),
             snap_preview: None,
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
@@ -529,6 +533,7 @@ impl MetisState {
             winit_outputs: Vec::new(),
             output_globals: std::collections::HashMap::new(),
             image_capture: crate::image_capture::ImageCaptureRuntime::new(&dh),
+            color_mgmt: crate::color_management::ColorManagementRuntime::new(&dh),
         }
     }
 
@@ -754,17 +759,6 @@ impl MetisState {
         self.should_auto_hide_titlebar(id)
     }
 
-    /// Chromium-family CSD windows get Metis compact controls as a hover overlay.
-    pub(crate) fn window_uses_csd_overlay_controls(&self, id: u32) -> bool {
-        if self.window_uses_ssd(id) {
-            return false;
-        }
-        self.windows
-            .get(id)
-            .and_then(|r| r.app_id.as_deref())
-            .is_some_and(crate::decoration_policy::id_needs_csd_overlay_controls)
-    }
-
     /// Reconcile `uses_ssd` with xdg-decoration negotiation and app-id heuristics.
     pub(crate) fn refresh_window_decoration_mode(&mut self, id: u32) {
         let Some(record) = self.windows.get(id).cloned() else {
@@ -775,6 +769,7 @@ impl MetisState {
         let uses_ssd = crate::decoration_policy::resolve_uses_ssd(
             record.app_id.as_deref(),
             negotiated_mode,
+            record.decoration_bound,
         );
         let mode_changed = uses_ssd != record.uses_ssd;
         if mode_changed {
@@ -786,13 +781,19 @@ impl MetisState {
                 decoration_negotiated = record.decoration_negotiated,
                 "window decoration policy updated"
             );
-            if !uses_ssd && !self.window_uses_csd_overlay_controls(id) {
+            if !uses_ssd {
                 self.clear_auto_hide(id);
             }
         }
         self.windows.set_uses_ssd(id, uses_ssd);
         self.sync_auto_hide_titlebar(id);
-        if record.decoration_bound || record.decoration_negotiated {
+        // Push once we can classify the client — including CSD from app_id,
+        // negotiation, or an early xdg-decoration bind (GTK/Chromium).
+        let app_id_known = record
+            .app_id
+            .as_ref()
+            .is_some_and(|id| !id.is_empty());
+        if app_id_known || record.decoration_negotiated || !uses_ssd {
             self.push_preferred_decoration_mode(&record.toplevel, uses_ssd);
         }
         let now_draw = self.should_draw_metis_ssd(id);
@@ -808,10 +809,16 @@ impl MetisState {
         uses_ssd: bool,
     ) {
         let mode = crate::decoration_policy::grant_decoration_mode(uses_ssd);
+        let mut changed = false;
         toplevel.with_pending_state(|state| {
+            if state.decoration_mode != Some(mode) {
+                changed = true;
+            }
             state.decoration_mode = Some(mode);
         });
-        if toplevel.is_initial_configure_sent() {
+        // The first configure is sent from `apply_window_rect` / `ensure_initial_configure`
+        // so size and decoration_mode ship together. Later mode changes need a flush.
+        if changed && toplevel.is_initial_configure_sent() {
             toplevel.send_pending_configure();
         }
     }
@@ -997,18 +1004,14 @@ impl MetisState {
         }
     }
 
-    /// Tabbed browsers (Firefox) keep their tab row at the client top;
-    /// use the hover overlay + compact control strip instead of a persistent SSD
-    /// titlebar that covers tabs, including while floating. Chromium uses native
-    /// decorations with the same overlay drawn on top (see
-    /// [`Self::window_uses_csd_overlay_controls`]).
+    /// Tabbed browsers and other CSD clients keep native chrome; SSD windows use
+    /// the hover overlay when grid-tiled, snapped, or maximized.
     fn sync_auto_hide_titlebar(&mut self, id: u32) {
         let Some(record) = self.windows.get(id) else {
             return;
         };
         let ssd = self.should_auto_hide_titlebar(id) && self.should_draw_metis_ssd(id);
-        let csd_overlay = self.window_uses_csd_overlay_controls(id);
-        if !ssd && !csd_overlay {
+        if !ssd {
             return;
         }
         let grid_tiled = self.tile_id_for_window(id).is_some() && !self.floating.contains(&id);
@@ -1017,9 +1020,6 @@ impl MetisState {
             && self.window_uses_compact_overlay(id)
             && self.floating.contains(&id)
             && !maximized_or_snapped;
-        let csd_overlay_chrome = csd_overlay
-            && !record.fullscreen
-            && (self.floating.contains(&id) || record.maximized);
         let snap_auto_hide = ssd
             && record.snapped
             && !record.maximized
@@ -1029,8 +1029,7 @@ impl MetisState {
         let should_overlay = grid_tiled
             || maximized_auto_hide
             || snap_auto_hide
-            || tabbed_floating
-            || csd_overlay_chrome;
+            || tabbed_floating;
         if should_overlay {
             let was_auto_hide = self.auto_hide_titlebar.contains(&id);
             self.auto_hide_titlebar.insert(id);
@@ -1043,7 +1042,7 @@ impl MetisState {
     }
 
     /// Live client-surface (body) geometry for a mapped window.
-    fn window_body_rect(&self, id: u32) -> Option<PixelRect> {
+    pub(crate) fn window_body_rect(&self, id: u32) -> Option<PixelRect> {
         let record = self.windows.get(id)?;
         let loc = self.space.element_location(&record.window)?;
         let size = record.window.geometry().size;
@@ -2046,7 +2045,15 @@ impl MetisState {
             return;
         }
         // Relocating the map origin during wobble has triggered Ozone disconnects
-        // for Chromium-family browsers.
+        // for Chromium-family browsers and Electron apps (Cursor, VS Code, …).
+        if self
+            .windows
+            .get(id)
+            .and_then(|r| r.app_id.as_deref())
+            .is_some_and(crate::decoration_policy::id_skips_maximize_wobble)
+        {
+            return;
+        }
         if self.window_uses_compact_overlay(id) {
             return;
         }
@@ -2608,6 +2615,9 @@ impl MetisState {
 
     /// Give a window keyboard focus and raise it (mirrors `activate_window`'s tail).
     pub fn focus_window_id(&mut self, id: u32) {
+        if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
+            return;
+        }
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
@@ -2870,7 +2880,7 @@ impl MetisState {
     }
 
     /// Drop a window's app tile from every desk (visible and stashed).
-    fn remove_app_tile_everywhere(&mut self, window_id: u32) {
+    pub(crate) fn remove_app_tile_everywhere(&mut self, window_id: u32) {
         let matches_window = |t: &metis_grid::GridTile| {
             matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == window_id)
         };
@@ -2896,6 +2906,9 @@ impl MetisState {
     }
 
     pub(crate) fn note_window_focus(&mut self, id: u32) {
+        if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
+            return;
+        }
         self.last_focused_window = Some(id);
     }
 
@@ -2906,6 +2919,9 @@ impl MetisState {
     }
 
     fn raise_stacking_window(&mut self, id: u32, activate: bool) {
+        if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
+            return;
+        }
         let Some(record) = self.windows.get(id).cloned() else {
             return;
         };
@@ -2967,7 +2983,13 @@ impl MetisState {
             let current = self
                 .window_body_rect(id)
                 .unwrap_or(record.target_rect);
-            self.windows.set_restore_rect(id, current);
+            self.windows
+                .set_pre_fullscreen_maximized(id, record.maximized);
+            // Keep the pre-maximize floating geometry when entering fullscreen
+            // from a maximized window — we re-maximize on exit instead.
+            if !record.maximized {
+                self.windows.set_restore_rect(id, current);
+            }
             self.floating.insert(id);
 
             record.toplevel.with_pending_state(|state| {
@@ -2984,15 +3006,27 @@ impl MetisState {
             self.note_output_fullscreen(&output, true);
             self.focus_window_id(id);
         } else {
-            if let Some(output) = output_for_event {
-                self.note_output_fullscreen(&output, false);
-            }
             record.toplevel.with_pending_state(|state| {
                 state.states.unset(xdg_toplevel::State::Fullscreen);
                 state.fullscreen_output = None;
             });
             self.windows.set_fullscreen(id, false);
-            self.apply_window_rect(id);
+            let was_maximized = self.windows.take_pre_fullscreen_maximized(id);
+            if let Some(output) = output_for_event {
+                self.note_output_fullscreen(&output, false);
+            }
+            if was_maximized {
+                let _ = self.windows.take_restore_rect(id);
+                self.set_maximized(id, true);
+                self.reclamp_maximized_geometry(id);
+            } else if self.tile_id_for_window(id).is_some() {
+                self.floating.remove(&id);
+                let _ = self.windows.take_restore_rect(id);
+                self.apply_window_rect(id);
+            } else {
+                self.restore_floating_from_transient(id);
+                self.apply_window_rect(id);
+            }
         }
 
         if let Some(output_name) = output_name_for_event {
@@ -3003,7 +3037,9 @@ impl MetisState {
             });
         }
 
-        record.toplevel.send_pending_configure();
+        if let Some(record) = self.windows.get(id) {
+            record.toplevel.send_pending_configure();
+        }
         self.schedule_redraw();
     }
 
@@ -3101,7 +3137,7 @@ impl MetisState {
             if record.maximized && !record.fullscreen {
                 if self.maximized_uses_auto_hide_titlebar(id) {
                     self.auto_hide_titlebar.insert(id);
-                } else if !self.window_uses_csd_overlay_controls(id) {
+                } else {
                     self.clear_auto_hide(id);
                 }
                 if let Some((client, client_size)) = self.maximized_client_geometry(id) {
@@ -3128,7 +3164,7 @@ impl MetisState {
 
             if self.maximized_uses_auto_hide_titlebar(id) {
                 self.auto_hide_titlebar.insert(id);
-            } else if !self.window_uses_csd_overlay_controls(id) {
+            } else {
                 self.clear_auto_hide(id);
             }
 
@@ -3267,19 +3303,7 @@ impl MetisState {
             self.floating.remove(&id);
         } else {
             self.floating.insert(id);
-            if let Some(restore) = self.windows.take_restore_rect(id) {
-                let restore = self.recover_offscreen_rect(restore);
-                let restore = if self.should_draw_metis_ssd(id) {
-                    if self.window_uses_compact_overlay(id) {
-                        self.clamp_floating_rect(restore)
-                    } else {
-                        self.clamp_body_below_bar(restore)
-                    }
-                } else {
-                    self.clamp_floating_rect_for(id, restore)
-                };
-                self.windows.set_target_rect(id, restore);
-            }
+            self.restore_floating_from_transient(id);
         }
         self.sync_auto_hide_titlebar(id);
         self.apply_window_rect(id);
@@ -3368,6 +3392,9 @@ impl MetisState {
 
     /// Bring a window to the foreground: restore if minimized, raise, and focus.
     pub fn activate_window_by_id(&mut self, id: u32) {
+        if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
+            return;
+        }
         self.note_window_focus(id);
         let key = self.desk_key_for_window(id);
         let ws = self.windows.workspace(id).unwrap_or(1);
@@ -3668,6 +3695,86 @@ impl MetisState {
         }
     }
 
+    /// Re-anchor a maximized window when a client (especially CSD Chromium) maps
+    /// flush to the monitor top after leaving video fullscreen. `apply_window_rect`
+    /// intentionally skips maximized windows, so this runs on commit instead.
+    pub fn reclamp_maximized_geometry(&mut self, id: u32) {
+        if !self
+            .windows
+            .get(id)
+            .is_some_and(|r| r.maximized && !r.fullscreen && !self.windows.is_minimized(id))
+        {
+            return;
+        }
+        if self.maximize_fx_started.contains_key(&id) {
+            return;
+        }
+        let Some(record) = self.windows.get(id).cloned() else {
+            return;
+        };
+        let Some((expected, expected_size)) = self.maximized_client_geometry(id) else {
+            return;
+        };
+        let Some(loc) = self.space.element_location(&record.window) else {
+            return;
+        };
+        let expected_loc = Point::from((expected.x, expected.y));
+        let min_y = self
+            .clamp_below_top_bar_edge_for(
+                id,
+                PixelRect {
+                    x: loc.x,
+                    y: loc.y,
+                    width: 1,
+                    height: 1,
+                },
+            )
+            .y;
+        let under_bar = loc.y < min_y;
+        let off_target = loc != expected_loc;
+        if !under_bar && !off_target {
+            return;
+        }
+        if self.space.element_location(&record.window) == Some(expected_loc)
+            && record.window.geometry().size == expected_size
+            && self.windows.target_rect(id) == Some(expected)
+        {
+            return;
+        }
+        record.toplevel.with_pending_state(|state| {
+            use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
+            state.states.unset(xdg_toplevel::State::Fullscreen);
+            state.states.set(xdg_toplevel::State::Maximized);
+            state.size = Some(expected_size);
+            state.fullscreen_output = None;
+        });
+        self.space.relocate_element(&record.window, expected_loc);
+        self.windows.set_rect(id, expected);
+        record.toplevel.send_pending_configure();
+        self.schedule_redraw();
+        tracing::debug!(
+            id,
+            ?loc,
+            ?expected_loc,
+            under_bar,
+            "reclamped maximized geometry after client commit"
+        );
+    }
+
+    /// After the edge bar layer updates its exclusive zone, re-seat maximized
+    /// clients that were restored while the bar was still hidden.
+    pub(crate) fn reapply_maximized_windows_on_output(
+        &mut self,
+        output: &smithay::output::Output,
+    ) {
+        let name = output.name();
+        for id in self.windows.ids() {
+            if self.windows.output_name(id).as_deref() == Some(name.as_str()) {
+                self.reclamp_maximized_geometry(id);
+            }
+        }
+    }
+
     /// Collect decoration specs (frame, title, focus) for every mapped, ready
     /// window that should be decorated. The frame is derived from the window's
     /// *actual* mapped geometry (so chrome tracks tiled, floating, and maximized
@@ -3686,8 +3793,7 @@ impl MetisState {
                 continue;
             }
             let draws_ssd = self.should_draw_metis_ssd(id);
-            let draws_csd_overlay = self.window_uses_csd_overlay_controls(id);
-            if !draws_ssd && !draws_csd_overlay {
+            if !draws_ssd {
                 continue;
             }
             // Gate on the window actually being mapped in the space with real
@@ -3710,9 +3816,6 @@ impl MetisState {
                 continue;
             };
             let auto_hide = self.auto_hide_titlebar.contains(&id);
-            if draws_csd_overlay && !auto_hide {
-                continue;
-            }
             let show_overlay_titlebar = auto_hide
                 && self.titlebar_reveal_window == Some(id)
                 && self.titlebar_reveal_progress > 0.0;
@@ -3915,33 +4018,65 @@ impl MetisState {
 
     /// Usable area of `output`, falling back to its full geometry if the bar
     /// zone isn't known yet, and finally to the configured monitor size.
-    fn placement_zone_for(&self, output: &smithay::output::Output) -> PixelRect {
-        if let Some(zone) = self.usable_zone_for(output) {
-            return zone;
-        }
-        let mut zone = {
-            let monitor = self.output_rect(output).unwrap_or(self.monitor);
-            PixelRect {
-                x: monitor.x,
-                y: monitor.y,
-                width: monitor.width as i32,
-                height: monitor.height as i32,
+    pub(crate) fn placement_zone_for(&self, output: &smithay::output::Output) -> PixelRect {
+        let mut zone = if let Some(zone) = self.usable_zone_for(output) {
+            zone
+        } else {
+            let mut zone = {
+                let monitor = self.output_rect(output).unwrap_or(self.monitor);
+                PixelRect {
+                    x: monitor.x,
+                    y: monitor.y,
+                    width: monitor.width as i32,
+                    height: monitor.height as i32,
+                }
+            };
+            // Layer-shell exclusive zone may not be committed yet at startup. For a
+            // top bar, reserve the visible strip so maximize/placement never tuck
+            // windows under the bar while waiting for the first bar configure.
+            if self.output_has_bar(output)
+                && matches!(
+                    metis_config::load_bar_config().position,
+                    metis_config::BarPosition::Top
+                )
+            {
+                let reserve = Self::bar_reserved_px();
+                zone.y += reserve;
+                zone.height = (zone.height - reserve).max(1);
             }
+            zone
         };
-        // Layer-shell exclusive zone may not be committed yet at startup. For a
-        // top bar, reserve the visible strip so maximize/placement never tuck
-        // windows under the bar while waiting for the first bar configure.
-        if self.output_has_bar(output)
-            && matches!(
-                metis_config::load_bar_config().position,
-                metis_config::BarPosition::Top
-            )
-        {
-            let reserve = Self::bar_reserved_px();
-            zone.y += reserve;
-            zone.height = (zone.height - reserve).max(1);
-        }
+        self.enforce_top_bar_reserve_on_zone(output, &mut zone);
         zone
+    }
+
+    /// Layer-shell exclusive zones can lag by a commit when the bar reappears
+    /// after fullscreen. Always keep the top bar strip reserved when configured.
+    fn enforce_top_bar_reserve_on_zone(
+        &self,
+        output: &smithay::output::Output,
+        zone: &mut PixelRect,
+    ) {
+        if !self.output_has_bar(output) {
+            return;
+        }
+        if !matches!(
+            metis_config::load_bar_config().position,
+            metis_config::BarPosition::Top
+        ) {
+            return;
+        }
+        let origin_y = self
+            .space
+            .output_geometry(output)
+            .map(|g| g.loc.y)
+            .unwrap_or(0);
+        let min_y = origin_y + Self::bar_reserved_px();
+        if zone.y < min_y {
+            let delta = min_y - zone.y;
+            zone.y = min_y;
+            zone.height = (zone.height - delta).max(1);
+        }
     }
 
     /// Output a window was opened on (assigned at registration from the pointer).
@@ -4087,6 +4222,61 @@ impl MetisState {
             rect.y = min_y;
         }
         rect
+    }
+
+    /// Keep a restored floating CSD window below the visible top bar.
+    ///
+    /// Layer-shell exclusive zones can lag by a commit when the bar reappears
+    /// after fullscreen, so use configured bar geometry directly.
+    fn clamp_below_top_bar_edge_for(&self, id: u32, mut rect: PixelRect) -> PixelRect {
+        if !matches!(
+            metis_config::load_bar_config().position,
+            metis_config::BarPosition::Top
+        ) {
+            return rect;
+        }
+        let Some(output) = self
+            .output_for_window(id)
+            .or_else(|| self.primary_output())
+        else {
+            return rect;
+        };
+        if !self.output_has_bar(&output) {
+            return rect;
+        }
+        let origin_y = self
+            .space
+            .output_geometry(&output)
+            .map(|g| g.loc.y)
+            .unwrap_or(0);
+        let min_y = origin_y + Self::bar_reserved_px() + BAR_GAP_PX;
+        if rect.y < min_y {
+            rect.y = min_y;
+        }
+        rect
+    }
+
+    fn clamp_restored_floating_rect(&self, id: u32, rect: PixelRect) -> PixelRect {
+        let rect = self.recover_offscreen_rect(rect);
+        if self.should_draw_metis_ssd(id) {
+            if self.window_uses_compact_overlay(id) {
+                self.clamp_floating_rect(rect)
+            } else {
+                self.clamp_body_below_bar(rect)
+            }
+        } else {
+            let rect = self.clamp_floating_rect_for(id, rect);
+            self.clamp_below_top_bar_edge_for(id, rect)
+        }
+    }
+
+    /// Restore geometry saved before maximize/fullscreen and clamp below the bar.
+    fn restore_floating_from_transient(&mut self, id: u32) {
+        let Some(restore) = self.windows.take_restore_rect(id) else {
+            return;
+        };
+        let restore = self.clamp_restored_floating_rect(id, restore);
+        self.windows.set_target_rect(id, restore);
     }
 
     /// Keep a floating window on-screen. Overlay edge bars do not inset the bounds
@@ -4452,7 +4642,7 @@ impl MetisState {
             // border strip (corners overlap both regions). Skipped for overlay
             // reveals — only the titlebar strip is interactive there.
             if !spec.overlay {
-                let edges = self.resize_edges_for_point(loc, spec.frame);
+                let edges = self.resize_edges_for_point(loc, spec.frame, true);
                 if !edges.is_empty() {
                     return self.start_edge_resize(spec.id, edges, loc, serial, button);
                 }
@@ -4517,10 +4707,13 @@ impl MetisState {
 
     /// Which resize edge(s) the pointer is over within `frame`'s border strips and
     /// outer grab halo. Returns empty when the pointer is in the interior body.
+    /// When `strip_top_center_for_titlebar` is false (native CSD clients), the full
+    /// top edge remains resizable.
     fn resize_edges_for_point(
         &self,
         loc: Point<f64, Logical>,
         frame: PixelRect,
+        strip_top_center_for_titlebar: bool,
     ) -> crate::grabs::ResizeEdge {
         use crate::desk_input::point_in_rect;
         use crate::grabs::ResizeEdge;
@@ -4562,13 +4755,15 @@ impl MetisState {
             edges |= ResizeEdge::TOP;
         }
 
-        // Titlebar centre is for dragging; keep corner resize bits only.
-        let titlebar = metis_grid::app_tile_chrome_rect(frame);
-        if point_in_rect(x, y, titlebar) {
-            let in_left_corner = x < frame.x + corner;
-            let in_right_corner = x >= frame.x + frame.width - corner;
-            if !in_left_corner && !in_right_corner {
-                edges.remove(ResizeEdge::TOP);
+        // Titlebar centre is for dragging on Metis SSD; CSD clients own the top edge.
+        if strip_top_center_for_titlebar {
+            let titlebar = metis_grid::app_tile_chrome_rect(frame);
+            if point_in_rect(x, y, titlebar) {
+                let in_left_corner = x < frame.x + corner;
+                let in_right_corner = x >= frame.x + frame.width - corner;
+                if !in_left_corner && !in_right_corner {
+                    edges.remove(ResizeEdge::TOP);
+                }
             }
         }
 
@@ -4608,41 +4803,29 @@ impl MetisState {
         }))
     }
 
-    /// Frame used for resize-band hit-testing. Unlike [`Self::ssd_frame_for_mapped_window`],
-    /// auto-hide windows still expose edge bands even when their titlebar is hidden.
+    /// Frame used for resize-band hit-testing. Metis SSD windows use the grown
+    /// chrome rect; native CSD clients use their mapped client footprint.
     fn resize_frame_for_mapped_window(
         &self,
         id: u32,
         window: &smithay::desktop::Window,
     ) -> Option<PixelRect> {
-        if !self.should_draw_metis_ssd(id) {
-            let record = self.windows.get(id)?;
-            if record.fullscreen || record.maximized || self.windows.is_minimized(id) {
-                return None;
-            }
-            if !self.window_uses_csd_overlay_controls(id) {
-                return None;
-            }
-            let loc = self.space.element_location(window)?;
-            let size = window.geometry().size;
-            if size.w <= 0 || size.h <= 0 {
-                return None;
-            }
-            return Some(PixelRect {
-                x: loc.x,
-                y: loc.y,
-                width: size.w,
-                height: size.h,
-            });
-        }
         let record = self.windows.get(id)?;
-        if record.fullscreen || self.windows.is_minimized(id) {
+        if record.fullscreen || record.maximized || self.windows.is_minimized(id) {
             return None;
         }
         let loc = self.space.element_location(window)?;
         let size = window.geometry().size;
         if size.w <= 0 || size.h <= 0 {
             return None;
+        }
+        if !self.window_uses_ssd(id) {
+            return Some(PixelRect {
+                x: loc.x,
+                y: loc.y,
+                width: size.w,
+                height: size.h,
+            });
         }
         if self.auto_hide_titlebar.contains(&id) {
             return Some(PixelRect {
@@ -4736,7 +4919,8 @@ impl MetisState {
                 continue;
             }
             if let Some(frame) = self.resize_frame_for_mapped_window(id, window) {
-                let edges = self.resize_edges_for_point(loc, frame);
+                let edges =
+                    self.resize_edges_for_point(loc, frame, self.window_uses_ssd(id));
                 if !edges.is_empty() {
                     return Some((id, edges));
                 }
@@ -5255,6 +5439,10 @@ impl MetisState {
     /// the raise when the cursor reaches the chosen app.
     pub(crate) fn maintain_focus_stacking(&mut self, loc: Point<f64, Logical>) {
         use crate::desk_input::point_in_rect;
+
+        if self.capture_overlay_active() {
+            return;
+        }
 
         if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
             return;
@@ -6327,6 +6515,14 @@ impl MetisState {
                     CompositorEvent::Pong
                 }
             }
+            CompositorCommand::BeginCaptureOverlay { app_id } => {
+                self.begin_capture_overlay_portal(app_id);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::EndCaptureOverlay { app_id } => {
+                self.end_capture_overlay_portal(app_id);
+                CompositorEvent::Pong
+            }
         }
     }
 
@@ -6404,6 +6600,11 @@ impl MetisState {
     pub fn activate_window(&mut self, id: u32) {
         use metis_protocol::CompositorEvent;
 
+        if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
+            self.enforce_capture_overlay_stacking();
+            return;
+        }
+
         // Before tile reflow/reposition — `ensure_app_tile_for_window` can call
         // `reposition_all_windows`, whose stacking restore must not fall back to a
         // maximized neighbor while this window is still being mapped.
@@ -6427,15 +6628,19 @@ impl MetisState {
         self.set_app_tile_display_name(id, &title, app_id.as_deref());
         self.refresh_window_decoration_mode(id);
 
+        let screenshot_overlay = self.maybe_register_capture_overlay(id);
+
         let already_ready = self.windows.is_ready(id);
         // Choose placement before the first map whenever the window is not yet
         // floating (e.g. app_id arrived after the initial configure).
-        if kind == metis_grid::LayoutKind::Free {
-            self.place_new_window(id, app_id.as_deref());
-        } else if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
-            self.place_new_window(id, app_id.as_deref());
+        if !screenshot_overlay {
+            if kind == metis_grid::LayoutKind::Free {
+                self.place_new_window(id, app_id.as_deref());
+            } else if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
+                self.place_new_window(id, app_id.as_deref());
+            }
+            self.apply_window_rect(id);
         }
-        self.apply_window_rect(id);
 
         if already_ready {
             return;
@@ -6605,6 +6810,7 @@ impl MetisState {
         if self.last_focused_window == Some(id) {
             self.last_focused_window = None;
         }
+        self.unregister_capture_overlay(id);
         self.save_window_geometry(id);
         self.floating.remove(&id);
         self.clear_auto_hide(id);

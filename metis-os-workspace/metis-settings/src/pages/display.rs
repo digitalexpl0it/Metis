@@ -772,8 +772,8 @@ fn build_output_panel(
     profile_actions.append(&clear_profile);
     color_body.append(&profile_actions);
     let color_hint = gtk::Label::new(Some(
-        "Saved to outputs.json. Full ICC apply via wp_color_management is planned \
-         for a follow-up compositor release.",
+        "Saved to outputs.json and exposed to Wayland clients via wp_color_management_v1. \
+         GPU colour transforms in the compositor render path are still follow-up work.",
     ));
     color_hint.set_wrap(true);
     color_hint.set_xalign(0.0);

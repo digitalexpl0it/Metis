@@ -66,6 +66,7 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
     }) else {
         return;
     };
+    let output = output.clone();
 
     let initial_configure_sent = with_states(surface, |states| {
         states
@@ -95,6 +96,7 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
         }
         drop(map);
         state.on_bar_layer_committed();
+        state.reapply_maximized_windows_on_output(&output);
         state.schedule_redraw();
         return;
     }

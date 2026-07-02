@@ -88,6 +88,9 @@ impl CompositorHandler for MetisState {
         // when the app refuses to shrink to the snapped footprint.
         if let Some(id) = committed_id {
             self.reclamp_auto_hide(id);
+            self.reclamp_maximized_geometry(id);
+            self.sync_toplevel_fullscreen_from_client(id);
+            let _ = self.maybe_register_capture_overlay(id);
         }
 
         xdg_shell::handle_commit(&mut self.popups, &self.space, surface);

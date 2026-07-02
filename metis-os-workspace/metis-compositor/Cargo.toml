@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 bitflags = "2.6"
+libc = "0.2"
 metis-config = { workspace = true }
 metis-grid = { workspace = true }
 metis-protocol = { workspace = true }

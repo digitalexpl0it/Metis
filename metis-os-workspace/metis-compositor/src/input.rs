@@ -300,6 +300,7 @@ impl MetisState {
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
                 self.update_hover_cursor(location);
+                self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(location);
                 if !self.should_forward_pointer_motion(location) {
                     return;
@@ -329,6 +330,7 @@ impl MetisState {
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
                 self.update_hover_cursor(pos);
+                self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(pos);
                 if !self.should_forward_pointer_motion(pos) {
                     return;
@@ -370,6 +372,9 @@ impl MetisState {
                     const BTN_LEFT: u32 = 0x110;
                     const BTN_MIDDLE: u32 = 0x112;
                     const BTN_RIGHT: u32 = 0x111;
+                    if self.capture_overlay_active() {
+                        self.enforce_capture_overlay_stacking();
+                    }
                     let paste_button = button == BTN_MIDDLE || button == BTN_RIGHT;
                     // A press over the bar or one of its open popovers (e.g. the app
                     // launcher) belongs to the shell. The bar's popovers don't take a
@@ -391,7 +396,7 @@ impl MetisState {
                         self.sync_selection_focus_from_target(&under);
                     }
                     let mut chrome_press = false;
-                    if !on_bar_ui && button == BTN_LEFT {
+                    if !on_bar_ui && button == BTN_LEFT && !self.capture_overlay_active() {
                         chrome_press = self.handle_resize_press(loc, serial, button)
                             || self.handle_decoration_press(loc, serial, button);
                         if chrome_press {
@@ -456,6 +461,17 @@ impl MetisState {
         let pointer = self.seat.get_pointer().unwrap();
 
         if pointer.is_grabbed() || keyboard.is_grabbed() {
+            return;
+        }
+
+        if self.capture_overlay_active() {
+            if let Some(window) = self.top_capture_overlay_window() {
+                self.space.raise_element(&window, false);
+                if let Some(id) = self.windows.id_for_window(&window) {
+                    self.note_window_focus(id);
+                }
+                keyboard.set_focus(self, Some(window.into()), serial);
+            }
             return;
         }
 

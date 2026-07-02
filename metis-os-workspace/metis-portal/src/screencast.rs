@@ -22,6 +22,7 @@ use async_trait::async_trait;
 use enumflags2::BitFlags;
 
 use crate::capture::{spawn_screencast_pump, CaptureHub};
+use crate::compositor_ipc;
 use crate::pipewire::PipeWireHub;
 
 struct CastSession {
@@ -72,6 +73,7 @@ impl SessionImpl for MetisScreencast {
                 session.stop(&self.pipewire);
             }
         }
+        compositor_ipc::end_capture_overlay(None);
         Ok(())
     }
 }
@@ -124,6 +126,7 @@ impl ScreencastImpl for MetisScreencast {
         _options: StartCastOptions,
     ) -> ashpd::backend::Result<Streams> {
         tracing::info!(?app_id, "portal screencast start");
+        compositor_ipc::begin_capture_overlay(compositor_ipc::portal_app_id(app_id));
         let (width, height) = self.capture.output_size().await;
         let stream = self
             .pipewire

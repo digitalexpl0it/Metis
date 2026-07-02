@@ -14,6 +14,7 @@ use ashpd::{
 use async_trait::async_trait;
 
 use crate::capture::CaptureHub;
+use crate::compositor_ipc;
 
 pub struct MetisScreenshot {
     capture: Arc<CaptureHub>,
@@ -40,7 +41,11 @@ impl ScreenshotImpl for MetisScreenshot {
         _options: ScreenshotOptions,
     ) -> ashpd::backend::Result<Screenshot> {
         tracing::info!(?app_id, "portal screenshot request");
-        let path = self.capture.screenshot_png().await?;
+        let portal_app = compositor_ipc::portal_app_id(app_id);
+        compositor_ipc::begin_capture_overlay(portal_app.clone());
+        let result = self.capture.screenshot_png().await;
+        compositor_ipc::end_capture_overlay(portal_app);
+        let path = result?;
         let uri = format!("file://{}", path.display())
             .parse()
             .map_err(|err| PortalError::Failed(format!("invalid screenshot uri: {err}")))?;

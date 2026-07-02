@@ -44,6 +44,8 @@ pub struct WindowRecord {
     pub decoration_negotiated: bool,
     /// Set when the client creates an `xdg-decoration` object (before mode pick).
     pub decoration_bound: bool,
+    /// True when entering fullscreen while maximized — restored on fullscreen exit.
+    pub pre_fullscreen_maximized: bool,
 }
 
 pub struct WindowRegistry {
@@ -97,6 +99,7 @@ impl WindowRegistry {
                 uses_ssd: true,
                 decoration_negotiated: false,
                 decoration_bound: false,
+                pre_fullscreen_maximized: false,
             },
         );
         id
@@ -228,6 +231,23 @@ impl WindowRegistry {
 
     pub fn take_restore_rect(&mut self, id: u32) -> Option<PixelRect> {
         self.by_id.get_mut(&id).and_then(|r| r.restore_rect.take())
+    }
+
+    pub fn set_pre_fullscreen_maximized(&mut self, id: u32, maximized: bool) {
+        if let Some(record) = self.by_id.get_mut(&id) {
+            record.pre_fullscreen_maximized = maximized;
+        }
+    }
+
+    pub fn take_pre_fullscreen_maximized(&mut self, id: u32) -> bool {
+        self.by_id
+            .get_mut(&id)
+            .map(|r| {
+                let v = r.pre_fullscreen_maximized;
+                r.pre_fullscreen_maximized = false;
+                v
+            })
+            .unwrap_or(false)
     }
 
     pub fn set_snapped(&mut self, id: u32, snapped: bool) {
