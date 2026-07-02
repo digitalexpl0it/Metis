@@ -16,7 +16,7 @@ pub fn build() -> gtk::Widget {
     let tap = gtk::Switch::new();
     tap.set_active(cfg.touchpad.tap_to_click);
     body.append(&crate::ui::row_with_icon(
-        "gesture-single-tap-symbolic",
+        "input-touchpad-symbolic",
         "Tap to click",
         &tap,
     ));
@@ -24,7 +24,7 @@ pub fn build() -> gtk::Widget {
     let drag = gtk::Switch::new();
     drag.set_active(cfg.touchpad.tap_and_drag);
     body.append(&crate::ui::row_with_icon(
-        "gesture-drag-symbolic",
+        "object-select-symbolic",
         "Tap and drag",
         &drag,
     ));
@@ -46,14 +46,14 @@ pub fn build() -> gtk::Widget {
 
     let speed = input_common::speed_scale(cfg.touchpad.speed);
     body.append(&crate::ui::row_with_icon(
-        "preferences-system-mouse-symbolic",
+        "input-mouse-symbolic",
         "Pointer speed",
         &speed,
     ));
 
     let profile = input_common::accel_profile_dropdown(cfg.touchpad.accel_profile);
     body.append(&crate::ui::row_with_icon(
-        "speedometer-symbolic",
+        "power-profile-performance-symbolic",
         "Acceleration",
         &profile,
     ));

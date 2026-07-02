@@ -98,9 +98,12 @@ decorations so it (and every app) gets a real titlebar.
 - [x] Network page — wired/NIC config (DHCP vs static), Wi-Fi scan/connect/forget;
       bar "wired-only" network click opens this page
 - [x] Calendars page — moved CalDAV/MS365 account config out of the clock popover
-- [ ] **Split Appearance page** — extract Background, Edge bar, and Windows into
-      separate sidebar pages (Appearance still holds theme + all three today;
-      per-display wallpaper should move to Display)
+- [x] **Split Appearance page** — extracted Background, Edge bar, and Windows into
+      separate sidebar pages under Desktop; Appearance now holds only theme mode,
+      colours, and font. Per-display wallpaper lives on the new Background page
+      (kept with the rest of the wallpaper controls rather than moved to Display).
+      Shared plumbing sits in `pages/appearance_common.rs`; Edge bar/Windows each
+      persist only their own `bar.json` fields via `update_bar`.
 
 ### Window decorations (server-side)
 - [x] `zxdg_decoration_manager_v1` + `XdgDecorationHandler`; force SSD so GTK

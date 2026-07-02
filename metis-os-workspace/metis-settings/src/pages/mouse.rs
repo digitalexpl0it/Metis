@@ -14,14 +14,14 @@ pub fn build() -> gtk::Widget {
 
     let speed = input_common::speed_scale(cfg.mouse.speed);
     body.append(&crate::ui::row_with_icon(
-        "preferences-system-mouse-symbolic",
+        "input-mouse-symbolic",
         "Pointer speed",
         &speed,
     ));
 
     let profile = input_common::accel_profile_dropdown(cfg.mouse.accel_profile);
     body.append(&crate::ui::row_with_icon(
-        "speedometer-symbolic",
+        "power-profile-performance-symbolic",
         "Acceleration",
         &profile,
     ));

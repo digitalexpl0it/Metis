@@ -119,6 +119,40 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   suppresses `changed` during its own writes and skips no-op applies. As
   defense-in-depth the compositor now treats a `ReloadOutputs` whose on-disk
   config is unchanged as a no-op (no wallpaper re-decode / reflow / log spam).
+- **Settings: broken (missing) icons on several rows** — six symbolic icon names
+  used across the settings pages don't exist in the Adwaita icon theme and were
+  rendering as the "missing image" placeholder: `view-columns` (Edge bar → New
+  workspace layout), `preferences-desktop-effects` (Windows → Window animations),
+  `gesture-single-tap` / `gesture-drag` (Touchpad → Tap to click / Tap and drag),
+  and `preferences-system-mouse` / `speedometer` (Mouse + Touchpad → Pointer speed
+  / Acceleration). All now use on-theme names that actually ship (`view-dual`,
+  `preferences-desktop-screensaver`, `input-touchpad`, `object-select`,
+  `input-mouse`, `power-profile-performance`).
+- **Settings: mouse wheel over a slider no longer drags it (and spams IPC)** — the
+  Edge bar and Windows sliders (opacity, blur radius, distance, and the border
+  thickness controls) now forward wheel events to the page scroller instead of
+  changing their own value, matching the Display page. Scrolling past a slider
+  scrolls the page rather than nudging the setting (which also fired a `reload-bar`
+  on every notch).
+- **Settings: toggle switches no longer lag when flipped** — the Edge bar "Backdrop
+  blur" and Windows "Window animations" switches ran their `bar.json` write + IPC
+  synchronously inside the toggle handler, so the switch visibly stalled before
+  moving. They now paint the new state first and defer the save to the next idle
+  turn (via `defer_switch_active_notify`).
+
+### Changed
+
+- **Settings: split the "Appearance" page into four focused pages** — the single
+  page had grown to cover theme, colours, font, wallpaper, the entire edge bar,
+  and every window-decoration control. It is now four sidebar entries under
+  **Desktop**: **Appearance** (theme mode, accent/semantic colours, font),
+  **Background** (wallpaper picture/solid/gradient plus per-display overrides),
+  **Edge bar** (position, displays, workspaces, layout, tray mode, distance,
+  opacity, blur, and the bar border), and **Windows** (animations, titlebar
+  opacity, and the title-pill/window-frame borders). Shared colour/wallpaper
+  plumbing moved to a new `appearance_common` module, and Edge bar/Windows now
+  persist only the `bar.json` fields they each own (via `update_bar`) so the two
+  pages can't clobber each other's settings.
 
 ## [2026-07-01]
 
