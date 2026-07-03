@@ -72,6 +72,26 @@ pub fn reload_power_async() {
     });
 }
 
+/// Re-read `lock.json` and re-decode the lock-screen background live. Best-effort;
+/// runs off the GTK main thread so a slow/absent compositor never stalls the UI.
+pub fn reload_lock_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::ReloadLock) {
+            tracing::debug!(%err, "failed to reload lock config via compositor IPC");
+        }
+    });
+}
+
+/// Lock the session now (used by the Settings "Lock now" affordance and shell
+/// menu). Best-effort; never blocks the GTK main thread.
+pub fn lock_session_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::LockSession) {
+            tracing::debug!(%err, "failed to lock session via compositor IPC");
+        }
+    });
+}
+
 /// Apply a layout mode (grid vs. scrolling) to every workspace on every output
 /// immediately, so changing the "New workspace layout" default acts as a live
 /// global on/off rather than only affecting future workspaces. Best-effort.

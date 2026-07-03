@@ -88,6 +88,11 @@ pub struct BlurRuntime {
     commit: CommitCounter,
     last_sig: u64,
     last_check: Instant,
+    /// Stable identity + commit for the full-screen lock-screen blur element, so
+    /// its damage is tracked independently of the bar's backdrop blur.
+    lock_id: Id,
+    lock_commit: CommitCounter,
+    last_lock_sig: u64,
 }
 
 impl Default for BlurRuntime {
@@ -102,6 +107,9 @@ impl Default for BlurRuntime {
             commit: CommitCounter::default(),
             last_sig: 0,
             last_check: Instant::now(),
+            lock_id: Id::new(),
+            lock_commit: CommitCounter::default(),
+            last_lock_sig: 0,
         }
     }
 }
@@ -233,6 +241,74 @@ impl BlurRuntime {
             program,
         })
     }
+
+    /// Build a full-target blur element for the compositor lock screen.
+    ///
+    /// Unlike [`Self::element`] (which conflates the bar's local rect with the
+    /// texture-space region), the lock screen samples a *global* region of the
+    /// desktop wallpaper texture: `geometry` is the render-target-local rectangle
+    /// to fill, while `src` is the region of `texture` (in buffer coordinates) to
+    /// sample — so a per-output DRM pass still reads that output's slice. Uses a
+    /// stronger fixed `radius` than the bar for the frosted lock look. The shader
+    /// program must already be compiled (via [`Self::ensure_program`]).
+    pub fn lock_element(
+        &mut self,
+        geometry: Rectangle<i32, Physical>,
+        src: Rectangle<f64, Buffer>,
+        texture: GlesTexture,
+        tex_size: Size<i32, Buffer>,
+        radius: f32,
+    ) -> Option<BlurElement> {
+        if geometry.size.is_empty() || tex_size.is_empty() {
+            return None;
+        }
+        let program = self.program.clone()?;
+
+        let sig = lock_signature(geometry, src, radius, texture.tex_id(), tex_size);
+        if sig != self.last_lock_sig {
+            self.last_lock_sig = sig;
+            self.lock_commit.increment();
+        }
+
+        Some(BlurElement {
+            id: self.lock_id.clone(),
+            commit: self.lock_commit,
+            geometry,
+            src,
+            texture,
+            tex_w: tex_size.w as f32,
+            tex_h: tex_size.h as f32,
+            radius,
+            program,
+        })
+    }
+}
+
+fn lock_signature(
+    geo: Rectangle<i32, Physical>,
+    src: Rectangle<f64, Buffer>,
+    radius: f32,
+    tex_id: u32,
+    tex: Size<i32, Buffer>,
+) -> u64 {
+    let mut h = 1469598103934665603u64;
+    let mut mix = |v: i64| {
+        h ^= v as u64;
+        h = h.wrapping_mul(1099511628211);
+    };
+    mix(geo.loc.x as i64);
+    mix(geo.loc.y as i64);
+    mix(geo.size.w as i64);
+    mix(geo.size.h as i64);
+    mix(src.loc.x as i64);
+    mix(src.loc.y as i64);
+    mix(src.size.w as i64);
+    mix(src.size.h as i64);
+    mix(radius.to_bits() as i64);
+    mix(tex_id as i64);
+    mix(tex.w as i64);
+    mix(tex.h as i64);
+    h
 }
 
 fn signature(rect: Rectangle<i32, Physical>, radius: f32, tex_id: u32, tex: Size<i32, Buffer>) -> u64 {

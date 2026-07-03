@@ -2066,6 +2066,7 @@ name = "metis-compositor"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.0",
+ "chrono",
  "directories",
  "fontdue",
  "image",
@@ -2082,6 +2083,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "xcursor",
+ "zeroize",
 ]
 
 [[package]]

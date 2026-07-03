@@ -39,6 +39,11 @@ pub struct IdleManager {
     external_inhibitors: HashMap<u32, String>,
     /// Whether the outputs are currently powered down (DPMS off).
     blanked: bool,
+    /// A `systemd-inhibit` child holding a logind `idle` lock while any inhibitor
+    /// is active, so the session can't auto-suspend under a running game/video.
+    /// Present exactly while [`Self::is_inhibited`] is true (best-effort — absent
+    /// if `systemd-inhibit` is unavailable).
+    suspend_inhibit: Option<std::process::Child>,
 }
 
 impl IdleManager {
@@ -50,6 +55,52 @@ impl IdleManager {
             wl_inhibitors: HashSet::new(),
             external_inhibitors: HashMap::new(),
             blanked: false,
+            suspend_inhibit: None,
+        }
+    }
+
+    /// Start or stop the logind `idle` inhibitor to match the aggregate inhibit
+    /// state. Holding a `--mode=block --what=idle` lock stops logind's automatic
+    /// idle action (auto-suspend) while a game/media app keeps us awake, without
+    /// blocking a manual suspend. Failure to spawn is non-fatal.
+    fn reconcile_suspend_inhibitor(&mut self, inhibited: bool) {
+        // Reap a child that exited on its own (e.g. `systemd-inhibit` missing).
+        if let Some(child) = self.suspend_inhibit.as_mut() {
+            if matches!(child.try_wait(), Ok(Some(_))) {
+                self.suspend_inhibit = None;
+            }
+        }
+        match (inhibited, self.suspend_inhibit.is_some()) {
+            (true, false) => match std::process::Command::new("systemd-inhibit")
+                .args([
+                    "--what=idle",
+                    "--who=Metis",
+                    "--why=Application requested the screen stay awake",
+                    "--mode=block",
+                    "sleep",
+                    "infinity",
+                ])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(child) => {
+                    tracing::info!("idle: holding logind idle inhibitor");
+                    self.suspend_inhibit = Some(child);
+                }
+                Err(err) => {
+                    tracing::debug!(?err, "idle: systemd-inhibit unavailable; suspend not blocked")
+                }
+            },
+            (false, true) => {
+                if let Some(mut child) = self.suspend_inhibit.take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    tracing::info!("idle: released logind idle inhibitor");
+                }
+            }
+            _ => {}
         }
     }
 
@@ -146,6 +197,11 @@ impl MetisState {
         if self.idle.blanked == blank {
             return;
         }
+        // Lock the session as it blanks, if configured, so waking the panel shows
+        // the lock screen rather than the live desktop.
+        if blank && self.lock_on_idle_blank() {
+            self.lock_session();
+        }
         self.idle.blanked = blank;
         self.set_outputs_dpms(!blank);
         if !blank {
@@ -193,6 +249,7 @@ impl MetisState {
     fn idle_inhibit_changed(&mut self) {
         let inhibited = self.idle.is_inhibited();
         self.idle_notifier_state.set_is_inhibited(inhibited);
+        self.idle.reconcile_suspend_inhibitor(inhibited);
         if inhibited {
             if let Some(token) = self.idle.timer_token.take() {
                 self.loop_handle.remove(token);

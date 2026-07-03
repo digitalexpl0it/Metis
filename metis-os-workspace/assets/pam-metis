@@ -1,0 +1,8 @@
+# PAM configuration for the Metis session lock screen.
+#
+# Installed to /etc/pam.d/metis. The compositor authenticates the logged-in
+# user against this stack when they unlock the screen. It simply defers to the
+# system's standard interactive-auth and account stacks, so it honours whatever
+# the distro already uses for login (password, fingerprint helpers, etc.).
+@include common-auth
+@include common-account

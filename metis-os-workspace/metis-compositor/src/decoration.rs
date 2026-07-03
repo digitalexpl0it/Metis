@@ -1654,7 +1654,7 @@ fn signature(windows: &[WindowDeco]) -> u64 {
 }
 
 /// Load a UI font for titles: ask fontconfig, then fall back to common paths.
-fn load_font() -> Option<Font> {
+pub(crate) fn load_font() -> Option<Font> {
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(out) = std::process::Command::new("fc-match")
         .args(["-f", "%{file}", "sans"])

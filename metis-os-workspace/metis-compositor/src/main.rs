@@ -17,6 +17,7 @@ mod image_capture;
 mod input;
 mod ipc;
 mod keybinds;
+mod lock;
 mod color_management;
 mod mirror;
 mod night_light;
@@ -167,6 +168,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Arm the idle blank countdown up front so an untouched session still blanks
     // after the configured timeout (input activity re-arms it thereafter).
     state.idle_reschedule();
+
+    // Register the PAM auth result channel so lock-screen authentication (run on
+    // a worker thread) can hand its result back to the event loop.
+    state.lock_register_auth_channel();
 
     // Capture the host's WAYLAND_DISPLAY before we overwrite it with our own
     // socket, so the activation-env import (below) can be undone on exit. Only

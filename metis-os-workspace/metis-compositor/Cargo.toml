@@ -23,6 +23,8 @@ fontdue = "0.9"
 thiserror = { workspace = true }
 xcursor = "0.3"
 input = "0.10"
+zeroize = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [dependencies.smithay]
 git = "https://github.com/Smithay/smithay"

@@ -50,6 +50,39 @@ impl MetisState {
         // Any hardware input counts as activity: wake a blanked screen and
         // restart the idle countdown before dispatching the event.
         self.idle_notify_activity();
+
+        // While the session is locked, no pointer input reaches clients — motion
+        // still moves the (compositor-drawn) cursor and repaints, but buttons and
+        // scroll are swallowed. Keyboard events fall through to the filter below,
+        // which routes them into the password buffer and never forwards them.
+        if self.lock.locked && !matches!(event, InputEvent::Keyboard { .. }) {
+            if let Some(pointer) = self.seat.get_pointer() {
+                match &event {
+                    InputEvent::PointerMotion { event: e, .. } => {
+                        let loc = self.clamp_to_desktop(pointer.current_location() + e.delta());
+                        pointer.set_location(loc);
+                        self.lock_update_hover(loc);
+                    }
+                    InputEvent::PointerMotionAbsolute { event: e, .. } => {
+                        let bounds = self.desktop_bounds();
+                        let pos = e.position_transformed(bounds.size) + bounds.loc.to_f64();
+                        pointer.set_location(pos);
+                        self.lock_update_hover(pos);
+                    }
+                    InputEvent::PointerButton { event: e, .. } => {
+                        // Left-press on a power control (suspend/restart/shutdown) fires it.
+                        if e.state() == ButtonState::Pressed && e.button_code() == 0x110 {
+                            let loc = pointer.current_location();
+                            self.lock_pointer_click(loc);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            self.schedule_redraw();
+            return;
+        }
+
         let mut needs_redraw = false;
         match event {
             InputEvent::Keyboard { event, .. } => {
@@ -65,6 +98,46 @@ impl MetisState {
                     serial,
                     time,
                     |state, modifiers, keysym| {
+                        // Locked: capture every key into the password field and
+                        // never forward it to a client. Ctrl+Alt VT-switch / quit
+                        // escape hatches on the DRM backend stay live so a wedged
+                        // lock screen can always be recovered.
+                        if state.lock.locked {
+                            if key_state == KeyState::Pressed {
+                                let sym = u32::from(keysym.modified_sym());
+                                if state.is_drm_backend() && modifiers.ctrl && modifiers.alt {
+                                    if sym == keysyms::KEY_BackSpace {
+                                        state.drm_quit();
+                                        return FilterResult::Intercept(());
+                                    }
+                                    let vt_sym = keysym
+                                        .raw_latin_sym_or_raw_current_sym()
+                                        .map(u32::from)
+                                        .unwrap_or(sym);
+                                    if let Some(vt) =
+                                        vt_from_keysym(sym).or_else(|| vt_from_keysym(vt_sym))
+                                    {
+                                        state.drm_change_vt(vt);
+                                        return FilterResult::Intercept(());
+                                    }
+                                }
+                                match sym {
+                                    keysyms::KEY_Return | keysyms::KEY_KP_Enter => {
+                                        state.lock_submit()
+                                    }
+                                    keysyms::KEY_BackSpace => state.lock_backspace(),
+                                    keysyms::KEY_Escape => state.lock_clear_input(),
+                                    _ => {
+                                        if let Some(c) = keysym.modified_sym().key_char() {
+                                            if !c.is_control() {
+                                                state.lock_push_char(c);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            return FilterResult::Intercept(());
+                        }
                         if key_state == KeyState::Pressed {
                             let sym = u32::from(keysym.modified_sym());
                             // Use the layout's raw Latin sym so Mod+Shift+<n>
@@ -262,6 +335,10 @@ impl MetisState {
                                 if let Some(id) = state.focused_window_id() {
                                     state.minimize_by_id(id);
                                 }
+                                return FilterResult::Intercept(());
+                            }
+                            if mod_active(modifiers) && sym == keysyms::KEY_l {
+                                state.lock_session();
                                 return FilterResult::Intercept(());
                             }
                             if sym == keysyms::KEY_Escape {

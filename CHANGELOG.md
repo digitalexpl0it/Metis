@@ -9,6 +9,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Compositor-rendered session lock** — Metis now has a first-party lock
+  screen. `Super+L`, the shell menu's **Lock** button, and the `LockSession` IPC
+  command all put the compositor into a locked mode where it renders the lock UI
+  itself (background + optional blur/dim + clock + password field) and no client
+  is composited or sent input; keyboard focus is cleared, and focus/reveal/launch
+  and screen-capture IPC are refused while locked. Authentication runs real
+  **PAM** on a worker thread (service `/etc/pam.d/metis`, installed by
+  `run-metis.sh`, with a graceful fallback to the system `login` stack), and the
+  result is marshaled back to the event loop via a `calloop` channel; the typed
+  password is never logged, is zeroized after every attempt, and failures are
+  throttled. The lock background is configurable on **Settings → Appearance →
+  Background → Lock screen**: reuse the desktop wallpaper (default), a dedicated
+  picture, a solid colour, or a gradient — with blur and a ~35% dim on by
+  default, a show-clock toggle, and a **Lock when the screen blanks** option that
+  closes the idle → lock loop (`lock.json`, live-reloaded via `ReloadLock`). The
+  lock UI reuses the existing `fontdue` text and wallpaper/blur GL pipelines, so
+  it renders identically on the nested winit dev session and the DRM backend.
+  The lock screen now also: offers a **12-/24-hour clock** toggle (Settings →
+  Background); draws a rounded, translucent **password field** (brighter border
+  once you start typing, with an "Enter Password" placeholder) so it's obvious
+  where input goes; greets you by your account **display name** (GECOS), falling
+  back to the login name; and shows **suspend / restart / shut down** controls in
+  the bottom-right that highlight on hover and are clickable straight from the
+  lock screen (each drawn as a small anti-aliased glyph).
 - **Idle screen blanking with inhibitors** — the compositor now powers the
   display down after the Settings → Power **screen blank** timeout
   (`power.json` `blank_after_minutes`, `0` = never) and wakes instantly on any
@@ -34,6 +58,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     compositor over the new `InhibitIdle`/`UninhibitIdle` IPC commands, and
     reclaims a crashed client's inhibitors when its D-Bus peer drops off the bus
     (`NameOwnerChanged` watch), so a dead browser can never pin the screen awake.
+  - While any inhibitor is held the compositor also takes a **logind `idle`
+    inhibitor lock** (`systemd-inhibit --what=idle --mode=block`), so a running
+    game/video blocks automatic idle-suspend as well as blank — without blocking
+    a manual suspend. Released as soon as the last inhibitor clears.
 - **Settings inputs commit cleanly** — the Power page persists on a debounced
   background thread (no more UI stall from `powerprofilesctl`/`busctl` on every
   keystroke), stops periodic refreshes from stomping a value mid-edit, and every

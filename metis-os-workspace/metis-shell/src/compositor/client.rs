@@ -90,6 +90,13 @@ pub fn launch_program(program: &str) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Ask the compositor to lock the session (enter the compositor-rendered lock
+/// screen). Best-effort.
+pub fn lock_session() -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::LockSession)?;
+    Ok(())
+}
+
 /// Ask the compositor to end the Metis session (stops its event loop).
 pub fn end_session() -> std::io::Result<()> {
     match send_command(CompositorCommand::EndSession) {

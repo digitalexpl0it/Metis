@@ -7,6 +7,7 @@ pub mod calendars;
 pub mod clocks;
 pub mod css;
 pub mod input;
+pub mod lock;
 pub mod menu;
 pub mod outputs;
 pub mod power;
@@ -167,6 +168,9 @@ pub use outputs::{
 pub use power::{
     load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,
     PowerProfile,
+};
+pub use lock::{
+    load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
 };
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,

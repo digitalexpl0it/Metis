@@ -82,6 +82,13 @@ impl MetisState {
         output_scale: Scale<f64>,
         target: RenderTargetInfo<'_>,
     ) -> Vec<OutputStack> {
+        // Locked: draw ONLY the compositor lock UI and skip every client, layer,
+        // and decoration element — no client content is ever composited while the
+        // session is locked.
+        if self.lock.locked {
+            return self.build_lock_elements(renderer, render_origin, &target, output_scale.x);
+        }
+
         // Render-target-local physical origin of the full-desktop wallpaper.
         let wallpaper_origin: Point<f64, Physical> =
             Point::from((-render_origin.x as f64, -render_origin.y as f64));

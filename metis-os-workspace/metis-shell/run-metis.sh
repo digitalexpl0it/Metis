@@ -322,6 +322,12 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
 
+    # PAM service for the compositor lock screen. Without it the compositor
+    # falls back to the system "login" stack; installing the dedicated service
+    # keeps unlocking working consistently across distros.
+    echo "Installing PAM service to /etc/pam.d/metis …"
+    $SUDO install -Dm644 "$ASSETS_DIR/pam-metis" /etc/pam.d/metis
+
     # Runtime dependency: Metis is only a *client* of the Secret Service, so a
     # provider must exist or keyring-backed apps (and Metis's own credential
     # storage) degrade to plaintext. The session launcher auto-starts whichever

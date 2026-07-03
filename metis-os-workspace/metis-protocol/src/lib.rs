@@ -84,6 +84,12 @@ pub enum CompositorCommand {
     /// Re-read `power.json` and apply idle preferences live (currently the screen
     /// blank timeout that drives the compositor's idle blanker).
     ReloadPower,
+    /// Lock the session now: the compositor enters its locked mode (renders the
+    /// lock screen, captures all input, hides clients) until the user
+    /// authenticates.
+    LockSession,
+    /// Re-read `lock.json` and re-decode the lock-screen background live.
+    ReloadLock,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {

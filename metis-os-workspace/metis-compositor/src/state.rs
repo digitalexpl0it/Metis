@@ -274,6 +274,8 @@ pub struct MetisState {
     pub(crate) color_mgmt: crate::color_management::ColorManagementRuntime,
     /// Idle detection + screen-blank (DPMS) + inhibitor bookkeeping.
     pub(crate) idle: crate::idle::IdleManager,
+    /// Compositor-rendered session lock (background/blur/dim + PAM auth).
+    pub(crate) lock: crate::lock::LockState,
     /// `zwp_idle_inhibit_manager_v1` global (native apps keep the screen awake).
     pub idle_inhibit_state: IdleInhibitManagerState,
     /// `ext_idle_notify_v1` global (idle notifications for swayidle-style clients).
@@ -579,12 +581,18 @@ impl MetisState {
             image_capture: crate::image_capture::ImageCaptureRuntime::new(&dh),
             color_mgmt: crate::color_management::ColorManagementRuntime::new(&dh),
             idle,
+            lock: crate::lock::LockState::new(),
             idle_inhibit_state,
             idle_notifier_state,
         }
     }
 
     pub(crate) fn process_pending_captures(&mut self, renderer: &mut smithay::backend::renderer::gles::GlesRenderer) {
+        // Never satisfy a screen-capture request while locked — the framebuffer
+        // shows the lock UI, but refusing outright avoids leaking even that.
+        if self.lock.locked {
+            return;
+        }
         if !self.image_capture.has_pending() {
             return;
         }
@@ -6478,6 +6486,28 @@ impl MetisState {
 
     pub fn handle_ipc(&mut self, cmd: CompositorCommand) -> metis_protocol::CompositorEvent {
         use metis_protocol::CompositorEvent;
+        // While locked, refuse commands that could focus/reveal a client, launch
+        // programs, touch the clipboard, or elevate a capture — a locked screen
+        // must not be manipulable or screenshot-able from IPC. Read-only queries
+        // and the lock/reload commands themselves still work.
+        if self.lock.locked {
+            use metis_protocol::CompositorCommand as C;
+            if matches!(
+                cmd,
+                C::FocusWindow { .. }
+                    | C::ActivateWindow { .. }
+                    | C::SetFullscreen { .. }
+                    | C::SetMinimized { .. }
+                    | C::MoveWindow { .. }
+                    | C::Launch { .. }
+                    | C::SetClipboard { .. }
+                    | C::BeginCaptureOverlay { .. }
+            ) {
+                return CompositorEvent::Error {
+                    message: "session is locked".into(),
+                };
+            }
+        }
         match cmd {
             CompositorCommand::Ping => CompositorEvent::Pong,
             CompositorCommand::GetMonitor => CompositorEvent::Monitor {
@@ -6740,6 +6770,14 @@ impl MetisState {
                     blank_after_minutes = cfg.blank_after_minutes,
                     "reloaded power config; idle blank timeout updated"
                 );
+                CompositorEvent::Pong
+            }
+            CompositorCommand::LockSession => {
+                self.lock_session();
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadLock => {
+                self.lock_reload();
                 CompositorEvent::Pong
             }
             CompositorCommand::SetClipboard {

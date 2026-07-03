@@ -262,7 +262,295 @@ pub fn build() -> gtk::Widget {
         });
     }
 
+    // ---- Lock screen ------------------------------------------------------
+    content.append(&build_lock_card());
+
     scroller.upcast()
+}
+
+// ---- Lock screen card ------------------------------------------------------
+
+/// Build the "Lock screen" card: background source (reuse the desktop wallpaper,
+/// a dedicated picture, a solid colour, or a gradient) plus blur, dim, clock, and
+/// a "lock when the screen blanks" toggle. Persisted to `lock.json` (debounced +
+/// off-thread) with a live `ReloadLock` to the compositor.
+fn build_lock_card() -> gtk::Widget {
+    use metis_config::LockBackgroundSource as Src;
+
+    let lockcfg = Rc::new(RefCell::new(metis_config::load_lock_config()));
+
+    // Debounced, off-thread persistence: coalesce the burst of events from
+    // dragging the dim slider into a single save + live reload.
+    let save_pending: Rc<RefCell<Option<gtk::glib::SourceId>>> = Rc::new(RefCell::new(None));
+    let persist: Rc<dyn Fn()> = {
+        let lockcfg = lockcfg.clone();
+        let save_pending = save_pending.clone();
+        Rc::new(move || {
+            if let Some(id) = save_pending.borrow_mut().take() {
+                id.remove();
+            }
+            let lockcfg = lockcfg.clone();
+            let slot = save_pending.clone();
+            let id = gtk::glib::timeout_add_local_once(
+                std::time::Duration::from_millis(150),
+                move || {
+                    slot.borrow_mut().take();
+                    let cfg = lockcfg.borrow().clone();
+                    if let Err(err) = metis_config::save_lock_config(&cfg) {
+                        tracing::warn!(%err, "failed to save lock.json");
+                    }
+                    runtime::reload_lock_async();
+                },
+            );
+            *save_pending.borrow_mut() = Some(id);
+        })
+    };
+
+    let (card, body) = ui::section_with_icon("Lock screen", "system-lock-screen-symbolic");
+
+    // -- Background source --
+    let src_dd = gtk::DropDown::from_strings(&[
+        "Use desktop wallpaper",
+        "Picture",
+        "Solid color",
+        "Gradient",
+    ]);
+    src_dd.set_selected(match lockcfg.borrow().background {
+        Src::Wallpaper => 0,
+        Src::Picture => 1,
+        Src::Solid => 2,
+        Src::Gradient => 3,
+    });
+    body.append(&ui::row_with_icon("view-paged-symbolic", "Background", &src_dd));
+
+    // -- Picture controls --
+    let picture_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let pic_status = gtk::Label::new(None);
+    pic_status.add_css_class("dim-label");
+    pic_status.set_ellipsize(gtk::pango::EllipsizeMode::Middle);
+    pic_status.set_max_width_chars(22);
+    let update_pic_status = {
+        let pic_status = pic_status.clone();
+        let lockcfg = lockcfg.clone();
+        Rc::new(move || {
+            let text = lockcfg
+                .borrow()
+                .picture_path
+                .as_ref()
+                .map(|p| {
+                    Path::new(p)
+                        .file_name()
+                        .map(|f| f.to_string_lossy().to_string())
+                        .unwrap_or_else(|| p.clone())
+                })
+                .unwrap_or_else(|| "None selected".to_string());
+            pic_status.set_text(&text);
+        })
+    };
+    update_pic_status();
+    let pic_btn = gtk::Button::with_label("Choose…");
+    pic_btn.add_css_class("flat");
+    let pic_row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    pic_row.add_css_class("metis-settings-row");
+    let pic_img = gtk::Image::from_icon_name("image-x-generic-symbolic");
+    pic_img.set_pixel_size(16);
+    let pic_label = gtk::Label::new(Some("Picture"));
+    pic_label.set_xalign(0.0);
+    pic_label.set_hexpand(true);
+    pic_row.append(&pic_img);
+    pic_row.append(&pic_label);
+    pic_row.append(&pic_status);
+    pic_row.append(&pic_btn);
+    picture_box.append(&pic_row);
+    body.append(&picture_box);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        let update_pic_status = update_pic_status.clone();
+        pic_btn.connect_clicked(move |btn| {
+            let lockcfg = lockcfg.clone();
+            let persist = persist.clone();
+            let update_pic_status = update_pic_status.clone();
+            let root = btn.root().and_then(|r| r.downcast::<gtk::Window>().ok());
+            pick_picture(root.as_ref(), move |path| {
+                lockcfg.borrow_mut().picture_path = Some(path.to_string_lossy().to_string());
+                update_pic_status();
+                persist();
+            });
+        });
+    }
+
+    // -- Solid colour --
+    let solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let solid_btn = color_dialog_button();
+    solid_btn.set_rgba(&hex_to_rgba(&lockcfg.borrow().color));
+    solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        "Color",
+        &solid_btn,
+    ));
+    body.append(&solid_box);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        solid_btn.connect_rgba_notify(move |b| {
+            lockcfg.borrow_mut().color = rgba_to_hex(&b.rgba());
+            persist();
+        });
+    }
+
+    // -- Gradient --
+    let gradient_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let grad_start = color_dialog_button();
+    grad_start.set_rgba(&hex_to_rgba(&lockcfg.borrow().gradient_start));
+    let grad_end = color_dialog_button();
+    grad_end.set_rgba(&hex_to_rgba(&lockcfg.borrow().gradient_end));
+    let dir_dd = gtk::DropDown::from_strings(&[
+        "Top → Bottom",
+        "Bottom → Top",
+        "Left → Right",
+        "Right → Left",
+        "Diagonal ↘",
+        "Diagonal ↗",
+    ]);
+    dir_dd.set_selected(direction_to_index(lockcfg.borrow().gradient_direction));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "Start color", &grad_start));
+    gradient_box.append(&ui::row_with_icon("starred-symbolic", "End color", &grad_end));
+    gradient_box.append(&ui::row_with_icon("object-rotate-right-symbolic", "Direction", &dir_dd));
+    body.append(&gradient_box);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        grad_start.connect_rgba_notify(move |b| {
+            lockcfg.borrow_mut().gradient_start = rgba_to_hex(&b.rgba());
+            persist();
+        });
+    }
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        grad_end.connect_rgba_notify(move |b| {
+            lockcfg.borrow_mut().gradient_end = rgba_to_hex(&b.rgba());
+            persist();
+        });
+    }
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        dir_dd.connect_selected_notify(move |dd| {
+            lockcfg.borrow_mut().gradient_direction = index_to_direction(dd.selected());
+            persist();
+        });
+    }
+
+    // -- Blur --
+    let (blur_row, blur_sw) = ui::switch_row("Blur the background");
+    blur_sw.set_active(lockcfg.borrow().blur);
+    body.append(&blur_row);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        blur_sw.connect_active_notify(move |sw| {
+            lockcfg.borrow_mut().blur = sw.is_active();
+            persist();
+        });
+    }
+
+    // -- Dim --
+    let dim_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 5.0);
+    dim_scale.set_hexpand(true);
+    dim_scale.set_draw_value(true);
+    dim_scale.set_value_pos(gtk::PositionType::Right);
+    dim_scale.set_value(f64::from(lockcfg.borrow().dim_percent));
+    body.append(&ui::row_with_icon("display-brightness-symbolic", "Dim", &dim_scale));
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        dim_scale.connect_value_changed(move |s| {
+            lockcfg.borrow_mut().dim_percent = s.value().round().clamp(0.0, 100.0) as u8;
+            persist();
+        });
+    }
+
+    // -- Show clock --
+    let (clock_row, clock_sw) = ui::switch_row("Show clock");
+    clock_sw.set_active(lockcfg.borrow().show_clock);
+    body.append(&clock_row);
+
+    // -- 24-hour clock --
+    let (h24_row, h24_sw) = ui::switch_row("Use 24-hour clock");
+    h24_sw.set_active(lockcfg.borrow().clock_24h);
+    h24_row.set_visible(lockcfg.borrow().show_clock);
+    body.append(&h24_row);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        let h24_row = h24_row.clone();
+        clock_sw.connect_active_notify(move |sw| {
+            lockcfg.borrow_mut().show_clock = sw.is_active();
+            h24_row.set_visible(sw.is_active());
+            persist();
+        });
+    }
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        h24_sw.connect_active_notify(move |sw| {
+            lockcfg.borrow_mut().clock_24h = sw.is_active();
+            persist();
+        });
+    }
+
+    // -- Lock when the screen blanks --
+    let (blank_row, blank_sw) = ui::switch_row("Lock when the screen blanks");
+    blank_sw.set_active(lockcfg.borrow().lock_on_idle_blank);
+    body.append(&blank_row);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        blank_sw.connect_active_notify(move |sw| {
+            lockcfg.borrow_mut().lock_on_idle_blank = sw.is_active();
+            persist();
+        });
+    }
+
+    // -- Lock now --
+    let lock_now = gtk::Button::with_label("Lock now");
+    lock_now.add_css_class("flat");
+    lock_now.set_halign(gtk::Align::End);
+    lock_now.connect_clicked(|_| runtime::lock_session_async());
+    body.append(&lock_now);
+
+    // Show only the controls for the active background source.
+    let update_visibility = {
+        let picture_box = picture_box.clone();
+        let solid_box = solid_box.clone();
+        let gradient_box = gradient_box.clone();
+        Rc::new(move |src: Src| {
+            picture_box.set_visible(src == Src::Picture);
+            solid_box.set_visible(src == Src::Solid);
+            gradient_box.set_visible(src == Src::Gradient);
+        })
+    };
+    update_visibility(lockcfg.borrow().background);
+    {
+        let lockcfg = lockcfg.clone();
+        let persist = persist.clone();
+        let update_visibility = update_visibility.clone();
+        src_dd.connect_selected_notify(move |dd| {
+            let src = match dd.selected() {
+                1 => Src::Picture,
+                2 => Src::Solid,
+                3 => Src::Gradient,
+                _ => Src::Wallpaper,
+            };
+            lockcfg.borrow_mut().background = src;
+            update_visibility(src);
+            persist();
+        });
+    }
+
+    card.upcast()
 }
 
 // ---- Wallpaper discovery + selection --------------------------------------

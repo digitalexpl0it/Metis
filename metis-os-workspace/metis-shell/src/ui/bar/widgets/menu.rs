@@ -250,7 +250,13 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     spacer.set_vexpand(true);
     rail.append(&spacer);
 
-    rail.append(&rail_button(overlay, tip, "system-lock-screen-symbolic", "Suspend", || {
+    rail.append(&rail_button(overlay, tip, "system-lock-screen-symbolic", "Lock", || {
+        if let Err(err) = crate::compositor::lock_session() {
+            tracing::warn!(%err, "compositor lock_session failed");
+        }
+        super::super::dropdown::request_close_all();
+    }));
+    rail.append(&rail_button(overlay, tip, "weather-clear-night-symbolic", "Suspend", || {
         run_detached("systemctl", &["suspend"]);
         super::super::dropdown::request_close_all();
     }));

@@ -504,9 +504,14 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
       `org.freedesktop.ScreenSaver` / `org.freedesktop.PowerManagement.Inhibit`
       names owned by `metis-portal` (per-caller cookies forwarded over new
       `InhibitIdle`/`UninhibitIdle` IPC; crashed peers auto-released via
-      `NameOwnerChanged`). Blank timeout live-reloads via `ReloadPower`.
-      Follow-ups: also take a **logind suspend inhibitor** while inhibited (so
-      auto-suspend, not just blank, is blocked), and wire idle→session-lock.
+      `NameOwnerChanged`). Blank timeout live-reloads via `ReloadPower`. While
+      inhibited the compositor also holds a **logind `idle` inhibitor**
+      (`systemd-inhibit --what=idle --mode=block`) so auto-suspend is blocked too.
+      Follow-up: **idle→session-lock** — ~~blocked on there being a lock
+      screen~~ **done** (2026-07-02). Metis now ships a compositor-rendered lock
+      screen (Option A) with PAM auth; the **Lock when the screen blanks** toggle
+      in Settings → Appearance → Background → Lock screen wires idle-blank to
+      `lock_session()`. See Phase 7 "Session lock".
 - [ ] **ScreenCast live pump** — ~~finish Phase 3 PipeWire frame streaming~~ done
       (OBS / Discord / browser share); remaining: dmabuf zero-copy perf pass
 - [ ] **Background / PowerProfile / GameMode** — route or stub via portal (can no-op
@@ -629,8 +634,15 @@ latency and clear setup docs.
 
 - [ ] **Firewall / LAN-only defaults** — document ufw/nftables rules; warn against
       exposing RDP/RustDesk to the open internet without VPN or strong auth
-- [ ] **Session lock** — remote session behaviour when Metis is locked / idle
-      (Inhibit portal + logind integration from Phase 6)
+- [x] **Session lock** — ~~remote session behaviour when Metis is locked /
+      idle~~ **local lock done** (2026-07-02): compositor-rendered lock screen
+      (Option A) with configurable background (wallpaper reuse / picture / solid /
+      gradient) + blur + dim + clock, PAM auth (`/etc/pam.d/metis`) on a worker
+      thread with zeroize + failure throttling, triggered by `Super+L`, the shell
+      menu Lock button, the `LockSession` IPC command, and (optionally) idle-blank.
+      Client render/input and focus/capture IPC are blocked while locked. Remaining
+      follow-ups: `ext-session-lock-v1` protocol support for third-party lockers,
+      fingerprint/greeter niceties, and remote-session behaviour when locked.
 - [ ] **Multi-user / VT** — clarify behaviour when switching TTYs or multiple seats
 
 ---
