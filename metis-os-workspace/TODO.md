@@ -9,7 +9,7 @@ protocol handler is hardened but still opt-in (advertising it to Chromium crashe
 session — see below) (2026-07-02); full 3D gamut transforms and
 HDR remain. **Phase 6** (Flatpak, Steam & gaming) is now in progress — the idle
 **inhibit portal** landed (compositor idle blank + Wayland/D-Bus inhibitors,
-2026-07-03). Remaining tracks: the rest of **Phase 6** and **Phase 7** (remote
+2026-07-02). Remaining tracks: the rest of **Phase 6** and **Phase 7** (remote
 access / full desktop sharing).
 
 ---
@@ -497,7 +497,7 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
 ### B. Portal completeness for sandboxed apps
 
 - [x] **Inhibit portal** — block idle blank while a game or media app holds an
-      inhibit request (2026-07-03). Compositor now blanks the display (DRM `DPMS`
+      inhibit request (2026-07-02). Compositor now blanks the display (DRM `DPMS`
       off) after the `power.json` blank timeout and wakes on input; three
       inhibitor sources feed one count that suspends it — Wayland
       `zwp_idle_inhibit_manager_v1`, `ext_idle_notify_v1`, and the legacy D-Bus

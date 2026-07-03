@@ -5,7 +5,7 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026-07-03]
+## [2026-07-02]
 
 ### Added
 
@@ -34,11 +34,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
     compositor over the new `InhibitIdle`/`UninhibitIdle` IPC commands, and
     reclaims a crashed client's inhibitors when its D-Bus peer drops off the bus
     (`NameOwnerChanged` watch), so a dead browser can never pin the screen awake.
-
-## [2026-07-02]
-
-### Added
-
+- **Settings inputs commit cleanly** — the Power page persists on a debounced
+  background thread (no more UI stall from `powerprofilesctl`/`busctl` on every
+  keystroke), stops periodic refreshes from stomping a value mid-edit, and every
+  settings page now drops focus from an entry when you click empty space.
 - **Per-output ICC colour calibration (hardware gamma)** — a display's ICC
   profile assigned on the Settings → Display page now actually affects the
   screen. A new dependency-free parser (`color_management/vcgt.rs`) reads the

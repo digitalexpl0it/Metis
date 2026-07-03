@@ -115,7 +115,40 @@ pub fn page(header: PageHeader<'_>) -> (gtk::ScrolledWindow, gtk::Box) {
     scroller.set_kinetic_scrolling(false);
     wire_vertical_scroll(&scroller);
     scroller.add_css_class("metis-settings-scroller");
+    wire_click_to_defocus(&content);
     (scroller, content)
+}
+
+/// Drop keyboard focus (committing any editable entry) when the user clicks an
+/// empty part of the page. Clicks that land on a focusable control — entries,
+/// spin buttons, dropdowns, switches, buttons — are left alone so those widgets
+/// keep working normally.
+fn wire_click_to_defocus(content: &gtk::Box) {
+    let click = gtk::GestureClick::new();
+    // Respond to any mouse button, and run after child widgets so an interactive
+    // control that claims the press keeps its focus.
+    click.set_button(0);
+    let root_ref: gtk::Widget = content.clone().upcast();
+    click.connect_pressed(move |_gesture, _n_press, x, y| {
+        let mut node = root_ref.pick(x, y, gtk::PickFlags::DEFAULT);
+        let mut hit_focusable = false;
+        while let Some(widget) = node {
+            if widget.is_focusable() {
+                hit_focusable = true;
+                break;
+            }
+            if widget == root_ref {
+                break;
+            }
+            node = widget.parent();
+        }
+        if !hit_focusable {
+            if let Some(root) = root_ref.root() {
+                root.set_focus(None::<&gtk::Widget>);
+            }
+        }
+    });
+    content.add_controller(click);
 }
 
 /// Drive vertical scrolling from wheel events — re-exported for the sidebar scroller.
