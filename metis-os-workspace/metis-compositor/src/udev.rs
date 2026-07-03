@@ -978,6 +978,8 @@ impl MetisState {
                         surface.pending = true;
                     }
                 }
+                // A VT switch resets the CRTC gamma ramp; re-upload calibration.
+                crate::output_gamma::apply_output_gamma(self);
                 self.damaged = true;
                 self.drm_dispatch_damage();
             }

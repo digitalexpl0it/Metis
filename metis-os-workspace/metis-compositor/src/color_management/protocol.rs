@@ -33,9 +33,24 @@ pub struct ColorManagementState {
 
 /// Whether to expose `wp_color_management_v1` to clients.
 ///
-/// Chromium/Ozone engages the colour pipeline when this global is present; the
-/// handler is still experimental and can take down the DRM session. ICC profile
-/// paths in `outputs.json` are still loaded for future GPU transforms.
+/// **Opt-in** (`METIS_COLOR_MGMT=1`). The request handlers are hardened against
+/// panics (every `New<>` is initialised, all input validated) and no longer
+/// leak description records, but advertising the global to Chromium/Ozone still
+/// destabilises the session: a Chromium client (Cursor) reliably triggers heap
+/// corruption in the compositor (`malloc_consolidate(): unaligned fastbin
+/// chunk`), taking the whole session down.
+///
+/// Root cause (reproduced deterministically in a nested `--session` under gdb):
+/// the corruption is a use-after-free of a wayland `ObjectData` `Arc` inside
+/// `wayland-backend`'s `resource_dispatcher`, **not** in Metis code. It fires
+/// when Chromium destroys a `wp_image_description_v1` and immediately reuses the
+/// freed protocol id for a `wp_image_description_info_v1` in the same dispatch
+/// batch. None of our `unsafe` (the ICC memfd path) runs in the crashing trace —
+/// only safe handlers (`get_information` → parametric info events). The fix
+/// therefore lives in the wayland-rs/Smithay-fork object lifecycle (or a
+/// dependency bump), so the global stays disabled by default until that lands.
+/// Per-output ICC `vcgt` hardware gamma calibration ([`crate::output_gamma`]) is
+/// independent of this global and remains active.
 pub fn color_protocol_enabled() -> bool {
     std::env::var("METIS_COLOR_MGMT").is_ok_and(|v| {
         matches!(
@@ -48,7 +63,7 @@ pub fn color_protocol_enabled() -> bool {
 impl ColorManagementState {
     pub fn new(display: &DisplayHandle) -> Self {
         let global = if color_protocol_enabled() {
-            tracing::info!("registering wp_color_management_v1 (METIS_COLOR_MGMT=1)");
+            tracing::info!("registering wp_color_management_v1 (METIS_COLOR_MGMT=1; experimental — can destabilise Chromium/the DRM session)");
             Some(
                 display.create_global::<MetisState, wp_color_manager_v1::WpColorManagerV1, _>(
                     1,
@@ -108,6 +123,32 @@ fn init_ready_image_description(
     desc.ready(record_id as u32);
 }
 
+/// Initialise a `New` image-description object with inert user data without
+/// marking it ready.
+///
+/// wayland-rs **panics** (aborting the compositor, which is the DRM session) if
+/// a request carrying a `New<>` returns without initialising it. Creation
+/// requests that cannot be satisfied (missing ICC data, missing parametric
+/// fields, an unsupported feature) must therefore still initialise the object
+/// here; the caller then raises the protocol error the spec mandates, which
+/// terminates only the offending client.
+fn init_inert_image_description(
+    state: &mut MetisState,
+    data_init: &mut DataInit<'_, MetisState>,
+    id: New<wp_image_description_v1::WpImageDescriptionV1>,
+) {
+    let record_id = state
+        .color_mgmt
+        .alloc_description(DescriptionKind::SrgbParametric, false);
+    let desc = data_init.init(id, ImageDescriptionData { record_id });
+    // Register the inert object too so its `destroyed` handler reclaims the
+    // record; the caller raises a protocol error immediately after, but the
+    // object still lives until the client tears it down.
+    state
+        .color_mgmt
+        .register_description_object(desc.id(), record_id);
+}
+
 impl Dispatch2<wp_color_manager_v1::WpColorManagerV1, MetisState> for ColorManagerGlobalData {
     fn request(
         &self,
@@ -122,6 +163,15 @@ impl Dispatch2<wp_color_manager_v1::WpColorManagerV1, MetisState> for ColorManag
             wp_color_manager_v1::Request::Destroy => {}
             wp_color_manager_v1::Request::GetOutput { id, output } => {
                 let Some(output) = Output::from_resource(&output) else {
+                    // Unknown/dead output: still initialise the New (an
+                    // uninitialised New would panic and abort the compositor).
+                    // The inert object simply reports the default description.
+                    let _ = data_init.init(
+                        id,
+                        OutputColorManagementData {
+                            output_name: String::new(),
+                        },
+                    );
                     return;
                 };
                 let output_cm = data_init.init(
@@ -137,6 +187,14 @@ impl Dispatch2<wp_color_manager_v1::WpColorManagerV1, MetisState> for ColorManag
             }
             wp_color_manager_v1::Request::GetSurface { id, surface } => {
                 if state.color_mgmt.surface_has_color_mgmt(&surface.id()) {
+                    // Initialise the New before faulting the client (an
+                    // uninitialised New would panic and abort the compositor).
+                    let _ = data_init.init(
+                        id,
+                        SurfaceColorManagementData {
+                            surface: surface.clone(),
+                        },
+                    );
                     resource.post_error(
                         wp_color_manager_v1::Error::SurfaceExists,
                         "the surface already has a color management object".to_string(),
@@ -155,7 +213,17 @@ impl Dispatch2<wp_color_manager_v1::WpColorManagerV1, MetisState> for ColorManag
             wp_color_manager_v1::Request::CreateParametricCreator { obj } => {
                 let _creator = data_init.init(obj, ParametricCreatorData::default());
             }
-            wp_color_manager_v1::Request::CreateWindowsScrgb { .. } => {}
+            wp_color_manager_v1::Request::CreateWindowsScrgb { image_description } => {
+                // We do not advertise the windows_scrgb feature, so per spec this
+                // request must raise `unsupported_feature`. Initialise the New
+                // object first (an uninitialised New would panic and abort the
+                // compositor), then fault the client cleanly.
+                init_inert_image_description(state, data_init, image_description);
+                resource.post_error(
+                    wp_color_manager_v1::Error::UnsupportedFeature,
+                    "windows_scrgb is not supported".to_string(),
+                );
+            }
             _ => {}
         }
     }
@@ -219,9 +287,24 @@ impl Dispatch2<wp_image_description_v1::WpImageDescriptionV1, MetisState> for Im
             wp_image_description_v1::Request::Destroy => {}
             wp_image_description_v1::Request::GetInformation { information } => {
                 let Some(record) = state.color_mgmt.description(self.record_id) else {
+                    // Stale record; initialise the New so it can't panic and stop.
+                    let _ = data_init.init(
+                        information,
+                        ImageDescriptionInfoData {
+                            record_id: self.record_id,
+                        },
+                    );
                     return;
                 };
                 if !record.allow_information {
+                    // Initialise the New before faulting the client (an
+                    // uninitialised New would panic and abort the compositor).
+                    let _ = data_init.init(
+                        information,
+                        ImageDescriptionInfoData {
+                            record_id: self.record_id,
+                        },
+                    );
                     resource.post_error(
                         wp_image_description_v1::Error::NoInformation,
                         "get_information not allowed on this image description".to_string(),
@@ -238,6 +321,17 @@ impl Dispatch2<wp_image_description_v1::WpImageDescriptionV1, MetisState> for Im
             }
             _ => {}
         }
+    }
+
+    fn destroyed(
+        &self,
+        state: &mut MetisState,
+        _client: smithay::reexports::wayland_server::backend::ClientId,
+        resource: &wp_image_description_v1::WpImageDescriptionV1,
+    ) {
+        state
+            .color_mgmt
+            .unregister_description_object(&resource.id());
     }
 }
 
@@ -314,7 +408,7 @@ impl Dispatch2<wp_image_description_creator_icc_v1::WpImageDescriptionCreatorIcc
         &self,
         state: &mut MetisState,
         _client: &Client,
-        _resource: &wp_image_description_creator_icc_v1::WpImageDescriptionCreatorIccV1,
+        resource: &wp_image_description_creator_icc_v1::WpImageDescriptionCreatorIccV1,
         request: wp_image_description_creator_icc_v1::Request,
         _dhandle: &DisplayHandle,
         data_init: &mut DataInit<'_, MetisState>,
@@ -334,6 +428,14 @@ impl Dispatch2<wp_image_description_creator_icc_v1::WpImageDescriptionCreatorIcc
             wp_image_description_creator_icc_v1::Request::Create { image_description } => {
                 let icc = self.icc.lock().ok().and_then(|guard| guard.clone());
                 let Some(icc) = icc else {
+                    // `create` before a successful `set_icc_file`: spec requires
+                    // the `incomplete_set` protocol error. Initialise the New
+                    // first so it can't panic, then fault the client.
+                    init_inert_image_description(state, data_init, image_description);
+                    resource.post_error(
+                        wp_image_description_creator_icc_v1::Error::IncompleteSet,
+                        "create called before a valid set_icc_file".to_string(),
+                    );
                     return;
                 };
                 let record_id =
@@ -360,7 +462,7 @@ impl Dispatch2<
         &self,
         state: &mut MetisState,
         _client: &Client,
-        _resource: &wp_image_description_creator_params_v1::WpImageDescriptionCreatorParamsV1,
+        resource: &wp_image_description_creator_params_v1::WpImageDescriptionCreatorParamsV1,
         request: wp_image_description_creator_params_v1::Request,
         _dhandle: &DisplayHandle,
         data_init: &mut DataInit<'_, MetisState>,
@@ -388,6 +490,14 @@ impl Dispatch2<
                     .ok()
                     .and_then(|guard| *guard);
                 if tf.is_none() || primaries.is_none() {
+                    // `create` before both tf + primaries were set: spec requires
+                    // the `incomplete_set` protocol error. Initialise the New
+                    // first so it can't panic, then fault the client.
+                    init_inert_image_description(state, data_init, image_description);
+                    resource.post_error(
+                        wp_image_description_creator_params_v1::Error::IncompleteSet,
+                        "create called before set_tf_named and set_primaries_named".to_string(),
+                    );
                     return;
                 }
                 let record_id = state

@@ -121,6 +121,8 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
         changed = true;
     }
     crate::color_management::apply_color_profiles(state, cfg);
+    // Upload each output's ICC vcgt calibration to its CRTC gamma ramp.
+    crate::output_gamma::apply_output_gamma(state);
     if state.mirror_mode_active() {
         if crate::mirror::apply_mirror_scales(state, cfg) {
             changed = true;

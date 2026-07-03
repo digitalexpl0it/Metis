@@ -9,6 +9,75 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Per-output ICC colour calibration (hardware gamma)** — a display's ICC
+  profile assigned on the Settings → Display page now actually affects the
+  screen. A new dependency-free parser (`color_management/vcgt.rs`) reads the
+  profile's `vcgt` calibration curves (both table and formula encodings, fully
+  bounds-checked with unit tests), and `output_gamma.rs` resamples them to each
+  CRTC's gamma length and uploads them via DRM `set_gamma`. Calibration is
+  applied on every outputs reload (after `apply_color_profiles`), on connector
+  bring-up, after mode-sets, and re-applied on VT-switch/session resume (which
+  reset the ramp). Outputs with no profile — or a profile without a `vcgt` tag —
+  get an identity ramp, so toggling a profile off restores neutral output.
+  Full 3D gamut mapping / HDR (a GLES LUT post-pass) remains a documented
+  Stage 2 follow-up.
+- **`wp_color_management_v1` handler hardened** (still opt-in, `METIS_COLOR_MGMT=1`)
+  — every request now initialises the objects it creates, validates client
+  input, and reclaims its description records on destroy (previously the
+  `descriptions`/`description_objects` maps grew without bound as Chromium
+  churned image-description objects). The global is **not** advertised by
+  default: advertising it still destabilises the session — Chromium (Cursor)
+  engaged the colour pipeline and the compositor died with heap corruption
+  (`malloc_consolidate(): unaligned fastbin chunk`), blanking the display. The
+  per-output ICC hardware-gamma calibration above is independent of this global
+  and stays on. See below for the root-cause investigation.
+
+### Fixed
+
+- **`wp_color_management_v1` description records no longer leak** — destroying a
+  `wp_image_description_v1` now runs a `destroyed` handler that drops its record
+  from the `descriptions`/`description_objects` maps (and inert/error-path
+  descriptions register for the same cleanup). Chromium/Ozone create and destroy
+  image descriptions constantly — reusing the freed protocol ids for other
+  interfaces — so without this the maps grew without bound and pinned each
+  destroyed object's `alive` `Arc` for the life of the session.
+
+### Investigated (not yet fixed)
+
+- **`wp_color_management_v1` heap corruption root-caused to the wayland-rs object
+  lifecycle** — the crash that blanks the display when the global is advertised
+  was reproduced deterministically (~4 s) in a nested `--session` under gdb with
+  `METIS_COLOR_MGMT=1` and a Chromium client, matching the hardware signature
+  exactly (`malloc_consolidate(): unaligned fastbin chunk`). The abort backtrace
+  is a use-after-free while dropping a wayland `ObjectData` `Arc` inside
+  `wayland-backend`'s `resource_dispatcher` — **not** in Metis code. It fires
+  when Chromium destroys a `wp_image_description_v1` and immediately reuses the
+  freed protocol id for a `wp_image_description_info_v1` in the same dispatch
+  batch. None of the compositor's `unsafe` (the ICC memfd path) executes in the
+  crashing trace — only safe `get_information` → parametric-info event sends — and
+  adding the description-cleanup handler above did not change it, confirming the
+  fault is in the wayland-rs/Smithay-fork lifecycle rather than Metis. A
+  dependency bump was tried and ruled out: `wayland-backend 0.3.15` /
+  `wayland-server 0.31.13` are already the newest published, and bumping
+  `wayland-protocols` to 0.32.13 (which only adds the `windows_bt2100` v3
+  feature) reproduced the identical crash. Since the generic destroy+id-reuse
+  pattern works for every other client, this is a colour-management-path bug in
+  the sys backend, not a version lag. **Decision:** the global stays **opt-in**
+  and we wait for an upstream fix; revisiting means an ASAN build to pin the
+  exact allocation, or bisecting which generated info event triggers it.
+
+- **`wp_color_management_v1` can no longer panic and abort the compositor** —
+  several request handlers returned early on error (unresolved output, a surface
+  that already had a colour object, `create` before the required ICC/parametric
+  data was set, `get_information` on a stale/opaque description, and the
+  unadvertised `create_windows_scrgb`) while leaving the request's newly created
+  protocol object uninitialised. wayland-rs treats an uninitialised `New<>` as a
+  fatal error and panics, which under the DRM backend takes down the whole
+  session. Every such path now initialises the object first and then raises the
+  spec-mandated protocol error (`unsupported_feature`, `incomplete_set`,
+  `surface_exists`, `no_information`), faulting only the offending client. This
+  is what made the protocol safe to advertise by default.
+
 - **First-class XWayland window management** — X11 windows are now full Metis
   citizens instead of bare centered surfaces. They enter the shared window
   registry, receive a Metis server-side titlebar (drag-move, close/maximize/

@@ -19,6 +19,7 @@ mod keybinds;
 mod color_management;
 mod mirror;
 mod night_light;
+mod output_gamma;
 mod output_modes;
 mod output_prefs;
 mod output_vrr;

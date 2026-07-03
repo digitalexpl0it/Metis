@@ -3,8 +3,11 @@
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
 compositing item. **Phase 4** (settings-app expansion) is complete for the planned
 Device + System pages. **Phase 5** is in progress — mirror/clone, VRR, night-light schedule, ICC profile
-config, and `wp_color_management_v1` compositor handler landed (2026-06-28); HDR
-and GPU colour transforms remain. Next tracks: **Phase 6** (Flatpak, Steam &
+config, and the `wp_color_management_v1` compositor handler landed (2026-06-28), and
+per-output ICC `vcgt` hardware-gamma calibration now applies to the display, and the
+protocol handler is hardened but still opt-in (advertising it to Chromium crashed the
+session — see below) (2026-07-02); full 3D gamut transforms and
+HDR remain. Next tracks: **Phase 6** (Flatpak, Steam &
 gaming) and **Phase 7** (remote access / full desktop sharing).
 
 ---
@@ -410,11 +413,36 @@ Phase 3) — none of these are possible under the nested winit dev session.
       `outputs.json`; compositor sets DRM `VRR_ENABLED` via Smithay on real DRM
       sessions when the connector advertises `vrr_capable`
 - [x] **Colour management** — ICC paths saved per output in Settings → Display;
-      compositor loads profiles from `outputs.json`. `wp_color_management_v1` is
-      implemented but **disabled by default** (`METIS_COLOR_MGMT=1`) because
-      Chromium/Ozone currently crashes the DRM session when the protocol is
-      advertised. **Follow-up:** stabilise the protocol handler, then GPU/DRM
-      colour transforms and HDR
+      compositor loads profiles from `outputs.json`. Stage 1 is live: the ICC
+      `vcgt` calibration curves are parsed (`color_management/vcgt.rs`) and
+      uploaded to each CRTC's hardware gamma ramp (`output_gamma.rs`), re-applied
+      after outputs reload, connector bring-up, mode-set, and VT resume.
+      `wp_color_management_v1` is hardened (no request can leave a `New<>`
+      uninitialised / panic the session; description records are reclaimed on
+      destroy) but remains **opt-in** (`METIS_COLOR_MGMT=1`): advertising the
+      global still crashes the session with heap corruption
+      (`malloc_consolidate(): unaligned fastbin chunk`), blanking the display.
+      **Root-caused (2026-07-02):** reproduced deterministically (~4 s) in a
+      nested `--session` under gdb with a Chromium client, matching the hardware
+      signature. The abort is a use-after-free dropping a wayland `ObjectData`
+      `Arc` inside `wayland-backend`'s `resource_dispatcher` — **not** Metis code —
+      when Chromium destroys a `wp_image_description_v1` and reuses its freed id
+      for a       `wp_image_description_info_v1` in the same dispatch batch. No Metis
+      `unsafe` runs in the crash trace, and the description-cleanup fix did not
+      change it. A dependency bump was ruled out: `wayland-backend 0.3.15` /
+      `wayland-server 0.31.13` are already the newest published, and bumping
+      `wayland-protocols` to 0.32.13 (only adds the `windows_bt2100` v3 feature)
+      reproduced the identical crash. **Decision:** leave the global **opt-in**
+      and wait for an upstream wayland-rs/Smithay fix; the generic destroy+id-reuse
+      pattern works for every other client, so this is a colour-management-path
+      bug in the sys backend, not a version lag. **Follow-up when revisited:** an
+      ASAN build to pin the exact faulting allocation, or bisect which generated
+      info event triggers it; then **Stage 2** — GLES
+      offscreen 3D-LUT for full sRGB→display gamut mapping (profiles without
+      `vcgt`, per-surface content conversion) and the HDR path below.
+      _Hardware gamma calibration verified live (warm `vcgt` test profile applied
+      a visible tint, `calibrated=true`); still to confirm survival across a real
+      mode-set/VT switch._
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
       compositor toggles the warm overlay inside the schedule while the master
       night-light switch is on

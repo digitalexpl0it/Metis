@@ -3,6 +3,7 @@
 //! GPU/DRM colour transforms are follow-up work (HDR pipeline).
 
 mod protocol;
+pub(crate) mod vcgt;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -98,6 +99,16 @@ impl ColorManagementRuntime {
         }
     }
 
+    /// Raw ICC bytes assigned to `output_name`, if any. Used by the hardware
+    /// gamma path ([`crate::output_gamma`]) to extract the `vcgt` calibration
+    /// ramp. Returns `None` when the output has no profile.
+    pub fn icc_bytes_for_output(&self, output_name: &str) -> Option<Arc<[u8]>> {
+        self.profiles
+            .get(output_name)
+            .and_then(|entry| entry.as_ref())
+            .map(Arc::clone)
+    }
+
     pub fn alloc_description(&mut self, kind: DescriptionKind, allow_information: bool) -> u64 {
         let id = self.next_description_id;
         self.next_description_id = self.next_description_id.saturating_add(1);
@@ -113,6 +124,18 @@ impl ColorManagementRuntime {
 
     pub fn register_description_object(&mut self, object_id: ObjectId, record_id: u64) {
         self.description_objects.insert(object_id, record_id);
+    }
+
+    /// Drop the bookkeeping for a destroyed `wp_image_description_v1` object.
+    ///
+    /// Chromium/Ozone create and destroy image descriptions constantly (reusing
+    /// the freed protocol ids for other interfaces). Without this cleanup the
+    /// `descriptions`/`description_objects` maps grow without bound and pin the
+    /// destroyed object's `alive` `Arc` forever.
+    pub fn unregister_description_object(&mut self, object_id: &ObjectId) {
+        if let Some(record_id) = self.description_objects.remove(object_id) {
+            self.descriptions.remove(&record_id);
+        }
     }
 
     pub fn description_id_for_object(&self, object_id: &ObjectId) -> Option<u64> {
