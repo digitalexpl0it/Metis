@@ -1,5 +1,6 @@
 //! Power & battery: profile selection, idle timeouts, lid-close action.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -95,9 +96,14 @@ pub fn build() -> gtk::Widget {
 
     {
         let sections_poll = sections.clone();
+        // Populate the editable idle controls (blank/suspend/lid/dim/profile)
+        // only from the first snapshot. Later periodic refreshes update the
+        // battery + device state but must not stomp a value the user is typing.
+        let config_applied = Rc::new(std::cell::Cell::new(false));
         glib::timeout_add_local(Duration::from_millis(200), move || {
             if let Ok(snap) = rx.try_recv() {
-                render(&sections_poll, &snap);
+                let apply_config = !config_applied.replace(true);
+                render(&sections_poll, &snap, apply_config);
             }
             if let Ok(bt) = bt_rx.try_recv() {
                 render_devices(&sections_poll, &bt);
@@ -115,11 +121,26 @@ pub fn build() -> gtk::Widget {
             glib::ControlFlow::Continue
         });
 
+        // Debounce persistence: `power::save_config` shells out to
+        // `powerprofilesctl` + several `busctl` calls (and pings the compositor),
+        // so running it synchronously on every spin tick / keystroke froze the
+        // UI — which also made the entry feel un-editable. Coalesce rapid edits
+        // into one save that runs on a background thread.
+        let save_pending: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
         let persist = {
             let sections = sections.clone();
+            let save_pending = save_pending.clone();
             move || {
                 let cfg = read_config(&sections);
-                power::save_config(&cfg);
+                if let Some(id) = save_pending.borrow_mut().take() {
+                    id.remove();
+                }
+                let save_pending_inner = save_pending.clone();
+                let id = glib::timeout_add_local_once(Duration::from_millis(400), move || {
+                    save_pending_inner.borrow_mut().take();
+                    std::thread::spawn(move || power::save_config(&cfg));
+                });
+                *save_pending.borrow_mut() = Some(id);
             }
         };
 
@@ -150,7 +171,7 @@ pub fn build() -> gtk::Widget {
     scroller.upcast()
 }
 
-fn render(sections: &Sections, snap: &PowerSnapshot) {
+fn render(sections: &Sections, snap: &PowerSnapshot, apply_config: bool) {
     if snap.battery.present {
         let pct = snap.battery.percent.unwrap_or(0);
         let charge = if snap.battery.charging { "charging" } else { "discharging" };
@@ -160,6 +181,9 @@ fn render(sections: &Sections, snap: &PowerSnapshot) {
         ));
     } else {
         sections.battery_label.set_text("No battery detected (desktop / AC-only)");
+    }
+    if !apply_config {
+        return;
     }
     sections.profile.set_selected(profile_index(snap.profile));
     sections.blank.set_value(snap.config.blank_after_minutes as f64);
