@@ -37,6 +37,8 @@ pub fn save_config(cfg: &PowerConfig) {
     }
     apply_profile(cfg.profile);
     apply_idle_settings(cfg);
+    // Live-apply the blank timeout in the compositor's idle blanker.
+    crate::runtime::reload_power_async();
 }
 
 pub fn apply_profile(profile: PowerProfile) {

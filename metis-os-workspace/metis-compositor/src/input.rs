@@ -47,6 +47,9 @@ fn workspace_from_keysym(sym: u32) -> Option<u32> {
 
 impl MetisState {
     pub fn process_input_event<B: InputBackend>(&mut self, event: InputEvent<B>) {
+        // Any hardware input counts as activity: wake a blanked screen and
+        // restart the idle countdown before dispatching the event.
+        self.idle_notify_activity();
         let mut needs_redraw = false;
         match event {
             InputEvent::Keyboard { event, .. } => {

@@ -5,6 +5,36 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-03]
+
+### Added
+
+- **Idle screen blanking with inhibitors** — the compositor now powers the
+  display down after the Settings → Power **screen blank** timeout
+  (`power.json` `blank_after_minutes`, `0` = never) and wakes instantly on any
+  input. A new `idle` module tracks the last input activity, arms a self-
+  correcting calloop timer, and on timeout drives every connected DRM connector's
+  `DPMS` property off (`udev` backend; a no-op under the nested winit dev
+  session). Blanking keeps the `wl_output` globals and CRTC mode intact, so
+  clients never see a monitor "disconnect" and nothing reflows across a
+  blank/wake cycle; scan-out is suspended while blanked so a page-flip can't wedge
+  a powered-down connector. The blank timeout live-reloads — saving the Power
+  page sends the new `ReloadPower` IPC command and the compositor re-arms without
+  a restart.
+- **Idle inhibitors (keep the screen awake)** — three inhibitor sources feed a
+  single count that suspends the blanker (and wakes a blanked screen):
+  - **Wayland `zwp_idle_inhibit_manager_v1`** — native apps (video players,
+    presentations) that mark a surface as "keep awake".
+  - **`ext_idle_notify_v1`** — idle-notification clients (swayidle-style) are kept
+    in sync via Smithay's `IdleNotifierState` (activity + inhibit state).
+  - **D-Bus `org.freedesktop.ScreenSaver`** (and
+    `org.freedesktop.PowerManagement.Inhibit`) — the interfaces Chromium/Electron,
+    Firefox, SDL games, and VLC/mpv actually use. `metis-portal` now owns both
+    names, allocates per-caller cookies, forwards `Inhibit`/`UnInhibit` to the
+    compositor over the new `InhibitIdle`/`UninhibitIdle` IPC commands, and
+    reclaims a crashed client's inhibitors when its D-Bus peer drops off the bus
+    (`NameOwnerChanged` watch), so a dead browser can never pin the screen awake.
+
 ## [2026-07-02]
 
 ### Added

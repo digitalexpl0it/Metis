@@ -9,7 +9,7 @@ use smithay::{
     desktop::{PopupManager, Space, Window, layer_map_for_output},
     input::{Seat, SeatState},
     reexports::{
-        calloop::{EventLoop, Interest, LoopSignal, Mode, PostAction, generic::Generic},
+        calloop::{EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, generic::Generic},
         wayland_server::{
             Display, DisplayHandle,
             backend::{ClientData, ClientId, DisconnectReason},
@@ -19,6 +19,8 @@ use smithay::{
     xwayland::X11Surface,
     wayland::{
         compositor::{CompositorClientState, CompositorState},
+        idle_inhibit::IdleInhibitManagerState,
+        idle_notify::IdleNotifierState,
         output::OutputManagerState,
         selection::{
             data_device::DataDeviceState,
@@ -110,6 +112,9 @@ pub struct MetisState {
 
     pub space: Space<Window>,
     pub loop_signal: LoopSignal,
+    /// Event-loop handle for scheduling timers (idle blank, etc.). `'static` —
+    /// the loop outlives the state.
+    pub loop_handle: LoopHandle<'static, MetisState>,
 
     pub compositor_state: CompositorState,
     pub xdg_shell_state: XdgShellState,
@@ -267,6 +272,12 @@ pub struct MetisState {
     /// Screen capture protocol state (ext-image-copy-capture).
     pub image_capture: crate::image_capture::ImageCaptureRuntime,
     pub(crate) color_mgmt: crate::color_management::ColorManagementRuntime,
+    /// Idle detection + screen-blank (DPMS) + inhibitor bookkeeping.
+    pub(crate) idle: crate::idle::IdleManager,
+    /// `zwp_idle_inhibit_manager_v1` global (native apps keep the screen awake).
+    pub idle_inhibit_state: IdleInhibitManagerState,
+    /// `ext_idle_notify_v1` global (idle notifications for swayidle-style clients).
+    pub idle_notifier_state: IdleNotifierState<MetisState>,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -417,7 +428,7 @@ fn apply_spawned_client_env(
 }
 
 impl MetisState {
-    pub fn new(event_loop: &mut EventLoop<'_, MetisState>, display: Display<MetisState>) -> Self {
+    pub fn new(event_loop: &mut EventLoop<'static, MetisState>, display: Display<MetisState>) -> Self {
         let start_time = std::time::Instant::now();
         let dh = display.handle();
 
@@ -455,6 +466,15 @@ impl MetisState {
         let space = Space::<Window>::default();
         let socket_name = Self::init_wayland_listener(display, event_loop);
         let loop_signal = event_loop.get_signal();
+        let loop_handle = event_loop.handle();
+
+        // Idle blank + inhibit: `zwp_idle_inhibit` (native apps) and
+        // `ext_idle_notify` (swayidle-style) globals, plus the blank timer state
+        // seeded from the saved power preference.
+        let idle_inhibit_state = IdleInhibitManagerState::new::<MetisState>(&dh);
+        let idle_notifier_state = IdleNotifierState::<MetisState>::new(&dh, loop_handle.clone());
+        let power_cfg = metis_config::load_power_config();
+        let idle = crate::idle::IdleManager::new(power_cfg.blank_after_minutes);
 
         let desk_path = desk_config_path();
         let grid_layout = GridLayout::load_from_path(&desk_path);
@@ -473,6 +493,7 @@ impl MetisState {
             display_handle: dh.clone(),
             space,
             loop_signal,
+            loop_handle,
             compositor_state,
             xdg_shell_state,
             xdg_decoration_state,
@@ -557,6 +578,9 @@ impl MetisState {
             output_globals: std::collections::HashMap::new(),
             image_capture: crate::image_capture::ImageCaptureRuntime::new(&dh),
             color_mgmt: crate::color_management::ColorManagementRuntime::new(&dh),
+            idle,
+            idle_inhibit_state,
+            idle_notifier_state,
         }
     }
 
@@ -6708,6 +6732,16 @@ impl MetisState {
                 self.schedule_outputs_reload();
                 CompositorEvent::Pong
             }
+            CompositorCommand::ReloadPower => {
+                let cfg = metis_config::load_power_config();
+                self.idle.set_blank_after_minutes(cfg.blank_after_minutes);
+                self.idle_reschedule();
+                tracing::info!(
+                    blank_after_minutes = cfg.blank_after_minutes,
+                    "reloaded power config; idle blank timeout updated"
+                );
+                CompositorEvent::Pong
+            }
             CompositorCommand::SetClipboard {
                 mime,
                 text,
@@ -6720,6 +6754,24 @@ impl MetisState {
                 } else {
                     CompositorEvent::Pong
                 }
+            }
+            CompositorCommand::InhibitIdle {
+                cookie,
+                app_name,
+                reason,
+            } => {
+                let label = match (app_name, reason) {
+                    (Some(app), Some(r)) => format!("{app}: {r}"),
+                    (Some(app), None) => app,
+                    (None, Some(r)) => r,
+                    (None, None) => "external".to_string(),
+                };
+                self.idle_add_external_inhibitor(cookie, label);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::UninhibitIdle { cookie } => {
+                self.idle_remove_external_inhibitor(cookie);
+                CompositorEvent::Pong
             }
             CompositorCommand::BeginCaptureOverlay { app_id } => {
                 self.begin_capture_overlay_portal(app_id);

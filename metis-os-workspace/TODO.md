@@ -7,8 +7,10 @@ config, and the `wp_color_management_v1` compositor handler landed (2026-06-28),
 per-output ICC `vcgt` hardware-gamma calibration now applies to the display, and the
 protocol handler is hardened but still opt-in (advertising it to Chromium crashed the
 session — see below) (2026-07-02); full 3D gamut transforms and
-HDR remain. Next tracks: **Phase 6** (Flatpak, Steam &
-gaming) and **Phase 7** (remote access / full desktop sharing).
+HDR remain. **Phase 6** (Flatpak, Steam & gaming) is now in progress — the idle
+**inhibit portal** landed (compositor idle blank + Wayland/D-Bus inhibitors,
+2026-07-03). Remaining tracks: the rest of **Phase 6** and **Phase 7** (remote
+access / full desktop sharing).
 
 ---
 
@@ -494,8 +496,17 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
 
 ### B. Portal completeness for sandboxed apps
 
-- [ ] **Inhibit portal** — block idle blank / suspend / lock while a game or media
-      app holds an inhibit request (high value for gaming)
+- [x] **Inhibit portal** — block idle blank while a game or media app holds an
+      inhibit request (2026-07-03). Compositor now blanks the display (DRM `DPMS`
+      off) after the `power.json` blank timeout and wakes on input; three
+      inhibitor sources feed one count that suspends it — Wayland
+      `zwp_idle_inhibit_manager_v1`, `ext_idle_notify_v1`, and the legacy D-Bus
+      `org.freedesktop.ScreenSaver` / `org.freedesktop.PowerManagement.Inhibit`
+      names owned by `metis-portal` (per-caller cookies forwarded over new
+      `InhibitIdle`/`UninhibitIdle` IPC; crashed peers auto-released via
+      `NameOwnerChanged`). Blank timeout live-reloads via `ReloadPower`.
+      Follow-ups: also take a **logind suspend inhibitor** while inhibited (so
+      auto-suspend, not just blank, is blocked), and wire idle→session-lock.
 - [ ] **ScreenCast live pump** — ~~finish Phase 3 PipeWire frame streaming~~ done
       (OBS / Discord / browser share); remaining: dmabuf zero-copy perf pass
 - [ ] **Background / PowerProfile / GameMode** — route or stub via portal (can no-op

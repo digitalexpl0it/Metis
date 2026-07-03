@@ -61,6 +61,17 @@ pub fn reload_outputs_async() {
     std::thread::spawn(|| reload_outputs());
 }
 
+/// Re-read `power.json` and apply idle preferences (screen blank timeout) live.
+/// Best-effort; runs off the GTK main thread so a slow/absent compositor never
+/// stalls the settings UI.
+pub fn reload_power_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::ReloadPower) {
+            tracing::debug!(%err, "failed to reload power via compositor IPC");
+        }
+    });
+}
+
 /// Apply a layout mode (grid vs. scrolling) to every workspace on every output
 /// immediately, so changing the "New workspace layout" default acts as a live
 /// global on/off rather than only affecting future workspaces. Best-effort.

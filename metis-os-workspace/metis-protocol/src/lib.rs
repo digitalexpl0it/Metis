@@ -81,6 +81,9 @@ pub enum CompositorCommand {
     ReloadInput,
     /// Re-read `outputs.json` and apply per-output scale (and related prefs) live.
     ReloadOutputs,
+    /// Re-read `power.json` and apply idle preferences live (currently the screen
+    /// blank timeout that drives the compositor's idle blanker).
+    ReloadPower,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {
@@ -90,6 +93,22 @@ pub enum CompositorCommand {
         #[serde(default)]
         image_path: Option<String>,
     },
+    /// Suppress idle blanking/suspend while an external client (a D-Bus
+    /// `org.freedesktop.ScreenSaver` / portal `Inhibit` caller such as a video
+    /// player or game) holds an inhibitor. `cookie` is the opaque handle the
+    /// inhibit service handed back to the caller; the same cookie releases it via
+    /// [`CompositorCommand::UninhibitIdle`]. Wayland `zwp_idle_inhibit` surfaces
+    /// are tracked separately inside the compositor.
+    InhibitIdle {
+        cookie: u32,
+        #[serde(default)]
+        app_name: Option<String>,
+        #[serde(default)]
+        reason: Option<String>,
+    },
+    /// Release an idle inhibitor previously taken via
+    /// [`CompositorCommand::InhibitIdle`]. Unknown cookies are ignored.
+    UninhibitIdle { cookie: u32 },
     /// Elevate capture UI from a portal screenshot/screencast request.
     BeginCaptureOverlay {
         #[serde(default)]

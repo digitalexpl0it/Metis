@@ -12,6 +12,7 @@ mod events;
 mod focus;
 mod grabs;
 mod handlers;
+mod idle;
 mod image_capture;
 mod input;
 mod ipc;
@@ -162,6 +163,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     ipc::init_ipc(&mut state)?;
     state.start_xwayland(event_loop.handle());
+
+    // Arm the idle blank countdown up front so an untouched session still blanks
+    // after the configured timeout (input activity re-arms it thereafter).
+    state.idle_reschedule();
 
     // Capture the host's WAYLAND_DISPLAY before we overwrite it with our own
     // socket, so the activation-env import (below) can be undone on exit. Only

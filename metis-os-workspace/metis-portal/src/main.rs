@@ -1,6 +1,7 @@
 mod capture;
 mod compositor_ipc;
 mod pipewire;
+mod screensaver;
 mod screenshot;
 mod screencast;
 mod settings;
@@ -45,6 +46,17 @@ async fn main() -> ashpd::Result<()> {
         .screencast(MetisScreencast::new(capture, pipewire))
         .build()
         .await?;
+
+    // Own the legacy idle-inhibit D-Bus names (games/media keep the screen awake
+    // through these). Kept alive for the whole session; a startup failure is
+    // non-fatal (Wayland `zwp_idle_inhibit` still works).
+    let _screensaver = match screensaver::serve().await {
+        Ok(conn) => Some(conn),
+        Err(err) => {
+            tracing::warn!(%err, "screensaver: idle-inhibit service unavailable");
+            None
+        }
+    };
 
     pending::<()>().await;
     Ok(())

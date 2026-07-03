@@ -45,7 +45,7 @@ use smithay::{
             timer::{TimeoutAction, Timer},
             EventLoop, LoopHandle, RegistrationToken,
         },
-        drm::control::{connector, crtc, Mode},
+        drm::control::{connector, crtc, Device as DrmControlDevice, Mode},
         input::Libinput,
         rustix::fs::OFlags,
         wayland_server::backend::GlobalId,
@@ -630,6 +630,21 @@ impl MetisState {
         if self.udev.is_none() {
             return;
         }
+        // While the screen is blanked (DPMS off) do no scan-out: page-flipping to
+        // a powered-down connector can withhold the vblank and wedge the surface
+        // as permanently `queued`. Still run housekeeping so client bookkeeping
+        // keeps ticking; the wake path sets `damaged` to force a fresh repaint.
+        if self.idle.is_blanked() {
+            self.space.refresh();
+            self.cleanup_destroyed_windows();
+            self.popups.cleanup();
+            let outputs: Vec<Output> = self.space.outputs().cloned().collect();
+            for out in &outputs {
+                smithay::desktop::layer_map_for_output(out).cleanup();
+            }
+            self.defer_client_flush = true;
+            return;
+        }
         if self.damaged {
             self.damaged = false;
             if let Some(udev) = self.udev.as_mut() {
@@ -1082,6 +1097,77 @@ impl MetisState {
         let _ = output;
         true
     }
+
+    /// Power every active connector on or off via its DRM `DPMS` property. Used
+    /// by the idle blanker: `on == false` powers the panels down (backlight off)
+    /// after the idle timeout, `on == true` wakes them and requests a repaint.
+    ///
+    /// No-op under the nested winit backend (there is no DRM device); the panel
+    /// there is owned by the host compositor. User-disabled outputs are left
+    /// alone — they are already off. This deliberately does **not** touch the
+    /// `wl_output` globals or the CRTC mode, so clients never see the monitor
+    /// "disconnect" and nothing reflows across a blank/wake cycle.
+    pub(crate) fn set_outputs_dpms(&mut self, on: bool) {
+        let Some(udev) = self.udev.as_ref() else {
+            return;
+        };
+        let device = udev.drm_output_manager.device();
+        for surface in udev.surfaces.values() {
+            if surface.user_disabled {
+                continue;
+            }
+            set_connector_dpms(device, surface.connector, on, &surface.output.name());
+        }
+        // On wake, mark surfaces dirty so the heartbeat repaints once powered.
+        if on {
+            if let Some(udev) = self.udev.as_mut() {
+                for surface in udev.surfaces.values_mut() {
+                    if !surface.user_disabled {
+                        surface.pending = true;
+                    }
+                }
+            }
+            self.damaged = true;
+        }
+    }
+}
+
+/// DRM `DPMS` connector-property value for the "on" state.
+const DRM_MODE_DPMS_ON: u64 = 0;
+/// DRM `DPMS` connector-property value for the "off" (powered down) state.
+const DRM_MODE_DPMS_OFF: u64 = 3;
+
+/// Set one connector's `DPMS` property. Mirrors Smithay's internal
+/// `set_connector_state`; failures are logged and swallowed so a stubborn
+/// connector can never take the session down (the worst case is a panel that
+/// stays lit, and any input still wakes the rest of the pipeline).
+fn set_connector_dpms<D: DrmControlDevice>(
+    device: &D,
+    conn: connector::Handle,
+    on: bool,
+    name: &str,
+) {
+    let props = match device.get_properties(conn) {
+        Ok(props) => props,
+        Err(err) => {
+            tracing::warn!(output = %name, ?err, "dpms: get_properties failed");
+            return;
+        }
+    };
+    let (handles, _) = props.as_props_and_values();
+    for handle in handles {
+        let Ok(info) = device.get_property(*handle) else {
+            continue;
+        };
+        if info.name().to_str().map(|n| n == "DPMS").unwrap_or(false) {
+            let value = if on { DRM_MODE_DPMS_ON } else { DRM_MODE_DPMS_OFF };
+            if let Err(err) = device.set_property(conn, *handle, value) {
+                tracing::warn!(output = %name, on, ?err, "dpms: set_property failed");
+            }
+            return;
+        }
+    }
+    tracing::debug!(output = %name, "dpms: connector has no DPMS property");
 }
 
 impl DmabufHandler for MetisState {
