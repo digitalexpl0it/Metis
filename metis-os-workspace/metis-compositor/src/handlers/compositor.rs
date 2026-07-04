@@ -3,16 +3,22 @@ use crate::handlers::{handle_layer_commit, xdg_shell};
 use crate::state::{ClientState, MetisState};
 use smithay::{
     backend::renderer::utils::on_commit_buffer_handler,
-    reexports::wayland_server::{
-        Client,
-        protocol::{wl_buffer, wl_surface::WlSurface},
+    reexports::{
+        calloop::Interest,
+        wayland_server::{
+            Client, Resource,
+            protocol::{wl_buffer, wl_surface::WlSurface},
+        },
     },
     wayland::{
         buffer::BufferHandler,
         compositor::{
-            CompositorClientState, CompositorHandler, CompositorState, add_pre_commit_hook,
-            get_parent, is_sync_subsurface, with_states,
+            add_blocker, add_pre_commit_hook, get_parent, is_sync_subsurface, with_states,
+            BufferAssignment, CompositorClientState, CompositorHandler, CompositorState,
+            SurfaceAttributes,
         },
+        dmabuf::get_dmabuf,
+        drm_syncobj::DrmSyncobjCachedState,
         seat::WaylandFocus,
         shell::wlr_layer::{Anchor, LayerSurfaceCachedState, LayerSurfaceData},
         shm::{ShmHandler, ShmState},
@@ -64,6 +70,69 @@ impl CompositorHandler for MetisState {
                 }
             });
         });
+
+        // Buffer-readiness gate for dmabuf clients (games / Proton). When a
+        // client commits a dmabuf we must not sample it until the GPU work that
+        // produced it has finished, or we scan out a half-drawn frame (tearing /
+        // glitching). Prefer the client's explicit `linux-drm-syncobj-v1` acquire
+        // fence when present; otherwise fall back to the dmabuf's implicit sync.
+        // The commit is held via a calloop blocker until the fence signals.
+        add_pre_commit_hook::<Self, _>(surface, |state, _dh, surface| {
+            let mut acquire_point = None;
+            let maybe_dmabuf = with_states(surface, |surface_data| {
+                acquire_point.clone_from(
+                    &surface_data
+                        .cached_state
+                        .get::<DrmSyncobjCachedState>()
+                        .pending()
+                        .acquire_point,
+                );
+                surface_data
+                    .cached_state
+                    .get::<SurfaceAttributes>()
+                    .pending()
+                    .buffer
+                    .as_ref()
+                    .and_then(|assignment| match assignment {
+                        BufferAssignment::NewBuffer(buffer) => get_dmabuf(buffer).cloned().ok(),
+                        _ => None,
+                    })
+            });
+            let Some(dmabuf) = maybe_dmabuf else {
+                return;
+            };
+            // Explicit sync: wait on the client-supplied acquire timeline point.
+            if let Some(acquire_point) = acquire_point {
+                if let Ok((blocker, source)) = acquire_point.generate_blocker() {
+                    if let Some(client) = surface.client() {
+                        let res = state.loop_handle.insert_source(source, move |_, _, data| {
+                            let dh = data.display_handle.clone();
+                            data.client_compositor_state(&client)
+                                .blocker_cleared(data, &dh);
+                            Ok(())
+                        });
+                        if res.is_ok() {
+                            add_blocker(surface, blocker);
+                            return;
+                        }
+                    }
+                }
+            }
+            // Implicit sync fallback: block on the dmabuf becoming readable.
+            if let Ok((blocker, source)) = dmabuf.generate_blocker(Interest::READ) {
+                if let Some(client) = surface.client() {
+                    let res = state.loop_handle.insert_source(source, move |_, _, data| {
+                        let dh = data.display_handle.clone();
+                        data.client_compositor_state(&client)
+                            .blocker_cleared(data, &dh);
+                        Ok(())
+                    });
+                    if res.is_ok() {
+                        add_blocker(surface, blocker);
+                    }
+                }
+            }
+        });
     }
 
     fn commit(&mut self, surface: &WlSurface) {
@@ -100,8 +169,9 @@ impl CompositorHandler for MetisState {
         // Flag damage on every commit. We deliberately do NOT try to detect a
         // buffer here: `on_commit_buffer_handler` consumes the SurfaceAttributes
         // buffer assignment, so the old check was always false and starved the
-        // damage-based render loop. The 16ms heartbeat caps the resulting redraw
-        // rate, so over-flagging is harmless.
+        // damage-based render loop. `schedule_redraw` arms the scan-out surface so
+        // it repaints on its next vblank; over-flagging is harmless because an
+        // empty (no-damage) render is dropped without queuing a flip.
         self.schedule_redraw();
 
         if !is_sync_subsurface(surface) {

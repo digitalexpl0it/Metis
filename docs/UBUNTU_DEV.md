@@ -75,13 +75,16 @@ metis-portal --capture-test /tmp/test.png
 For sandboxed apps and games from Flathub:
 
 ```bash
-sudo apt install -y flatpak
+sudo apt install -y flatpak xdg-desktop-portal xdg-desktop-portal-gtk
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 ```
 
-Flatpak apps use the same portal stack as native apps. Gamepads usually need a
-Flatpak device override (`flatpak override --user --device=all <app-id>`) — see
-the [User Guide](USER_GUIDE.md#flatpak-apps-and-games) and
+Flatpak apps use the same portal stack as native apps and show up in the Metis
+launcher/dock automatically — `run-metis.sh --session` (and the installed
+`metis-session`) add the Flatpak `exports/share` dirs to `XDG_DATA_DIRS`, which
+is what makes GIO find their `.desktop` entries. Gamepads usually need a Flatpak
+device override (`flatpak override --user --device=all <app-id>`) — see the
+[User Guide](USER_GUIDE.md#flatpak-apps-and-games) and
 [`TODO.md`](../metis-os-workspace/TODO.md) Phase 6.
 
 ### Steam / Proton (gaming)
@@ -190,6 +193,17 @@ cd metis-os-workspace/metis-shell
 `METIS_DRM_DEVICE=/dev/dri/cardN` overrides primary-GPU autodetection. The DRM
 session paints its own (XCursor-themed) pointer; set `XCURSOR_THEME` /
 `XCURSOR_SIZE` to change it.
+
+**Client GPU steering (hybrid laptops).** On the DRM backend, the compositor
+resolves the PCI identity of the render node it actually draws on and forwards it
+to every spawned client as `DRI_PRIME` (Mesa GL) and `MESA_VK_DEVICE_SELECT`
+(Mesa Vulkan), so Steam/Proton/XWayland default to the *same* GPU the session
+uses rather than silently picking the wrong card. It only sets vars that are
+unset, so per-game Steam launch options (`DRI_PRIME=1 %command%`, `prime-run`,
+NVIDIA offload) still win. Set `METIS_NO_CLIENT_GPU=1` to disable forwarding, or
+`METIS_DRM_DEVICE` to change which card the whole session (and thus clients) use.
+This is inert under the nested winit backend, where the host compositor owns
+device selection.
 
 On first run, Metis writes defaults to `~/.config/metis/`:
 

@@ -188,9 +188,14 @@ reference.
   Display now supports resolution/refresh, multi-monitor arrangement, and
   duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR
   remain upcoming.
-- **Phase 6 — Flatpak, Steam & gaming:** upcoming — Steam/Proton on Metis,
-  portal gaps (Inhibit, ScreenCast pump), Flatpak discovery, Gamescope optional
-  wrapper, controller/device permissions docs.
+- **Phase 6 — Flatpak, Steam & gaming:** in progress — idle-inhibit portal and
+  the ScreenCast PipeWire pump have landed, Flatpak apps appear in the
+  launcher/dock (session adds the Flatpak `exports/share` dirs to
+  `XDG_DATA_DIRS`), the compositor forwards its render GPU to spawned clients for
+  hybrid-laptop correctness (`DRI_PRIME` / `MESA_VK_DEVICE_SELECT`), and a
+  Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs have
+  landed. Remaining: on-hardware verification of Proton/dGPU offload and
+  SteamOS-class handheld work.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and

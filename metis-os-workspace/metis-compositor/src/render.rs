@@ -251,8 +251,39 @@ impl MetisState {
             // margin), then offset to render-target-local coords.
             let id = self.windows.id_for_window(window);
             let win_scale = self.window_output_scale(window, output_scale);
-            let mut loc = (self.space.element_location(window).unwrap_or_default()
-                - window.geometry().loc)
+            let elem_loc = self.space.element_location(window).unwrap_or_default();
+            let geo_off = window.geometry().loc;
+            // One-shot diagnostic when a fullscreen window is not flush at its
+            // output origin. The persistent culprit for games like Hytale is a
+            // *client-reported* window geometry with a negative origin (a stale
+            // decoration inset) — fixed client-side by re-negotiating fullscreen,
+            // not by the compositor's placement math (see the fullscreen relayout
+            // nudge in the commit path).
+            if let Some(id) = id {
+                if self.windows.get(id).is_some_and(|r| r.fullscreen)
+                    && !self.fs_offset_warned.contains(&id)
+                {
+                    let out_origin = self
+                        .space
+                        .outputs()
+                        .filter_map(|o| self.space.output_geometry(o))
+                        .find(|g| g.contains(elem_loc))
+                        .map(|g| g.loc)
+                        .unwrap_or_default();
+                    if elem_loc != out_origin || geo_off.x != 0 || geo_off.y != 0 {
+                        self.fs_offset_warned.insert(id);
+                        tracing::info!(
+                            id,
+                            ?elem_loc,
+                            ?geo_off,
+                            ?out_origin,
+                            buffer_bbox = ?window.bbox(),
+                            "render: fullscreen window not flush at output origin"
+                        );
+                    }
+                }
+            }
+            let mut loc = (elem_loc - geo_off)
                 .to_physical_precise_round(win_scale)
                 - render_origin;
             let mut alpha = 1.0f32;

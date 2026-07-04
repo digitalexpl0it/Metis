@@ -43,6 +43,12 @@ features = [
     "desktop",
     "renderer_gl",
     "renderer_multi",
+    # Software rasterizer used as the cursor-plane fallback: when the fast
+    # memory-copy path can't be used (e.g. a scaled cursor on a fractional-scale
+    # output), pixman still renders the cursor onto the DRM hardware cursor plane
+    # instead of dropping it to the primary plane — which would otherwise block a
+    # fullscreen game buffer from being promoted to direct scanout.
+    "renderer_pixman",
     "xwayland",
 ]
 

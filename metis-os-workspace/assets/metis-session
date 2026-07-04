@@ -27,6 +27,28 @@ export XDG_SESSION_TYPE="wayland"
 # Pin the standalone DRM/KMS backend regardless of autodetection.
 export METIS_BACKEND="drm"
 
+# --- Flatpak app visibility -------------------------------------------------
+# Flatpak installs export their `.desktop` entries and icons under dedicated
+# `exports/share` trees, NOT the system applications dir. GIO (and therefore the
+# Metis launcher and running-apps dock, which enumerate via `gio::AppInfo`) only
+# see them when those trees are on XDG_DATA_DIRS. Most distros add these via
+# `/etc/profile.d/flatpak.sh`, but a login-manager session frequently does not
+# source profile scripts, so Flatpak apps silently go missing. Ensure the export
+# dirs are present here (harmless when Flatpak is absent — the dirs just will not
+# exist). XDG_DATA_DIRS is already forwarded to the activation environment below.
+metis_add_data_dir() {
+    local dir="$1"
+    case ":${XDG_DATA_DIRS:-}:" in
+        *":$dir:"*) : ;; # already present — keep the existing ordering
+        *) XDG_DATA_DIRS="${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}$dir" ;;
+    esac
+}
+# Seed the freedesktop default if the login stack left it unset.
+export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+metis_add_data_dir "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share"
+metis_add_data_dir "/var/lib/flatpak/exports/share"
+export XDG_DATA_DIRS
+
 # GTK shell: prefer the Wayland backend.
 export GDK_BACKEND="${GDK_BACKEND:-wayland}"
 # Some GPU/driver combos hang GTK's GL renderer under a fresh compositor; the

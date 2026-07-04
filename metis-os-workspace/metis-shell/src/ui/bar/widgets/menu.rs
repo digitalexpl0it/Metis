@@ -246,6 +246,18 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
         }
     }));
 
+    // Controller-friendly Steam Big Picture, shown only when Steam is installed
+    // (native on PATH or Flatpak). Absent entirely on non-gaming setups.
+    if let Some(cmd) = applications::steam_big_picture_command() {
+        rail.append(&rail_button(
+            overlay,
+            tip,
+            "input-gaming-symbolic",
+            "Big Picture",
+            move || launch_quick_action(cmd.clone()),
+        ));
+    }
+
     let spacer = gtk::Box::new(gtk::Orientation::Vertical, 0);
     spacer.set_vexpand(true);
     rail.append(&spacer);

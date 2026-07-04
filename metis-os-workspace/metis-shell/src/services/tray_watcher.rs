@@ -16,7 +16,7 @@ use super::tray_dbus_types::{
     item_unique_name, parse_item_props, resolve_tray_display_title, service_parts, MenuLayout,
     ServiceParts,
 };
-use super::tray_menu::{parse_menu_layout, TrayMenu};
+use super::tray_menu::{parse_menu_layout, MenuItem, TrayMenu};
 
 const WATCHER_PATH: &str = "/StatusNotifierWatcher";
 const WATCHER_NAME: &str = "org.kde.StatusNotifierWatcher";
@@ -415,9 +415,24 @@ async fn fetch_menu(
         .await
         .ok()?;
 
-    if let Ok(need_update) = proxy.about_to_show(0).await {
-        if need_update {
-            tracing::debug!(bus = bus_name, "tray: menu AboutToShow requested refresh");
+    match proxy.about_to_show(0).await {
+        Ok(true) => {
+            // Steam/Qt rebuild their dbusmenu tree *asynchronously* after
+            // AboutToShow. Fetching the layout immediately then returns a stale
+            // (or empty) tree, so the parsed "Exit"/"Quit" item carries a dead id
+            // — which is exactly why the first right-click's Quit does nothing and
+            // only the second attempt (after the menu has settled) works. Give the
+            // client a brief window to publish the updated layout before reading
+            // it, so the very first open already has live ids.
+            tracing::debug!(
+                bus = bus_name,
+                "tray: menu AboutToShow requested refresh — waiting for layout to settle"
+            );
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        Ok(false) => {}
+        Err(err) => {
+            tracing::debug!(%err, bus = bus_name, "tray: AboutToShow failed (non-fatal)");
         }
     }
 
@@ -439,7 +454,30 @@ async fn fetch_menu(
         entries = menu.submenus.len(),
         "tray: parsed context menu"
     );
+    // Dump the item ids/labels so a failing "Exit"/"Quit" click can be traced to
+    // the exact dbusmenu id the client exposes (some apps, notably Steam, number
+    // items unexpectedly or gate them behind AboutToShow).
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        log_menu_items(bus_name, &menu.submenus, 0);
+    }
     Some(menu)
+}
+
+fn log_menu_items(bus_name: &str, items: &[MenuItem], depth: usize) {
+    for item in items {
+        tracing::debug!(
+            bus = bus_name,
+            depth,
+            id = item.id,
+            label = %item.label,
+            enabled = item.enabled,
+            visible = item.visible,
+            "tray: menu item"
+        );
+        if !item.submenu.is_empty() {
+            log_menu_items(bus_name, &item.submenu, depth + 1);
+        }
+    }
 }
 
 async fn refresh_context_menu(
@@ -474,17 +512,31 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
                 .build()
                 .await
                 .map_err(|e| e.to_string())?;
+            // Some clients (Steam/Qt) only treat a menu as "live" after an
+            // AboutToShow on the ROOT; do that first, then AboutToShow the item's
+            // own subtree, then deliver the click. Errors here are non-fatal.
+            let _ = proxy.about_to_show(0).await;
             let _ = proxy.about_to_show(submenu_id).await;
             let ts = chrono::Utc::now().timestamp_millis();
-            proxy
-                .event(
-                    submenu_id,
-                    "clicked",
-                    &Value::from(1u32),
-                    ts as u32,
-                )
+            tracing::debug!(bus = %bus_name, submenu_id, "tray: dispatching menu click");
+            let result = proxy
+                .event(submenu_id, "clicked", &Value::from(0i32), ts as u32)
                 .await
-                .map_err(|e| e.to_string())
+                .map_err(|e| e.to_string());
+            match &result {
+                Ok(()) => tracing::info!(
+                    bus = %bus_name,
+                    submenu_id,
+                    "tray: menu click delivered"
+                ),
+                Err(err) => tracing::warn!(
+                    bus = %bus_name,
+                    submenu_id,
+                    %err,
+                    "tray: menu click failed"
+                ),
+            }
+            result
         }
         TrayCommand::Activate {
             bus_name,
@@ -503,7 +555,21 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
             if proxy.item_is_menu().await.unwrap_or(false) {
                 sni_context_menu(&proxy, x, y).await
             } else {
-                sni_activate(&proxy, x, y, true).await
+                // Some items (notably Steam) advertise a tray icon but do not
+                // implement `Activate`. Rather than erroring on every left-click,
+                // fall back to opening the context menu so the icon stays useful
+                // (Exit/Quit is reachable from there).
+                match sni_activate(&proxy, x, y, true).await {
+                    Ok(()) => Ok(()),
+                    Err(err) => {
+                        tracing::debug!(
+                            bus = %bus_name,
+                            %err,
+                            "tray: Activate unsupported — falling back to context menu"
+                        );
+                        sni_context_menu(&proxy, x, y).await
+                    }
+                }
             }
         }
         TrayCommand::SecondaryActivate {

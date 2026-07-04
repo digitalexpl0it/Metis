@@ -704,6 +704,19 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         # forced `--ozone-platform=x11`; the Ozone hint covers other Electron apps.
         export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
         export CLAUDE_USE_WAYLAND="${CLAUDE_USE_WAYLAND:-1}"
+        # Flatpak apps export their .desktop/icons under exports/share; put those
+        # on XDG_DATA_DIRS so the Metis launcher/dock (via gio::AppInfo) sees them.
+        # Mirrors assets/metis-session; harmless when Flatpak is not installed.
+        export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+        for _fp_dir in "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
+                       "/var/lib/flatpak/exports/share"; do
+            case ":$XDG_DATA_DIRS:" in
+                *":$_fp_dir:"*) : ;;
+                *) XDG_DATA_DIRS="$XDG_DATA_DIRS:$_fp_dir" ;;
+            esac
+        done
+        unset _fp_dir
+        export XDG_DATA_DIRS
         # Nested session: ignore stale IPC sockets from a prior crashed run.
         rm -f "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor.sock" \
               "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor-events.sock" 2>/dev/null || true

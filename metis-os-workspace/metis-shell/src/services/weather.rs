@@ -384,11 +384,20 @@ fn parse_angle(s: &str, deg_len: usize) -> Option<f64> {
     Some(sign * (deg + min / 60.0 + sec / 3600.0))
 }
 
+/// Identifying User-Agent. MET Norway's API *requires* a unique UA (it rejects
+/// requests without one), and it's polite for the other keyless services too.
+const USER_AGENT: &str = concat!(
+    "MetisDesktop/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://github.com/metis-os)"
+);
+
 /// Shared HTTP client with a hard timeout so a stalled host can never hang the
 /// weather thread (it just fails fast, logs, and retries on the next cycle).
 fn http_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(12))
+        .user_agent(USER_AGENT)
         .build()
         .unwrap_or_default()
 }
@@ -438,7 +447,39 @@ async fn geocode(query: &str) -> Option<Geo> {
     })
 }
 
+/// Fetch a location's weather, trying providers in order so a single upstream
+/// host being unreachable (e.g. `api.open-meteo.com` blackholed on some
+/// networks) doesn't strand the widget. Open-Meteo is primary; MET Norway
+/// (`api.met.no`, a different host/operator) is the automatic fallback.
 async fn fetch_location(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather, WeatherError> {
+    match fetch_openmeteo(geo, fahrenheit).await {
+        Ok(weather) => Ok(weather),
+        Err(primary) => {
+            tracing::warn!(
+                location = %geo.name,
+                error = %primary,
+                "weather: Open-Meteo failed — trying MET Norway fallback"
+            );
+            match fetch_metno(geo, fahrenheit).await {
+                Ok(weather) => {
+                    tracing::info!(location = %geo.name, "weather: served by MET Norway fallback");
+                    Ok(weather)
+                }
+                Err(fallback) => {
+                    tracing::warn!(
+                        location = %geo.name,
+                        error = %fallback,
+                        "weather: MET Norway fallback also failed"
+                    );
+                    // Surface the primary provider's error to the user.
+                    Err(primary)
+                }
+            }
+        }
+    }
+}
+
+async fn fetch_openmeteo(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather, WeatherError> {
     let unit = if fahrenheit { "fahrenheit" } else { "celsius" };
     let url = format!(
         "https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}\
@@ -486,6 +527,212 @@ async fn fetch_location(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather, 
         low,
         hourly,
     })
+}
+
+/// Fallback provider: MET Norway Locationforecast 2.0 (`api.met.no`).
+///
+/// Reports in Celsius on an hourly timeseries; we convert to the requested unit
+/// and translate MET's `symbol_code` strings into the same WMO codes the rest
+/// of the UI already understands. Coordinates are truncated to 4 decimals per
+/// MET's terms of service (improves their cache hit rate).
+async fn fetch_metno(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather, WeatherError> {
+    let url = format!(
+        "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={lat:.4}&lon={lon:.4}",
+        lat = geo.lat,
+        lon = geo.lon,
+    );
+    let resp: serde_json::Value = http_client().get(&url).send().await?.json().await?;
+
+    let series = resp
+        .get("properties")
+        .and_then(|p| p.get("timeseries"))
+        .and_then(|t| t.as_array())
+        .filter(|a| !a.is_empty())
+        .ok_or(WeatherError::Invalid)?;
+
+    let first = &series[0];
+    let temp_c = metno_instant_temp(first).ok_or(WeatherError::Invalid)?;
+    let temp = to_unit(temp_c, fahrenheit);
+
+    let symbol = metno_symbol(first).unwrap_or("");
+    let (code, sym_is_day) = metno_symbol_to_code(symbol);
+    let is_day = sym_is_day.unwrap_or_else(|| metno_is_daytime(first));
+
+    // High/low across the next ~24 hourly points (a reasonable "today" window;
+    // MET doesn't provide a daily min/max like Open-Meteo does).
+    let mut high = temp;
+    let mut low = temp;
+    for entry in series.iter().take(24) {
+        if let Some(t) = metno_instant_temp(entry).map(|c| to_unit(c, fahrenheit)) {
+            high = high.max(t);
+            low = low.min(t);
+        }
+    }
+
+    let hourly = metno_hourly(series, fahrenheit);
+
+    Ok(LocationWeather {
+        name: geo.name.clone(),
+        temp,
+        code,
+        is_day,
+        label: weather_label(code).to_string(),
+        high,
+        low,
+        hourly,
+    })
+}
+
+/// Instant air temperature (°C) from a MET Norway timeseries entry.
+fn metno_instant_temp(entry: &serde_json::Value) -> Option<f64> {
+    entry
+        .get("data")?
+        .get("instant")?
+        .get("details")?
+        .get("air_temperature")?
+        .as_f64()
+}
+
+/// The most specific `symbol_code` available for a MET Norway entry, preferring
+/// the shortest forecast window.
+fn metno_symbol(entry: &serde_json::Value) -> Option<&str> {
+    let data = entry.get("data")?;
+    for key in ["next_1_hours", "next_6_hours", "next_12_hours"] {
+        if let Some(sym) = data
+            .get(key)
+            .and_then(|h| h.get("summary"))
+            .and_then(|s| s.get("symbol_code"))
+            .and_then(|v| v.as_str())
+        {
+            return Some(sym);
+        }
+    }
+    None
+}
+
+/// Rough daytime heuristic for entries whose symbol has no day/night suffix
+/// (e.g. `cloudy`, `rain`): treat 06:00–19:59 local as day.
+fn metno_is_daytime(entry: &serde_json::Value) -> bool {
+    entry
+        .get("time")
+        .and_then(|v| v.as_str())
+        .and_then(local_hour)
+        .map(|h| (6..20).contains(&h))
+        .unwrap_or(true)
+}
+
+/// Build the short hourly strip from a MET Norway timeseries.
+fn metno_hourly(series: &[serde_json::Value], fahrenheit: bool) -> Vec<HourlyPoint> {
+    let mut points = Vec::new();
+    for entry in series.iter().take(HOURLY_POINTS) {
+        let Some(time) = entry.get("time").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(hour) = local_hour(time) else {
+            continue;
+        };
+        let temp = to_unit(metno_instant_temp(entry).unwrap_or(0.0), fahrenheit);
+        let symbol = metno_symbol(entry).unwrap_or("");
+        let (code, sym_is_day) = metno_symbol_to_code(symbol);
+        let is_day = sym_is_day.unwrap_or_else(|| (6..20).contains(&hour));
+        points.push(HourlyPoint {
+            label: format_hour(hour),
+            temp,
+            code,
+            is_day,
+        });
+    }
+    points
+}
+
+/// Convert an RFC 3339 UTC timestamp to the local hour-of-day (0–23).
+fn local_hour(rfc3339: &str) -> Option<u32> {
+    let dt = chrono::DateTime::parse_from_rfc3339(rfc3339).ok()?;
+    let local = dt.with_timezone(&chrono::Local);
+    Some(chrono::Timelike::hour(&local))
+}
+
+/// Celsius → the requested display unit.
+fn to_unit(celsius: f64, fahrenheit: bool) -> f64 {
+    if fahrenheit {
+        celsius * 9.0 / 5.0 + 32.0
+    } else {
+        celsius
+    }
+}
+
+/// Map a MET Norway `symbol_code` (e.g. `partlycloudy_day`, `heavyrain`,
+/// `lightsnowshowersandthunder_night`) to a WMO code the UI icon table
+/// understands, plus an explicit day/night flag when the symbol carries one.
+fn metno_symbol_to_code(symbol: &str) -> (i64, Option<bool>) {
+    let (base, is_day) = if let Some(b) = symbol.strip_suffix("_day") {
+        (b, Some(true))
+    } else if let Some(b) = symbol.strip_suffix("_night") {
+        (b, Some(false))
+    } else if let Some(b) = symbol.strip_suffix("_polartwilight") {
+        (b, Some(true))
+    } else {
+        (symbol, None)
+    };
+    let heavy = base.starts_with("heavy");
+    let light = base.starts_with("light");
+    // Order matters — check compound conditions before their substrings.
+    let code = if base.contains("thunder") {
+        95
+    } else if base.contains("snowshowers") {
+        if heavy {
+            86
+        } else {
+            85
+        }
+    } else if base.contains("snow") {
+        if heavy {
+            75
+        } else if light {
+            71
+        } else {
+            73
+        }
+    } else if base.contains("sleet") {
+        // Freezing/mixed precip — closest WMO bucket is freezing rain.
+        if heavy {
+            67
+        } else {
+            66
+        }
+    } else if base.contains("rainshowers") {
+        if heavy {
+            82
+        } else if light {
+            80
+        } else {
+            81
+        }
+    } else if base.contains("rain") {
+        if heavy {
+            65
+        } else if light {
+            61
+        } else {
+            63
+        }
+    } else if base.contains("drizzle") {
+        51
+    } else if base == "fog" {
+        45
+    } else if base == "cloudy" {
+        3
+    } else if base == "partlycloudy" {
+        2
+    } else if base == "fair" {
+        1
+    } else if base == "clearsky" {
+        0
+    } else {
+        // Unknown/empty — overcast is the safest neutral glyph.
+        3
+    };
+    (code, is_day)
 }
 
 fn parse_hourly(hourly: Option<&serde_json::Value>, current_time: &str) -> Vec<HourlyPoint> {
@@ -638,6 +885,35 @@ mod tests {
     fn tz_city_strips_zone() {
         assert_eq!(tz_city("America/New_York").as_deref(), Some("New York"));
         assert_eq!(tz_city("Etc/UTC"), None);
+    }
+
+    #[test]
+    fn maps_metno_symbols_to_wmo_codes() {
+        assert_eq!(metno_symbol_to_code("clearsky_day"), (0, Some(true)));
+        assert_eq!(metno_symbol_to_code("clearsky_night"), (0, Some(false)));
+        assert_eq!(metno_symbol_to_code("fair_day"), (1, Some(true)));
+        assert_eq!(metno_symbol_to_code("partlycloudy_night"), (2, Some(false)));
+        assert_eq!(metno_symbol_to_code("cloudy"), (3, None));
+        assert_eq!(metno_symbol_to_code("fog"), (45, None));
+        assert_eq!(metno_symbol_to_code("lightrain"), (61, None));
+        assert_eq!(metno_symbol_to_code("heavyrain"), (65, None));
+        assert_eq!(metno_symbol_to_code("rainshowers_day"), (81, Some(true)));
+        assert_eq!(metno_symbol_to_code("heavysnow"), (75, None));
+        assert_eq!(metno_symbol_to_code("snowshowers_day"), (85, Some(true)));
+        // Thunder wins over the precip type it's paired with.
+        assert_eq!(
+            metno_symbol_to_code("rainshowersandthunder_day"),
+            (95, Some(true))
+        );
+        // Unknown symbol falls back to overcast with no day/night hint.
+        assert_eq!(metno_symbol_to_code(""), (3, None));
+    }
+
+    #[test]
+    fn celsius_converts_to_fahrenheit() {
+        assert!((to_unit(0.0, true) - 32.0).abs() < 0.001);
+        assert!((to_unit(100.0, true) - 212.0).abs() < 0.001);
+        assert!((to_unit(21.0, false) - 21.0).abs() < 0.001);
     }
 
     #[test]

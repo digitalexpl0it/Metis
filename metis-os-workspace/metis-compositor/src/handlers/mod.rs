@@ -12,8 +12,9 @@ use smithay::wayland::selection::primary_selection::current_primary_selection_us
 use crate::state::MetisState;
 
 use smithay::input::dnd::{DnDGrab, DndGrabHandler, GrabType, Source};
-use smithay::input::pointer::Focus;
+use smithay::input::pointer::{Focus, PointerHandle};
 use smithay::input::{Seat, SeatHandler, SeatState};
+use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraintsHandler};
 use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{Logical, Point, Serial};
@@ -184,5 +185,55 @@ impl WaylandDndGrabHandler for MetisState {
 }
 
 impl OutputHandler for MetisState {}
+
+impl smithay::wayland::drm_syncobj::DrmSyncobjHandler for MetisState {
+    fn drm_syncobj_state(
+        &mut self,
+    ) -> Option<&mut smithay::wayland::drm_syncobj::DrmSyncobjState> {
+        self.drm_syncobj_state.as_mut()
+    }
+}
+
+impl PointerConstraintsHandler for MetisState {
+    fn new_constraint(&mut self, surface: &WlSurface, pointer: &PointerHandle<Self>) {
+        // Only arm the lock/confinement if the requesting surface already owns the
+        // pointer focus — matches the protocol's "constraint activates when the
+        // surface has pointer focus" rule and avoids stealing the mouse from other
+        // clients.
+        if pointer.current_focus().as_ref() == Some(surface) {
+            with_pointer_constraint(surface, pointer, |constraint| {
+                if let Some(constraint) = constraint {
+                    constraint.activate();
+                }
+            });
+        }
+    }
+
+    fn remove_constraint(&mut self, surface: &WlSurface, pointer: &PointerHandle<Self>) {
+        // Constraint fully gone (client dropped it): drop the system cursor back
+        // where the game was drawing its own, so the pointer doesn't reappear in a
+        // stale corner after leaving mouse-look.
+        if with_pointer_constraint(surface, pointer, |constraint| constraint.is_none()) {
+            if let Some((hint_surface, hint_location)) = self.cursor_position_hint.take() {
+                if let Some(origin) = self.surface_space_origin(&hint_surface) {
+                    pointer.set_location(origin + hint_location);
+                }
+            }
+        }
+    }
+
+    fn cursor_position_hint(
+        &mut self,
+        surface: &WlSurface,
+        pointer: &PointerHandle<Self>,
+        location: Point<f64, Logical>,
+    ) {
+        if with_pointer_constraint(surface, pointer, |constraint| {
+            constraint.is_some_and(|c| c.is_active())
+        }) {
+            self.cursor_position_hint = Some((surface.clone(), location));
+        }
+    }
+}
 
 smithay::delegate_dispatch2!(MetisState);

@@ -22,21 +22,28 @@ use smithay::{
             compositor::FrameFlags,
             exporter::gbm::{GbmFramebufferExporter, NodeFilter},
             output::{DrmOutput, DrmOutputManager, DrmOutputRenderElements},
-            DrmDevice, DrmDeviceFd, DrmEvent, DrmNode, NodeType,
+            DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, DrmSurface,
+            NodeType,
         },
         egl::{EGLContext, EGLDevice, EGLDisplay},
         input::InputEvent,
         libinput::{LibinputInputBackend, LibinputSessionInterface},
         renderer::{
             element::{
+                default_primary_scanout_output_compare,
                 memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement},
-                Kind,
+                utils::select_dmabuf_feedback,
+                Kind, RenderElementStates,
             },
             gles::GlesRenderer,
             ImportDma, ImportEgl, ImportMemWl,
         },
         session::{libseat::LibSeatSession, Event as SessionEvent, Session},
         udev::{all_gpus, primary_gpu, UdevBackend, UdevEvent},
+    },
+    desktop::utils::{
+        surface_presentation_feedback_flags_from_states, surface_primary_scanout_output,
+        update_surface_primary_scanout_output, OutputPresentationFeedback,
     },
     input::pointer::CursorImageStatus,
     output::{Mode as WlMode, Output, PhysicalProperties, Subpixel},
@@ -48,11 +55,20 @@ use smithay::{
         drm::control::{connector, crtc, Device as DrmControlDevice, Mode},
         input::Libinput,
         rustix::fs::OFlags,
+        wayland_protocols::wp::{
+            linux_dmabuf::zv1::server::zwp_linux_dmabuf_feedback_v1::TrancheFlags,
+            presentation_time::server::wp_presentation_feedback,
+        },
         wayland_server::backend::GlobalId,
     },
-    utils::{DeviceFd, Physical, Point, Scale, Transform},
+    utils::{Clock, DeviceFd, Monotonic, Physical, Point, Scale, Time, Transform},
     wayland::{
-        dmabuf::{DmabufFeedbackBuilder, DmabufGlobal, DmabufHandler, DmabufState, ImportNotifier},
+        dmabuf::{
+            DmabufFeedback, DmabufFeedbackBuilder, DmabufGlobal, DmabufHandler, DmabufState,
+            ImportNotifier,
+        },
+        drm_syncobj::{supports_syncobj_eventfd, DrmSyncobjState},
+        presentation::{PresentationState, Refresh},
     },
 };
 use xcursor::parser::Image as XCursorImage;
@@ -74,11 +90,33 @@ const SUPPORTED_FORMATS: &[Fourcc] = &[
     Fourcc::Argb8888,
 ];
 
-/// `()` user data — Stage C does not attach presentation feedback to frames.
-type MetisDrmOutput =
-    DrmOutput<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
-type MetisDrmOutputManager =
-    DrmOutputManager<GbmAllocator<DrmDeviceFd>, GbmFramebufferExporter<DrmDeviceFd>, (), DrmDeviceFd>;
+/// Each queued frame carries the presentation feedback collected at render time
+/// (`wp_presentation`). On vblank we hand this to the client with the real
+/// scan-out timestamp so games can pace their frames accurately. `None` when a
+/// frame carries no surfaces that requested feedback.
+type FrameFeedback = Option<OutputPresentationFeedback>;
+type MetisDrmOutput = DrmOutput<
+    GbmAllocator<DrmDeviceFd>,
+    GbmFramebufferExporter<DrmDeviceFd>,
+    FrameFeedback,
+    DrmDeviceFd,
+>;
+type MetisDrmOutputManager = DrmOutputManager<
+    GbmAllocator<DrmDeviceFd>,
+    GbmFramebufferExporter<DrmDeviceFd>,
+    FrameFeedback,
+    DrmDeviceFd,
+>;
+
+/// Two dmabuf feedbacks per scan-out surface: the default render feedback and a
+/// scanout-preferring feedback whose top tranche advertises the display's
+/// directly-scannable plane formats. Sent per-surface so a fullscreen game that
+/// is a primary-plane candidate is told to allocate directly-scannable buffers
+/// (zero-copy direct scanout), while everything else keeps the render feedback.
+pub struct SurfaceDmabufFeedback {
+    pub render_feedback: DmabufFeedback,
+    pub scanout_feedback: DmabufFeedback,
+}
 
 /// Per-connector scan-out surface (one CRTC → one `Output`).
 pub struct SurfaceData {
@@ -96,6 +134,9 @@ pub struct SurfaceData {
     /// Damage arrived (possibly while a frame was queued) and this surface needs
     /// to repaint at the next opportunity.
     pub pending: bool,
+    /// Render/scanout dmabuf feedback for this display, `None` if the feedback
+    /// could not be built (falls back to the default global feedback).
+    pub dmabuf_feedback: Option<SurfaceDmabufFeedback>,
 }
 
 /// All DRM/udev backend state, stored in `MetisState::udev`.
@@ -126,6 +167,12 @@ pub struct UdevState {
     pub pointer_buffers: Vec<(XCursorImage, MemoryRenderBuffer)>,
     /// Cached mirror-source frame for the current damage-dispatch batch.
     pub mirror_batch: Option<crate::mirror::MirrorBatchCache>,
+    /// `wp_presentation` global; hands out per-surface feedback objects and lets
+    /// us report real scan-out timestamps on vblank.
+    pub presentation: PresentationState,
+    /// Monotonic clock used for presentation timestamps when the DRM event does
+    /// not carry a hardware timestamp.
+    pub clock: Clock<Monotonic>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -150,6 +197,9 @@ struct OpenedDevice {
     renderer: GlesRenderer,
     manager: MetisDrmOutputManager,
     drm_token: RegistrationToken,
+    /// The DRM device fd, retained so we can set up `linux-drm-syncobj-v1`
+    /// explicit sync against the GPU that imports client buffers.
+    device_fd: DrmDeviceFd,
 }
 
 pub fn init_udev(
@@ -190,6 +240,11 @@ pub fn init_udev(
         cursor_theme: state.xcursor_config().0.to_string(),
         pointer_buffers: Vec::new(),
         mirror_batch: None,
+        presentation: {
+            let clock = Clock::<Monotonic>::new();
+            PresentationState::new::<MetisState>(&state.display_handle, clock.id() as u32)
+        },
+        clock: Clock::<Monotonic>::new(),
     };
 
     // 4. dmabuf global from the primary renderer's formats so EGL/GPU clients
@@ -265,12 +320,42 @@ pub fn init_udev(
     // host redraw request, so the redraw trigger is a no-op (damage is coalesced
     // by the 16ms tick below).
     state.set_redraw_trigger(std::rc::Rc::new(|| {}));
+
+    // Steer spawned clients (games, XWayland, Vulkan apps) onto the same GPU the
+    // compositor renders on. Resolved from the render node's PCI identity; None
+    // for exotic nodes, in which case no GPU env is exported.
+    state.client_gpu = crate::state::ClientGpuHint::from_render_node(&udev.render_node);
+    if let Some(hint) = &state.client_gpu {
+        tracing::info!(?hint, "client GPU steering env resolved");
+    }
+
     state.udev = Some(udev);
+
+    // 6b. Explicit sync (`linux-drm-syncobj-v1`). Advertise it only when the
+    //     primary GPU supports syncobj eventfd (otherwise we can't build the
+    //     acquire-fence blocker). With it, NVIDIA + DXVK/VKD3D and modern
+    //     XWayland negotiate explicit fences instead of implicit sync, which
+    //     removes the tell-tale Proton stutter/glitching on this hardware.
+    if supports_syncobj_eventfd(&opened.device_fd) {
+        state.drm_syncobj_state = Some(DrmSyncobjState::new::<MetisState>(
+            &state.display_handle,
+            opened.device_fd.clone(),
+        ));
+        tracing::info!("linux-drm-syncobj-v1 explicit sync enabled");
+    } else {
+        tracing::info!("GPU lacks syncobj eventfd; explicit sync disabled");
+    }
 
     // 7. Bring up every currently-connected output.
     state.scan_connectors();
 
-    // 8. Heartbeat: shared housekeeping + damage-gated render dispatch.
+    // 8. Housekeeping heartbeat. This is NO LONGER the frame pacer — high-refresh
+    //    rendering is vblank-driven (a damaged surface repaints on its next
+    //    vblank; see `schedule_redraw` + `on_drm_vblank`). This tick only:
+    //      * runs shared housekeeping (space refresh, client flush, cleanup), and
+    //      * kicks the *first* frame out of an idle state (nothing queued, no
+    //        vblank pending), bounding idle→first-paint latency to one tick.
+    //    Because the fast path bypasses it, this interval no longer caps FPS.
     loop_handle.insert_source(
         Timer::from_duration(Duration::from_millis(16)),
         move |_, _, state| {
@@ -412,6 +497,7 @@ fn open_primary_device(
 
     let (drm, drm_notifier) =
         DrmDevice::new(fd.clone(), true).map_err(|e| BackendError::Open(format!("drm: {e}")))?;
+    let device_fd = fd.clone();
     let gbm = GbmDevice::new(fd).map_err(|e| BackendError::Open(format!("gbm: {e}")))?;
 
     // EGL + GLES renderer on this GPU.
@@ -447,8 +533,8 @@ fn open_primary_device(
 
     // VBlank / DRM error notifier.
     let drm_token = loop_handle
-        .insert_source(drm_notifier, move |event, _meta, state| match event {
-            DrmEvent::VBlank(crtc) => state.on_drm_vblank(crtc),
+        .insert_source(drm_notifier, move |event, meta, state| match event {
+            DrmEvent::VBlank(crtc) => state.on_drm_vblank(crtc, meta.take()),
             DrmEvent::Error(err) => tracing::warn!(?err, "DRM error"),
         })
         .map_err(|e| BackendError::Open(format!("drm notifier source: {e}")))?;
@@ -458,6 +544,45 @@ fn open_primary_device(
         renderer,
         manager,
         drm_token,
+        device_fd,
+    })
+}
+
+/// Build the render + scanout dmabuf feedbacks for a display surface. The
+/// scanout tranche advertises the plane formats the display can scan out
+/// directly, limited to formats we can also render from so there is always a
+/// fallback path when a client buffer can't be promoted to a plane.
+fn build_surface_dmabuf_feedback(
+    render_node: DrmNode,
+    render_formats: FormatSet,
+    surface: &DrmSurface,
+) -> Option<SurfaceDmabufFeedback> {
+    let planes = surface.planes().clone();
+    let planes_formats = surface
+        .plane_info()
+        .formats
+        .iter()
+        .copied()
+        .chain(planes.overlay.into_iter().flat_map(|p| p.formats))
+        .collect::<FormatSet>()
+        .intersection(&render_formats)
+        .copied()
+        .collect::<FormatSet>();
+
+    let builder = DmabufFeedbackBuilder::new(render_node.dev_id(), render_formats);
+    let render_feedback = builder.clone().build().ok()?;
+    let scanout_feedback = builder
+        .add_preference_tranche(
+            surface.device_fd().dev_id().ok()?,
+            Some(TrancheFlags::Scanout),
+            planes_formats,
+        )
+        .build()
+        .ok()?;
+
+    Some(SurfaceDmabufFeedback {
+        render_feedback,
+        scanout_feedback,
     })
 }
 
@@ -590,6 +715,19 @@ impl MetisState {
             }
         };
 
+        // Per-surface dmabuf feedback (render + scanout tranche) so fullscreen
+        // clients can allocate directly-scannable buffers on this display.
+        let dmabuf_feedback = {
+            let udev = self.udev.as_ref().unwrap();
+            let render_node = udev.render_node;
+            let render_formats = udev.renderer.as_ref().map(|r| r.dmabuf_formats());
+            render_formats.and_then(|formats| {
+                drm_output.with_compositor(|compositor| {
+                    build_surface_dmabuf_feedback(render_node, formats, compositor.surface())
+                })
+            })
+        };
+
         self.udev.as_mut().unwrap().surfaces.insert(
             crtc,
             SurfaceData {
@@ -601,6 +739,7 @@ impl MetisState {
                 user_disabled: false,
                 queued: false,
                 pending: true,
+                dmabuf_feedback,
             },
         );
         tracing::info!(%name, ?position, "output connected");
@@ -682,10 +821,15 @@ impl MetisState {
         self.defer_client_flush = true;
     }
 
-    /// VBlank: the queued frame scanned out. Recycle buffers and repaint if more
-    /// damage accumulated while the frame was in flight.
-    pub(crate) fn on_drm_vblank(&mut self, crtc: crtc::Handle) {
-        let still_pending = {
+    /// VBlank: the queued frame scanned out. Recycle buffers, report the real
+    /// scan-out time to `wp_presentation` clients, and repaint if more damage
+    /// accumulated while the frame was in flight.
+    pub(crate) fn on_drm_vblank(
+        &mut self,
+        crtc: crtc::Handle,
+        metadata: Option<DrmEventMetadata>,
+    ) {
+        let (still_pending, feedback, output, now, vrr_active) = {
             let Some(udev) = self.udev.as_mut() else {
                 return;
             };
@@ -693,12 +837,115 @@ impl MetisState {
                 return;
             };
             surface.queued = false;
-            let _ = surface.drm_output.frame_submitted();
-            surface.pending
+            // `frame_submitted` recycles the just-scanned-out buffer and returns
+            // the presentation feedback we attached at queue time.
+            let feedback = match surface.drm_output.frame_submitted() {
+                Ok(user_data) => user_data.flatten(),
+                Err(err) => {
+                    tracing::warn!(?err, "frame_submitted failed");
+                    None
+                }
+            };
+            let vrr_active = surface.drm_output.with_compositor(|c| c.vrr_enabled());
+            let output = surface.output.clone();
+            let now = udev.clock.now();
+            (surface.pending, feedback, output, now, vrr_active)
         };
+
+        // Report the frame to clients that requested presentation feedback. Prefer
+        // the hardware vblank timestamp/sequence from the DRM event; fall back to
+        // the monotonic clock when the driver did not supply one.
+        if let Some(mut feedback) = feedback {
+            let tp = metadata.as_ref().and_then(|m| match m.time {
+                DrmEventTime::Monotonic(tp) if !tp.is_zero() => Some(tp),
+                _ => None,
+            });
+            let seq = metadata.as_ref().map(|m| m.sequence).unwrap_or(0);
+            let (time, flags): (Time<Monotonic>, wp_presentation_feedback::Kind) = match tp {
+                Some(tp) => (
+                    tp.into(),
+                    wp_presentation_feedback::Kind::Vsync
+                        | wp_presentation_feedback::Kind::HwClock
+                        | wp_presentation_feedback::Kind::HwCompletion,
+                ),
+                None => (now, wp_presentation_feedback::Kind::Vsync),
+            };
+            // With VRR the panel refreshes on flip, so the mode refresh is only
+            // the *fastest* (minimum interval) — report it as Variable so clients
+            // pace against the floor rather than assuming a fixed cadence.
+            let refresh = output
+                .current_mode()
+                .filter(|m| m.refresh > 0)
+                .map(|m| {
+                    let interval = Duration::from_secs_f64(1_000.0 / m.refresh as f64);
+                    if vrr_active {
+                        Refresh::variable(interval)
+                    } else {
+                        Refresh::fixed(interval)
+                    }
+                })
+                .unwrap_or(Refresh::Unknown);
+            feedback.presented(time, refresh, seq as u64, flags);
+        }
+
         if still_pending {
             self.render_surface(crtc);
         }
+    }
+
+    /// Record the primary scan-out output for every surface shown on `output`
+    /// (so frame callbacks and feedback target the right output) and collect the
+    /// `wp_presentation` feedback callbacks for this frame.
+    fn build_presentation_feedback(
+        &self,
+        output: &Output,
+        states: &RenderElementStates,
+    ) -> OutputPresentationFeedback {
+        for window in self.space.elements() {
+            window.with_surfaces(|surface, surface_data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    surface_data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+            });
+        }
+        let mut feedback = OutputPresentationFeedback::new(output);
+        for window in self.space.elements() {
+            if self.space.outputs_for_element(window).contains(output) {
+                window.take_presentation_feedback(
+                    &mut feedback,
+                    surface_primary_scanout_output,
+                    |surface, _| {
+                        surface_presentation_feedback_flags_from_states(surface, None, states)
+                    },
+                );
+            }
+        }
+        let map = smithay::desktop::layer_map_for_output(output);
+        for layer_surface in map.layers() {
+            layer_surface.with_surfaces(|surface, surface_data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    surface_data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+            });
+            layer_surface.take_presentation_feedback(
+                &mut feedback,
+                surface_primary_scanout_output,
+                |surface, _| {
+                    surface_presentation_feedback_flags_from_states(surface, None, states)
+                },
+            );
+        }
+        feedback
     }
 
     fn render_surface(&mut self, crtc: crtc::Handle) {
@@ -736,6 +983,9 @@ impl MetisState {
             s.pending = false;
         }
 
+        // Captured from a successful non-mirror render so we can build the
+        // presentation feedback after the renderer is restored.
+        let mut frame_states: Option<RenderElementStates> = None;
         let outcome: Result<bool, String> = if self.mirror_mode_active() {
             crate::mirror::render_mirror_surface(self, &mut renderer, crtc)
         } else {
@@ -776,7 +1026,11 @@ impl MetisState {
                 CLEAR_COLOR,
                 FrameFlags::DEFAULT,
             ) {
-                Ok(res) => Ok(!res.is_empty),
+                Ok(res) => {
+                    let empty = res.is_empty;
+                    frame_states = Some(res.states);
+                    Ok(!empty)
+                }
                 Err(err) => Err(format!("{err:?}")),
             }
         };
@@ -789,9 +1043,16 @@ impl MetisState {
         match outcome {
             Ok(rendered) => {
                 if rendered {
+                    // Collect presentation feedback (and record primary scan-out
+                    // outputs) from the states captured during render, then attach
+                    // it to the frame so `on_drm_vblank` can report the real
+                    // scan-out time to clients.
+                    let feedback = frame_states
+                        .as_ref()
+                        .map(|states| self.build_presentation_feedback(&output, states));
                     let udev = self.udev.as_mut().unwrap();
                     let surface = udev.surfaces.get_mut(&crtc).unwrap();
-                    match surface.drm_output.queue_frame(()) {
+                    match surface.drm_output.queue_frame(feedback) {
                         Ok(()) => surface.queued = true,
                         Err(err) => tracing::warn!(?err, "queue_frame failed"),
                     }
@@ -802,6 +1063,35 @@ impl MetisState {
                         window.send_frame(&out, now, Some(Duration::ZERO), |_, _| Some(out.clone()));
                     });
                     self.send_layer_frames(&out, now);
+
+                    // Per-surface dmabuf feedback: tell a surface that was scanned
+                    // out directly (a fullscreen game on the primary plane) to keep
+                    // allocating scannable buffers; everyone else gets the render
+                    // feedback. Requires the render states captured this frame.
+                    if let Some(states) = frame_states.as_ref() {
+                        if let Some(udev) = self.udev.as_ref() {
+                            if let Some(feedback) = udev
+                                .surfaces
+                                .get(&crtc)
+                                .and_then(|s| s.dmabuf_feedback.as_ref())
+                            {
+                                for window in self.space.elements() {
+                                    window.send_dmabuf_feedback(
+                                        &out,
+                                        surface_primary_scanout_output,
+                                        |surface, _| {
+                                            select_dmabuf_feedback(
+                                                surface,
+                                                states,
+                                                &feedback.render_feedback,
+                                                &feedback.scanout_feedback,
+                                            )
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Err(err) => tracing::warn!(%err, "render_frame failed"),

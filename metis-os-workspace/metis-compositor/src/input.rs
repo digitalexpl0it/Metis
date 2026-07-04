@@ -6,9 +6,10 @@ use smithay::{
     backend::input::KeyState,
     input::{
         keyboard::{keysyms, FilterResult},
-        pointer::{AxisFrame, ButtonEvent, MotionEvent},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent, RelativeMotionEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER, Serial},
+    wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
 
 use crate::focus::KeyboardFocusTarget;
@@ -320,7 +321,30 @@ impl MetisState {
                                 }
                                 return FilterResult::Intercept(());
                             }
-                            if mod_active(modifiers) && sym == keysyms::KEY_f {
+                            // Super+Shift+F force-toggles *true fullscreen* on the
+                            // focused window regardless of whether the client asked
+                            // for it — a reliable rescue for games that only offer
+                            // "windowed" (e.g. Hytale) or that never issue a
+                            // fullscreen request. Checked before the plain Super+F
+                            // maximize bind so Shift disambiguates.
+                            if mod_active(modifiers)
+                                && modifiers.shift
+                                && sym == keysyms::KEY_f
+                            {
+                                if let Some(id) = state.focused_window_id() {
+                                    let fs = state
+                                        .windows
+                                        .get(id)
+                                        .map(|w| w.fullscreen)
+                                        .unwrap_or(false);
+                                    state.set_fullscreen(id, !fs, None);
+                                }
+                                return FilterResult::Intercept(());
+                            }
+                            if mod_active(modifiers)
+                                && !modifiers.shift
+                                && sym == keysyms::KEY_f
+                            {
                                 if let Some(id) = state.focused_window_id() {
                                     let maxed = state
                                         .windows
@@ -341,7 +365,12 @@ impl MetisState {
                                 state.lock_session();
                                 return FilterResult::Intercept(());
                             }
-                            if sym == keysyms::KEY_Escape {
+                            // Escape hatch out of fullscreen / maximize / tiling is
+                            // bound to *Super+Esc*. Bare `Esc` MUST fall through to
+                            // the focused client: games open their in-game menu with
+                            // it, and apps use it for cancel/close — a compositor that
+                            // swallows bare Esc breaks both.
+                            if mod_active(modifiers) && sym == keysyms::KEY_Escape {
                                 if let Some(id) = state.focused_window_id() {
                                     if state
                                         .windows
@@ -373,9 +402,79 @@ impl MetisState {
             }
             InputEvent::PointerMotion { event, .. } => {
                 let pointer = self.seat.get_pointer().unwrap();
+                let current = pointer.current_location();
+                // Surface under the *current* position drives constraint checks:
+                // when the pointer is locked it never moves, so the target can't
+                // change from raw motion.
+                let under = self.pointer_target_at(current);
+
+                // Pointer constraints (games: mouse-look lock / region confinement).
+                let mut pointer_locked = false;
+                let mut pointer_confined = false;
+                let mut confine_region = None;
+                if let Some((surface, surface_loc)) = under.as_ref() {
+                    with_pointer_constraint(surface, &pointer, |constraint| {
+                        let Some(constraint) = constraint else { return };
+                        if !constraint.is_active() {
+                            return;
+                        }
+                        // A region-limited constraint only applies while the
+                        // pointer sits inside that region.
+                        if !constraint.region().is_none_or(|region| {
+                            region.contains((current - *surface_loc).to_i32_round())
+                        }) {
+                            return;
+                        }
+                        match &*constraint {
+                            PointerConstraint::Locked(_) => pointer_locked = true,
+                            PointerConstraint::Confined(confine) => {
+                                pointer_confined = true;
+                                confine_region = confine.region().cloned();
+                            }
+                        }
+                    });
+                }
+
+                // Raw, unclamped delta always goes out as relative motion — this is
+                // the signal games use for camera "look".
+                pointer.relative_motion(
+                    self,
+                    under.clone(),
+                    &RelativeMotionEvent {
+                        delta: event.delta(),
+                        delta_unaccel: event.delta_unaccel(),
+                        utime: event.time(),
+                    },
+                );
+
+                if pointer_locked {
+                    // Locked: the cursor stays put; deliver relative motion only.
+                    pointer.frame(self);
+                    self.schedule_redraw();
+                    return;
+                }
+
                 // Relative motion (libinput) can run off-screen; clamp to the
                 // union of output geometries so the cursor stays reachable.
-                let location = self.clamp_to_desktop(pointer.current_location() + event.delta());
+                let location = self.clamp_to_desktop(current + event.delta());
+
+                // Confined: reject moves that would leave the surface or its region.
+                if pointer_confined {
+                    if let Some((surface, surface_loc)) = under.as_ref() {
+                        let new_under = self.pointer_target_at(location);
+                        let same_surface =
+                            new_under.as_ref().map(|(s, _)| s) == Some(surface);
+                        let in_region = confine_region.as_ref().is_none_or(|region| {
+                            region.contains((location - *surface_loc).to_i32_round())
+                        });
+                        if !same_surface || !in_region {
+                            pointer.frame(self);
+                            self.schedule_redraw();
+                            return;
+                        }
+                    }
+                }
+
                 pointer.set_location(location);
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
@@ -386,10 +485,10 @@ impl MetisState {
                     return;
                 }
                 let serial = SERIAL_COUNTER.next_serial();
-                let under = self.pointer_target_at(location);
+                let new_under = self.pointer_target_at(location);
                 pointer.motion(
                     self,
-                    under,
+                    new_under.clone(),
                     &MotionEvent {
                         location,
                         serial,
@@ -397,6 +496,24 @@ impl MetisState {
                     },
                 );
                 pointer.frame(self);
+
+                // Arm a not-yet-active constraint once the pointer enters its
+                // region (games commonly request the lock before grabbing focus).
+                if let Some((surface, surface_loc)) = new_under {
+                    with_pointer_constraint(&surface, &pointer, |constraint| {
+                        if let Some(constraint) = constraint {
+                            if !constraint.is_active() {
+                                let point = (location - surface_loc).to_i32_round();
+                                if constraint
+                                    .region()
+                                    .is_none_or(|region| region.contains(point))
+                                {
+                                    constraint.activate();
+                                }
+                            }
+                        }
+                    });
+                }
             }
             InputEvent::PointerMotionAbsolute { event, .. } => {
                 // The absolute position is normalized to the whole winit window, so

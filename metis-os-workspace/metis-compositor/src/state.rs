@@ -13,6 +13,7 @@ use smithay::{
         wayland_server::{
             Display, DisplayHandle,
             backend::{ClientData, ClientId, DisconnectReason},
+            protocol::wl_surface::WlSurface,
         },
     },
     utils::{IsAlive, Logical, Point, Rectangle, Size},
@@ -139,9 +140,20 @@ pub struct MetisState {
     pub xdisplay: Option<u32>,
     /// Pre-fullscreen geometry for mapped X11 windows (keyed by X11 window id).
     pub(crate) x11_fullscreen_restore: std::collections::HashMap<u32, Rectangle<i32, Logical>>,
-    /// Per-output refcount for true-fullscreen clients (Wayland + X11); edge bar
-    /// hides while any client is fullscreen on that output.
-    pub(crate) output_fullscreen_depth: std::collections::HashMap<String, u32>,
+    /// Per-output set of window ids currently in true-fullscreen (Wayland + X11);
+    /// the edge bar hides while any client is fullscreen on that output. Tracking
+    /// the concrete window ids (rather than a bare refcount) keeps the bar's
+    /// visibility a pure function of live state: a window's fullscreen mark is
+    /// removed unconditionally on teardown (see `drop_window_fullscreen`), so a
+    /// missed decrement can never strand the bar hidden — which previously forced
+    /// a shell restart after a game/launcher exited while fullscreen.
+    pub(crate) output_fullscreen_windows:
+        std::collections::HashMap<String, std::collections::HashSet<u32>>,
+    /// Window ids for which we've already logged a "fullscreen not flush at
+    /// output origin" diagnostic, so the render loop emits it at most once per
+    /// fullscreen session instead of every frame. Cleared on teardown /
+    /// un-fullscreen via `drop_window_fullscreen`.
+    pub(crate) fs_offset_warned: std::collections::HashSet<u32>,
 
     pub windows: WindowRegistry,
     /// Windows the user has manually dragged out of the grid by their titlebar.
@@ -246,6 +258,9 @@ pub struct MetisState {
     /// blocking the event loop on `gsettings`/D-Bus during shell launch.
     client_cursor_theme: String,
     client_cursor_size: String,
+    /// GPU steering env for spawned clients (DRM backend only; `None` under the
+    /// nested winit session where the host compositor owns device selection).
+    pub(crate) client_gpu: Option<ClientGpuHint>,
 
     /// Monotonic clock for frame timing / cursor animation (shared by backends).
     pub clock: smithay::utils::Clock<smithay::utils::Monotonic>,
@@ -276,10 +291,24 @@ pub struct MetisState {
     pub(crate) idle: crate::idle::IdleManager,
     /// Compositor-rendered session lock (background/blur/dim + PAM auth).
     pub(crate) lock: crate::lock::LockState,
+    /// Gaming window rules (float / auto-fullscreen by app-id/class/title) so
+    /// games and launchers escape the tiling grid. Loaded once at startup.
+    pub(crate) game_rules: metis_config::GameRulesConfig,
+    /// Windows a game rule asked to fullscreen, awaiting readiness (fullscreen is
+    /// applied once the client has committed a buffer and been placed).
+    pub(crate) pending_game_fullscreen: std::collections::HashSet<u32>,
+    /// `linux-drm-syncobj-v1` explicit-sync state. `Some` only when the primary
+    /// GPU supports syncobj eventfd. Explicit sync removes implicit-sync stutter
+    /// on NVIDIA + DXVK/VKD3D and modern XWayland — critical for Proton.
+    pub(crate) drm_syncobj_state: Option<smithay::wayland::drm_syncobj::DrmSyncobjState>,
     /// `zwp_idle_inhibit_manager_v1` global (native apps keep the screen awake).
     pub idle_inhibit_state: IdleInhibitManagerState,
     /// `ext_idle_notify_v1` global (idle notifications for swayidle-style clients).
     pub idle_notifier_state: IdleNotifierState<MetisState>,
+    /// Where a locked-pointer client last drew its own cursor, so we can restore
+    /// the system cursor there when the game (Steam/Proton, Hytale, …) releases
+    /// its `zwp_locked_pointer_v1` mouse-look grab.
+    pub(crate) cursor_position_hint: Option<(WlSurface, Point<f64, Logical>)>,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -366,6 +395,66 @@ fn resolve_client_cursor_env() -> (String, String) {
     (cursor_theme, cursor_size)
 }
 
+/// GPU steering hint for spawned clients, derived from the render node the
+/// compositor actually renders on (DRM/udev backend only). Exported so that
+/// clients which do not negotiate a device over Wayland dmabuf feedback
+/// (XWayland, Proton/Vulkan, native GL apps) default to the *same* GPU the
+/// compositor uses — avoiding the "game picks the wrong card / black screen"
+/// class of bugs on hybrid systems.
+#[derive(Clone, Debug)]
+pub(crate) struct ClientGpuHint {
+    /// Mesa GL device selector, e.g. `pci-0000_03_00_0` (`DRI_PRIME`).
+    dri_prime: Option<String>,
+    /// Mesa Vulkan default-device selector, e.g. `1002:73df`
+    /// (`MESA_VK_DEVICE_SELECT`).
+    vk_select: Option<String>,
+}
+
+impl ClientGpuHint {
+    /// Resolve the PCI identity of a DRM render node from sysfs. Returns `None`
+    /// when the node has no PCI parent (e.g. virtual/vgem devices) or sysfs is
+    /// unreadable, in which case no GPU env is exported.
+    pub(crate) fn from_render_node(node: &smithay::backend::drm::DrmNode) -> Option<Self> {
+        let base = format!("/sys/dev/char/{}:{}/device", node.major(), node.minor());
+        // The PCI address is the basename of the resolved `device` symlink,
+        // e.g. `/sys/.../0000:03:00.0` -> `0000:03:00.0`.
+        let dri_prime = std::fs::canonicalize(&base).ok().and_then(|p| {
+            p.file_name()
+                .map(|f| format!("pci-{}", f.to_string_lossy().replace([':', '.'], "_")))
+        });
+        let read_hex = |name: &str| -> Option<String> {
+            std::fs::read_to_string(format!("{base}/{name}"))
+                .ok()
+                .map(|s| s.trim().trim_start_matches("0x").to_lowercase())
+                .filter(|s| !s.is_empty())
+        };
+        let vk_select = match (read_hex("vendor"), read_hex("device")) {
+            (Some(v), Some(d)) => Some(format!("{v}:{d}")),
+            _ => None,
+        };
+        if dri_prime.is_none() && vk_select.is_none() {
+            return None;
+        }
+        Some(Self { dri_prime, vk_select })
+    }
+
+    /// Apply the hint to a spawned command, only for keys the surrounding
+    /// environment has not already set (so Steam launch options such as
+    /// `DRI_PRIME=1`, `prime-run`, or NVIDIA offload vars still win per game).
+    fn apply(&self, cmd: &mut std::process::Command) {
+        if let Some(tag) = &self.dri_prime {
+            if std::env::var_os("DRI_PRIME").is_none() {
+                cmd.env("DRI_PRIME", tag);
+            }
+        }
+        if let Some(sel) = &self.vk_select {
+            if std::env::var_os("MESA_VK_DEVICE_SELECT").is_none() {
+                cmd.env("MESA_VK_DEVICE_SELECT", sel);
+            }
+        }
+    }
+}
+
 /// Environment shared by every client the compositor spawns (shell, settings,
 /// menu launches). GTK hardening avoids portal/a11y stalls in a bare session.
 fn apply_spawned_client_env(
@@ -373,6 +462,7 @@ fn apply_spawned_client_env(
     program: &str,
     socket: &std::ffi::OsStr,
     xdisplay: Option<u32>,
+    client_gpu: Option<&ClientGpuHint>,
 ) {
     cmd.env("WAYLAND_DISPLAY", socket);
     cmd.env("METIS_SESSION", "1");
@@ -427,6 +517,14 @@ fn apply_spawned_client_env(
             cmd.env("GDK_DEBUG", gdk_debug);
         }
     }
+    // Steer clients onto the compositor's render GPU (DRM backend only), unless
+    // the user opted out with METIS_NO_CLIENT_GPU. Per-game overrides still win
+    // since `apply` only sets keys that are not already present.
+    if std::env::var_os("METIS_NO_CLIENT_GPU").is_none() {
+        if let Some(hint) = client_gpu {
+            hint.apply(cmd);
+        }
+    }
 }
 
 impl MetisState {
@@ -475,6 +573,15 @@ impl MetisState {
         // seeded from the saved power preference.
         let idle_inhibit_state = IdleInhibitManagerState::new::<MetisState>(&dh);
         let idle_notifier_state = IdleNotifierState::<MetisState>::new(&dh, loop_handle.clone());
+
+        // Game input: `zwp_relative_pointer_v1` (raw mouse deltas) and
+        // `zwp_pointer_constraints_v1` (pointer lock / confinement). Together they
+        // let titles capture the mouse for camera "look" — without them apps like
+        // Hytale receive clicks but never any look motion. The globals need no
+        // stored handle; per-surface constraint data lives on the seat and the
+        // dispatch glue comes from `delegate_dispatch2!`.
+        smithay::wayland::relative_pointer::RelativePointerManagerState::new::<MetisState>(&dh);
+        smithay::wayland::pointer_constraints::PointerConstraintsState::new::<MetisState>(&dh);
         let power_cfg = metis_config::load_power_config();
         let idle = crate::idle::IdleManager::new(power_cfg.blank_after_minutes);
 
@@ -511,7 +618,8 @@ impl MetisState {
             xwm: None,
             xdisplay: None,
             x11_fullscreen_restore: std::collections::HashMap::new(),
-            output_fullscreen_depth: std::collections::HashMap::new(),
+            output_fullscreen_windows: std::collections::HashMap::new(),
+            fs_offset_warned: std::collections::HashSet::new(),
             windows: WindowRegistry::new(),
             floating: std::collections::HashSet::new(),
             auto_hide_titlebar: std::collections::HashSet::new(),
@@ -566,6 +674,7 @@ impl MetisState {
             last_layout_toggle: None,
             client_cursor_theme,
             client_cursor_size,
+            client_gpu: None,
             clock: smithay::utils::Clock::new(),
             snap_overlay_id: smithay::backend::renderer::element::Id::new(),
             snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
@@ -582,8 +691,12 @@ impl MetisState {
             color_mgmt: crate::color_management::ColorManagementRuntime::new(&dh),
             idle,
             lock: crate::lock::LockState::new(),
+            game_rules: metis_config::load_game_rules_config(),
+            pending_game_fullscreen: std::collections::HashSet::new(),
+            drm_syncobj_state: None,
             idle_inhibit_state,
             idle_notifier_state,
+            cursor_position_hint: None,
         }
     }
 
@@ -727,6 +840,22 @@ impl MetisState {
     /// the render rate at ~60fps even under a flood of client commits.
     pub fn schedule_redraw(&mut self) {
         self.damaged = true;
+        // DRM backend: arm every enabled scan-out surface for repaint *now*, at
+        // damage time, rather than waiting for the 16 ms housekeeping tick to
+        // propagate `damaged` → `pending`. That tick capped repaints at ~60 Hz;
+        // by arming `pending` here, the surface's *next vblank* repaints it
+        // immediately (see `on_drm_vblank`), so a continuously-committing client
+        // (a game) runs the render loop at the panel's full refresh — 120/144/240
+        // Hz — instead of 60. It is self-limiting when idle: a frame with no
+        // damage produces an empty result, is not queued, and no further vblank
+        // arrives, so we fall back to the tick with zero busy-looping.
+        if let Some(udev) = self.udev.as_mut() {
+            for surface in udev.surfaces.values_mut() {
+                if !surface.user_disabled {
+                    surface.pending = true;
+                }
+            }
+        }
     }
 
     pub fn flush_clients_if_pending(&mut self) {
@@ -845,6 +974,14 @@ impl MetisState {
         let Some(record) = self.windows.get(id) else {
             return false;
         };
+        // A fullscreen window covers the whole output — it never wears chrome.
+        // This also breaks a feedback loop: fullscreen grants the client
+        // server-side decorations (so CSD toolkits like libdecor drop their own
+        // frame), which would otherwise flip `uses_ssd` true and have Metis paint
+        // a titlebar over the fullscreen surface.
+        if record.fullscreen {
+            return false;
+        }
         let negotiated_mode = self.window_decoration_mode(record);
         !crate::decoration_policy::defer_ssd_paint(
             record.app_id.as_deref(),
@@ -925,10 +1062,21 @@ impl MetisState {
         };
         let was_draw = self.should_draw_metis_ssd(id);
         let negotiated_mode = self.window_decoration_mode(&record);
-        // XWayland windows have no client-side decoration protocol; Metis always
-        // owns their chrome (real CSD X11 apps are rare and draw inside anyway).
-        let mut uses_ssd = if record.is_x11 {
-            true
+        // XWayland windows have no xdg-decoration protocol, but self-decorated X11
+        // clients advertise "no server decorations" via `_MOTIF_WM_HINTS`
+        // (`is_decorated()` == true). Steam, many game launchers, and Chromium's
+        // X11 frame draw their own chrome — stacking a Metis titlebar on top gives
+        // the tell-tale double titlebar. Honor the hint; clients with no motif
+        // hints (the common case) keep Metis SSD.
+        let mut uses_ssd = if record.fullscreen {
+            // While fullscreen we grant the client server-side decorations to
+            // strip its own CSD frame. That committed ServerSide mode must NOT
+            // feed back into the client's windowed SSD decision here, or exiting
+            // fullscreen would leave a Metis titlebar on a client that draws its
+            // own chrome. Preserve the pre-fullscreen (windowed) decision.
+            record.uses_ssd
+        } else if record.is_x11 {
+            record.x11().map(|x11| !x11.is_decorated()).unwrap_or(true)
         } else {
             crate::decoration_policy::resolve_uses_ssd(
                 record.app_id.as_deref(),
@@ -936,7 +1084,10 @@ impl MetisState {
                 record.decoration_bound,
             )
         };
-        if !uses_ssd && self.chromium_window_needs_ssd(id, record.app_id.as_deref()) {
+        if !record.fullscreen
+            && !uses_ssd
+            && self.chromium_window_needs_ssd(id, record.app_id.as_deref())
+        {
             uses_ssd = true;
         }
         let mode_changed = uses_ssd != record.uses_ssd;
@@ -962,8 +1113,8 @@ impl MetisState {
             .as_ref()
             .is_some_and(|id| !id.is_empty());
         if let Some(toplevel) = record.wl_toplevel() {
-            if app_id_known || record.decoration_negotiated || !uses_ssd {
-                self.push_preferred_decoration_mode(toplevel, uses_ssd);
+            if app_id_known || record.decoration_negotiated || !uses_ssd || record.fullscreen {
+                self.push_preferred_decoration_mode(toplevel, uses_ssd, record.fullscreen);
             }
         }
         let now_draw = self.should_draw_metis_ssd(id);
@@ -977,8 +1128,17 @@ impl MetisState {
         &self,
         toplevel: &smithay::wayland::shell::xdg::ToplevelSurface,
         uses_ssd: bool,
+        fullscreen: bool,
     ) {
-        let mode = crate::decoration_policy::grant_decoration_mode(uses_ssd);
+        // A fullscreen surface has no chrome: force server-side so CSD toolkits
+        // (libdecor / GLFW games such as Hytale) drop their own titlebar+shadow
+        // frame — the frame is what reports the negative window-geometry inset
+        // that shifts the surface off the output origin on the first fullscreen.
+        let mode = if fullscreen {
+            crate::decoration_policy::grant_decoration_mode(true)
+        } else {
+            crate::decoration_policy::grant_decoration_mode(uses_ssd)
+        };
         let mut changed = false;
         toplevel.with_pending_state(|state| {
             if state.decoration_mode != Some(mode) {
@@ -1378,7 +1538,13 @@ impl MetisState {
             std::process::Command::new(program)
         };
 
-        apply_spawned_client_env(&mut cmd, program, &self.socket_name, self.xdisplay);
+        apply_spawned_client_env(
+            &mut cmd,
+            program,
+            &self.socket_name,
+            self.xdisplay,
+            self.client_gpu.as_ref(),
+        );
         cmd.env("XCURSOR_THEME", &self.client_cursor_theme);
         cmd.env("XCURSOR_SIZE", &self.client_cursor_size);
 
@@ -3086,10 +3252,66 @@ impl MetisState {
         self.last_focused_window = Some(id);
     }
 
+    /// True for a *running game* — as opposed to a launcher/store (Steam, Lutris,
+    /// Heroic). Covers Proton/Wine game windows (`steam_app_*`, `*.exe`), the
+    /// Hytale game client, and any true-fullscreen window (native games).
+    ///
+    /// Used for focus-stealing prevention: while a game holds focus, a background
+    /// app (notably Steam, which fires `_NET_ACTIVE_WINDOW` at itself for tray
+    /// updates/notifications) must not yank the game to the background — that both
+    /// pops the launcher over the game and drops the game's keyboard focus + pointer
+    /// lock, so Esc / movement keys stop reaching it.
+    pub(crate) fn window_is_running_game(&self, id: u32) -> bool {
+        let Some(record) = self.windows.get(id) else {
+            return false;
+        };
+        if record.fullscreen {
+            return true;
+        }
+        let app = record
+            .app_id
+            .as_deref()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        app.starts_with("steam_app_")
+            || app.contains(".exe")
+            || app.contains("proton")
+            || app == "hytaleclient"
+    }
+
     /// Window the user last brought forward (taskbar, Alt+Tab path, etc.), falling
     /// back to live keyboard focus. Taskbar picks beat transient bar-layer focus.
     fn preferred_stacking_window(&self) -> Option<u32> {
         self.last_focused_window.or(self.focused_window_id())
+    }
+
+    /// Space-relative origin (top-left) of the window that owns `surface`, if it
+    /// is currently mapped. Used to translate a locked-pointer cursor hint (which
+    /// is surface-local) back into global desktop coordinates.
+    pub(crate) fn surface_space_origin(
+        &self,
+        surface: &WlSurface,
+    ) -> Option<Point<f64, Logical>> {
+        use smithay::wayland::seat::WaylandFocus;
+        let window = self.space.elements().find(|window| {
+            window.wl_surface().as_deref() == Some(surface)
+        })?;
+        self.space
+            .element_location(window)
+            .map(|loc| loc.to_f64())
+    }
+
+    /// True while at least one override-redirect X11 surface (menu, tooltip,
+    /// combo dropdown) is mapped. These are intentionally kept out of the window
+    /// registry, so callers that reorder registered windows must check this to
+    /// avoid restacking a toplevel above its own transient popup.
+    pub(crate) fn has_mapped_override_redirect_popup(&self) -> bool {
+        self.space.elements().any(|window| {
+            window
+                .x11_surface()
+                .map(|surface| surface.is_override_redirect())
+                .unwrap_or(false)
+        })
     }
 
     fn raise_stacking_window(&mut self, id: u32, activate: bool) {
@@ -3204,6 +3426,13 @@ impl MetisState {
                     state.states.set(xdg_toplevel::State::Fullscreen);
                     state.size = Some(geo.size);
                     state.fullscreen_output = wl_output;
+                    // Fullscreen has no chrome — grant server-side so a CSD
+                    // toolkit (libdecor / GLFW games) drops its own frame on the
+                    // very first fullscreen configure instead of leaving a stale
+                    // titlebar+shadow that reports a negative window-geometry
+                    // inset and shifts the surface off the output origin.
+                    state.decoration_mode =
+                        Some(crate::decoration_policy::grant_decoration_mode(true));
                 });
             }
             self.space
@@ -3211,20 +3440,25 @@ impl MetisState {
             self.windows.set_fullscreen(id, true);
             self.windows.set_maximized(id, false);
             self.clear_auto_hide(id);
-            self.note_output_fullscreen(&output, true);
+            self.note_output_fullscreen(&output, id, true);
             self.focus_window_id(id);
         } else {
             if let Some(toplevel) = record.wl_toplevel() {
                 toplevel.with_pending_state(|state| {
                     state.states.unset(xdg_toplevel::State::Fullscreen);
                     state.fullscreen_output = None;
+                    // Restore the windowed decoration mode negotiated for this
+                    // client so a CSD app gets its own frame back on exit.
+                    state.decoration_mode = Some(
+                        crate::decoration_policy::grant_decoration_mode(record.uses_ssd),
+                    );
                 });
             }
             self.windows.set_fullscreen(id, false);
             let was_maximized = self.windows.take_pre_fullscreen_maximized(id);
-            if let Some(output) = output_for_event {
-                self.note_output_fullscreen(&output, false);
-            }
+            // Clear from every output's set: the window may have been fullscreen
+            // on a different output than `output_for_event` resolves to now.
+            self.drop_window_fullscreen(id);
             if was_maximized {
                 let _ = self.windows.take_restore_rect(id);
                 self.set_maximized(id, true);
@@ -3255,38 +3489,70 @@ impl MetisState {
         self.schedule_redraw();
     }
 
+    /// Record (or clear) a window's true-fullscreen state on an output and drive
+    /// the edge bar's visibility. The bar hides while the output's fullscreen set
+    /// is non-empty and reappears the instant it empties. Keyed by window id so
+    /// entering twice is idempotent and a stray leave for an unknown id is a
+    /// no-op — the counter model this replaced could drift out of sync and leave
+    /// the bar hidden forever after a game exited while fullscreen.
     pub(crate) fn note_output_fullscreen(
         &mut self,
         output: &smithay::output::Output,
+        id: u32,
         entering: bool,
     ) {
         use metis_protocol::CompositorEvent;
 
         let name = output.name();
         if entering {
-            let depth = self
-                .output_fullscreen_depth
+            let set = self
+                .output_fullscreen_windows
                 .entry(name.clone())
-                .or_insert(0);
-            *depth += 1;
-            if *depth == 1 {
+                .or_default();
+            let was_empty = set.is_empty();
+            set.insert(id);
+            if was_empty {
                 self.event_bus.emit(&CompositorEvent::EdgeBarVisible {
                     output: name,
                     visible: false,
                 });
             }
         } else {
-            let Some(depth) = self.output_fullscreen_depth.get_mut(&name) else {
+            let Some(set) = self.output_fullscreen_windows.get_mut(&name) else {
                 return;
             };
-            *depth = depth.saturating_sub(1);
-            if *depth == 0 {
-                self.output_fullscreen_depth.remove(&name);
+            if set.remove(&id) && set.is_empty() {
+                self.output_fullscreen_windows.remove(&name);
                 self.event_bus.emit(&CompositorEvent::EdgeBarVisible {
                     output: name,
                     visible: true,
                 });
             }
+        }
+    }
+
+    /// Unconditionally drop a window from every output's fullscreen set (used on
+    /// teardown). Unlike `note_output_fullscreen(.., false)`, this does not need
+    /// the caller to know which output the window was fullscreen on, nor does it
+    /// depend on the window's registry `fullscreen` flag still being set — so a
+    /// window that is destroyed or withdrawn while fullscreen always releases its
+    /// hold on the bar. Re-shows the edge bar for any output whose set empties.
+    pub(crate) fn drop_window_fullscreen(&mut self, id: u32) {
+        use metis_protocol::CompositorEvent;
+
+        self.fs_offset_warned.remove(&id);
+        let mut emptied = Vec::new();
+        for (name, set) in self.output_fullscreen_windows.iter_mut() {
+            if set.remove(&id) && set.is_empty() {
+                emptied.push(name.clone());
+            }
+        }
+        for name in emptied {
+            self.output_fullscreen_windows.remove(&name);
+            self.event_bus.emit(&CompositorEvent::EdgeBarVisible {
+                output: name,
+                visible: true,
+            });
         }
     }
 
@@ -3859,6 +4125,17 @@ impl MetisState {
     /// instead of off the screen edge.
     pub fn reclamp_auto_hide(&mut self, id: u32) {
         if !self.auto_hide_titlebar.contains(&id) {
+            return;
+        }
+        // A fullscreen window is mapped flush at its output origin by the
+        // fullscreen path and its geometry is owned there — never by the
+        // auto-hide (maximized / edge-snapped) footprint. Without this guard a
+        // window that entered fullscreen while maximized (e.g. a game maximized
+        // at launch, then F11'd) would be re-anchored to the gap-inset maximized
+        // footprint on its next commit, shifting the fullscreen surface off the
+        // origin and exposing the wallpaper along the top/left edge. Mirrors the
+        // `!fullscreen` guard in `reclamp_maximized_geometry`.
+        if self.windows.get(id).is_some_and(|r| r.fullscreen) {
             return;
         }
         // CSD overlay windows only use auto_hide for hover chrome — not geometry.
@@ -4623,6 +4900,31 @@ impl MetisState {
             self.windows.set_target_rect(id, rect);
             self.windows.set_placement_chosen(id, true);
             tracing::info!(id, ?rect, "place_new_window: centered default-float app");
+            return true;
+        }
+
+        // Gaming rules: games and launchers must escape the tiling grid (a tile
+        // clamps their size and fights the reflow engine). Float — and, when the
+        // rule opts in, queue a true-fullscreen once the client is ready — for
+        // matching windows on ANY layout (Grid included). Saved geometry is
+        // restored when known so a game reopens where the user last left it.
+        let rule = self.game_rules.evaluate(app_id, title.as_deref());
+        if rule.float || rule.fullscreen {
+            self.floating.insert(id);
+            let rect = app_id
+                .and_then(|a| self.window_state.get(a))
+                .map(|saved| saved.to_rect())
+                .filter(|r| r.width >= MIN_SAVED_WINDOW_PX && r.height >= MIN_SAVED_WINDOW_PX)
+                .map(|saved| self.restore_body_for_window(id, saved))
+                .unwrap_or_else(|| {
+                    self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H)
+                });
+            self.windows.set_target_rect(id, rect);
+            self.windows.set_placement_chosen(id, true);
+            if rule.fullscreen {
+                self.pending_game_fullscreen.insert(id);
+            }
+            tracing::info!(id, ?rect, fullscreen = rule.fullscreen, "place_new_window: game rule float");
             return true;
         }
 
@@ -5682,6 +5984,16 @@ impl MetisState {
         }
 
         if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return;
+        }
+
+        // A transient X11 popup (menu / tooltip / combo dropdown) is mapped above
+        // its parent toplevel. Auto-raising the registered window under the
+        // pointer would restack it *above* its own override-redirect popup,
+        // occluding the menu — the owning app (e.g. Steam) then treats it as
+        // dismissed and closes it on the very next mouse move. Leave stacking
+        // untouched while any OR popup is up.
+        if self.has_mapped_override_redirect_popup() {
             return;
         }
 
@@ -6881,8 +7193,10 @@ impl MetisState {
 
         if window.is_override_redirect() {
             // Menus / tooltips / drag surfaces: map at their requested location and
-            // leave them undecorated and untracked.
-            let loc = window.geometry().loc;
+            // leave them undecorated and untracked. `geometry()`/`bbox()` are
+            // size-only for X11 (loc is always the origin), so use the configured
+            // rectangle's root-relative location instead.
+            let loc = window.last_configure().loc;
             let elem = Window::new_x11_window(window);
             self.space.map_element(elem, loc, true);
             self.schedule_redraw();
@@ -7090,12 +7404,7 @@ impl MetisState {
                 continue;
             }
             tracing::info!(id, "x11: withdraw confirmed — dropping dock entry");
-            if self.windows.get(id).is_some_and(|r| r.fullscreen) {
-                if let Some(output) = self.output_for_window(id).or_else(|| self.primary_output())
-                {
-                    self.note_output_fullscreen(&output, false);
-                }
-            }
+            self.drop_window_fullscreen(id);
             self.windows.set_ready(id, false);
             self.windows.set_fullscreen(id, false);
             self.windows.set_maximized(id, false);
@@ -7125,11 +7434,7 @@ impl MetisState {
         tracing::info!(id, x11_window = window.window_id(), "x11: window destroyed");
         self.x11_pending_withdraw.remove(&id);
         let ready = self.windows.is_ready(id);
-        if self.windows.get(id).is_some_and(|r| r.fullscreen) {
-            if let Some(output) = self.output_for_window(id).or_else(|| self.primary_output()) {
-                self.note_output_fullscreen(&output, false);
-            }
-        }
+        self.drop_window_fullscreen(id);
         self.save_window_geometry(id);
         if let Some(record) = self.windows.unregister(id) {
             self.space.unmap_elem(&record.window);
@@ -7262,6 +7567,12 @@ impl MetisState {
             self.event_bus
                 .emit(&CompositorEvent::WindowFocused { id });
         }
+
+        // A game rule asked for fullscreen: apply it now that the window is
+        // mapped, placed, and focused. Consumed so it fires exactly once.
+        if self.pending_game_fullscreen.remove(&id) {
+            self.set_fullscreen(id, true, None);
+        }
     }
 
     pub(crate) fn set_app_tile_display_name(&mut self, window_id: u32, title: &str, app_id: Option<&str>) {
@@ -7381,17 +7692,14 @@ impl MetisState {
     pub fn on_window_destroyed(&mut self, id: u32) {
         use metis_protocol::CompositorEvent;
 
-        if self.windows.get(id).is_some_and(|r| r.fullscreen) {
-            if let Some(output) = self.output_for_window(id).or_else(|| self.primary_output()) {
-                self.note_output_fullscreen(&output, false);
-            }
-        }
+        self.drop_window_fullscreen(id);
         if self.last_focused_window == Some(id) {
             self.last_focused_window = None;
         }
         self.unregister_capture_overlay(id);
         self.save_window_geometry(id);
         self.floating.remove(&id);
+        self.pending_game_fullscreen.remove(&id);
         self.clear_auto_hide(id);
         let desk_key = self.desk_key_for_window(id);
         self.remove_app_tile_everywhere(id);

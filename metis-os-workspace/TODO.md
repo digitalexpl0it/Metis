@@ -9,8 +9,14 @@ protocol handler is hardened but still opt-in (advertising it to Chromium crashe
 session — see below) (2026-07-02); full 3D gamut transforms and
 HDR remain. **Phase 6** (Flatpak, Steam & gaming) is now in progress — the idle
 **inhibit portal** landed (compositor idle blank + Wayland/D-Bus inhibitors,
-2026-07-02). Remaining tracks: the rest of **Phase 6** and **Phase 7** (remote
-access / full desktop sharing).
+2026-07-02), Flatpak apps appear in the launcher/dock, the compositor forwards
+its render GPU to spawned clients for hybrid-laptop correctness, and a
+Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs shipped
+(2026-07-03). Remaining: on-hardware verification (Proton/dGPU/handheld),
+**Phase 7** (remote access / full desktop sharing), **Phase 8**
+(internationalization — Metis is English-US only today; not yet started), and
+**Phase 9** (first-run setup wizard / onboarding — the `onboarding_complete` flag
+exists but no wizard UI reads it yet).
 
 ---
 
@@ -485,14 +491,27 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
 
 ### A. Flatpak session integration
 
-- [ ] **Host prerequisites** — document `flatpak`, `xdg-desktop-portal`,
-      `xdg-desktop-portal-gtk`, user in `input` / `video` / `render` groups
-- [ ] **Session env** — verify `XDG_DATA_DIRS` includes Flatpak exports
-      (`~/.local/share/flatpak/exports`, `/var/lib/flatpak/exports`) through
-      `metis-session` activation env
-- [ ] **App launcher** — discover Flatpak `.desktop` entries alongside native apps
-- [ ] **Window identity** — optional `StartupWMClass` / `X-Flatpak` hints for Steam
-      and common game clients
+- [x] **Host prerequisites** — documented in `docs/USER_GUIDE.md` (Flatpak apps
+      and games) and `docs/UBUNTU_DEV.md`: `flatpak` + `xdg-desktop-portal` +
+      `xdg-desktop-portal-gtk`, Flathub remote, `input`/`video`/`render` group
+      membership, and how Metis surfaces Flatpak apps in the launcher via
+      `XDG_DATA_DIRS` (2026-07-03).
+- [x] **Session env** — `metis-session` (and `run-metis.sh --session`) now
+      augment `XDG_DATA_DIRS` with the Flatpak export trees
+      (`${XDG_DATA_HOME:-~/.local/share}/flatpak/exports/share`,
+      `/var/lib/flatpak/exports/share`) before the activation-environment export,
+      deduped and harmless when Flatpak is absent. A login-manager session often
+      does not source `/etc/profile.d/flatpak.sh`, so this is what makes Flatpak
+      apps visible at all (2026-07-03).
+- [x] **App launcher** — Flatpak `.desktop` entries now appear alongside native
+      apps in the launcher and dock. Discovery is via `gio::AppInfo` (already
+      path-agnostic), so the session-env change above is the only requirement; no
+      launcher code change was needed (2026-07-03).
+- [x] **Window identity** — `AppEntry` now captures the `X-Flatpak` desktop key,
+      and both the launcher (`resolve_entry_for_app_id`) and dock
+      (`matches_app_id`) match a running window's `app_id` against it in addition
+      to the desktop-id basename and `StartupWMClass` — so Flatpak windows
+      reporting their reverse-DNS Flatpak id group and icon correctly (2026-07-03).
 
 ### B. Portal completeness for sandboxed apps
 
@@ -514,8 +533,9 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
       `lock_session()`. See Phase 7 "Session lock".
 - [ ] **ScreenCast live pump** — ~~finish Phase 3 PipeWire frame streaming~~ done
       (OBS / Discord / browser share); remaining: dmabuf zero-copy perf pass
-- [ ] **Background / PowerProfile / GameMode** — route or stub via portal (can no-op
-      initially; GameMode may integrate `gamemoded` later)
+- [ ] **Background / PowerProfile** — route or stub via portal (can no-op
+      initially). GameMode needs no Metis portal — it is its own D-Bus service
+      (`com.feralinteractive.GameMode`); install `gamemode` + `gamemoderun` (docs done)
 - [ ] **Permission UX docs** — `flatpak permission-show`, portal permission reset,
       `~/.local/share/xdg-desktop-portal/` permission files
 
@@ -539,28 +559,34 @@ most do **not** go through compositor gamepad protocols — they use evdev, Stea
 Input, and SDL. SteamOS Desktop Mode uses KDE today; Metis aims to be a viable
 alternative desktop with the same Steam/Proton stack.
 
-- [ ] **Native Steam (.deb)** — document Valve repo install on Ubuntu/Debian;
-      prerequisites: 32-bit (`i386`), Vulkan (`mesa-vulkan-drivers`,
-      `lib32-mesa-vulkan-drivers`), PipeWire/Pulse, `steam-devices` udev rules
-- [ ] **Flatpak Steam** — document `com.valvesoftware.Steam` from Flathub;
-      pressure-vessel / `~/.steam` layout; portal and `device` permissions
-- [ ] **Proton** — verify Proton Experimental / GE-Proton launch; document common
-      failures (missing i386, wrong default GPU on hybrid laptops → `METIS_DRM_DEVICE`
-      / DRI_PRIME)
-- [ ] **Gamescope (optional)** — per-game launch option
-      (`gamescope -W … -H … -- %command%`) as nested compositor; session-wide
-      wrapper for Big Picture-style use; verify focus, overlay, and multi-monitor
-- [ ] **Big Picture / `-gamepadui`** — `.desktop` / menu entry; fullscreen and
-      controller navigation without keyboard
-- [ ] **Steam Input & hardware** — Steam Controller, Deck controls, Switch Pro,
-      etc. via Steam's user-space mapping; confirm Metis/libinput does not grab
-      exclusive evdev access on gamepad nodes
-- [ ] **Steam overlay** — audit XWayland + native Wayland games (shift+tab);
-      fullscreen unredirect / focus issues
-- [ ] **Steam Remote Play / Link** — depends on ScreenCast portal + PipeWire pump
-      (Phase 3 / §B); host-side streaming encode is out of scope initially
-- [ ] **Power while gaming** — Inhibit portal + logind idle/sleep block (Steam sets
-      these during gameplay); tie-in with Power settings performance profile
+- [x] **Native Steam (.deb)** — documented Valve repo install on Ubuntu/Debian
+      (`USER_GUIDE.md` §Steam): 32-bit (`i386`), Vulkan, PipeWire/Pulse note,
+      `steam-devices` udev rules
+- [x] **Flatpak Steam** — documented `com.valvesoftware.Steam` from Flathub;
+      pressure-vessel / `~/.var/app` layout; `--device=all` and `--filesystem`
+      overrides; portal permissions (`USER_GUIDE.md`)
+- [x] **Proton** — documented Proton Experimental / GE-Proton (ProtonUp-Qt) and
+      common failures (missing i386 Vulkan, wrong GPU → new client-GPU default +
+      `DRI_PRIME`, anti-cheat / ProtonDB). On-hardware Proton launch: verify on hw
+- [x] **Gamescope (optional)** — per-game launch option
+      (`gamescope -W … -H … -- %command%`) documented as nested compositor
+      (existing snippet retained)
+- [x] **Big Picture / `-gamepadui`** — Steam-gated app-menu rail button runs
+      `steam -gamepadui` (or Flatpak equivalent); hidden when Steam is absent
+      (`menu.rs` + `applications::steam_big_picture_command`)
+- [x] **Steam Input & hardware** — documented Steam Controller / Deck / Switch Pro
+      via Steam user-space mapping; confirmed Metis/libinput does **not** grab
+      exclusive evdev on gamepad nodes (games read `/dev/input/event*` directly)
+- [x] **Steam overlay** — audited: click-to-focus (no focus-follows-mouse) keeps
+      Shift+Tab working; documented XWayland vs native-Wayland caveats
+- [x] **Steam Remote Play / Link** — relies on the shipped ScreenCast portal +
+      PipeWire pump (§B); host-side encode is hardware-dependent
+- [x] **Power while gaming** — idle-inhibit wired end-to-end (Wayland +
+      `ScreenSaver`/`PowerManagement` D-Bus + logind); documented Settings → Power
+      performance-profile tie-in
+- [x] **Client GPU steering** — compositor forwards its render node's PCI identity
+      to spawned clients as `DRI_PRIME` + `MESA_VK_DEVICE_SELECT` (if-unset;
+      `METIS_NO_CLIENT_GPU=1` opt-out), so hybrid laptops default to the right card
 
 ### E. SteamOS & handheld compatibility (optional / stretch)
 
@@ -570,22 +596,39 @@ Mode. Track compatibility either way:
 
 - [ ] **Steam Deck / handheld inputs** — SD card reader, volume buttons, gyro
       (where exposed as evdev) documented or passed through to Steam Input
-- [ ] **SteamOS host notes** — if experimenting on SteamOS Desktop: read-only
-      root, `steamos-readonly disable`, where to install `metis-compositor` without
-      breaking Valve updates (document only; not officially supported initially)
-- [ ] **Gamescope vs Metis** — clarify roles: Metis = session compositor;
-      Gamescope = optional per-game nested compositor (SteamOS Gaming Mode uses
-      Gamescope *instead of* a full DE, not alongside one)
+      (needs hardware to verify)
+- [x] **SteamOS host notes** — documented (`USER_GUIDE.md`): read-only root,
+      `steamos-readonly disable` caveat, one-session-compositor-at-a-time; marked
+      experimental / unsupported
+- [x] **Gamescope vs Metis** — documented roles: Metis = session compositor,
+      Gamescope = optional per-game nested compositor (run one outer session, not
+      both)
 
 ### F. Gaming polish (optional)
 
-- [ ] **gamemoded** — CPU governor / scheduler hints via GameMode portal or D-Bus
-      (Steam can invoke `gamemoderun` in launch options)
-- [ ] **Fullscreen / pointer confinement** — audit Proton / XWayland game behaviour
-- [ ] **XWayland game notes** — document games that still require X11 socket vs
-      native Wayland
-- [ ] **MangoHud / vkBasalt** — document `%command%` prefix patterns in Steam
+- [x] **gamemoded** — documented as a standalone D-Bus service
+      (`com.feralinteractive.GameMode`); install `gamemode` and use
+      `gamemoderun %command%`. No Metis portal/stub needed (a compositor
+      performance-profile tie-in could be a later follow-up)
+- [x] **Fullscreen / pointer confinement** — documented; Metis honors the standard
+      Wayland pointer-constraints protocol for games that lock the pointer
+- [x] **XWayland game notes** — documented XWayland vs native-Wayland caveats
+      (overlay, Proton) in `USER_GUIDE.md`
+- [x] **MangoHud / vkBasalt** — documented `%command%` prefix patterns in Steam
       launch options (no Metis code required)
+- [ ] **INVESTIGATE: in-game GPU performance regression vs GNOME/Mutter** — Hytale
+      (native-Wayland game client) is only playable on **Low** graphics under Metis;
+      **High** is laggy, whereas the *same* game on **gnome-shell (Mutter) runs High
+      smoothly** on this hardware. Metis fullscreen is correct now, so this is a
+      throughput/latency issue, not placement. Suspects to profile:
+      the render/present path (are we hitting **direct scanout** for the fullscreen
+      game surface, or always compositing/blitting?), missing **VRR / tearing**
+      (`wp_tearing_control_v1` is absent in the pinned Smithay), **GPU selection**
+      (is the game landing on the dGPU via `render_node`/`DRI_PRIME`, or the iGPU?),
+      **explicit-sync / dmabuf scanout feedback** actually engaging, and any
+      unnecessary format conversions or extra copies per frame. Compare
+      `wp_presentation` frame timings + `MANGOHUD` FPS under Metis vs Mutter, and
+      check `METIS_DRM_DEVICE` / Mesa device-select env in the game's session.
 
 ---
 
@@ -644,6 +687,118 @@ latency and clear setup docs.
       follow-ups: `ext-session-lock-v1` protocol support for third-party lockers,
       fingerprint/greeter niceties, and remote-session behaviour when locked.
 - [ ] **Multi-user / VT** — clarify behaviour when switching TTYs or multiple seats
+
+---
+
+## Phase 8 — Internationalization (i18n / l10n)
+
+Metis currently ships **English (US) only** — all user-facing strings in the
+shell (edge bar, launcher, popovers, notifications), the settings app, the lock
+screen, and the compositor's on-screen text (titlebars, lock clock/labels) are
+hard-coded English literals. There is no translation layer, locale detection, or
+RTL support yet. This phase makes Metis translatable and locale-aware.
+
+**Target:** a Metis session that renders its own UI in the user's system locale
+(with a manual override in Settings), falls back cleanly to English for missing
+strings, and lays out correctly for RTL scripts — without per-string rebuilds.
+
+### A. Foundations (decide the stack first)
+
+- [ ] **Pick the i18n toolchain** — evaluate GNU **gettext** (`.po`/`.mo`, the
+      GTK-native path via `glib`/`gettext-rs`) vs. a Rust-native message system
+      (**Project Fluent** / `fluent-rs`, or `cargo-i18n` + `i18n-embed`). GTK4/glib
+      already integrate gettext, which argues for gettext in `metis-shell` /
+      `metis-settings`; the compositor (no GTK) may prefer Fluent or a small shared
+      crate. Document the decision and keep one **shared message catalog** format
+      across all crates if possible.
+- [ ] **`metis-i18n` shared crate** — central place to load catalogs, resolve the
+      active locale, and expose a `tr!()` / `gettext()` helper. Both the GTK shell
+      and the non-GTK compositor depend on it so strings live in one place.
+- [ ] **Locale detection + override** — resolve from `LANG`/`LC_*` at startup;
+      add a **Settings → System → Language & region** page to override locale and
+      formats independently of the OS. Persist to config (`config.json` or a new
+      `locale.json`).
+
+### B. Extract & translate strings
+
+- [ ] **Audit and externalize hard-coded strings** — replace English literals in
+      `metis-shell`, `metis-settings`, `metis-compositor` (lock screen labels,
+      titlebar tooltips), and any user-facing IPC/notification text with catalog
+      lookups. This is the bulk of the work; do it crate-by-crate.
+- [ ] **Catalog extraction + build wiring** — script to extract translatable
+      strings (`xgettext`/Fluent tooling) into a template, store per-language
+      catalogs under `assets/locale/<lang>/…`, and bundle them in the session
+      install (`metis-session` / `run-metis.sh`). English is the source + fallback.
+- [ ] **Translation workflow docs** — document how contributors add a language
+      (where catalogs live, how to test with `LANG=xx_YY`), in `docs/`.
+
+### C. Locale-aware formatting & layout
+
+- [ ] **Numbers / dates / times** — the clock, calendar, battery %, and settings
+      already lean on `chrono`; make date/time/number formatting respect the locale
+      (12/24h is separate and already configurable). Consider `icu`/`icu4x` for
+      correct plural rules and formatting.
+- [ ] **RTL support** — audit GTK layouts and the compositor's text rasterizer /
+      titlebar + lock-screen text for right-to-left scripts (Arabic, Hebrew):
+      mirror widget direction (`gtk-application-prefer-dark`-style `dir`), and
+      verify the software text renderer (`fontdue`) handles bidi + shaping (may
+      need `rustybuzz`/`harfbuzz` for complex scripts).
+- [ ] **Fonts / CJK & complex scripts** — ensure fallback fonts cover CJK,
+      Indic, Arabic, etc. for both GTK and the compositor's own text drawing;
+      document required font packages.
+
+### D. Polish
+
+- [ ] **Per-string fallback** — missing translations fall back to English (never
+      show raw keys); log missing keys in debug builds to find gaps.
+- [ ] **Live language switch** — apply a locale change without a full session
+      restart where feasible (GTK can re-translate on the fly; compositor text may
+      need a redraw/reload).
+
+---
+
+## Phase 9 — First-run setup wizard (onboarding)
+
+A welcoming **first-login wizard** that runs once on a fresh install, greets the
+user, and walks them through a few simple choices before dropping them at the
+desktop. The plumbing already half-exists: `metis-config` has an
+`onboarding_complete: bool` flag and `mark_onboarding_complete()`, but **nothing
+reads the flag and there is no wizard UI yet** — the flag is currently unused.
+
+**Target:** on first session start (when `onboarding_complete == false`), the
+shell presents a clean, modern, multi-step wizard; finishing (or skipping) sets
+`onboarding_complete = true` so it never shows again. Re-runnable on demand from
+Settings ("Run setup again").
+
+### A. Shell & trigger
+
+- [ ] **Wizard surface** — decide the presentation: a centered layer-shell
+      overlay window (compositor-owned, like the lock screen) vs. a normal GTK
+      window from `metis-shell`/`metis-settings`. Should appear above the bar and
+      block interaction until completed or skipped.
+- [ ] **First-run gate** — read `onboarding_complete` at shell startup; launch the
+      wizard when false, and call `mark_onboarding_complete()` on finish/skip.
+      Add a "Run setup again" entry in Settings so it can be re-triggered.
+
+### B. Steps (keep it short and friendly)
+
+- [ ] **Welcome** — branded greeting + one-line intro to Metis.
+- [ ] **Appearance** — **Dark / Light mode** toggle (live preview) + accent color;
+      writes the active theme via the existing theming path.
+- [ ] **Basics** — a few simple, high-value settings, e.g. 12/24-hour clock,
+      wallpaper pick (reuse the background picker), and optionally edge-bar position.
+      Keep the list minimal; everything else stays in Settings.
+- [ ] **(Later) Language & region** — once Phase 8 lands, offer locale selection
+      here as the very first step.
+- [ ] **Finish** — summary + "You're all set"; link to the User Guide / keybind
+      cheatsheet.
+
+### C. Polish
+
+- [ ] **Skippable + resumable** — a clear "Skip" that still marks onboarding done;
+      remember progress if the session restarts mid-wizard.
+- [ ] **Accessible & translatable** — keyboard-navigable, and route all copy
+      through the Phase 8 i18n catalog so the wizard itself is localizable.
 
 ---
 

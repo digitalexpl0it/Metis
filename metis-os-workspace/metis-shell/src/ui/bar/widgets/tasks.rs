@@ -235,6 +235,10 @@ fn matches_app_id(entry: &AppEntry, needle: &str) -> bool {
             .wm_class
             .as_deref()
             .is_some_and(|w| w.to_lowercase() == needle)
+        || entry
+            .flatpak_id
+            .as_deref()
+            .is_some_and(|f| f.to_lowercase() == needle)
 }
 
 fn rebuild(

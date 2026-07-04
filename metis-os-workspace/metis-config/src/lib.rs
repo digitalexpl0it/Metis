@@ -6,6 +6,7 @@ pub mod bar;
 pub mod calendars;
 pub mod clocks;
 pub mod css;
+pub mod game_rules;
 pub mod input;
 pub mod lock;
 pub mod menu;
@@ -171,6 +172,10 @@ pub use power::{
 };
 pub use lock::{
     load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
+};
+pub use game_rules::{
+    game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,
+    WindowRule, WindowRuleOutcome,
 };
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,

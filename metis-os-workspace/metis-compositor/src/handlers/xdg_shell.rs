@@ -235,6 +235,7 @@ impl XdgShellHandler for MetisState {
         output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
     ) {
         if let Some(id) = self.window_id_for_toplevel(&surface) {
+            tracing::info!(id, "client requested fullscreen (xdg_toplevel.set_fullscreen)");
             self.set_fullscreen(id, true, output);
         } else if surface.is_initial_configure_sent() {
             surface.send_configure();
@@ -243,6 +244,7 @@ impl XdgShellHandler for MetisState {
 
     fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
         if let Some(id) = self.window_id_for_toplevel(&surface) {
+            tracing::info!(id, "client requested unfullscreen (xdg_toplevel.unset_fullscreen)");
             self.set_fullscreen(id, false, None);
         } else if surface.is_initial_configure_sent() {
             surface.send_configure();
@@ -264,6 +266,13 @@ impl XdgShellHandler for MetisState {
             return;
         };
         let ready = self.windows.is_ready(id);
+        // Release any hold this window had on the edge bar *unconditionally* —
+        // even a not-yet-`ready` fullscreen window (a game that fullscreened then
+        // exited before its first activation) must restore the bar, otherwise it
+        // stays hidden until the shell is killed. `on_window_destroyed` also calls
+        // this, but only when `ready`; do it up front so the gate can't strand the
+        // bar.
+        self.drop_window_fullscreen(id);
         // Remember floating app geometry before the record is dropped.
         self.save_window_geometry(id);
         if let Some(record) = self.windows.unregister(id) {

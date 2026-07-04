@@ -374,6 +374,26 @@ impl MetisState {
         &self,
         pos: Point<f64, Logical>,
     ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        // Override-redirect X11 popups (Steam/game menus, tooltips, combo
+        // dropdowns) are intentionally kept out of the window registry, so the
+        // SSD-aware `topmost_window_at_pointer` scan below skips them and would
+        // hand pointer focus to the *registered* toplevel stacked beneath the
+        // popup. The owning app then sees the pointer as having left its menu and
+        // dismisses it after a short hover timeout (and the per-frame focus
+        // ping-pong shows up as flicker). Honor true stacking order first: if the
+        // topmost element actually under the pointer is a raised OR popup, it
+        // wins. `element_under` walks the Space in z-order, so a popup mapped with
+        // `activate = true` sits above its parent here.
+        if let Some((window, _)) = self.space.element_under(pos) {
+            let is_or_popup = window
+                .x11_surface()
+                .map(|surface| surface.is_override_redirect())
+                .unwrap_or(false);
+            if is_or_popup {
+                let window = window.clone();
+                return self.window_surface_for(pos, &window);
+            }
+        }
         let (window, _location) = self
             .topmost_window_at_pointer(pos)
             .or_else(|| {

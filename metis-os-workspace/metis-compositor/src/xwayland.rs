@@ -13,6 +13,7 @@ use std::os::unix::io::OwnedFd;
 
 use smithay::{
     desktop::Window,
+    input::pointer::{Focus, GrabStartData as PointerGrabStartData},
     reexports::calloop::LoopHandle,
     utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size},
     wayland::{
@@ -174,8 +175,23 @@ impl MetisState {
             tracing::warn!(%err, "X11 fullscreen configure failed");
             return;
         }
+        // Diagnostics for the "fullscreen offset a few pixels" report: the window
+        // is mapped so its *visible geometry* origin lands at `geo.loc`; the
+        // buffer (bbox) may extend into negative coords by the client-side frame
+        // extents (CSD shadow). If the visible content still appears shifted, the
+        // deltas below reveal whether the client mis-reports its frame extents.
+        tracing::debug!(
+            x11_window = window.window_id(),
+            output = %output.name(),
+            ?geo,
+            win_geometry = ?window.geometry(),
+            win_bbox = ?window.bbox(),
+            "x11: apply fullscreen (map at geo.loc; render offsets by -geometry.loc)"
+        );
         self.space.map_element(elem.clone(), geo.loc, true);
-        self.note_output_fullscreen(&output, true);
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.note_output_fullscreen(&output, id, true);
+        }
         self.focus_x11(&elem);
         self.schedule_redraw();
     }
@@ -185,8 +201,8 @@ impl MetisState {
             return;
         };
         let wid = Self::x11_window_id(&window);
-        if let Some(output) = self.output_for_x11_element(&elem) {
-            self.note_output_fullscreen(&output, false);
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.drop_window_fullscreen(id);
         }
         if let Err(err) = window.set_fullscreen(false) {
             tracing::warn!(%err, "X11 unset fullscreen failed");
@@ -229,7 +245,21 @@ impl XwmHandler for MetisState {
     }
 
     fn mapped_override_redirect_window(&mut self, _xwm: XwmId, window: X11Surface) {
-        let loc = window.geometry().loc;
+        // Menus / tooltips / combo dropdowns. These position themselves in X11
+        // root coordinates, which Metis keeps in sync with its logical Space (see
+        // `send_window_configure`). Use the surface's *configured* rectangle for
+        // the location: `X11Surface::geometry()`/`bbox()` are size-only (their loc
+        // is always the origin), so reading `geometry().loc` here would slam every
+        // popup to the top-left corner. `last_configure()` carries the real
+        // root-relative position the X server assigned. Raise so the popup sits
+        // above its parent toplevel.
+        let loc = window.last_configure().loc;
+        tracing::debug!(
+            x11_window = window.window_id(),
+            ?loc,
+            size = ?window.geometry().size,
+            "x11: map override-redirect popup"
+        );
         let elem = Window::new_x11_window(window);
         self.space.map_element(elem, loc, true);
         self.schedule_redraw();
@@ -268,16 +298,96 @@ impl XwmHandler for MetisState {
         }
     }
 
+    fn maximize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        // Steam's window controls (and many X11 apps) maximize via
+        // `_NET_WM_STATE_MAXIMIZED_*`; route it through the shared path so the
+        // registry flag, geometry, and bar visibility stay in sync.
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.set_maximized(id, true);
+        }
+    }
+
+    fn unmaximize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.set_maximized(id, false);
+        }
+    }
+
+    fn minimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.minimize_by_id(id);
+        }
+    }
+
+    fn unminimize_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            self.restore_by_id(id);
+        }
+    }
+
+    fn active_window_request(
+        &mut self,
+        _xwm: XwmId,
+        window: X11Surface,
+        _timestamp: u32,
+        _currently_active_window: Option<X11Surface>,
+    ) {
+        // `_NET_ACTIVE_WINDOW` — a client (Steam raising its main window from the
+        // tray, a launcher handing off to a game) asks to be brought forward.
+        // Restore-if-minimized + raise + focus through the shared activation path.
+        let Some(id) = self.windows.id_for_x11_window(window.window_id()) else {
+            return;
+        };
+        // Focus-stealing prevention: while a *running game* holds focus, ignore a
+        // *different* window's self-activation. Steam fires `_NET_ACTIVE_WINDOW`
+        // at its own main window (tray updates, friends/notifications, download
+        // finished) mid-game, which would otherwise pop Steam over the game and
+        // strip the game's keyboard focus + pointer lock — the reported
+        // "Steam comes to the foreground" + "Esc/keys stop working" during play.
+        // A game activating itself (focused == id) or a launcher handing off to a
+        // freshly-mapped game (the game is the requester, not the focused window)
+        // is still honored, so this only blocks background launchers stealing from
+        // an active game. User-initiated raises (dock/taskbar) go through
+        // `activate_window_by_id` directly and are unaffected.
+        if let Some(focused) = self.focused_window_id() {
+            if focused != id && self.window_is_running_game(focused) {
+                tracing::info!(
+                    requester = id,
+                    focused,
+                    x11_window = window.window_id(),
+                    "x11: blocked _NET_ACTIVE_WINDOW focus-steal while a game is focused"
+                );
+                return;
+            }
+        }
+        self.activate_window_by_id(id);
+    }
+
     fn configure_request(
         &mut self,
         _xwm: XwmId,
         window: X11Surface,
-        _x: Option<i32>,
-        _y: Option<i32>,
+        x: Option<i32>,
+        y: Option<i32>,
         w: Option<u32>,
         h: Option<u32>,
         _reorder: Option<Reorder>,
     ) {
+        // Diagnostic: reveals whether a client (Steam) tries to *self-move* via
+        // ConfigureRequest (client-supplied x/y) vs. `_NET_WM_MOVERESIZE`. Managed
+        // toplevels are Metis-positioned, so a self-move here is otherwise silently
+        // dropped — logging the requested x/y makes the distinction unambiguous.
+        if x.is_some() || y.is_some() {
+            tracing::debug!(
+                x11_window = window.window_id(),
+                req_x = ?x,
+                req_y = ?y,
+                req_w = ?w,
+                req_h = ?h,
+                override_redirect = window.is_override_redirect(),
+                "x11: configure_request with position (client self-move attempt)"
+            );
+        }
         if window.is_fullscreen() {
             if let Some(elem) = self.x11_element(&window) {
                 if let Some(output) = self.output_for_x11_element(&elem) {
@@ -295,6 +405,20 @@ impl XwmHandler for MetisState {
         }
         if let Some(h) = h {
             geo.size.h = h as i32;
+        }
+        // `X11Surface::geometry().loc` is always ~(0,0) (it is size-only), so
+        // configuring with it teleports the window's X-server *root* position to
+        // the top-left on every client-driven resize. That desyncs the X root
+        // frame from the Metis Space location, and since override-redirect popups
+        // (Steam/CEF dropdowns, tooltips, combo menus) are positioned by the
+        // client in root coordinates, they then map into the top-left corner
+        // instead of under their anchor. Anchor the configure at the element's
+        // actual Space position so root coords stay in lockstep with what we
+        // render — this is what keeps menus under the thing that opened them.
+        if let Some(elem) = self.x11_element(&window) {
+            if let Some(loc) = self.space.element_location(&elem) {
+                geo.loc = loc;
+            }
         }
         let _ = window.configure(geo);
     }
@@ -320,7 +444,18 @@ impl XwmHandler for MetisState {
             self.schedule_redraw();
             return;
         }
-        self.space.map_element(elem, geometry.loc, false);
+        // Unmanaged / override-redirect surface (menu, tooltip, dropdown) moved
+        // itself. Track the new position and keep it raised — a popup must never
+        // drop behind its parent toplevel when it repositions after mapping.
+        let raise = window.is_override_redirect();
+        if raise {
+            tracing::debug!(
+                x11_window = window.window_id(),
+                loc = ?geometry.loc,
+                "x11: override-redirect popup reposition"
+            );
+        }
+        self.space.map_element(elem, geometry.loc, raise);
         self.schedule_redraw();
     }
 
@@ -336,12 +471,53 @@ impl XwmHandler for MetisState {
     }
 
     fn move_request(&mut self, _xwm: XwmId, window: X11Surface, _button: u32) {
-        // No interactive move grab yet; at least raise + focus the window so the
-        // user can interact with it.
-        if let Some(elem) = self.x11_element(&window) {
-            self.space.raise_element(&elem, true);
-            self.focus_x11(&elem);
+        // Self-decorated X11 clients (Steam, game launchers) have no Metis
+        // titlebar to grab, so dragging their own titlebar issues
+        // `_NET_WM_MOVERESIZE`. Start the same interactive move grab used for
+        // Wayland toplevels — it already syncs the X server position on release so
+        // popup/menu placement stays correct.
+        tracing::info!(
+            x11_window = window.window_id(),
+            "x11: move_request (_NET_WM_MOVERESIZE) — starting interactive move grab"
+        );
+        let Some(elem) = self.x11_element(&window) else {
+            tracing::warn!(
+                x11_window = window.window_id(),
+                "x11: move_request for unmapped window — ignored"
+            );
+            return;
+        };
+        if let Some(id) = self.windows.id_for_x11_window(window.window_id()) {
+            if let Some(record) = self.windows.get(id) {
+                if record.maximized || record.fullscreen {
+                    return;
+                }
+            }
+            // Float it so the drag has no snap-back to a grid tile.
+            self.floating.insert(id);
         }
+        let Some(pointer) = self.seat.get_pointer() else {
+            return;
+        };
+        let Some(initial_window_location) = self.space.element_location(&elem) else {
+            return;
+        };
+        self.space.raise_element(&elem, true);
+        self.focus_x11(&elem);
+        let start_data = PointerGrabStartData {
+            focus: None,
+            button: 0x110,
+            location: pointer.current_location(),
+        };
+        let grab = crate::grabs::MoveSurfaceGrab {
+            start_data,
+            window: elem,
+            initial_window_location,
+            drag_active: true,
+            pending_maximized_demote: false,
+        };
+        pointer.set_grab(self, grab, SERIAL_COUNTER.next_serial(), Focus::Clear);
+        self.schedule_redraw();
     }
 
     fn allow_selection_access(&mut self, xwm: XwmId, _selection: SelectionTarget) -> bool {

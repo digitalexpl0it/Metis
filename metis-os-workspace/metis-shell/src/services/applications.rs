@@ -24,6 +24,10 @@ pub struct AppEntry {
     /// `StartupWMClass` from the desktop entry, used to map a running window's
     /// Wayland `app_id` back to its launcher entry/icon.
     pub wm_class: Option<String>,
+    /// Flatpak application id (`X-Flatpak` desktop key), e.g.
+    /// `com.valvesoftware.Steam`. Flatpak windows commonly report this as their
+    /// Wayland `app_id`, so it is another handle for window→entry matching.
+    pub flatpak_id: Option<String>,
 }
 
 thread_local! {
@@ -125,6 +129,10 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
     let wm_class = desktop
         .and_then(|desktop| desktop.startup_wm_class())
         .map(|s| s.to_string());
+    let flatpak_id = desktop
+        .and_then(|desktop| desktop.string("X-Flatpak"))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
 
     Some(AppEntry {
         id,
@@ -133,6 +141,7 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
         icon: info.icon(),
         keywords,
         wm_class,
+        flatpak_id,
     })
 }
 
@@ -258,6 +267,10 @@ pub fn resolve_entry_for_app_id(app_id: &str) -> Option<AppEntry> {
                 .wm_class
                 .as_deref()
                 .is_some_and(|w| w.to_lowercase() == needle)
+            || e
+                .flatpak_id
+                .as_deref()
+                .is_some_and(|f| f.to_lowercase() == needle)
     })
 }
 
@@ -280,4 +293,40 @@ pub fn launch(entry: &AppEntry) {
     if let Err(err) = crate::compositor::launch_program(&entry.exec) {
         tracing::warn!(%err, exec = %entry.exec, "failed to launch application");
     }
+}
+
+/// Return true if `program` is an executable on `$PATH`.
+fn on_path(program: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|dir| {
+        let candidate = dir.join(program);
+        candidate.is_file()
+            && std::fs::metadata(&candidate)
+                .map(|m| {
+                    use std::os::unix::fs::PermissionsExt;
+                    m.permissions().mode() & 0o111 != 0
+                })
+                .unwrap_or(false)
+    })
+}
+
+/// Resolve the command that opens Steam Big Picture / gamepad UI, or `None` when
+/// Steam is not installed. Prefers a native `steam` on `$PATH`; otherwise falls
+/// back to a discovered Flatpak Steam (`com.valvesoftware.Steam`). Callers gate
+/// UI (e.g. the Big Picture launcher) on this returning `Some`, so non-gaming
+/// setups are unaffected.
+pub fn steam_big_picture_command() -> Option<String> {
+    if on_path("steam") {
+        return Some("steam -gamepadui".to_string());
+    }
+    let has_flatpak_steam = list_apps().iter().any(|e| {
+        e.flatpak_id.as_deref() == Some("com.valvesoftware.Steam")
+            || e.id == "com.valvesoftware.Steam.desktop"
+    });
+    if has_flatpak_steam && on_path("flatpak") {
+        return Some("flatpak run com.valvesoftware.Steam -gamepadui".to_string());
+    }
+    None
 }

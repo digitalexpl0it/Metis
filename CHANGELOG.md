@@ -5,6 +5,250 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-03]
+
+### Added
+
+- **Hytale launches fullscreen** — the game client (`HytaleClient`) is configured
+  for fullscreen in-game but was coming up as a large float that the user had to
+  F11. A dedicated game rule now force-fullscreens the game client on its first
+  map (via the existing `pending_game_fullscreen` path), while the Hytale
+  *launcher* stays a normal floating window. Client-initiated
+  `xdg_toplevel.set_fullscreen`/`unset_fullscreen` requests are now logged so we
+  can see when a game drives its own fullscreen (`metis-config/game_rules.rs`,
+  `handlers/xdg_shell.rs`).
+- **Gaming: high-refresh, vblank-driven rendering** — the DRM backend no longer
+  paces frames off a fixed 16 ms (≈60 Hz) heartbeat. Damage now arms the
+  scan-out surface immediately (`schedule_redraw`), and each surface repaints on
+  its *next vblank* (`on_drm_vblank`), so a continuously-committing client (a
+  game) runs the render loop at the panel's full refresh — 120/144/240 Hz — and
+  VRR genuinely engages on demand. The heartbeat is retained only for
+  housekeeping and to kick the first frame out of idle; it no longer caps FPS.
+- **Gaming: `wp_presentation` (presentation-time feedback)** — the compositor
+  now advertises `wp_presentation` and reports each frame's real scan-out
+  timestamp/sequence to clients on vblank (hardware timestamp when the driver
+  supplies one, monotonic fallback otherwise), reporting `Variable` refresh when
+  VRR is active. Lets games pace frames accurately. Frame user-data on the DRM
+  output carries an `OutputPresentationFeedback` token per queued frame.
+- **Gaming: explicit sync (`linux-drm-syncobj-v1`)** — advertised when the
+  primary GPU supports syncobj eventfd. NVIDIA + DXVK/VKD3D and modern XWayland
+  negotiate explicit acquire/release fences instead of implicit sync, removing
+  the tell-tale Proton stutter/glitching. A pre-commit hook holds a surface
+  commit (via a calloop blocker) until its acquire fence signals, with an
+  implicit-sync dmabuf-readability fallback for clients that don't use it.
+- **Gaming: hardware cursor plane + scanout dmabuf feedback** — enabled the
+  `renderer_pixman` cursor-plane fallback so the pointer stays on the DRM cursor
+  plane even for scaled cursors on fractional-scale outputs (instead of dropping
+  to the primary plane, which would block a fullscreen game from direct
+  scanout). Each display also advertises a per-surface `Scanout` dmabuf-feedback
+  tranche of its directly-scannable plane formats, so fullscreen games allocate
+  buffers that can be promoted to the primary plane (zero-copy).
+- **Game window rules** — a new `game-rules.json` (curated built-in defaults for
+  Steam, Big Picture, Lutris, Heroic, Bottles, gamescope, Minecraft, Hytale and
+  Proton/Wine `.exe` windows, and fully user-extensible) auto-floats games and
+  launchers so they escape the tiling grid, with an optional per-rule
+  auto-fullscreen. Native-Wayland games are no longer forced into a grid tile
+  (`metis_config::game_rules`, `place_new_window`).
+- **Force-fullscreen keybind** — `Super+Shift+F` toggles true fullscreen on the
+  focused window regardless of whether the client requested it — a reliable
+  rescue for games that only offer windowed mode (e.g. Hytale).
+- **Flatpak apps in the launcher & dock** — Flatpak applications now show up in
+  the Metis app launcher and the running-apps dock alongside native apps, with
+  their proper names and icons. Flatpak installs export their `.desktop` entries
+  and icons under dedicated `exports/share` trees rather than the system
+  applications dir, and a login-manager session frequently does not source
+  `/etc/profile.d/flatpak.sh`, so those trees were invisible to GIO (which the
+  launcher and dock enumerate through). `metis-session` — and `run-metis.sh`
+  for the dev session — now augment `XDG_DATA_DIRS` with the user
+  (`${XDG_DATA_HOME:-~/.local/share}/flatpak/exports/share`) and system
+  (`/var/lib/flatpak/exports/share`) export dirs before exporting the session
+  activation environment (deduped; harmless when Flatpak is not installed).
+  Because discovery already runs through `gio::AppInfo`, no launcher code change
+  was needed for apps to appear. Window→app matching also learned the
+  `X-Flatpak` desktop key: `AppEntry` captures it, and both the launcher
+  (`resolve_entry_for_app_id`) and dock (`matches_app_id`) match a running
+  window's `app_id` against it in addition to the desktop-id basename and
+  `StartupWMClass`, so Flatpak windows that report their reverse-DNS Flatpak id
+  (e.g. `com.valvesoftware.Steam`) group under and reuse the right launcher icon.
+- **Client GPU steering (hybrid-laptop correctness)** — on the DRM/udev backend
+  the compositor now resolves the PCI identity of the render node it actually
+  draws on (`/sys/dev/char/<maj>:<min>/device` → `DRI_PRIME` tag `pci-DDDD_BB_DD_F`
+  and `MESA_VK_DEVICE_SELECT` `vendor:device`) and forwards it to every spawned
+  client. Games, Proton, XWayland, and Vulkan apps now default to the **same** GPU
+  the session renders on instead of silently picking the wrong card on hybrid
+  systems. Each variable is only set when unset, so per-game Steam launch options
+  (`DRI_PRIME=1 %command%`, `prime-run`, NVIDIA offload vars) still win; set
+  `METIS_NO_CLIENT_GPU=1` to disable forwarding entirely. Inert under the nested
+  winit backend, where the host compositor owns device selection.
+- **Steam Big Picture launcher** — when Steam is installed (native `steam` on
+  `PATH` or the `com.valvesoftware.Steam` Flatpak), the app-menu rail shows a
+  controller-friendly **Big Picture** button that runs `steam -gamepadui` (or the
+  Flatpak equivalent). The entry is hidden entirely on machines without Steam, so
+  non-gaming setups are unaffected (`applications::steam_big_picture_command` +
+  `menu.rs`).
+- **Weather fallback provider (MET Norway)** — the bar weather service now falls
+  back to `api.met.no` (MET Norway Locationforecast 2.0) whenever the primary
+  Open-Meteo endpoint fails. Some networks/ISPs blackhole `api.open-meteo.com`
+  (`188.40.99.226`) at the TLS layer — TCP connects but the HTTPS session
+  silently stalls — which stranded the widget on an error even though the rest
+  of the internet was reachable. On an Open-Meteo failure the service now
+  transparently queries MET Norway (a different host/operator), converting its
+  Celsius hourly timeseries to the configured unit and translating MET's
+  `symbol_code` strings into the same WMO codes the icon table already uses. A
+  proper identifying `User-Agent` is now sent on all weather requests (MET
+  requires one). Purely additive: Open-Meteo stays primary, and the primary
+  error is still what's surfaced if both providers are unreachable
+  (`services/weather.rs`).
+
+### Added
+
+- **Game mouse-look: pointer lock & relative motion** — the compositor now
+  implements `zwp_pointer_constraints_v1` (locked/confined pointer) and
+  `zwp_relative_pointer_v1` (raw, unaccelerated deltas). Together these let games
+  (Steam/Proton titles, Hytale, Minecraft-likes, any FPS/3D app) capture the
+  mouse for camera "look": previously such apps received clicks and buttons but
+  no look motion, because absolute cursor position never changes while a game
+  holds a pointer lock. The relative-motion path emits accelerated + unaccelerated
+  deltas on every hardware move; while a lock is active the system cursor stays
+  put and only relative motion is delivered, and a confinement refuses moves that
+  would leave the surface/region. Constraints arm when the owning surface has
+  pointer focus (or when the pointer enters the constraint region) and, on
+  release, the cursor is restored to the client's last-drawn position hint. Both
+  globals are inert until a client requests them, so non-gaming apps are
+  unaffected (`state.rs`, `handlers/mod.rs`, `input.rs`).
+
+### Fixed
+
+- **Steam steals focus from a running game (foreground pop-in + Esc/keys stop
+  working)** — while playing a Proton game (`steam_app_*`), Steam fired
+  `_NET_ACTIVE_WINDOW` at its own main window (tray updates, friends/downloads)
+  and Metis honored it unconditionally, popping Steam over the game *and* moving
+  keyboard focus off the game. The game kept only *pointer* focus (mouse still
+  worked) but lost keyboard focus, so Esc and movement keys no longer reached it
+  and the in-game menu was unreachable. Added focus-stealing prevention: while a
+  *running game* (`steam_app_*`/`*.exe`/Proton/`HytaleClient`, or any fullscreen
+  window) holds focus, a **different** window's self-activation via
+  `_NET_ACTIVE_WINDOW` is ignored (logged). A game activating itself, a launcher
+  handing off to a freshly-mapped game, and user-initiated dock/taskbar raises are
+  all still honored (`xwayland.rs`, `state.rs::window_is_running_game`).
+- **Tray "Exit"/"Quit" ignored on the first right-click (Steam)** — a
+  `StatusNotifierItem` context menu built its dbusmenu tree *asynchronously* after
+  `AboutToShow`; Metis fetched the layout immediately and parsed a stale/empty
+  tree, so the first click targeted a dead item id and only the second open (after
+  the menu had settled) worked. When `AboutToShow` reports the layout needs an
+  update, the shell now waits briefly for the client to publish it before reading
+  the layout, so the very first open has live item ids
+  (`metis-shell/services/tray_watcher.rs`).
+- **Steam window drag (diagnostics)** — added logging to the XWayland
+  `move_request` (`_NET_WM_MOVERESIZE`) and `configure_request` (client self-move
+  via ConfigureRequest) paths so we can tell exactly how Steam attempts to move its
+  self-decorated window (managed X11 toplevels are Metis-positioned, so a
+  configure-request self-move is otherwise dropped silently) (`xwayland.rs`).
+- **Edge bar never returns after a fullscreen game exits** — the bar's
+  hide-while-fullscreen logic used a per-output refcount, and any missed
+  decrement (a launcher that hides the bar then hands off to a game and closes
+  while its record's fullscreen flag had already been cleared, an output-name
+  mismatch between enter and exit, etc.) stranded the counter above zero, so the
+  bar stayed hidden until `metis-shell` was killed and the session re-logged.
+  Fullscreen state is now tracked as a per-output **set of window ids**, and a
+  window's hold on the bar is released **unconditionally on teardown**
+  (`drop_window_fullscreen`, called from every destroy/withdraw/un-fullscreen
+  path) rather than depending on a still-set flag. Bar visibility is now a pure
+  function of live state and can no longer drift (`state.rs`, `xwayland.rs`).
+- **Fullscreen surface offset (wallpaper visible along the top/left edge)** —
+  a CSD game (Hytale, GLFW/libdecor) kept drawing its own titlebar+shadow frame
+  on the *first* fullscreen and reported a window geometry whose origin sits
+  *above* its buffer (`geometry().loc.y = -37`). Compositing subtracts that inset
+  (`render_loc = elem_loc − geometry.loc`), shifting the surface down/right and
+  exposing the wallpaper along the top/left edge — the offset the client only
+  cleared after toggling fullscreen off/on. Root cause: the client negotiated
+  client-side decorations, and `refresh_window_decoration_mode` (which reads the
+  *committed* decoration mode) would re-grant ClientSide even for a fullscreen
+  window. A fullscreen surface has no chrome, so:
+  - entering fullscreen now grants the client **server-side** decorations, which
+    makes libdecor drop its own frame on the very first fullscreen configure
+    (`set_fullscreen`, `push_preferred_decoration_mode`);
+  - `should_draw_metis_ssd` returns false for fullscreen windows, so the forced
+    server-side grant can't loop back into Metis painting its own titlebar over
+    the game; and
+  - exiting fullscreen restores the client's windowed decoration mode.
+  Also gave `reclamp_auto_hide` a `!fullscreen` guard (mirroring
+  `reclamp_maximized_geometry`) so a window that entered fullscreen while
+  maximized is never re-anchored to the gap-inset maximized footprint. A
+  once-per-session diagnostic logs the placement math whenever a fullscreen
+  window would still not sit flush at its output origin (`state.rs`, `render.rs`).
+- **Edge bar not restored after a fullscreen game exits (follow-up)** — in
+  addition to the drift-proof per-output fullscreen tracking, the Wayland
+  `toplevel_destroyed` path now releases a window's hold on the bar
+  *unconditionally* rather than only when the window was flagged `ready`, so a
+  game that fullscreened and then exited before its first activation can no
+  longer strand the bar hidden (`handlers/xdg_shell.rs`).
+- **Bare `Esc` now reaches games and apps** — the compositor previously
+  swallowed every bare `Escape`, breaking in-game menus (Hytale) and cancel/close
+  in every app. The un-fullscreen/un-maximize/un-tile escape hatch moved to
+  `Super+Esc`; bare `Esc` always forwards to the focused client (`input.rs`).
+- **Steam/CEF menus appearing in the top-left corner** — `configure_request` for
+  XWayland windows configured at `geometry().loc` (always ~(0,0)), teleporting the
+  X-server root position to the corner on every self-resize and desyncing it from
+  the Metis Space location. Since override-redirect popups are positioned by the
+  client in root coordinates, they landed top-left. Configures now anchor at the
+  window's actual Space location so menus appear under their anchor (`xwayland.rs`).
+- **Steam maximize/minimize/activate** — implemented the missing
+  `maximize_request`/`unmaximize_request`/`minimize_request`/`unminimize_request`
+  and `active_window_request` `XwmHandler` hooks, routed through the shared
+  `set_maximized`/`minimize_by_id`/`restore_by_id`/`activate_window_by_id` paths
+  (`xwayland.rs`).
+- **Tray "Exit" (Steam) reliability** — the dbusmenu click now sends an
+  `AboutToShow` on the menu root before the item's subtree and delivers the
+  `clicked` event with an `i32` payload (matching Qt/libdbusmenu expectations
+  rather than the previous `u32`), with the parsed item ids/labels and the
+  dispatch result logged for diagnosis (`tray_watcher.rs`).
+- **Steam menus closing on the first mouse move** — with a self-decorated X11
+  app's dropdown/tooltip open, moving the mouse instantly dismissed it. The
+  per-motion focus-stacking pass (`maintain_focus_stacking`) auto-raises the
+  registered window under the cursor, which restacked the toplevel *above its own
+  override-redirect popup* — the owning app then treated the covered menu as
+  dismissed. Stacking is now left untouched while any override-redirect popup is
+  mapped (`has_mapped_override_redirect_popup`), so menus stay put as the pointer
+  moves into them (`state.rs`).
+- **XWayland popup menus dismissing themselves / flicker (Steam)** — hovering a
+  self-decorated X11 app's menu (Steam's dropdowns, tooltips, combo popups) would
+  make it flicker and auto-close after a moment. Override-redirect popups are
+  intentionally kept out of the window registry, but the pointer-routing scan
+  (`topmost_window_at_pointer`) only considers registered windows, so it handed
+  hover/click focus to the toplevel stacked *beneath* the popup. The owning app
+  saw the pointer as having left its menu and dismissed it (and the per-frame
+  focus ping-pong read as flicker). `window_surface_at` now honors true stacking
+  order first: when the topmost element under the pointer is a raised
+  override-redirect popup, it wins pointer focus over the registered window below
+  it (`desk_input.rs`).
+
+### Docs
+
+- **Flatpak host prerequisites** — `docs/USER_GUIDE.md` and `docs/UBUNTU_DEV.md`
+  now document the required packages (`flatpak`, `xdg-desktop-portal`,
+  `xdg-desktop-portal-gtk`), the Flathub remote, `input`/`video`/`render` group
+  membership, and that Flatpak apps appear in the launcher automatically (with a
+  re-login note for existing installs and a troubleshooting row for when they do
+  not). Corrected a stale "idle inhibit portal not implemented" troubleshooting
+  row (it shipped 2026-07-02) and refreshed the Phase 6 status in `README.md`.
+- **Steam / Proton / gaming guide** — expanded the `docs/USER_GUIDE.md`
+  "Steam, Proton & SteamOS-class gaming" section: native vs Flatpak install
+  (`steam-devices`, PipeWire, `~/.var/app` pressure-vessel layout, `--device=all`
+  / `--filesystem` overrides), Proton (Experimental / GE-Proton, common
+  failures), the new hybrid-GPU client default and per-game dGPU offload launch
+  options, the Big Picture menu entry, Steam Input / controllers (Metis does not
+  grab evdev), the Steam overlay (click-to-focus), Remote Play (ScreenCast pump),
+  power while gaming (idle-inhibit), polish prefixes (`gamemoderun`, MangoHud,
+  vkBasalt), and SteamOS/handheld notes. Added Big Picture + overlay
+  troubleshooting rows and refreshed the wrong-GPU row. `docs/UBUNTU_DEV.md`
+  documents the client-GPU env behavior alongside `METIS_DRM_DEVICE`; `README.md`
+  and `TODO.md` Phase 6D/E/F updated. GameMode is documented (install `gamemode`,
+  use `gamemoderun`) rather than built — it is its own D-Bus service. Hardware-
+  dependent items (actual Proton launch, dGPU offload on a real hybrid laptop,
+  overlay in specific titles, Remote Play streaming) are documented and remain to
+  be verified on hardware.
+
 ## [2026-07-02]
 
 ### Added
