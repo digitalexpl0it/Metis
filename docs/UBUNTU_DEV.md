@@ -104,7 +104,14 @@ sudo apt install -y \
 Optional: `gamescope` for per-game nested compositor (Steam launch options:
 `gamescope -W 1920 -H 1080 -f -- %command%`).
 
-Hybrid GPU laptops: see `METIS_DRM_DEVICE` in the standalone session section below.
+Hybrid GPU laptops: see `METIS_DRM_DEVICE` and `METIS_GAME_GPU` in the
+standalone session section below. To debug Proton pointer-lock / menu-click issues,
+filter compositor logs with:
+
+```bash
+rg 'game-pointer' ~/.local/state/metis/logs/session-*.log
+```
+
 Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proton--steamos-class-gaming).
 
 ### Release build profiles
@@ -202,8 +209,11 @@ uses rather than silently picking the wrong card. It only sets vars that are
 unset, so per-game Steam launch options (`DRI_PRIME=1 %command%`, `prime-run`,
 NVIDIA offload) still win. Set `METIS_NO_CLIENT_GPU=1` to disable forwarding, or
 `METIS_DRM_DEVICE` to change which card the whole session (and thus clients) use.
-This is inert under the nested winit backend, where the host compositor owns
-device selection.
+When a discrete GPU is present but the panel is driven by the integrated GPU,
+Metis also auto-offloads **game and Steam launches** onto the dGPU
+(`DgpuOffload::detect`). Override with `METIS_GAME_GPU=igpu|dgpu|off`. This is
+inert under the nested winit backend, where the host compositor owns device
+selection.
 
 On first run, Metis writes defaults to `~/.config/metis/`:
 

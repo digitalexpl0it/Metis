@@ -12,7 +12,10 @@ HDR remain. **Phase 6** (Flatpak, Steam & gaming) is now in progress — the idl
 2026-07-02), Flatpak apps appear in the launcher/dock, the compositor forwards
 its render GPU to spawned clients for hybrid-laptop correctness, and a
 Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs shipped
-(2026-07-03). Remaining: on-hardware verification (Proton/dGPU/handheld),
+(2026-07-03). Proton input (keyboard, pointer lock, in-game menu clicks), automatic
+dGPU offload for game launches, and Steam tray/focus fixes landed and were
+verified on hardware with a Proton title (2026-07-04). Remaining: broader
+on-hardware verification (handheld, overlay edge cases) and GPU perf vs Mutter,
 **Phase 7** (remote access / full desktop sharing), **Phase 8**
 (internationalization — Metis is English-US only today; not yet started), and
 **Phase 9** (first-run setup wizard / onboarding — the `onboarding_complete` flag
@@ -587,6 +590,19 @@ alternative desktop with the same Steam/Proton stack.
 - [x] **Client GPU steering** — compositor forwards its render node's PCI identity
       to spawned clients as `DRI_PRIME` + `MESA_VK_DEVICE_SELECT` (if-unset;
       `METIS_NO_CLIENT_GPU=1` opt-out), so hybrid laptops default to the right card
+- [x] **Automatic dGPU offload for games** — `DgpuOffload::detect` PRIME-offloads
+      Steam/Proton/game launches onto the discrete GPU when distinct from the display
+      GPU; `METIS_GAME_GPU=igpu|dgpu|off` overrides (2026-07-04)
+- [x] **Pointer lock & relative motion** — `zwp_pointer_constraints_v1` +
+      `zwp_relative_pointer_v1` for mouse-look; cursor-position-hint remapping for
+      in-game menu clicks under an active lock (2026-07-04)
+- [x] **Proton keyboard focus (XWayland)** — keyboard events routed through
+      `X11Surface::KeyboardTarget` (`XSetInputFocus`); map-before-surface race
+      fixed on first surface commit (2026-07-04)
+- [x] **Steam tray Quit / focus stealing** — dbusmenu clicks re-resolved by label;
+      focus-stealing prevention while a game is running (2026-07-04)
+- [x] **On-hardware Proton smoke test** — MOUSE: P.I. For Hire (`steam_app_2416450`):
+      title screen, in-game menu clicks, Esc/keyboard verified (2026-07-04)
 
 ### E. SteamOS & handheld compatibility (optional / stretch)
 
@@ -610,8 +626,10 @@ Mode. Track compatibility either way:
       (`com.feralinteractive.GameMode`); install `gamemode` and use
       `gamemoderun %command%`. No Metis portal/stub needed (a compositor
       performance-profile tie-in could be a later follow-up)
-- [x] **Fullscreen / pointer confinement** — documented; Metis honors the standard
-      Wayland pointer-constraints protocol for games that lock the pointer
+- [x] **Fullscreen / pointer confinement** — compositor implements
+      `zwp_pointer_constraints_v1` + `zwp_relative_pointer_v1` (mouse-look lock,
+      region confinement, cursor-position-hint click remapping for Proton menus)
+      (2026-07-04)
 - [x] **XWayland game notes** — documented XWayland vs native-Wayland caveats
       (overlay, Proton) in `USER_GUIDE.md`
 - [x] **MangoHud / vkBasalt** — documented `%command%` prefix patterns in Steam

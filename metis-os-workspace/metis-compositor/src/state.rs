@@ -313,6 +313,27 @@ pub struct MetisState {
     /// the system cursor there when the game (Steam/Proton, Hytale, …) releases
     /// its `zwp_locked_pointer_v1` mouse-look grab.
     pub(crate) cursor_position_hint: Option<(WlSurface, Point<f64, Logical>)>,
+    /// Per-surface pointer-constraint lifecycle. Prevents re-arming a lock the
+    /// client intentionally deactivated (pause menu / visible cursor).
+    pub(crate) pointer_constraint_phases:
+        std::collections::HashMap<smithay::reexports::wayland_server::backend::ObjectId, PointerConstraintPhase>,
+    /// Last surface that received a pointer motion/button event — used to arm a
+    /// not-yet-active lock only on pointer *entry*, not on every move over the
+    /// same surface (which would re-capture the mouse in a pause menu).
+    pub(crate) last_pointer_motion_surface:
+        Option<smithay::reexports::wayland_server::backend::ObjectId>,
+}
+
+/// Lifecycle of a `zwp_pointer_constraints_v1` lock on a surface.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PointerConstraintPhase {
+    /// Created but not yet activated (waiting for pointer to enter the region).
+    NeverActivated,
+    /// Currently or previously active during this constraint object’s lifetime.
+    Active,
+    /// Client called `deactivate` (pause menu, settings with visible cursor).
+    /// Must NOT be re-armed on the next pointer motion over the surface.
+    ClientDeactivated,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -856,6 +877,8 @@ impl MetisState {
             idle_inhibit_state,
             idle_notifier_state,
             cursor_position_hint: None,
+            pointer_constraint_phases: std::collections::HashMap::new(),
+            last_pointer_motion_surface: None,
         }
     }
 
@@ -3483,6 +3506,293 @@ impl MetisState {
         self.space
             .element_location(window)
             .map(|loc| loc.to_f64())
+    }
+
+    /// Where to aim pointer motion/button delivery. While a locked-pointer
+    /// constraint is active the compositor cursor stays at the lock anchor, but
+    /// the client tracks its own cursor via `set_cursor_position_hint` (menu
+    /// navigation in Proton games). Clicks must use the hinted position or every
+    /// press lands on the lock anchor (e.g. always opening Settings).
+    pub(crate) fn effective_pointer_delivery_loc(
+        &self,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+        under: Option<&(WlSurface, Point<f64, Logical>)>,
+    ) -> Point<f64, Logical> {
+        use smithay::reexports::wayland_server::Resource;
+        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
+
+        let current = pointer.current_location();
+        let Some((surface, _)) = under else {
+            return current;
+        };
+
+        let locked = with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return false;
+            };
+            constraint.is_active() && matches!(&*constraint, PointerConstraint::Locked(_))
+        });
+        if !locked {
+            return current;
+        }
+
+        let Some((hint_surface, hint_loc)) = self.cursor_position_hint.as_ref() else {
+            return current;
+        };
+        if hint_surface.id() != surface.id() {
+            return current;
+        }
+
+        self.surface_space_origin(surface)
+            .map(|origin| origin + *hint_loc)
+            .unwrap_or(current)
+    }
+
+    /// Resolve window id + app_id for pointer-constraint diagnostics.
+    pub(crate) fn pointer_trace_for_surface(
+        &self,
+        surface: &WlSurface,
+    ) -> (Option<u32>, Option<String>) {
+        use smithay::reexports::wayland_server::Resource;
+        let id = self.windows.id_for_surface(surface);
+        let app_id = id.and_then(|i| self.windows.get(i).and_then(|r| r.app_id.clone()));
+        (id, app_id)
+    }
+
+    /// Current constraint phase + whether the lock is active / locked for tracing.
+    pub(crate) fn pointer_constraint_snapshot(
+        &self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+    ) -> (Option<PointerConstraintPhase>, bool, bool) {
+        use smithay::reexports::wayland_server::Resource;
+        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
+
+        let phase = self.pointer_constraint_phases.get(&surface.id()).copied();
+        let mut is_active = false;
+        let mut is_locked = false;
+        with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return;
+            };
+            is_active = constraint.is_active();
+            if is_active {
+                is_locked = matches!(&*constraint, PointerConstraint::Locked(_));
+            }
+        });
+        (phase, is_active, is_locked)
+    }
+
+    /// Emit a game pointer-lock trace line. Pass `state` when already inside a
+    /// `with_pointer_constraint` callback — never call `pointer_constraint_snapshot`
+    /// there: nested `with_pointer_constraint` calls deadlock the compositor
+    /// (documented in smithay's pointer_constraints commit hook).
+    pub(crate) fn trace_game_pointer_at(
+        &self,
+        surface: &WlSurface,
+        event: &str,
+        pointer_loc: Option<Point<f64, Logical>>,
+        phase: Option<PointerConstraintPhase>,
+        is_active: bool,
+        is_locked: bool,
+    ) {
+        use smithay::reexports::wayland_server::Resource;
+        let (window_id, app_id) = self.pointer_trace_for_surface(surface);
+        let Some(app) = app_id.as_deref() else {
+            return;
+        };
+        let is_game = app.starts_with("steam_app_")
+            || app.contains(".exe")
+            || app.contains("proton")
+            || app.eq_ignore_ascii_case("hytaleclient");
+        if !is_game && app != "steam" {
+            return;
+        }
+        tracing::info!(
+            event,
+            window_id,
+            app_id = app,
+            ?phase,
+            is_active,
+            is_locked,
+            ?pointer_loc,
+            surface_id = ?surface.id(),
+            "game-pointer"
+        );
+    }
+
+    /// Safe to call only when NOT already inside `with_pointer_constraint`.
+    pub(crate) fn trace_game_pointer(
+        &self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+        event: &str,
+        pointer_loc: Option<Point<f64, Logical>>,
+    ) {
+        let (phase, is_active, is_locked) = self.pointer_constraint_snapshot(surface, pointer);
+        self.trace_game_pointer_at(surface, event, pointer_loc, phase, is_active, is_locked);
+    }
+
+    /// Sync constraint phase from the live protocol state. When a lock that was
+    /// `Active` becomes inactive the client opened a pause menu — mark it so we
+    /// never re-arm or allow a spurious re-activation on the next click.
+    pub(crate) fn sync_pointer_constraint_phase(
+        &mut self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+    ) {
+        use smithay::reexports::wayland_server::Resource;
+        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
+
+        let surface_id = surface.id();
+        let mut trace: Option<(&str, PointerConstraintPhase, bool, bool)> = None;
+        with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return;
+            };
+            let is_active = constraint.is_active();
+            let is_locked =
+                is_active && matches!(&*constraint, PointerConstraint::Locked(_));
+            if is_active {
+                let prev = self.pointer_constraint_phases.get(&surface_id).copied();
+                self.pointer_constraint_phases
+                    .insert(surface_id.clone(), PointerConstraintPhase::Active);
+                if prev != Some(PointerConstraintPhase::Active) {
+                    trace = Some((
+                        "constraint became active",
+                        PointerConstraintPhase::Active,
+                        true,
+                        is_locked,
+                    ));
+                }
+            } else if self.pointer_constraint_phases.get(&surface_id)
+                == Some(&PointerConstraintPhase::Active)
+            {
+                self.pointer_constraint_phases.insert(
+                    surface_id.clone(),
+                    PointerConstraintPhase::ClientDeactivated,
+                );
+                trace = Some((
+                    "constraint client-deactivated (pause menu?)",
+                    PointerConstraintPhase::ClientDeactivated,
+                    false,
+                    false,
+                ));
+            }
+        });
+        if let Some((event, phase, is_active, is_locked)) = trace {
+            self.trace_game_pointer_at(surface, event, None, Some(phase), is_active, is_locked);
+        }
+    }
+
+    /// If the client wrongly re-activated its lock during a pause menu (common
+    /// on a menu click in Proton games), drop it again so the system cursor stays
+    /// visible and clickable.
+    pub(crate) fn suppress_spurious_pointer_lock(
+        &mut self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+    ) {
+        use smithay::reexports::wayland_server::Resource;
+        use smithay::wayland::pointer_constraints::with_pointer_constraint;
+
+        let surface_id = surface.id();
+        if self.pointer_constraint_phases.get(&surface_id)
+            != Some(&PointerConstraintPhase::ClientDeactivated)
+        {
+            return;
+        }
+        let mut suppressed = false;
+        with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return;
+            };
+            if constraint.is_active() {
+                constraint.deactivate();
+                suppressed = true;
+            }
+        });
+        if suppressed {
+            self.trace_game_pointer_at(
+                surface,
+                "suppressed spurious lock re-activation after click",
+                None,
+                Some(PointerConstraintPhase::ClientDeactivated),
+                false,
+                false,
+            );
+        }
+    }
+
+    /// Arm a pointer lock on the first pointer entry to a surface. Never re-arm
+    /// after the client deactivated it for a pause menu.
+    pub(crate) fn maybe_arm_pointer_constraint(
+        &mut self,
+        surface: &WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+        location: Point<f64, Logical>,
+        surface_loc: Point<f64, Logical>,
+    ) {
+        use smithay::reexports::wayland_server::Resource;
+        use smithay::wayland::pointer_constraints::with_pointer_constraint;
+
+        self.sync_pointer_constraint_phase(surface, pointer);
+
+        let surface_id = surface.id();
+        let entered = self.last_pointer_motion_surface.as_ref() != Some(&surface_id);
+        self.last_pointer_motion_surface = Some(surface_id.clone());
+
+        if !entered {
+            return;
+        }
+
+        let phase = self
+            .pointer_constraint_phases
+            .get(&surface_id)
+            .copied()
+            .unwrap_or(PointerConstraintPhase::NeverActivated);
+
+        if phase == PointerConstraintPhase::ClientDeactivated {
+            self.trace_game_pointer_at(
+                surface,
+                "skipped arming — client-deactivated (pause menu)",
+                Some(location),
+                Some(phase),
+                false,
+                false,
+            );
+            return;
+        }
+
+        let mut armed = false;
+        with_pointer_constraint(surface, pointer, |constraint| {
+            let Some(constraint) = constraint else {
+                return;
+            };
+            if constraint.is_active() || phase != PointerConstraintPhase::NeverActivated {
+                return;
+            }
+            let point = (location - surface_loc).to_i32_round();
+            if constraint
+                .region()
+                .is_none_or(|region| region.contains(point))
+            {
+                constraint.activate();
+                self.pointer_constraint_phases
+                    .insert(surface_id.clone(), PointerConstraintPhase::Active);
+                armed = true;
+            }
+        });
+        if armed {
+            self.trace_game_pointer_at(
+                surface,
+                "constraint armed on surface entry",
+                Some(location),
+                Some(PointerConstraintPhase::Active),
+                true,
+                true,
+            );
+        }
     }
 
     /// True while at least one override-redirect X11 surface (menu, tooltip,

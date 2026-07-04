@@ -14,7 +14,7 @@ capture, binary footprint, and recommended follow-ups.
 | DRM session | **OK** | Vblank + damage-gated flips; single-GPU only |
 | Shell / edge bar | **OK** | Background poll thread; subprocess I/O every 400 ms–6 s |
 | Screen capture | **Early** | Full-scene GL render + CPU SHM copy per screenshot |
-| Gaming / Steam | **Not tuned** | No direct scanout; compositor always composites |
+| Gaming / Steam | **Improving** | Pointer lock + relative motion; vblank-driven present; scanout feedback wired — direct scanout still needs on-hardware verification |
 | Install footprint | **Improved** | Release profiles use LTO + strip; optional `release-small` |
 
 Metis is **past prototype** on compositor fundamentals (no busy loops, deliberate

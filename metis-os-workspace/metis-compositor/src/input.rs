@@ -395,6 +395,27 @@ impl MetisState {
                                 }
                                 return FilterResult::Intercept(());
                             }
+                            // Trace bare Esc forwarded to a game (usually opens pause menu).
+                            if sym == keysyms::KEY_Escape
+                                && !mod_active(modifiers)
+                                && !state.lock.locked
+                            {
+                                if let Some(id) = state.focused_window_id() {
+                                    let app_id = state
+                                        .windows
+                                        .get(id)
+                                        .and_then(|r| r.app_id.clone());
+                                    if app_id.as_deref().is_some_and(|a| {
+                                        a.starts_with("steam_app_") || a.contains(".exe")
+                                    }) {
+                                        tracing::info!(
+                                            id,
+                                            ?app_id,
+                                            "game-pointer: Esc forwarded to game"
+                                        );
+                                    }
+                                }
+                            }
                         }
                         FilterResult::Forward
                     },
@@ -407,6 +428,10 @@ impl MetisState {
                 // when the pointer is locked it never moves, so the target can't
                 // change from raw motion.
                 let under = self.pointer_target_at(current);
+
+                if let Some((surface, _)) = under.as_ref() {
+                    self.sync_pointer_constraint_phase(surface, &pointer);
+                }
 
                 // Pointer constraints (games: mouse-look lock / region confinement).
                 let mut pointer_locked = false;
@@ -499,20 +524,15 @@ impl MetisState {
 
                 // Arm a not-yet-active constraint once the pointer enters its
                 // region (games commonly request the lock before grabbing focus).
+                // Never re-arm a lock the client deactivated for a pause menu —
+                // see `maybe_arm_pointer_constraint`.
                 if let Some((surface, surface_loc)) = new_under {
-                    with_pointer_constraint(&surface, &pointer, |constraint| {
-                        if let Some(constraint) = constraint {
-                            if !constraint.is_active() {
-                                let point = (location - surface_loc).to_i32_round();
-                                if constraint
-                                    .region()
-                                    .is_none_or(|region| region.contains(point))
-                                {
-                                    constraint.activate();
-                                }
-                            }
-                        }
-                    });
+                    self.maybe_arm_pointer_constraint(
+                        &surface,
+                        &pointer,
+                        location,
+                        surface_loc,
+                    );
                 }
             }
             InputEvent::PointerMotionAbsolute { event, .. } => {
@@ -551,8 +571,35 @@ impl MetisState {
                 let serial = SERIAL_COUNTER.next_serial();
                 let button = event.button_code();
                 let button_state = event.state();
-                let loc = pointer.current_location();
-                let under = self.pointer_target_at(loc);
+                let raw_loc = pointer.current_location();
+                let under = self.pointer_target_at(raw_loc);
+                let loc = self.effective_pointer_delivery_loc(&pointer, under.as_ref());
+                if loc != raw_loc {
+                    pointer.set_location(loc);
+                    if let Some((surface, _)) = under.as_ref() {
+                        self.trace_game_pointer(
+                            surface,
+                            &pointer,
+                            "click remapped via cursor position hint",
+                            Some(loc),
+                        );
+                    }
+                }
+
+                if let Some((surface, _)) = under.as_ref() {
+                    self.sync_pointer_constraint_phase(surface, &pointer);
+                }
+
+                if ButtonState::Pressed == button_state {
+                    if let Some((surface, _)) = under.as_ref() {
+                        self.trace_game_pointer(
+                            surface,
+                            &pointer,
+                            "pointer button press",
+                            Some(loc),
+                        );
+                    }
+                }
 
                 // Sync motion target before button so layer-shell clients receive enter/press.
                 pointer.motion(
@@ -619,6 +666,17 @@ impl MetisState {
                         time: event.time_msec(),
                     },
                 );
+                if let Some((surface, _)) = under {
+                    self.suppress_spurious_pointer_lock(&surface, &pointer);
+                    if button_state == ButtonState::Pressed {
+                        self.trace_game_pointer(
+                            &surface,
+                            &pointer,
+                            "after pointer button (post-suppress)",
+                            Some(loc),
+                        );
+                    }
+                }
                 pointer.frame(self);
             }
             InputEvent::PointerAxis { event, .. } => {
@@ -674,13 +732,24 @@ impl MetisState {
 
         if let Some(target) = self.focus_target_at(location) {
             if let KeyboardFocusTarget::Window(ref window) = target {
-                self.space.raise_element(window, true);
+                // Keyboard focus for X11 windows now routes through `X11Surface`,
+                // whose `enter` sets X input focus (`XSetInputFocus`) and sends
+                // `WM_TAKE_FOCUS`. Re-entering the *same* already-focused window on
+                // every pointer click resets the client's in-game UI state: menu
+                // items stop opening their dialogs (settings panels never appear),
+                // and the game repositions its cursor as if focus changed — the
+                // "mouse jumps from the menu on the left to the middle-top where
+                // the dialog should be" report during Proton gameplay.
+                if self.windows.id_for_window(&window) == self.focused_window_id() {
+                    return;
+                }
+                self.space.raise_element(&window, true);
                 if let Some(toplevel) = window.toplevel() {
                     toplevel.send_pending_configure();
                 }
                 // Tell the shell (taskbar) which window now has focus — focus
                 // changes are otherwise only reported as a reply to FocusWindow.
-                if let Some(id) = self.windows.id_for_window(window) {
+                if let Some(id) = self.windows.id_for_window(&window) {
                     self.note_window_focus(id);
                     self.sync_scroll_focus_for_window(id);
                     self.event_bus

@@ -196,27 +196,57 @@ impl smithay::wayland::drm_syncobj::DrmSyncobjHandler for MetisState {
 
 impl PointerConstraintsHandler for MetisState {
     fn new_constraint(&mut self, surface: &WlSurface, pointer: &PointerHandle<Self>) {
-        // Only arm the lock/confinement if the requesting surface already owns the
-        // pointer focus — matches the protocol's "constraint activates when the
-        // surface has pointer focus" rule and avoids stealing the mouse from other
-        // clients.
+        use smithay::reexports::wayland_server::Resource;
+        self.pointer_constraint_phases
+            .insert(surface.id(), crate::state::PointerConstraintPhase::NeverActivated);
+        self.trace_game_pointer(surface, pointer, "new pointer constraint", None);
+        let mut activated = false;
         if pointer.current_focus().as_ref() == Some(surface) {
             with_pointer_constraint(surface, pointer, |constraint| {
                 if let Some(constraint) = constraint {
                     constraint.activate();
+                    self.pointer_constraint_phases
+                        .insert(surface.id(), crate::state::PointerConstraintPhase::Active);
+                    activated = true;
                 }
             });
+        }
+        if activated {
+            self.trace_game_pointer_at(
+                surface,
+                "new constraint activated (surface already focused)",
+                None,
+                Some(crate::state::PointerConstraintPhase::Active),
+                true,
+                true,
+            );
         }
     }
 
     fn remove_constraint(&mut self, surface: &WlSurface, pointer: &PointerHandle<Self>) {
-        // Constraint fully gone (client dropped it): drop the system cursor back
-        // where the game was drawing its own, so the pointer doesn't reappear in a
-        // stale corner after leaving mouse-look.
-        if with_pointer_constraint(surface, pointer, |constraint| constraint.is_none()) {
+        use smithay::reexports::wayland_server::Resource;
+        let surface_id = surface.id();
+        self.trace_game_pointer(surface, pointer, "pointer constraint removed", None);
+        self.pointer_constraint_phases.remove(&surface_id);
+        if self.last_pointer_motion_surface.as_ref() == Some(&surface_id) {
+            self.last_pointer_motion_surface = None;
+        }
+        let should_restore = with_pointer_constraint(surface, pointer, |constraint| {
+            constraint.is_none()
+        });
+        if should_restore {
             if let Some((hint_surface, hint_location)) = self.cursor_position_hint.take() {
                 if let Some(origin) = self.surface_space_origin(&hint_surface) {
-                    pointer.set_location(origin + hint_location);
+                    let restore = origin + hint_location;
+                    self.trace_game_pointer_at(
+                        surface,
+                        "restoring cursor from position hint",
+                        Some(restore),
+                        None,
+                        false,
+                        false,
+                    );
+                    pointer.set_location(restore);
                 }
             }
         }
@@ -232,6 +262,12 @@ impl PointerConstraintsHandler for MetisState {
             constraint.is_some_and(|c| c.is_active())
         }) {
             self.cursor_position_hint = Some((surface.clone(), location));
+            self.trace_game_pointer(
+                surface,
+                pointer,
+                "cursor position hint updated",
+                Some(location),
+            );
         }
     }
 }

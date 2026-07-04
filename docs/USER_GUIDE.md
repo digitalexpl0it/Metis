@@ -242,14 +242,18 @@ Enable it in *Steam → Settings → Compatibility → Run other titles with…*
 - **Anti-cheat** — enable *Steam Play* for the title and check
   [ProtonDB](https://www.protondb.com) for per-game tweaks.
 
-**Hybrid GPU (laptops).** Metis now exports the compositor's own render GPU to
+**Hybrid GPU (laptops).** Metis exports the compositor's own render GPU to
 every spawned client, so Steam, Proton, XWayland, and Vulkan apps default to the
 **same** card the session renders on instead of silently picking the wrong one.
 The card is chosen by the compositor (override with `METIS_DRM_DEVICE`, see dev
 docs) and forwarded as `DRI_PRIME` (Mesa GL) and `MESA_VK_DEVICE_SELECT` (Mesa
-Vulkan). To run a *specific* title on the discrete GPU instead, set a per-game
-launch option in Steam (*Properties → Launch Options*) — these still win because
-Metis only sets the vars when they are unset:
+Vulkan). On hybrid laptops where the panel is driven by the integrated GPU but a
+discrete GPU is present, Metis also **auto-offloads game and Steam launches** onto
+the dGPU (NVIDIA PRIME offload or Mesa `DRI_PRIME` for the dGPU render node).
+Lightweight desktop apps stay on the power-efficient iGPU. Override session-wide
+with `METIS_GAME_GPU=igpu|dgpu|off`. To run a *specific* title on the discrete GPU
+instead, set a per-game launch option in Steam (*Properties → Launch Options*) —
+these still win because Metis only sets the vars when they are unset:
 
 ```text
 DRI_PRIME=1 %command%
@@ -294,9 +298,15 @@ MANGOHUD=1 %command%                           # Flatpak Steam
 [GameMode](https://github.com/FeralInteractive/gamemode) is a standalone D-Bus
 service (`com.feralinteractive.GameMode`); games talk to it directly via
 `gamemoderun`, so nothing needs configuring in Metis beyond installing the
-package. MangoHud/vkBasalt likewise attach per game. Note that some games use
-pointer confinement/locking for camera control — Metis honors the standard
-Wayland pointer-constraints protocol.
+package. MangoHud/vkBasalt likewise attach per game.
+
+**Mouse-look & in-game menus (pointer lock).** Metis implements the standard
+Wayland pointer-constraints and relative-pointer protocols. Games that lock the
+pointer for camera control receive relative motion deltas while the system cursor
+stays put. Proton titles that draw their own cursor in menus send a
+`set_cursor_position_hint`; Metis remaps clicks through that hint so menu items
+activate where you point, not at the frozen lock anchor. Keyboard navigation in
+menus always works as a fallback.
 
 **Gamescope (optional):** SteamOS Gaming Mode uses [Gamescope](https://github.com/ValveSoftware/gamescope)
 as its compositor. On Metis, Gamescope is optional — add to a game's Steam launch
@@ -605,7 +615,10 @@ changes live.
 | Flatpak app won't start / no Wayland | Install `flatpak` + portal packages; ensure app has `socket=wayland` (`flatpak info --show-permissions …`) |
 | Flatpak app missing from the launcher | Metis adds the Flatpak `exports/share` dirs to `XDG_DATA_DIRS` at session start — re-run `./run-metis.sh --install-session` and log out/in if you installed the session before 2026-07-03. Verify with `echo $XDG_DATA_DIRS \| tr ':' '\n' \| grep flatpak` inside the session |
 | Flatpak game: no controller | `flatpak override --user --device=all <app-id>`; confirm user is in `input` group |
-| Steam / Proton game black screen or wrong GPU | Install 32-bit Vulkan (`i386` + `mesa-vulkan-drivers:i386`). Metis auto-forwards its render GPU to clients; per-game, override with `DRI_PRIME=1 %command%` / `prime-run %command%` (or NVIDIA offload vars). Session-wide, set `METIS_DRM_DEVICE=/dev/dri/cardN`; disable fullscreen optimizations per-game |
+| Steam / Proton game black screen or wrong GPU | Install 32-bit Vulkan (`i386` + `mesa-vulkan-drivers:i386`). Metis auto-forwards its render GPU to clients and auto-offloads game/Steam launches to a discrete GPU when present (`METIS_GAME_GPU` = igpu, dgpu, or off). Per-game, override with `DRI_PRIME=1 %command%` / `prime-run %command%` (or NVIDIA offload vars). Session-wide, set `METIS_DRM_DEVICE=/dev/dri/cardN`; disable fullscreen optimizations per-game |
+| Proton game: keys dead but mouse works | Re-login after `./run-metis.sh --install-session` (2026-07-04 XWayland keyboard-focus fix). Click the game window so it holds focus; confirm Steam is not popping over the game (focus-stealing prevention is in place) |
+| Proton game: menu clicks open wrong item / only Settings | Fixed 2026-07-04 (cursor-position-hint click remapping). Rebuild and reinstall the session; filter logs with `rg 'game-pointer' ~/.local/state/metis/logs/session-*.log` |
+| Steam tray Quit / Exit does nothing | Fixed 2026-07-04 (dbusmenu label re-resolve). Rebuild shell and reinstall session |
 | Steam overlay (Shift+Tab) missing | Click the game window so it holds focus (Metis is click-to-focus, no focus-follows-mouse). Most reliable on XWayland/Proton titles; some native-Wayland games draw the overlay differently |
 | Big Picture button missing from menu | The rail shows it only when Steam is installed — native `steam` on `PATH` or the `com.valvesoftware.Steam` Flatpak. Install Steam and reopen the menu |
 | Session sleeps during game | The idle-inhibit portal is implemented — video players, games, and browsers that request `org.freedesktop.ScreenSaver`/`PowerManagement.Inhibit` (or the Wayland idle-inhibit protocol) suspend blanking automatically. If something still sleeps, that app isn't requesting an inhibit; extend the timeout in Settings → Power, or confirm the inhibit reached the compositor |

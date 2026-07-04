@@ -5,6 +5,150 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-04]
+
+### Added
+
+- **Game mouse-look: pointer lock & relative motion** — the compositor now
+  implements `zwp_pointer_constraints_v1` (locked/confined pointer) and
+  `zwp_relative_pointer_v1` (raw, unaccelerated deltas). Together these let games
+  (Steam/Proton titles, Hytale, Minecraft-likes, any FPS/3D app) capture the
+  mouse for camera "look": previously such apps received clicks and buttons but
+  no look motion, because absolute cursor position never changes while a game
+  holds a pointer lock. The relative-motion path emits accelerated + unaccelerated
+  deltas on every hardware move; while a lock is active the system cursor stays
+  put and only relative motion is delivered, and a confinement refuses moves that
+  would leave the surface/region. Constraints arm when the owning surface has
+  pointer focus (or when the pointer enters the constraint region) and, on
+  release, the cursor is restored to the client's last-drawn position hint. Both
+  globals are inert until a client requests them, so non-gaming apps are
+  unaffected (`state.rs`, `handlers/mod.rs`, `input.rs`).
+
+- **Game pointer-lock diagnostics (`game-pointer`)** — INFO-level tracing for
+  Proton/Steam game input debugging: constraint create/remove/activate/deactivate,
+  pause-menu phase transitions, cursor-position-hint restore, pointer button
+  press (before and after spurious-lock suppression), click remapping via cursor
+  position hint, and bare Esc forwarded to a game. Filter session logs with
+  `rg 'game-pointer' ~/.local/state/metis/logs/session-*.log`. Covers
+  `steam_app_*`, `*.exe`, Proton, and `HytaleClient` windows
+  (`state.rs`, `input.rs`, `handlers/mod.rs`).
+
+### Fixed
+
+- **In-game menu clicks always open Settings (Proton / pointer lock)** — while a
+  `zwp_locked_pointer_v1` lock is active the compositor cursor stays at the lock
+  anchor, but Proton games track menu hover via `set_cursor_position_hint` and
+  expect clicks at the hinted coordinates. Every press was delivered at the
+  frozen anchor regardless of where the user moved the mouse, so only the menu
+  item at that spot (Settings) ever activated. Clicks now remap through the
+  latest cursor position hint before motion/button delivery
+  (`state.rs::effective_pointer_delivery_loc`, `input.rs`).
+- **Compositor freeze at game title screen (MOUSE / Proton)** — the new
+  `game-pointer` tracing called `pointer_constraint_snapshot()` from inside
+  Smithay's `with_pointer_constraint` callback, which re-enters the same mutex
+  and deadlocks the compositor thread the moment a game creates its first
+  pointer lock (e.g. "press any key to continue"). Tracing now uses
+  `trace_game_pointer_at()` with constraint state read directly inside the
+  callback and logged only after it returns (`state.rs`, `handlers/mod.rs`).
+- **In-game menu clicks do nothing / cursor jumps (Proton)** — two compounding
+  bugs after the X11 keyboard-focus fix:
+  1. **Pointer lock re-engaged during the pause menu** — when a Proton game opens
+     its pause menu it *deactivates* (but often keeps) its `zwp_locked_pointer_v1`
+     mouse-look lock. Metis was re-arming it on pointer motion *or* letting the
+     game re-activate it on menu clicks (cursor vanishes until the mouse moves
+     again). Constraint lifecycle is now tracked per surface and synced on every
+     pointer motion/click; a client-deactivated lock is never re-armed on motion,
+     is marked `ClientDeactivated` before click delivery, and any spurious
+     re-activation during the pause menu is immediately dropped again
+     (`state.rs`, `input.rs`, `handlers/mod.rs`).
+  2. **Keyboard refocus on every click** — re-entering the same already-focused
+     X11 window on each pointer click ran `XSetInputFocus`/`WM_TAKE_FOCUS` again,
+     resetting in-game UI state so dialogs never opened. Pointer clicks now skip
+     refocus when the clicked window already holds keyboard focus (`input.rs`).
+- **Keyboard input ignored by XWayland games (Esc / keys dead, mouse works)** —
+  the real root cause of the long-running "can't Esc in a Steam/Proton game"
+  report. Metis's keyboard focus wrapper delivered key events for an X11 window
+  straight to its raw `wl_surface`, bypassing `X11Surface`'s own `KeyboardTarget`
+  impl — which is what calls `XSetInputFocus` (and sends `WM_TAKE_FOCUS`) so the
+  X client actually accepts keyboard input. Without it XWayland received the
+  events but the client never held X input focus, so every keystroke was dropped
+  while pointer *clicks* (which don't need focus) still worked. Keyboard focus for
+  X11 windows now targets the `X11Surface`, which both sets X input focus and
+  buffers the enter until the surface associates (`pending_enter`), natively
+  covering the map-before-surface race too (`focus.rs`).
+- **Tray "Exit"/"Quit" fails (Steam) — ids resolved by label now** — Steam
+  *renumbers every dbusmenu item id* whenever its menu tree is rebuilt, so the id
+  captured when the menu was shown was routinely dead by click time ("The ID
+  supplied N does not refer to a menu item we have"), and the previously-shown
+  menu was even served from a cache fetched at registration. The click dispatch
+  now re-fetches the live layout and re-resolves the target by its (stable) label
+  before delivering the event, with a one-shot retry if the client renumbers
+  again mid-click. The clicked row's label is threaded through `MenuClicked`
+  (`tray.rs`, `tray_watcher.rs`).
+- **Games & Steam Big Picture forced onto the weak iGPU (slow) on hybrid
+  laptops** — on an Optimus system (Intel UHD + NVIDIA RTX 2070) the compositor
+  correctly renders on the iGPU that drives the panel, but its client GPU
+  steering then pinned *every* spawned process — including Steam, Big Picture and
+  the games Steam launches — to that same integrated GPU
+  (`DRI_PRIME=pci-…_00_02_0`, `MESA_VK_DEVICE_SELECT=8086:…`), leaving the
+  discrete GPU idle. That is why Big Picture loaded slowly and games were only
+  playable on Low, while the same titles run fine under GNOME (which does not
+  pin). Metis now detects a discrete GPU distinct from the display GPU
+  (`DgpuOffload::detect`) and PRIME-offloads game/launcher launches onto it —
+  NVIDIA via `__NV_PRIME_RENDER_OFFLOAD`/`__GLX_VENDOR_LIBRARY_NAME=nvidia`/
+  `__VK_LAYER_NV_optimus=NVIDIA_only` (proprietary driver only; nouveau falls
+  through to the Mesa path), or a Mesa dGPU via `DRI_PRIME`/
+  `MESA_VK_DEVICE_SELECT` for its render node. Lightweight desktop apps stay on
+  the power-efficient iGPU. The heuristic matches Steam/`-gamepadui`/gamescope/
+  Lutris/Heroic/Bottles/Proton/Wine/`.exe`; `METIS_GAME_GPU=igpu|dgpu|off`
+  overrides it and per-game Steam launch options still win
+  (`state.rs`, `udev.rs`).
+- **Esc / keys don't reach a Proton game (mouse works but keyboard doesn't)** —
+  root cause of the "still can't Esc in game" report. An XWayland toplevel (a
+  Proton/Wine game launched from Steam) issues its `MapRequest` — at which point
+  `map_x11_toplevel` gives it keyboard focus — *before* XWayland has associated
+  its `wl_surface`. `keyboard.set_focus` therefore delivered `wl_keyboard.enter`
+  to a window with no live surface, so no keystrokes ever reached the game, while
+  the pointer (resolved per-motion) still worked — the exact "mouse works, keys
+  don't" symptom. The game also read as "focused" (`focused_window_id` matches the
+  `Window`, not its surface), which masked the bug. Now, when an XWayland surface
+  associates on its first commit, Metis indexes it and — if that window is still
+  the intended keyboard-focus target — re-delivers focus (drop-then-set, since
+  re-setting the same target is a no-op in Smithay) so XWayland gets a fresh
+  `enter` for the now-live surface. Keyboard-focus changes are also logged
+  (`state.rs::note_surface_committed_for_focus`, `focus_window_id`,
+  `handlers/compositor.rs`).
+- **Tray "Exit"/"Quit" still ignored on Steam (the fix's own regression)** — the
+  earlier settle-delay let `fetch_menu` parse live ids, but the click dispatch
+  *then called `AboutToShow(0)` again right before sending the click*. Steam
+  rebuilds its dbusmenu and **renumbers every item id** on each `AboutToShow`, so
+  that second call invalidated the very id (`33`) we were about to click — the
+  event failed with "The ID supplied 33 does not refer to a menu item we have"
+  every time. Removed the redundant pre-click `AboutToShow` calls; the menu is
+  already made live (and its ids parsed) when the context menu is built, so the
+  click now lands on a valid id the first time (`tray_watcher.rs`).
+- **Steam steals focus from a running game (foreground pop-in + Esc/keys stop
+  working)** — while playing a Proton game (`steam_app_*`), Steam fired
+  `_NET_ACTIVE_WINDOW` at its own main window (tray updates, friends/downloads)
+  and Metis honored it unconditionally, popping Steam over the game *and* moving
+  keyboard focus off the game. The game kept only *pointer* focus (mouse still
+  worked) but lost keyboard focus, so Esc and movement keys no longer reached it
+  and the in-game menu was unreachable. Added focus-stealing prevention: while a
+  *running game* (`steam_app_*`/`*.exe`/Proton/`HytaleClient`, or any fullscreen
+  window) holds focus, a **different** window's self-activation via
+  `_NET_ACTIVE_WINDOW` is ignored (logged). A game activating itself, a launcher
+  handing off to a freshly-mapped game, and user-initiated dock/taskbar raises are
+  all still honored (`xwayland.rs`, `state.rs::window_is_running_game`).
+
+### Docs
+
+- **Proton input & hybrid-GPU gaming** — `docs/USER_GUIDE.md` now documents
+  automatic dGPU offload for game/Steam launches (`METIS_GAME_GPU=igpu|dgpu|off`),
+  pointer lock / relative motion for mouse-look, and troubleshooting rows for
+  Proton keyboard, menu-click, and tray-quit issues. `docs/UBUNTU_DEV.md` adds
+  `METIS_GAME_GPU` and the `game-pointer` log filter. `README.md` and `TODO.md`
+  Phase 6 updated to reflect on-hardware Proton verification (MOUSE: P.I. For Hire).
+
 ## [2026-07-03]
 
 ### Added
@@ -100,99 +244,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   error is still what's surfaced if both providers are unreachable
   (`services/weather.rs`).
 
-### Added
-
-- **Game mouse-look: pointer lock & relative motion** — the compositor now
-  implements `zwp_pointer_constraints_v1` (locked/confined pointer) and
-  `zwp_relative_pointer_v1` (raw, unaccelerated deltas). Together these let games
-  (Steam/Proton titles, Hytale, Minecraft-likes, any FPS/3D app) capture the
-  mouse for camera "look": previously such apps received clicks and buttons but
-  no look motion, because absolute cursor position never changes while a game
-  holds a pointer lock. The relative-motion path emits accelerated + unaccelerated
-  deltas on every hardware move; while a lock is active the system cursor stays
-  put and only relative motion is delivered, and a confinement refuses moves that
-  would leave the surface/region. Constraints arm when the owning surface has
-  pointer focus (or when the pointer enters the constraint region) and, on
-  release, the cursor is restored to the client's last-drawn position hint. Both
-  globals are inert until a client requests them, so non-gaming apps are
-  unaffected (`state.rs`, `handlers/mod.rs`, `input.rs`).
-
 ### Fixed
 
-- **Keyboard input ignored by XWayland games (Esc / keys dead, mouse works)** —
-  the real root cause of the long-running "can't Esc in a Steam/Proton game"
-  report. Metis's keyboard focus wrapper delivered key events for an X11 window
-  straight to its raw `wl_surface`, bypassing `X11Surface`'s own `KeyboardTarget`
-  impl — which is what calls `XSetInputFocus` (and sends `WM_TAKE_FOCUS`) so the
-  X client actually accepts keyboard input. Without it XWayland received the
-  events but the client never held X input focus, so every keystroke was dropped
-  while pointer *clicks* (which don't need focus) still worked. Keyboard focus for
-  X11 windows now targets the `X11Surface`, which both sets X input focus and
-  buffers the enter until the surface associates (`pending_enter`), natively
-  covering the map-before-surface race too (`focus.rs`).
-- **Tray "Exit"/"Quit" fails (Steam) — ids resolved by label now** — Steam
-  *renumbers every dbusmenu item id* whenever its menu tree is rebuilt, so the id
-  captured when the menu was shown was routinely dead by click time ("The ID
-  supplied N does not refer to a menu item we have"), and the previously-shown
-  menu was even served from a cache fetched at registration. The click dispatch
-  now re-fetches the live layout and re-resolves the target by its (stable) label
-  before delivering the event, with a one-shot retry if the client renumbers
-  again mid-click. The clicked row's label is threaded through `MenuClicked`
-  (`tray.rs`, `tray_watcher.rs`).
-- **Games & Steam Big Picture forced onto the weak iGPU (slow) on hybrid
-  laptops** — on an Optimus system (Intel UHD + NVIDIA RTX 2070) the compositor
-  correctly renders on the iGPU that drives the panel, but its client GPU
-  steering then pinned *every* spawned process — including Steam, Big Picture and
-  the games Steam launches — to that same integrated GPU
-  (`DRI_PRIME=pci-…_00_02_0`, `MESA_VK_DEVICE_SELECT=8086:…`), leaving the
-  discrete GPU idle. That is why Big Picture loaded slowly and games were only
-  playable on Low, while the same titles run fine under GNOME (which does not
-  pin). Metis now detects a discrete GPU distinct from the display GPU
-  (`DgpuOffload::detect`) and PRIME-offloads game/launcher launches onto it —
-  NVIDIA via `__NV_PRIME_RENDER_OFFLOAD`/`__GLX_VENDOR_LIBRARY_NAME=nvidia`/
-  `__VK_LAYER_NV_optimus=NVIDIA_only` (proprietary driver only; nouveau falls
-  through to the Mesa path), or a Mesa dGPU via `DRI_PRIME`/
-  `MESA_VK_DEVICE_SELECT` for its render node. Lightweight desktop apps stay on
-  the power-efficient iGPU. The heuristic matches Steam/`-gamepadui`/gamescope/
-  Lutris/Heroic/Bottles/Proton/Wine/`.exe`; `METIS_GAME_GPU=igpu|dgpu|off`
-  overrides it and per-game Steam launch options still win
-  (`state.rs`, `udev.rs`).
-- **Esc / keys don't reach a Proton game (mouse works but keyboard doesn't)** —
-  root cause of the "still can't Esc in game" report. An XWayland toplevel (a
-  Proton/Wine game launched from Steam) issues its `MapRequest` — at which point
-  `map_x11_toplevel` gives it keyboard focus — *before* XWayland has associated
-  its `wl_surface`. `keyboard.set_focus` therefore delivered `wl_keyboard.enter`
-  to a window with no live surface, so no keystrokes ever reached the game, while
-  the pointer (resolved per-motion) still worked — the exact "mouse works, keys
-  don't" symptom. The game also read as "focused" (`focused_window_id` matches the
-  `Window`, not its surface), which masked the bug. Now, when an XWayland surface
-  associates on its first commit, Metis indexes it and — if that window is still
-  the intended keyboard-focus target — re-delivers focus (drop-then-set, since
-  re-setting the same target is a no-op in Smithay) so XWayland gets a fresh
-  `enter` for the now-live surface. Keyboard-focus changes are also logged
-  (`state.rs::note_surface_committed_for_focus`, `focus_window_id`,
-  `handlers/compositor.rs`).
-- **Tray "Exit"/"Quit" still ignored on Steam (the fix's own regression)** — the
-  earlier settle-delay let `fetch_menu` parse live ids, but the click dispatch
-  *then called `AboutToShow(0)` again right before sending the click*. Steam
-  rebuilds its dbusmenu and **renumbers every item id** on each `AboutToShow`, so
-  that second call invalidated the very id (`33`) we were about to click — the
-  event failed with "The ID supplied 33 does not refer to a menu item we have"
-  every time. Removed the redundant pre-click `AboutToShow` calls; the menu is
-  already made live (and its ids parsed) when the context menu is built, so the
-  click now lands on a valid id the first time (`tray_watcher.rs`).
-- **Steam steals focus from a running game (foreground pop-in + Esc/keys stop
-  working)** — while playing a Proton game (`steam_app_*`), Steam fired
-  `_NET_ACTIVE_WINDOW` at its own main window (tray updates, friends/downloads)
-  and Metis honored it unconditionally, popping Steam over the game *and* moving
-  keyboard focus off the game. The game kept only *pointer* focus (mouse still
-  worked) but lost keyboard focus, so Esc and movement keys no longer reached it
-  and the in-game menu was unreachable. Added focus-stealing prevention: while a
-  *running game* (`steam_app_*`/`*.exe`/Proton/`HytaleClient`, or any fullscreen
-  window) holds focus, a **different** window's self-activation via
-  `_NET_ACTIVE_WINDOW` is ignored (logged). A game activating itself, a launcher
-  handing off to a freshly-mapped game, and user-initiated dock/taskbar raises are
-  all still honored (`xwayland.rs`, `state.rs::window_is_running_game`).
 - **Tray "Exit"/"Quit" ignored on the first right-click (Steam)** — a
   `StatusNotifierItem` context menu built its dbusmenu tree *asynchronously* after
   `AboutToShow`; Metis fetched the layout immediately and parsed a stale/empty

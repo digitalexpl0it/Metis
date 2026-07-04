@@ -194,8 +194,10 @@ reference.
   `XDG_DATA_DIRS`), the compositor forwards its render GPU to spawned clients for
   hybrid-laptop correctness (`DRI_PRIME` / `MESA_VK_DEVICE_SELECT`), and a
   Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs have
-  landed. Remaining: on-hardware verification of Proton/dGPU offload and
-  SteamOS-class handheld work.
+  landed (2026-07-03). Proton keyboard/pointer-lock input, automatic dGPU offload
+  for game launches, and Steam tray/focus fixes shipped and were verified on
+  hardware with a Proton title (2026-07-04). Remaining: broader on-hardware
+  verification and GPU perf vs Mutter on hybrid laptops.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
