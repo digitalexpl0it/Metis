@@ -90,6 +90,10 @@ pub fn night_light_element(
     if !night_light_active(cfg, target.output_name) {
         return None;
     }
+    // A fullscreen overlay tints the whole framebuffer and prevents direct scanout.
+    if state.output_has_fullscreen(target.output_name) {
+        return None;
+    }
     if target.size.w <= 0 || target.size.h <= 0 {
         return None;
     }

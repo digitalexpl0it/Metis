@@ -94,8 +94,16 @@ impl MetisState {
             Point::from((-render_origin.x as f64, -render_origin.y as f64));
 
         self.wallpaper.poll_decode();
-        self.wallpaper.ensure(renderer);
-        let wallpaper_owned = self.wallpaper.render_element_at(wallpaper_origin);
+        let skip_underlay = self.output_has_fullscreen(target.output_name);
+        let wallpaper_owned = if skip_underlay {
+            // Fullscreen game covers the output — skip wallpaper decode/upload and
+            // the extra composite layer so Smithay can promote the game buffer to
+            // the primary plane when formats match.
+            None
+        } else {
+            self.wallpaper.ensure(renderer);
+            self.wallpaper.render_element_at(wallpaper_origin)
+        };
 
         // Bar backdrop-blur element per output (each output may carry its own
         // bar). Sampled from the wallpaper under the bar through a Gaussian
@@ -114,6 +122,7 @@ impl MetisState {
             .collect();
         self.blur.ensure_program(renderer);
         let draw_blur = self.blur.enabled
+            && !skip_underlay
             && !self.splash_overlay_visible()
             && self.wallpaper.texture().is_some();
         let blur_elements: Vec<crate::blur::BlurElement> = if draw_blur {

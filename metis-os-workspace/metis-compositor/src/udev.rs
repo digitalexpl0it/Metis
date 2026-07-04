@@ -1137,6 +1137,9 @@ impl MetisState {
         if matches!(self.cursor_status, CursorImageStatus::Hidden) {
             return out;
         }
+        if self.active_pointer_lock_suppresses_cursor() {
+            return out;
+        }
 
         let millis = self.start_time.elapsed().as_millis() as u32;
         let udev = match self.udev.as_mut() {

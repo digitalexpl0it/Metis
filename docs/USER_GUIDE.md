@@ -305,8 +305,12 @@ Wayland pointer-constraints and relative-pointer protocols. Games that lock the
 pointer for camera control receive relative motion deltas while the system cursor
 stays put. Proton titles that draw their own cursor in menus send a
 `set_cursor_position_hint`; Metis remaps clicks through that hint so menu items
-activate where you point, not at the frozen lock anchor. Keyboard navigation in
-menus always works as a fallback.
+activate where you point, not at the frozen lock anchor. During pointer lock the
+compositor does not repaint on mouse motion — only the game's commits drive
+frames. Fullscreen games skip wallpaper, night light, and the compositor cursor
+so the display path can promote the game buffer to direct scanout when formats
+match. Enable **Adaptive sync** in Settings → Display for VRR on supported panels.
+Keyboard navigation in menus always works as a fallback.
 
 **Gamescope (optional):** SteamOS Gaming Mode uses [Gamescope](https://github.com/ValveSoftware/gamescope)
 as its compositor. On Metis, Gamescope is optional — add to a game's Steam launch

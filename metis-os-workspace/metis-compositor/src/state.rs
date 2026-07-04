@@ -1040,6 +1040,56 @@ impl MetisState {
         }
     }
 
+    /// Arm repaint for a single output only. Used on client commits so a game on
+    /// one monitor does not force a full composite on every other display.
+    pub fn schedule_redraw_for_output(&mut self, output: &smithay::output::Output) {
+        self.damaged = true;
+        let name = output.name();
+        if let Some(udev) = self.udev.as_mut() {
+            for surface in udev.surfaces.values_mut() {
+                if !surface.user_disabled && surface.output.name() == name {
+                    surface.pending = true;
+                }
+            }
+        }
+    }
+
+    /// Arm repaint for the output a window sits on; falls back to all outputs.
+    pub fn schedule_redraw_for_window(&mut self, id: u32) {
+        if let Some(output) = self.output_for_window(id) {
+            self.schedule_redraw_for_output(&output);
+        } else {
+            self.schedule_redraw();
+        }
+    }
+
+    /// True when an output has at least one client in true fullscreen (bar hidden).
+    pub(crate) fn output_has_fullscreen(&self, output_name: Option<&str>) -> bool {
+        let Some(name) = output_name else {
+            return false;
+        };
+        self.output_fullscreen_windows
+            .get(name)
+            .is_some_and(|s| !s.is_empty())
+    }
+
+    /// While a locked-pointer constraint is active the game draws its own cursor
+    /// (or none) and the compositor cursor only blocks primary-plane scanout.
+    pub(crate) fn active_pointer_lock_suppresses_cursor(&self) -> bool {
+        let Some(pointer) = self.seat.get_pointer() else {
+            return false;
+        };
+        let Some(focus) = pointer.current_focus() else {
+            return false;
+        };
+        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
+        with_pointer_constraint(&focus, &pointer, |constraint| {
+            constraint.is_some_and(|c| {
+                c.is_active() && matches!(&*c, PointerConstraint::Locked(_))
+            })
+        })
+    }
+
     pub fn flush_clients_if_pending(&mut self) {
         if self.defer_client_flush {
             self.defer_client_flush = false;

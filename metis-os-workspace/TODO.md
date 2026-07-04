@@ -634,19 +634,19 @@ Mode. Track compatibility either way:
       (overlay, Proton) in `USER_GUIDE.md`
 - [x] **MangoHud / vkBasalt** — documented `%command%` prefix patterns in Steam
       launch options (no Metis code required)
-- [ ] **INVESTIGATE: in-game GPU performance regression vs GNOME/Mutter** — Hytale
-      (native-Wayland game client) is only playable on **Low** graphics under Metis;
-      **High** is laggy, whereas the *same* game on **gnome-shell (Mutter) runs High
-      smoothly** on this hardware. Metis fullscreen is correct now, so this is a
-      throughput/latency issue, not placement. Suspects to profile:
-      the render/present path (are we hitting **direct scanout** for the fullscreen
-      game surface, or always compositing/blitting?), missing **VRR / tearing**
-      (`wp_tearing_control_v1` is absent in the pinned Smithay), **GPU selection**
-      (is the game landing on the dGPU via `render_node`/`DRI_PRIME`, or the iGPU?),
-      **explicit-sync / dmabuf scanout feedback** actually engaging, and any
-      unnecessary format conversions or extra copies per frame. Compare
-      `wp_presentation` frame timings + `MANGOHUD` FPS under Metis vs Mutter, and
-      check `METIS_DRM_DEVICE` / Mesa device-select env in the game's session.
+- [x] **INVESTIGATE: in-game GPU performance regression vs GNOME/Mutter** — Hytale
+      (native-Wayland) was only playable on **Low** under Metis while **High** ran
+      smoothly on gnome-shell/Mutter on the same hardware. **Root cause:** the
+      compositor kept drawing wallpaper, night light, and the theme cursor under
+      fullscreen, repainted on every locked-pointer mouse move, and armed every
+      output on each client commit — so fullscreen games never got a clean direct
+      scanout path. **Fixed (2026-07-04):** skip wallpaper/blur/night-light under
+      fullscreen, hide compositor cursor during pointer lock, stop
+      `schedule_redraw` on locked-pointer motion, per-output commit damage
+      (`render.rs`, `night_light.rs`, `input.rs`, `state.rs`,
+      `handlers/compositor.rs`). **Verified on hardware:** Hytale **High** runs
+      perfectly under Metis after the fix. Remaining if needed: profile Proton/
+      cross-GPU PRIME titles separately (dGPU render → iGPU scanout).
 
 ---
 

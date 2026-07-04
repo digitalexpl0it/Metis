@@ -474,8 +474,10 @@ impl MetisState {
 
                 if pointer_locked {
                     // Locked: the cursor stays put; deliver relative motion only.
+                    // Do not schedule_redraw — nothing on screen changes and the
+                    // game repaints from its own commits; repainting here on every
+                    // mouse poll was saturating the compositor during mouse-look.
                     pointer.frame(self);
-                    self.schedule_redraw();
                     return;
                 }
 
@@ -494,7 +496,6 @@ impl MetisState {
                         });
                         if !same_surface || !in_region {
                             pointer.frame(self);
-                            self.schedule_redraw();
                             return;
                         }
                     }

@@ -33,6 +33,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `steam_app_*`, `*.exe`, Proton, and `HytaleClient` windows
   (`state.rs`, `input.rs`, `handlers/mod.rs`).
 
+### Changed
+
+- **Gaming performance (fullscreen fast path)** — several compositor-side
+  bottlenecks that kept fullscreen games composited every frame even when only
+  the game buffer changed:
+  1. **Skip wallpaper + bar blur under fullscreen** — when an output has a true
+     fullscreen client, the wallpaper texture and backdrop blur are no longer
+     drawn beneath it, giving Smithay a cleaner shot at primary-plane direct
+     scanout (`render.rs`).
+  2. **Skip night light under fullscreen** — the warm overlay blocked scanout
+     promotion; it is suppressed while a fullscreen window covers the output
+     (`night_light.rs`).
+  3. **Hide compositor cursor during pointer lock** — while
+     `zwp_locked_pointer_v1` is active the theme cursor is not composited
+     (games draw their own or hide it); keeps the cursor off the primary plane
+     (`state.rs`, `udev.rs`).
+  4. **Stop repainting on locked-pointer motion** — mouse-look no longer calls
+     `schedule_redraw` on every hardware move; only the game's own commits drive
+     frames (`input.rs`).
+  5. **Per-output damage on client commit** — surface commits arm only the
+     output the window sits on instead of every connected display
+     (`state.rs::schedule_redraw_for_window`, `handlers/compositor.rs`).
+  Verified on hardware: **Hytale** (native Wayland) runs **High** smoothly; was
+  Low-only before these changes.
+
 ### Fixed
 
 - **In-game menu clicks always open Settings (Proton / pointer lock)** — while a
@@ -148,6 +173,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   Proton keyboard, menu-click, and tray-quit issues. `docs/UBUNTU_DEV.md` adds
   `METIS_GAME_GPU` and the `game-pointer` log filter. `README.md` and `TODO.md`
   Phase 6 updated to reflect on-hardware Proton verification (MOUSE: P.I. For Hire).
+  Hytale **High** verified on hardware after the fullscreen fast-path perf fixes.
 
 ## [2026-07-03]
 

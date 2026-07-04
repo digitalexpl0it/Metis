@@ -166,13 +166,13 @@ impl CompositorHandler for MetisState {
         resize_grab::handle_commit(&mut self.space, surface);
         handle_layer_commit(self, surface);
 
-        // Flag damage on every commit. We deliberately do NOT try to detect a
-        // buffer here: `on_commit_buffer_handler` consumes the SurfaceAttributes
-        // buffer assignment, so the old check was always false and starved the
-        // damage-based render loop. `schedule_redraw` arms the scan-out surface so
-        // it repaints on its next vblank; over-flagging is harmless because an
-        // empty (no-damage) render is dropped without queuing a flip.
-        self.schedule_redraw();
+        // Flag damage on every commit. Arm only the output the window sits on so
+        // a game on one monitor does not composite every display each frame.
+        if let Some(id) = committed_id {
+            self.schedule_redraw_for_window(id);
+        } else {
+            self.schedule_redraw();
+        }
 
         if !is_sync_subsurface(surface) {
             let mut root = surface.clone();
