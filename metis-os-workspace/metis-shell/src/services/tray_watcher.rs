@@ -463,6 +463,50 @@ async fn fetch_menu(
     Some(menu)
 }
 
+/// Re-fetch the live dbusmenu layout and resolve the current id of the item
+/// whose label matches `label`. Steam renumbers ids on every rebuild, so the id
+/// captured when the menu was displayed goes stale; matching on the (stable)
+/// label recovers the current id. Returns `None` if the label isn't found (the
+/// caller then falls back to the id the UI sent).
+async fn resolve_menu_id_by_label(proxy: &DBusMenuProxy<'_>, label: &str) -> Option<i32> {
+    if label.trim().is_empty() {
+        return None;
+    }
+    // `AboutToShow` is what makes the client (re)publish its tree; let the async
+    // rebuild settle before reading, so we parse the *current* layout.
+    match proxy.about_to_show(0).await {
+        Ok(true) => tokio::time::sleep(Duration::from_millis(150)).await,
+        Ok(false) => {}
+        Err(err) => tracing::debug!(%err, "tray: AboutToShow before click failed (non-fatal)"),
+    }
+    let layout: MenuLayout = proxy.get_layout(0, 10, MENU_PROPS).await.ok()?;
+    let menu = parse_menu_layout(layout);
+    find_menu_id_by_label(&menu.submenus, label)
+}
+
+/// Depth-first search for a menu item whose label matches `target`, comparing
+/// case-insensitively and ignoring `_`/`&` mnemonic markers and surrounding
+/// whitespace so "E_xit" matches "Exit".
+fn find_menu_id_by_label(items: &[MenuItem], target: &str) -> Option<i32> {
+    let normalize = |s: &str| -> String {
+        s.chars()
+            .filter(|c| *c != '_' && *c != '&')
+            .collect::<String>()
+            .trim()
+            .to_ascii_lowercase()
+    };
+    let want = normalize(target);
+    for item in items {
+        if !item.label.is_empty() && normalize(&item.label) == want {
+            return Some(item.id);
+        }
+        if let Some(found) = find_menu_id_by_label(&item.submenu, target) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 fn log_menu_items(bus_name: &str, items: &[MenuItem], depth: usize) {
     for item in items {
         tracing::debug!(
@@ -503,6 +547,7 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
             bus_name,
             menu_path,
             submenu_id,
+            label,
         } => {
             let proxy = DBusMenuProxy::builder(conn)
                 .destination(bus_name.as_str())
@@ -512,26 +557,64 @@ async fn dispatch_command(conn: &zbus::Connection, cmd: TrayCommand) -> Result<(
                 .build()
                 .await
                 .map_err(|e| e.to_string())?;
-            // Some clients (Steam/Qt) only treat a menu as "live" after an
-            // AboutToShow on the ROOT; do that first, then AboutToShow the item's
-            // own subtree, then deliver the click. Errors here are non-fatal.
-            let _ = proxy.about_to_show(0).await;
-            let _ = proxy.about_to_show(submenu_id).await;
-            let ts = chrono::Utc::now().timestamp_millis();
-            tracing::debug!(bus = %bus_name, submenu_id, "tray: dispatching menu click");
-            let result = proxy
-                .event(submenu_id, "clicked", &Value::from(0i32), ts as u32)
-                .await
-                .map_err(|e| e.to_string());
+
+            // Steam (and other ayatana→dbusmenu bridges) *renumber* their menu
+            // item ids every time the tree is rebuilt, so the id captured when the
+            // menu was shown is routinely dead by the time of the click ("The ID
+            // supplied N does not refer to a menu item we have"). Re-fetch the live
+            // layout right now and re-resolve the id by its (stable) label; only if
+            // that fails do we fall back to the id the UI sent. `AboutToShow` is
+            // what triggers the rebuild, so we call it, let it settle, then read
+            // the *post-rebuild* layout — the ids we resolve are therefore current.
+            let deliver = |target: i32| {
+                let proxy = proxy.clone();
+                async move {
+                    let ts = chrono::Utc::now().timestamp_millis();
+                    proxy
+                        .event(target, "clicked", &Value::from(0i32), ts as u32)
+                        .await
+                        .map_err(|e| e.to_string())
+                }
+            };
+
+            let resolved = resolve_menu_id_by_label(&proxy, &label).await;
+            let target = resolved.unwrap_or(submenu_id);
+            tracing::debug!(
+                bus = %bus_name,
+                submenu_id,
+                resolved = ?resolved,
+                target,
+                label = %label,
+                "tray: dispatching menu click"
+            );
+
+            let mut result = deliver(target).await;
+            // One retry: if the resolved id was *also* stale (the client renumbered
+            // between our layout read and the click), re-resolve once and retry.
+            if result.is_err() {
+                if let Some(fresh) = resolve_menu_id_by_label(&proxy, &label).await {
+                    if fresh != target {
+                        tracing::debug!(
+                            bus = %bus_name,
+                            fresh,
+                            "tray: first click failed — retrying with re-resolved id"
+                        );
+                        result = deliver(fresh).await;
+                    }
+                }
+            }
+
             match &result {
                 Ok(()) => tracing::info!(
                     bus = %bus_name,
-                    submenu_id,
+                    target,
+                    label = %label,
                     "tray: menu click delivered"
                 ),
                 Err(err) => tracing::warn!(
                     bus = %bus_name,
-                    submenu_id,
+                    target,
+                    label = %label,
                     %err,
                     "tray: menu click failed"
                 ),

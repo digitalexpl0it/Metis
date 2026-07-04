@@ -119,6 +119,68 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Keyboard input ignored by XWayland games (Esc / keys dead, mouse works)** —
+  the real root cause of the long-running "can't Esc in a Steam/Proton game"
+  report. Metis's keyboard focus wrapper delivered key events for an X11 window
+  straight to its raw `wl_surface`, bypassing `X11Surface`'s own `KeyboardTarget`
+  impl — which is what calls `XSetInputFocus` (and sends `WM_TAKE_FOCUS`) so the
+  X client actually accepts keyboard input. Without it XWayland received the
+  events but the client never held X input focus, so every keystroke was dropped
+  while pointer *clicks* (which don't need focus) still worked. Keyboard focus for
+  X11 windows now targets the `X11Surface`, which both sets X input focus and
+  buffers the enter until the surface associates (`pending_enter`), natively
+  covering the map-before-surface race too (`focus.rs`).
+- **Tray "Exit"/"Quit" fails (Steam) — ids resolved by label now** — Steam
+  *renumbers every dbusmenu item id* whenever its menu tree is rebuilt, so the id
+  captured when the menu was shown was routinely dead by click time ("The ID
+  supplied N does not refer to a menu item we have"), and the previously-shown
+  menu was even served from a cache fetched at registration. The click dispatch
+  now re-fetches the live layout and re-resolves the target by its (stable) label
+  before delivering the event, with a one-shot retry if the client renumbers
+  again mid-click. The clicked row's label is threaded through `MenuClicked`
+  (`tray.rs`, `tray_watcher.rs`).
+- **Games & Steam Big Picture forced onto the weak iGPU (slow) on hybrid
+  laptops** — on an Optimus system (Intel UHD + NVIDIA RTX 2070) the compositor
+  correctly renders on the iGPU that drives the panel, but its client GPU
+  steering then pinned *every* spawned process — including Steam, Big Picture and
+  the games Steam launches — to that same integrated GPU
+  (`DRI_PRIME=pci-…_00_02_0`, `MESA_VK_DEVICE_SELECT=8086:…`), leaving the
+  discrete GPU idle. That is why Big Picture loaded slowly and games were only
+  playable on Low, while the same titles run fine under GNOME (which does not
+  pin). Metis now detects a discrete GPU distinct from the display GPU
+  (`DgpuOffload::detect`) and PRIME-offloads game/launcher launches onto it —
+  NVIDIA via `__NV_PRIME_RENDER_OFFLOAD`/`__GLX_VENDOR_LIBRARY_NAME=nvidia`/
+  `__VK_LAYER_NV_optimus=NVIDIA_only` (proprietary driver only; nouveau falls
+  through to the Mesa path), or a Mesa dGPU via `DRI_PRIME`/
+  `MESA_VK_DEVICE_SELECT` for its render node. Lightweight desktop apps stay on
+  the power-efficient iGPU. The heuristic matches Steam/`-gamepadui`/gamescope/
+  Lutris/Heroic/Bottles/Proton/Wine/`.exe`; `METIS_GAME_GPU=igpu|dgpu|off`
+  overrides it and per-game Steam launch options still win
+  (`state.rs`, `udev.rs`).
+- **Esc / keys don't reach a Proton game (mouse works but keyboard doesn't)** —
+  root cause of the "still can't Esc in game" report. An XWayland toplevel (a
+  Proton/Wine game launched from Steam) issues its `MapRequest` — at which point
+  `map_x11_toplevel` gives it keyboard focus — *before* XWayland has associated
+  its `wl_surface`. `keyboard.set_focus` therefore delivered `wl_keyboard.enter`
+  to a window with no live surface, so no keystrokes ever reached the game, while
+  the pointer (resolved per-motion) still worked — the exact "mouse works, keys
+  don't" symptom. The game also read as "focused" (`focused_window_id` matches the
+  `Window`, not its surface), which masked the bug. Now, when an XWayland surface
+  associates on its first commit, Metis indexes it and — if that window is still
+  the intended keyboard-focus target — re-delivers focus (drop-then-set, since
+  re-setting the same target is a no-op in Smithay) so XWayland gets a fresh
+  `enter` for the now-live surface. Keyboard-focus changes are also logged
+  (`state.rs::note_surface_committed_for_focus`, `focus_window_id`,
+  `handlers/compositor.rs`).
+- **Tray "Exit"/"Quit" still ignored on Steam (the fix's own regression)** — the
+  earlier settle-delay let `fetch_menu` parse live ids, but the click dispatch
+  *then called `AboutToShow(0)` again right before sending the click*. Steam
+  rebuilds its dbusmenu and **renumbers every item id** on each `AboutToShow`, so
+  that second call invalidated the very id (`33`) we were about to click — the
+  event failed with "The ID supplied 33 does not refer to a menu item we have"
+  every time. Removed the redundant pre-click `AboutToShow` calls; the menu is
+  already made live (and its ids parsed) when the context menu is built, so the
+  click now lands on a valid id the first time (`tray_watcher.rs`).
 - **Steam steals focus from a running game (foreground pop-in + Esc/keys stop
   working)** — while playing a Proton game (`steam_app_*`), Steam fired
   `_NET_ACTIVE_WINDOW` at its own main window (tray updates, friends/downloads)

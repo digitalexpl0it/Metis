@@ -328,6 +328,17 @@ pub fn init_udev(
     if let Some(hint) = &state.client_gpu {
         tracing::info!(?hint, "client GPU steering env resolved");
     }
+    // On a hybrid (Optimus) laptop the compositor renders on the iGPU that owns
+    // the panel; detect a discrete GPU so games / Steam Big Picture can be
+    // PRIME-offloaded onto it instead of being pinned to the weak iGPU.
+    state.dgpu_offload = crate::state::DgpuOffload::detect(&udev.render_node);
+    match &state.dgpu_offload {
+        Some(offload) => tracing::info!(
+            ?offload,
+            "discrete GPU detected — game/launcher processes will be offloaded to it"
+        ),
+        None => tracing::info!("no discrete GPU detected; all clients use the display GPU"),
+    }
 
     state.udev = Some(udev);
 

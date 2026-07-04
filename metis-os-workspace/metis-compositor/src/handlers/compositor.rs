@@ -185,6 +185,14 @@ impl CompositorHandler for MetisState {
             if let Some(id) = self.windows.id_for_surface(&root) {
                 self.ensure_initial_configure(id);
             }
+            // If an XWayland toplevel just associated its surface, index it and
+            // re-deliver keyboard focus (fixes games that map + get focus before
+            // their wl_surface exists — pointer works, Esc/keys don't). Resolved
+            // via the space-element match, since `id_for_surface` is precisely
+            // what is still missing on this first association commit.
+            if let Some(id) = committed_id {
+                self.note_surface_committed_for_focus(id, &root);
+            }
             self.try_activate_committed_window(&root);
         }
     }

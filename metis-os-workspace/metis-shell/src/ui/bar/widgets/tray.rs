@@ -355,7 +355,7 @@ fn schedule_tray_popover_close() {
     );
 }
 
-fn send_tray_menu_click(item: &TrayItem, submenu_id: i32) {
+fn send_tray_menu_click(item: &TrayItem, submenu_id: i32, label: String) {
     suppress_tray_activate_briefly();
     let Some(menu_path) = item.menu_path.clone() else {
         return;
@@ -364,6 +364,7 @@ fn send_tray_menu_click(item: &TrayItem, submenu_id: i32) {
         bus_name: item.bus_name.clone(),
         menu_path,
         submenu_id,
+        label,
     };
     glib::idle_add_local_once(move || send_command(cmd));
     schedule_tray_popover_close();
@@ -526,8 +527,9 @@ fn append_menu_items(list: &gtk::Box, item: &TrayItem, entries: &[TrayMenuItem])
                 row.set_halign(gtk::Align::Fill);
                 let click_item = item.clone();
                 let submenu_id = entry.id;
+                let click_label = entry.label.clone();
                 row.connect_clicked(move |_| {
-                    send_tray_menu_click(&click_item, submenu_id);
+                    send_tray_menu_click(&click_item, submenu_id, click_label.clone());
                 });
                 list.append(&row);
 

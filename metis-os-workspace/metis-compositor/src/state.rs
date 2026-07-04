@@ -261,6 +261,10 @@ pub struct MetisState {
     /// GPU steering env for spawned clients (DRM backend only; `None` under the
     /// nested winit session where the host compositor owns device selection).
     pub(crate) client_gpu: Option<ClientGpuHint>,
+    /// PRIME render-offload steering for the discrete high-power GPU on a hybrid
+    /// (Optimus) system. `Some` when a dGPU distinct from the display GPU exists;
+    /// game/Steam launches are steered onto it instead of the weak iGPU.
+    pub(crate) dgpu_offload: Option<DgpuOffload>,
 
     /// Monotonic clock for frame timing / cursor animation (shared by backends).
     pub clock: smithay::utils::Clock<smithay::utils::Monotonic>,
@@ -455,6 +459,148 @@ impl ClientGpuHint {
     }
 }
 
+/// PRIME render-offload steering for the discrete high-power GPU on a hybrid
+/// (Optimus / muxless) laptop.
+///
+/// The compositor renders and scans out on the iGPU that owns the panel (see
+/// `pick_primary_gpu`). `ClientGpuHint` then pins *every* spawned client to that
+/// same iGPU — which is right for lightweight desktop apps but catastrophic for
+/// games and Steam Big Picture: they get forced onto the weak integrated GPU
+/// while the dGPU sits idle (the "Big Picture loads very slowly" report). This
+/// steers game/launcher processes onto the dGPU instead; their buffers are
+/// imported cross-GPU by the compositor for scanout (standard PRIME offload,
+/// exactly what GNOME/KDE do for Wayland clients).
+#[derive(Clone, Debug)]
+pub(crate) enum DgpuOffload {
+    /// Proprietary NVIDIA: offload via the NVIDIA GLX/Vulkan stack.
+    Nvidia,
+    /// A Mesa-driven dGPU (AMD / Intel Arc / Nouveau): select its render node.
+    Mesa {
+        dri_prime: String,
+        vk_select: Option<String>,
+    },
+}
+
+impl DgpuOffload {
+    /// Detect a discrete GPU distinct from the compositor's display GPU by
+    /// scanning `/sys/class/drm/card*`. Returns `None` on single-GPU systems.
+    pub(crate) fn detect(display_node: &smithay::backend::drm::DrmNode) -> Option<Self> {
+        let pci_addr_of_node = |node: &smithay::backend::drm::DrmNode| -> Option<String> {
+            let base = format!("/sys/dev/char/{}:{}/device", node.major(), node.minor());
+            std::fs::canonicalize(&base)
+                .ok()
+                .and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned()))
+        };
+        let display_pci = pci_addr_of_node(display_node);
+
+        for entry in std::fs::read_dir("/sys/class/drm").ok()?.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            // Only `cardN` nodes; skip connectors like `card2-eDP-1`.
+            if !name.starts_with("card") || name.contains('-') {
+                continue;
+            }
+            let dev = entry.path().join("device");
+            // A real GPU exposes `boot_vga`; the discrete one has `boot_vga=0`.
+            if !dev.join("boot_vga").exists() {
+                continue;
+            }
+            let pci = std::fs::canonicalize(&dev)
+                .ok()
+                .and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned()));
+            // Skip the display GPU itself — we only want the *other* card.
+            if pci.is_none() || pci == display_pci {
+                continue;
+            }
+            let read_hex = |field: &str| -> Option<String> {
+                std::fs::read_to_string(dev.join(field))
+                    .ok()
+                    .map(|s| s.trim().trim_start_matches("0x").to_lowercase())
+                    .filter(|s| !s.is_empty())
+            };
+            let vendor = read_hex("vendor");
+            let device = read_hex("device");
+            match vendor.as_deref() {
+                // NVIDIA — but only if the proprietary stack is actually present;
+                // with nouveau there is no `__NV_PRIME_RENDER_OFFLOAD`, so fall
+                // through to the Mesa path instead.
+                Some("10de") if std::path::Path::new("/proc/driver/nvidia").exists() => {
+                    return Some(DgpuOffload::Nvidia);
+                }
+                Some(_) => {
+                    let dri_prime = pci.map(|p| {
+                        format!("pci-{}", p.replace([':', '.'], "_"))
+                    })?;
+                    let vk_select = match (vendor, device) {
+                        (Some(v), Some(d)) => Some(format!("{v}:{d}")),
+                        _ => None,
+                    };
+                    return Some(DgpuOffload::Mesa {
+                        dri_prime,
+                        vk_select,
+                    });
+                }
+                None => continue,
+            }
+        }
+        None
+    }
+
+    /// Apply the offload env to a spawned command, deferring to any value the
+    /// surrounding environment (or a Steam per-game launch option) already set.
+    fn apply(&self, cmd: &mut std::process::Command) {
+        let set_if_unset = |cmd: &mut std::process::Command, key: &str, val: &str| {
+            if std::env::var_os(key).is_none() {
+                cmd.env(key, val);
+            }
+        };
+        match self {
+            DgpuOffload::Nvidia => {
+                // Proprietary NVIDIA PRIME render offload: route GLX + Vulkan
+                // (DXVK/VKD3D/Proton) to the NVIDIA GPU. Deliberately do NOT set
+                // `DRI_PRIME`/`MESA_VK_DEVICE_SELECT` — those are Mesa-only and
+                // would pin Vulkan back onto the iGPU, fighting the offload.
+                set_if_unset(cmd, "__NV_PRIME_RENDER_OFFLOAD", "1");
+                set_if_unset(cmd, "__GLX_VENDOR_LIBRARY_NAME", "nvidia");
+                set_if_unset(cmd, "__VK_LAYER_NV_optimus", "NVIDIA_only");
+            }
+            DgpuOffload::Mesa {
+                dri_prime,
+                vk_select,
+            } => {
+                set_if_unset(cmd, "DRI_PRIME", dri_prime);
+                if let Some(sel) = vk_select {
+                    set_if_unset(cmd, "MESA_VK_DEVICE_SELECT", sel);
+                }
+            }
+        }
+    }
+}
+
+/// Heuristic: does this launch look like a game or game launcher that should run
+/// on the discrete GPU? Covers Steam (and the games it spawns as children, which
+/// inherit its environment), Big Picture (`-gamepadui`), the common third-party
+/// launchers, and Proton/Wine. Everything else (the shell, settings, browsers,
+/// editors) stays on the power-efficient iGPU.
+fn command_prefers_dgpu(program: &str) -> bool {
+    let p = program.to_ascii_lowercase();
+    const NEEDLES: &[&str] = &[
+        "steam",
+        "gamepadui",
+        "gamescope",
+        "lutris",
+        "heroic",
+        "bottles",
+        "hytale",
+        "proton",
+        "wine",
+        ".exe",
+        "mangohud",
+        "gamemoderun",
+    ];
+    NEEDLES.iter().any(|n| p.contains(n))
+}
+
 /// Environment shared by every client the compositor spawns (shell, settings,
 /// menu launches). GTK hardening avoids portal/a11y stalls in a bare session.
 fn apply_spawned_client_env(
@@ -463,6 +609,8 @@ fn apply_spawned_client_env(
     socket: &std::ffi::OsStr,
     xdisplay: Option<u32>,
     client_gpu: Option<&ClientGpuHint>,
+    dgpu_offload: Option<&DgpuOffload>,
+    prefer_dgpu: bool,
 ) {
     cmd.env("WAYLAND_DISPLAY", socket);
     cmd.env("METIS_SESSION", "1");
@@ -517,12 +665,22 @@ fn apply_spawned_client_env(
             cmd.env("GDK_DEBUG", gdk_debug);
         }
     }
-    // Steer clients onto the compositor's render GPU (DRM backend only), unless
-    // the user opted out with METIS_NO_CLIENT_GPU. Per-game overrides still win
-    // since `apply` only sets keys that are not already present.
+    // GPU steering (DRM backend only), unless the user opted out with
+    // METIS_NO_CLIENT_GPU. Per-game overrides still win since every `apply` only
+    // sets keys that are not already present.
+    //   * Games / launchers (`prefer_dgpu`) are pushed onto the discrete GPU via
+    //     PRIME render offload when one exists — otherwise the display-GPU hint
+    //     is a harmless fallback (single-GPU systems).
+    //   * Everything else stays on the compositor's (display) GPU, which is the
+    //     power-efficient iGPU on a hybrid laptop.
     if std::env::var_os("METIS_NO_CLIENT_GPU").is_none() {
-        if let Some(hint) = client_gpu {
-            hint.apply(cmd);
+        match (prefer_dgpu, dgpu_offload) {
+            (true, Some(dgpu)) => dgpu.apply(cmd),
+            _ => {
+                if let Some(hint) = client_gpu {
+                    hint.apply(cmd);
+                }
+            }
         }
     }
 }
@@ -675,6 +833,7 @@ impl MetisState {
             client_cursor_theme,
             client_cursor_size,
             client_gpu: None,
+            dgpu_offload: None,
             clock: smithay::utils::Clock::new(),
             snap_overlay_id: smithay::backend::renderer::element::Id::new(),
             snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
@@ -1538,12 +1697,24 @@ impl MetisState {
             std::process::Command::new(program)
         };
 
+        // Games/launchers run on the discrete GPU; desktop apps on the iGPU.
+        // METIS_GAME_GPU overrides the heuristic: `dgpu`/`igpu`/`off`.
+        let prefer_dgpu = match std::env::var("METIS_GAME_GPU").ok().as_deref() {
+            Some("igpu") | Some("off") => false,
+            Some("dgpu") => true,
+            _ => command_prefers_dgpu(program),
+        };
+        if prefer_dgpu && self.dgpu_offload.is_some() {
+            tracing::info!(program, "spawn: steering launch onto discrete GPU (PRIME offload)");
+        }
         apply_spawned_client_env(
             &mut cmd,
             program,
             &self.socket_name,
             self.xdisplay,
             self.client_gpu.as_ref(),
+            self.dgpu_offload.as_ref(),
+            prefer_dgpu,
         );
         cmd.env("XCURSOR_THEME", &self.client_cursor_theme);
         cmd.env("XCURSOR_SIZE", &self.client_cursor_size);
@@ -2971,6 +3142,19 @@ impl MetisState {
         if let Some(keyboard) = self.seat.get_keyboard() {
             let serial = smithay::utils::SERIAL_COUNTER.next_serial();
             keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+            // Keyboard-focus diagnostics: the reported "mouse works but Esc/keys
+            // don't reach the game" is a keyboard-focus problem, so log exactly
+            // which window (and whether its XWayland surface is associated yet —
+            // an X11 game that recreates its window on a video-mode change can be
+            // focused before its `wl_surface` is linked, which drops key delivery).
+            use smithay::wayland::seat::WaylandFocus;
+            tracing::info!(
+                id,
+                app_id = ?record.app_id,
+                is_x11 = record.is_x11,
+                has_wl_surface = record.window.wl_surface().is_some(),
+                "focus: keyboard focus set"
+            );
             self.event_bus
                 .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
         }
@@ -7589,6 +7773,59 @@ impl MetisState {
                     *wid = Some(window_id);
                     *class = Some(display);
                 }
+            }
+        }
+    }
+
+    /// Handle the XWayland keyboard-focus race on surface association.
+    ///
+    /// An X11 toplevel (a Proton/Wine game, e.g. a Steam title) can issue its
+    /// `MapRequest` — at which point `map_x11_toplevel` gives it keyboard focus —
+    /// *before* its `wl_surface` is associated by XWayland. `keyboard.set_focus`
+    /// therefore delivered `wl_keyboard.enter` to a window with no live surface,
+    /// so keystrokes (Esc, WASD, …) never reached the game even though pointer
+    /// input worked (the pointer target is resolved per-motion, so the mouse
+    /// still "looks" fine). The user sees "mouse works but Esc/keys don't."
+    ///
+    /// When the surface finally associates (its first commit), we index it and —
+    /// if this window is still the intended keyboard-focus target — re-deliver
+    /// focus so XWayland gets a fresh `enter` for the now-live surface. Setting
+    /// the *same* focus target is a no-op in Smithay, so we drop focus first to
+    /// force the re-enter. `committed_id` must be resolved via the space-element
+    /// match (not `id_for_surface`, which is exactly what is still missing here).
+    pub(crate) fn note_surface_committed_for_focus(
+        &mut self,
+        id: u32,
+        root: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) {
+        use smithay::reexports::wayland_server::Resource;
+        let (x11_window, window) = match self.windows.get(id) {
+            Some(record) if record.is_x11 => {
+                match record.window.x11_surface().map(|x11| x11.window_id()) {
+                    Some(x11_window) => (x11_window, record.window.clone()),
+                    None => return,
+                }
+            }
+            _ => return,
+        };
+        // Only act on the *first* association — once indexed, the normal focus
+        // path already routes keys correctly and re-focusing on every commit
+        // would fight the user's real focus.
+        if self.windows.id_for_surface(root).is_some() {
+            return;
+        }
+        self.windows.index_x11_surface(x11_window, root.id());
+        if self.focused_window_id() == Some(id) {
+            if let Some(keyboard) = self.seat.get_keyboard() {
+                let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+                keyboard.set_focus(self, None, serial);
+                let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+                keyboard.set_focus(self, Some(window.into()), serial);
+                tracing::info!(
+                    id,
+                    x11_window,
+                    "focus: re-asserted keyboard focus after XWayland surface associated"
+                );
             }
         }
     }

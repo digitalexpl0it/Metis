@@ -40,11 +40,22 @@ impl KeyboardFocusTarget {
         f: impl FnOnce(&dyn KeyboardTarget<MetisState>) -> R,
     ) -> Option<R> {
         match self {
-            // Wayland toplevels expose a stable `&WlSurface`; X11 windows only
-            // have one once associated, returned by value via `wl_surface()`.
             Self::Window(w) => match w.toplevel() {
+                // Wayland toplevel: deliver to its stable `&WlSurface`.
                 Some(toplevel) => Some(f(toplevel.wl_surface())),
-                None => w.wl_surface().map(|surface| f(&*surface)),
+                // XWayland: deliver to the `X11Surface` itself — NOT its raw
+                // `wl_surface`. `X11Surface`'s own `KeyboardTarget` impl performs
+                // the X-specific focus handling the client needs to accept keys:
+                // it calls `XSetInputFocus` (and sends `WM_TAKE_FOCUS` for
+                // active-input clients) before forwarding the wl_keyboard events.
+                // Delivering to the bare `wl_surface` skips all of that, so the X
+                // client never gains input focus — keyboard (Esc, WASD, …) is
+                // ignored while pointer *clicks* still work (they don't need
+                // focus). It also buffers enter/key in `pending_enter` until the
+                // surface associates, natively handling the map-before-surface
+                // race for games that map and get focus before XWayland links
+                // their `wl_surface`.
+                None => w.x11_surface().map(|x11| f(x11)),
             },
             Self::LayerSurface(l) => Some(f(l.wl_surface())),
             Self::Popup(p) => Some(f(p.wl_surface())),

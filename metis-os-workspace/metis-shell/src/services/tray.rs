@@ -46,6 +46,12 @@ pub enum TrayCommand {
         bus_name: String,
         menu_path: String,
         submenu_id: i32,
+        /// The clicked row's label. Steam (and other ayatana→dbusmenu bridges)
+        /// *renumber* their menu item ids whenever the tree is rebuilt, so the
+        /// `submenu_id` captured when the menu was shown is frequently dead by
+        /// the time of the click. The dispatcher re-fetches the live layout and
+        /// re-resolves the id by this (stable) label before delivering the event.
+        label: String,
     },
     Activate {
         bus_name: String,
