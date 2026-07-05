@@ -44,6 +44,13 @@ const SSD_APP_IDS: &[&str] = &[
     // GNOME Text Editor ships a libadwaita headerbar; Metis SSD gives consistent
     // tiling controls and avoids double-chrome layout fights in grid mode.
     "org.gnome.TextEditor",
+    // GitHub Desktop (Electron): Flatpak + native package app_ids. The blanket
+    // `io.github.*` CSD rule would strip Metis chrome, but the app draws no
+    // Wayland titlebar — same class of bug as frameless `chromium` Electron shells.
+    "io.github.shiftey.Desktop",
+    "io.github.shiftkey.GitHubDesktop",
+    "com.github.GitHubDesktop",
+    "github desktop",
 ];
 
 /// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
@@ -359,6 +366,25 @@ mod tests {
 
     /// Frameless Electron apps report `chromium` but draw no chrome; a real
     /// browser process keeps native CSD. Disambiguated by the client executable.
+    #[test]
+    fn github_desktop_uses_metis_ssd() {
+        for id in [
+            "io.github.shiftey.Desktop",
+            "io.github.shiftkey.GitHubDesktop",
+            "com.github.GitHubDesktop",
+            "GitHub Desktop",
+        ] {
+            assert!(
+                resolve_uses_ssd(Some(id), None, false),
+                "{id} should use Metis SSD"
+            );
+            assert!(
+                !id_looks_csd(id),
+                "{id} must not be treated as native CSD"
+            );
+        }
+    }
+
     #[test]
     fn frameless_electron_chromium_gets_metis_ssd() {
         // Claude Desktop and generic Electron shells → Metis SSD.

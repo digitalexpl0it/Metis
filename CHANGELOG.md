@@ -76,6 +76,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   whole shell (looked like the edge bar dying). Skip worked because it called
   `dismiss()` without an active borrow. Finish now checks the step with an
   immutable borrow before calling `dismiss()` (`onboarding.rs`).
+- **GitHub Desktop missing titlebar** — Flatpak (`io.github.shiftey.Desktop`) and
+  native (`GitHub Desktop`) builds are frameless Electron apps with no Wayland
+  client-side titlebar, but Metis classified every `io.github.*` app as CSD and
+  drew no server-side chrome. GitHub Desktop is now on the SSD allowlist so Metis
+  paints titlebar + resize borders (`decoration_policy.rs`).
 - **In-game menu clicks always open Settings (Proton / pointer lock)** — while a
   `zwp_locked_pointer_v1` lock is active the compositor cursor stays at the lock
   anchor, but Proton games track menu hover via `set_cursor_position_hint` and
