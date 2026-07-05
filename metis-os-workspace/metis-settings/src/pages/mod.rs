@@ -13,6 +13,7 @@ pub mod mouse;
 pub mod network;
 pub mod power;
 pub mod printers;
+pub mod remote;
 pub mod sound;
 pub mod touchpad;
 pub mod weather;

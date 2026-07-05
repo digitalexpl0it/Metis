@@ -119,6 +119,12 @@ fn settings_css(t: &ThemeTokens) -> String {
 
         /* Window + CSD titlebar so the whole frame tracks the active theme. */
         .metis-settings-window {{ background-color: {bg}; color: {text}; }}
+        .metis-settings-password-dialog {{
+            background-color: {surface};
+            border: 1px solid {border};
+            border-radius: 12px;
+            box-shadow: 0 12px 40px alpha({text}, 0.18);
+        }}
         windowhandle, headerbar, .titlebar {{
             background-color: {surface};
             background-image: none;

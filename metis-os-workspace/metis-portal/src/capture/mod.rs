@@ -60,7 +60,13 @@ pub async fn capture_fullscreen_png() -> Result<CapturedPng, String> {
         .await
         .map_err(|err| format!("capture task failed: {err}"))??;
 
-    let rgba = bgra_to_rgba(&frame.data, frame.width, frame.height, frame.stride);
+    let rgba = match frame.shm_format {
+        wayland_client::protocol::wl_shm::Format::Abgr8888
+        | wayland_client::protocol::wl_shm::Format::Xbgr8888 => {
+            abgr_to_rgba(&frame.data, frame.width, frame.height, frame.stride)
+        }
+        _ => bgra_to_rgba(&frame.data, frame.width, frame.height, frame.stride),
+    };
     write_png(&path, frame.width, frame.height, &rgba)?;
 
     Ok(CapturedPng { path })
@@ -80,6 +86,26 @@ fn bgra_to_rgba(data: &[u8], width: u32, height: u32, stride: u32) -> Vec<u8> {
             out[di] = data[si + 2];
             out[di + 1] = data[si + 1];
             out[di + 2] = data[si];
+            out[di + 3] = 255;
+        }
+    }
+    out
+}
+
+fn abgr_to_rgba(data: &[u8], width: u32, height: u32, stride: u32) -> Vec<u8> {
+    let mut out = vec![0u8; (width * height * 4) as usize];
+    for y in 0..height {
+        let src_row = (y * stride) as usize;
+        let dst_row = (y * width * 4) as usize;
+        for x in 0..width {
+            let si = src_row + (x * 4) as usize;
+            let di = dst_row + (x * 4) as usize;
+            if si + 3 >= data.len() || di + 3 >= out.len() {
+                continue;
+            }
+            out[di] = data[si];
+            out[di + 1] = data[si + 1];
+            out[di + 2] = data[si + 2];
             out[di + 3] = 255;
         }
     }

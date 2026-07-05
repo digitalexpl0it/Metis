@@ -1,0 +1,22 @@
+[package]
+name = "metis-remote"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Metis desktop sharing orchestrator (gnome-remote-desktop RDP)"
+
+[[bin]]
+name = "metis-remote"
+path = "src/main.rs"
+
+[dependencies]
+metis-config = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lib]
+name = "metis_remote"
+path = "src/lib.rs"

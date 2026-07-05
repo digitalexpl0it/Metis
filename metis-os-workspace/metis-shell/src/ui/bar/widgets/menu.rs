@@ -3,10 +3,10 @@
 //!
 //! It reuses the bar's non-autohide popover scheme (see `dropdown.rs`): no popup
 //! grab (the compositor ignores those), dismissed via toggle and the compositor
-//! "close-popovers" signal. Search keyboard focus is grabbed synchronously on
-//! `popover.connect_map`, the same pattern the network/clock entries rely on.
+//! "close-popovers" signal. The alphabetical app list is filled incrementally on
+//! idle; that must not steal keyboard focus from the search entry while typing.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::gdk;
@@ -150,6 +150,8 @@ pub fn install(button: &gtk::Button) {
         })
     };
 
+    let list_generation = Rc::new(Cell::new(0_u64));
+
     let rebuild: Rc<dyn Fn()> = {
         let apps_container = apps_container.clone();
         let pinned_flow = pinned_flow.clone();
@@ -157,11 +159,22 @@ pub fn install(button: &gtk::Button) {
         let header = header.clone();
         let search = search.clone();
         let refresh = refresh.clone();
+        let list_generation = list_generation.clone();
         Rc::new(move || {
+            let keep_search_focus = search.has_focus();
             let query = search.text().to_string();
             let apps = applications::list_apps();
-            populate_center(&apps_container, &header, &query, &apps, &refresh);
+            populate_center(
+                &apps_container,
+                &header,
+                &query,
+                &apps,
+                &refresh,
+                &search,
+                &list_generation,
+            );
             populate_pinned(&pinned_flow, &pinned_hint, &apps, &refresh);
+            restore_search_focus(&search, keep_search_focus);
         })
     };
     *rebuild_slot.borrow_mut() = Some(rebuild.clone());
@@ -188,6 +201,17 @@ pub fn install(button: &gtk::Button) {
     // start typing). Scroll is positional, not focus-based, so this never steals
     // wheel events from the app list.
     search.set_key_capture_widget(Some(&popover));
+
+    {
+        let list_generation = list_generation.clone();
+        let focus_ctrl = gtk::EventControllerFocus::new();
+        focus_ctrl.connect_enter(move |_| {
+            // Cancel in-flight alphabetical list appends — they were stealing focus
+            // from the search entry a few seconds after the menu opened.
+            list_generation.set(list_generation.get().wrapping_add(1));
+        });
+        search.add_controller(focus_ctrl);
+    }
 
     {
         let btn = button.clone();
@@ -380,13 +404,24 @@ fn attach_tooltip(
     widget.add_controller(motion);
 }
 
+fn restore_search_focus(search: &gtk::SearchEntry, had_focus: bool) {
+    if had_focus {
+        search.grab_focus();
+    }
+}
+
 fn populate_center(
     container: &gtk::Box,
     header: &gtk::Label,
     query: &str,
     apps: &[AppEntry],
     refresh: &Rc<dyn Fn()>,
+    search: &gtk::SearchEntry,
+    list_generation: &Rc<Cell<u64>>,
 ) {
+    let generation = list_generation.get().wrapping_add(1);
+    list_generation.set(generation);
+    let keep_search_focus = search.has_focus();
     clear_box(container);
     let q = query.trim();
     if q.is_empty() {
@@ -394,7 +429,16 @@ fn populate_center(
         for entry in applications::frequent_from(apps, FREQUENT_LIMIT) {
             container.append(&app_row(&entry, refresh));
         }
-        append_alpha_chunk(container, apps, refresh, 0, '\0');
+        append_alpha_chunk(
+            container,
+            apps,
+            refresh,
+            search,
+            list_generation,
+            generation,
+            0,
+            '\0',
+        );
     } else {
         header.set_text("Search Results");
         let results = applications::search_in(apps, q);
@@ -408,6 +452,7 @@ fn populate_center(
             container.append(&app_row(&entry, refresh));
         }
     }
+    restore_search_focus(search, keep_search_focus);
 }
 
 /// Append a slice of the alphabetical app list, scheduling the rest on idle.
@@ -415,9 +460,15 @@ fn append_alpha_chunk(
     container: &gtk::Box,
     apps: &[AppEntry],
     refresh: &Rc<dyn Fn()>,
+    search: &gtk::SearchEntry,
+    list_generation: &Rc<Cell<u64>>,
+    generation: u64,
     start: usize,
     mut last_letter: char,
 ) {
+    if list_generation.get() != generation || search.has_focus() {
+        return;
+    }
     if start >= apps.len() {
         return;
     }
@@ -439,7 +490,20 @@ fn append_alpha_chunk(
         let container = container.clone();
         let apps = apps.to_vec();
         let refresh = refresh.clone();
-        glib::idle_add_local_once(move || append_alpha_chunk(&container, &apps, &refresh, end, last_letter));
+        let search = search.clone();
+        let list_generation = list_generation.clone();
+        glib::idle_add_local_once(move || {
+            append_alpha_chunk(
+                &container,
+                &apps,
+                &refresh,
+                &search,
+                &list_generation,
+                generation,
+                end,
+                last_letter,
+            );
+        });
     }
 }
 

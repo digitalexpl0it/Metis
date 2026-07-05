@@ -11,6 +11,7 @@ mod net;
 mod pages;
 mod power;
 mod printers;
+mod remote;
 mod runtime;
 mod sound;
 mod theme;
@@ -105,6 +106,7 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
+    stack.add_titled(&pages::remote::build(&window), Some("remote"), "Remote access");
     stack.add_titled(&pages::gaming::build(), Some("gaming"), "Gaming");
     stack.add_titled(
         &pages::display::build(&window),

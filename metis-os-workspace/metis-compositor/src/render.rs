@@ -359,8 +359,10 @@ impl MetisState {
         }
 
         // Night light is the topmost scene layer (cursor is drawn after the stack).
-        if let Some(tint) = night_light_element(self, &target) {
-            render_elements.insert(0, OutputStack::Overlay(tint));
+        if crate::night_light::should_render_night_light(self, &target) {
+            if let Some(tint) = night_light_element(self, &target) {
+                render_elements.insert(0, OutputStack::Overlay(tint));
+            }
         }
 
         render_elements

@@ -160,6 +160,7 @@ impl AppState {
             width: shm.format.width,
             height: shm.format.height,
             stride: shm.format.stride,
+            shm_format: shm.format.format,
             data: shm.pixels().to_vec(),
         };
         if matches!(self.mode, CaptureMode::OneShot) {

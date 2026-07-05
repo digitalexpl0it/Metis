@@ -303,6 +303,20 @@ pub fn switch_row(label: &str) -> (gtk::Box, gtk::Switch) {
     (row, sw)
 }
 
+/// Prevent held Backspace on an empty entry from bubbling to the Settings sidebar
+/// search filter (same class of lag/lockup as the main search field).
+pub fn swallow_empty_backspace(entry: &gtk::Entry) {
+    let entry_key = entry.clone();
+    let key = gtk::EventControllerKey::new();
+    key.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::BackSpace && entry_key.text().is_empty() {
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    });
+    entry.add_controller(key);
+}
+
 /// Run `action` on the next main-loop idle turn so GTK can paint the switch
 /// state before any file I/O or IPC in the handler.
 pub fn defer_switch_active_notify<F>(sw: &gtk::Switch, action: F) -> glib::SignalHandlerId

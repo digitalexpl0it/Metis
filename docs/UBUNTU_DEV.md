@@ -50,6 +50,45 @@ sudo apt install -y \
 PipeWire/PulseAudio (`pipewire-pulse` / `pulseaudio-utils` for `pactl`) is usually
 already present on Ubuntu desktop installs.
 
+### Remote desktop (Phase 7 — RDP)
+
+Desktop sharing uses **gnome-remote-desktop** in **headless** mode (not the GNOME
+Shell interactive sharing daemon). Metis ships `metis-remote` to start/stop RDP
+and report JSON status for Settings.
+
+```bash
+sudo apt install -y gnome-remote-desktop
+```
+
+**Systemd user unit:** `gnome-remote-desktop-headless.service`  
+**CLI:** `grdctl --headless` (status, `rdp enable`, `rdp set-credentials`, …)  
+**Default port:** 3389
+
+Manual spike on a DRM Metis session (RicePudding or `./run-metis.sh --session --drm`):
+
+```bash
+systemctl --user enable --now gnome-remote-desktop-headless.service
+grdctl --headless rdp set-credentials "$USER" 'your-strong-password'
+grdctl --headless rdp enable
+grdctl --headless status
+# From another machine on LAN:
+xfreerdp /v:$(hostname -I | awk '{print $1}'):3389 /u:$USER /p:'your-strong-password' /dynamic-resolution
+```
+
+Metis integration: `~/.config/metis/remote.json` + `metis-remote {status|enable|disable|autostart|set-credentials}`; Settings page **Remote access**; `metis-session` calls `metis-remote autostart` when enabled.
+
+**Compatibility matrix (remote desktop):**
+
+| Tool | Status | Notes |
+|------|--------|-------|
+| **gnome-remote-desktop (RDP)** | Supported (v1) | Headless unit; portal/PipeWire capture; Settings toggle |
+| **RustDesk** | Planned (M2) | Document + optional backend in `metis-remote` |
+| **wayvnc / VNC** | Planned (M3) | Needs Smithay capture spike |
+| **xrdp** | Out of toggle scope | Separate X11 login session; USER_GUIDE appendix only if needed |
+| **AnyDesk / Chrome Remote Desktop** | Spot-check later | Not integrated |
+
+Lock behaviour: compositor refuses capture while locked — remote view freezes until unlock (documented in USER_GUIDE).
+
 ### Portal stack (standalone session)
 
 Screenshot and ScreenCast apps talk to **xdg-desktop-portal**, which routes

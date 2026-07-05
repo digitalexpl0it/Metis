@@ -582,6 +582,11 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
 - **Power** — power profile (power-saver / balanced / performance), laptop battery
   details, idle blank/suspend timeouts, lid-close action, and a **Connected
   devices** list for Bluetooth peripherals with battery status.
+- **Remote access** — GNOME-style desktop sharing toggle: enable RDP to your
+  **live** Metis session via `gnome-remote-desktop` (headless). Set credentials,
+  copy the connection address, and connect from Microsoft Remote Desktop, Remmina,
+  or FreeRDP. Requires a real (DRM) session — not nested dev. Open with
+  `metis-cmd settings remote`.
 - **Sound** — default output and input device selection (bar volume widget
   unchanged).
 
@@ -594,6 +599,55 @@ receiver or install Solaar.
 
 Most appearance and bar changes apply live; some device-backed settings only take
 full effect under a real (DRM) session.
+
+### Remote desktop (RDP)
+
+**Settings → System → Remote access** turns on headless RDP sharing for the
+session you are logged into — the same idea as GNOME Settings → Sharing → Remote
+Desktop. Metis orchestrates `gnome-remote-desktop` via the `metis-remote` helper;
+credentials live in the headless store (`grdctl --headless`), not in Metis config
+files.
+
+1. Install the backend on the host (Ubuntu):
+   `sudo apt install gnome-remote-desktop`
+2. Open **Settings → Remote access** (or `metis-cmd settings remote`).
+3. Click **Set password…** and choose the RDP username and password clients will
+   use.
+4. Turn on **Allow remote desktop connections**.
+5. Copy the connection address (hostname or LAN IP plus port **3389**) and connect
+   from another machine on your network.
+
+**Clients.** Windows: *Remote Desktop Connection* (`mstsc`). macOS: *Microsoft
+Remote Desktop* from the App Store. Linux:
+
+```bash
+xfreerdp /v:HOST:3389 /u:USERNAME /p:PASSWORD /dynamic-resolution
+```
+
+**Security.** `remote.json` defaults to LAN-only guidance (`lan_only: true`). Keep
+port 3389 on your local network — do not expose RDP to the internet without a VPN
+or strong perimeter controls. Example firewall (adjust interface/subnet):
+
+```bash
+sudo ufw allow from 192.168.0.0/16 to any port 3389 proto tcp
+```
+
+**Session lock.** While the session is locked (`Super+L`), the compositor blocks
+screen capture — remote viewers see a frozen or black screen until you unlock.
+This matches Metis’s local lock posture.
+
+**Auto-start.** When `remote.json` has `"enabled": true` and `"auto_start": true`
+(the defaults after you turn sharing on), `metis-session` runs `metis-remote
+autostart` at login so you do not need to reopen Settings each time.
+
+**Troubleshooting.** If the page shows an install hint, install
+`gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
+set a password first. PipeWire and the Metis ScreenCast portal must be running in
+the DRM session — re-run `./run-metis.sh --install-session` if portal capture is
+broken. Check status from a terminal: `metis-remote status` (JSON).
+
+RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are planned follow-ups
+— see [`TODO.md`](../metis-os-workspace/TODO.md) Phase 7.
 
 ---
 
@@ -632,6 +686,7 @@ Metis session (future DRM backend), the default is Super.
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
+| `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
 | `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |
 
 ### Key `bar.json` fields
@@ -682,6 +737,9 @@ changes live.
 | Theme looks wrong | Delete `~/.config/metis/themes/*.json` and restart to regenerate |
 | Verify the shell is reachable | `./run-metis.sh --verify` |
 | Compare compositor vs shell grid | `./run-metis.sh --verify-grid` |
+| Remote desktop toggle greyed out | Install `gnome-remote-desktop`; set a password on **Settings → Remote access** before enabling |
+| RDP connects but screen is black | Confirm you are on a DRM session (not nested dev); unlock if the session is locked; check `metis-remote status` and PipeWire/portal stack |
+| `metis-remote` not found | Rebuild with `./run-metis.sh --install-session` (installs `metis-remote` to `/usr/local/bin`) |
 
 Logs are written to `~/.local/state/metis/logs/` (`latest.log` points at the most
 recent run).

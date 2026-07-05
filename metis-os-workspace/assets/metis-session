@@ -146,6 +146,20 @@ metis_start_secret_service() {
 }
 metis_start_secret_service
 
+# --- remote desktop autostart (Phase 7) ------------------------------------
+# Best-effort: when remote.json has enabled + auto_start, start headless RDP.
+# Skipped in nested/dev sessions unless METIS_BACKEND=drm (real login session).
+metis_remote_autostart() {
+    if [[ "${METIS_BACKEND:-}" != "drm" ]]; then
+        return 0
+    fi
+    if ! command -v metis-remote >/dev/null 2>&1; then
+        return 0
+    fi
+    metis-remote autostart 2>/dev/null || true
+}
+metis_remote_autostart
+
 # --- session log -----------------------------------------------------------
 # A login-manager session has no terminal, so capture compositor + shell output
 # to a file (the shell inherits these fds). Read it after a failed run:

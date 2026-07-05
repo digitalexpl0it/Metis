@@ -1,6 +1,8 @@
 mod background;
 mod capture;
 mod compositor_ipc;
+mod compositor_remote_input;
+mod mutter;
 mod pipewire;
 mod power_profile;
 mod screensaver;
@@ -8,6 +10,7 @@ mod screenshot;
 mod screencast;
 mod settings;
 
+use std::io::{self, Write};
 use std::sync::Arc;
 
 use futures_util::future::pending;
@@ -18,26 +21,65 @@ use settings::MetisSettings;
 
 const DBUS_NAME: &str = "org.freedesktop.impl.portal.desktop.metis";
 
-#[tokio::main]
-async fn main() -> ashpd::Result<()> {
-    tracing_subscriber::fmt::init();
+/// Stderr is fully buffered when redirected to `portal.log` by the compositor;
+/// flush after every write so `tail -f` shows lines immediately.
+struct FlushStderr;
 
-    let mut args = std::env::args().skip(1);
-    if args.next().as_deref() == Some("--capture-test") {
-        let path = args
-            .next()
-            .unwrap_or_else(|| "/tmp/metis-capture-test.png".into());
-        tracing::info!(%path, "capture test");
-        let captured = capture::capture_fullscreen_png()
-            .await
-            .map_err(|err| ashpd::PortalError::Failed(err))?;
-        std::fs::copy(&captured.path, &path).map_err(|err| {
-            ashpd::PortalError::Failed(format!("copy screenshot to {path}: {err}"))
-        })?;
-        tracing::info!(%path, "capture test ok");
-        return Ok(());
+impl Write for FlushStderr {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = io::stderr().write(buf)?;
+        io::stderr().flush()?;
+        Ok(n)
     }
 
+    fn flush(&mut self) -> io::Result<()> {
+        io::stderr().flush()
+    }
+}
+
+fn init_portal_logging() {
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(|| FlushStderr)
+        .init();
+}
+
+#[tokio::main]
+async fn main() -> ashpd::Result<()> {
+    init_portal_logging();
+
+    let mut args = std::env::args().skip(1);
+    match args.next().as_deref() {
+        Some("--help" | "-h") => {
+            eprintln!(
+                "Usage: metis-portal [--capture-test [PATH]]\n\
+                 Metis xdg-desktop-portal backend (Settings, ScreenCast, Mutter RDP shim)."
+            );
+            return Ok(());
+        }
+        Some("--version" | "-V") => {
+            eprintln!("metis-portal {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        Some("--capture-test") => {
+            let path = args
+                .next()
+                .unwrap_or_else(|| "/tmp/metis-capture-test.png".into());
+            tracing::info!(%path, "capture test");
+            let captured = capture::capture_fullscreen_png()
+                .await
+                .map_err(|err| ashpd::PortalError::Failed(err))?;
+            std::fs::copy(&captured.path, &path).map_err(|err| {
+                ashpd::PortalError::Failed(format!("copy screenshot to {path}: {err}"))
+            })?;
+            tracing::info!(%path, "capture test ok");
+            return Ok(());
+        }
+        _ => return run_portal().await,
+    }
+}
+
+async fn run_portal() -> ashpd::Result<()> {
     tracing::info!(
         "starting Metis portal backend (Settings, Screenshot, ScreenCast, Background, PowerProfile)"
     );
@@ -52,13 +94,20 @@ async fn main() -> ashpd::Result<()> {
     ashpd::backend::Builder::new(DBUS_NAME)?
         .settings(MetisSettings)
         .screenshot(MetisScreenshot::new(Arc::clone(&capture)))
-        .screencast(MetisScreencast::new(capture, pipewire))
+        .screencast(MetisScreencast::new(Arc::clone(&capture), Arc::clone(&pipewire)))
         .background(MetisBackground)
         .build_with_connection(connection.clone())
         .await?;
 
     if let Err(err) = power_profile::serve(&connection).await {
         tracing::warn!(%err, "PowerProfileMonitor portal unavailable");
+    }
+
+    if let Err(err) = mutter::serve(&connection, Arc::clone(&pipewire), Arc::clone(&capture)).await {
+        tracing::warn!(
+            %err,
+            "Mutter RemoteDesktop/ScreenCast shim unavailable — gnome-remote-desktop RDP will not bind"
+        );
     }
 
     // Own the legacy idle-inhibit D-Bus names (games/media keep the screen awake

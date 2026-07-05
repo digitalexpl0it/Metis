@@ -26,6 +26,7 @@ pub struct Frame {
     pub width: u32,
     pub height: u32,
     pub stride: u32,
+    pub shm_format: Format,
     pub data: Vec<u8>,
 }
 
@@ -157,6 +158,7 @@ impl AppState {
             width: shm.format.width,
             height: shm.format.height,
             stride: shm.format.stride,
+            shm_format: shm.format.format,
             data: shm.pixels().to_vec(),
         }));
     }

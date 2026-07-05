@@ -7675,6 +7675,26 @@ impl MetisState {
                 self.end_capture_overlay_portal(app_id);
                 CompositorEvent::Pong
             }
+            CompositorCommand::InjectRemotePointerAbsolute { x, y } => {
+                self.inject_remote_pointer_absolute(x, y);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::InjectRemotePointerRelative { dx, dy } => {
+                self.inject_remote_pointer_relative(dx, dy);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::InjectRemotePointerButton { button, pressed } => {
+                self.inject_remote_pointer_button(button, pressed);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::InjectRemotePointerScroll { dx, dy } => {
+                self.inject_remote_pointer_scroll(dx, dy);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::InjectRemoteKey { keycode, pressed } => {
+                self.inject_remote_key(keycode, pressed);
+                CompositorEvent::Pong
+            }
         }
     }
 

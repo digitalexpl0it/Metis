@@ -181,6 +181,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Battery, profiles, and idle behaviour"),
     },
     NavItem {
+        page_id: Some("remote"),
+        title: "Remote access",
+        icon: Some("network-transmit-receive-symbolic"),
+        hue: Some(NavHue::Blue),
+        subtitle: Some("Share your logged-in session over the network"),
+    },
+    NavItem {
         page_id: Some("gaming"),
         title: "Gaming",
         icon: Some("applications-games-symbolic"),

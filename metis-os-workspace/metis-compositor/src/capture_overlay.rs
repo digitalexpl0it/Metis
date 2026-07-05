@@ -40,6 +40,7 @@ impl MetisState {
                 .insert(norm_app_id(&id));
         }
         self.register_portal_capture_windows();
+        self.schedule_redraw();
     }
 
     pub(crate) fn end_capture_overlay_portal(&mut self, app_id: Option<String>) {

@@ -9,6 +9,7 @@ members = [
     "metis-shell",
     "metis-settings",
     "metis-portal",
+    "metis-remote",
 ]
 
 [workspace.package]

@@ -292,6 +292,7 @@ pub fn init_winit(
                                 RenderTargetInfo {
                                     size: Size::from((size.w, size.h)),
                                     output_name: None,
+                                    skip_night_light: false,
                                 },
                             );
 

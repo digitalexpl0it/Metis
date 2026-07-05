@@ -25,6 +25,7 @@ mod output_gamma;
 mod output_modes;
 mod output_prefs;
 mod output_vrr;
+mod remote_input;
 mod render;
 mod state;
 mod udev;
@@ -186,7 +187,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Warm up the portal stack (metis Settings backend + xdp) in the
         // background so the first GtkApplication launch doesn't cold-start it.
         // Must not block: the compositor needs to start rendering immediately.
-        start_portal_stack();
+        start_portal_stack(state.socket_name.to_string_lossy().into_owned());
         update_standalone_activation_env(&state.socket_name.to_string_lossy());
     }
 
@@ -321,11 +322,11 @@ fn update_standalone_activation_env(display: &str) {
 /// block its event loop on that (doing so leaves the screen black until the
 /// portal stack settles). Apps that need portals launch later anyway, by which
 /// point this background warm-up has finished.
-fn start_portal_stack() {
+fn start_portal_stack(wayland_display: String) {
     std::thread::Builder::new()
         .name("metis-portal-warmup".into())
-        .spawn(|| {
-            spawn_metis_portal();
+        .spawn(move || {
+            spawn_metis_portal(&wayland_display);
             if !wait_for_session_bus_name(
                 "org.freedesktop.impl.portal.desktop.metis",
                 std::time::Duration::from_secs(5),
@@ -346,11 +347,36 @@ fn start_portal_stack() {
                     "xdg-desktop-portal did not become ready — GTK/Chromium apps may block ~25s on first launch"
                 );
             }
+            start_portal_watchdog(wayland_display);
         })
         .expect("spawn portal warm-up thread");
 }
 
-fn spawn_metis_portal() {
+fn start_portal_watchdog(wayland_display: String) {
+    std::thread::Builder::new()
+        .name("metis-portal-watchdog".into())
+        .spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            if std::env::var_os("METIS_NO_PORTAL").is_some() {
+                continue;
+            }
+            let portal_ok =
+                session_bus_name_active("org.freedesktop.impl.portal.desktop.metis");
+            let screencast_ok = session_bus_name_active("org.gnome.Mutter.ScreenCast");
+            if portal_ok && screencast_ok {
+                continue;
+            }
+            tracing::warn!(
+                portal_ok,
+                screencast_ok,
+                "metis-portal D-Bus services missing — respawning"
+            );
+            spawn_metis_portal(&wayland_display);
+        })
+        .expect("spawn portal watchdog thread");
+}
+
+fn spawn_metis_portal(wayland_display: &str) {
     if std::env::var_os("METIS_NO_PORTAL").is_some() {
         return;
     }
@@ -363,13 +389,54 @@ fn spawn_metis_portal() {
             })
             .unwrap_or_else(|| "metis-portal".into())
     });
-    match std::process::Command::new(&portal_bin)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
-        Ok(_) => tracing::info!("started metis-portal backend (Settings, Screenshot, ScreenCast)"),
+    let log_path = metis_protocol::runtime_dir().join("portal.log");
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path);
+    let mut cmd = std::process::Command::new(&portal_bin);
+    cmd.env("WAYLAND_DISPLAY", wayland_display);
+    if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
+        cmd.env("XDG_RUNTIME_DIR", runtime);
+    }
+    if let Ok(bus) = std::env::var("DBUS_SESSION_BUS_ADDRESS") {
+        cmd.env("DBUS_SESSION_BUS_ADDRESS", bus);
+    }
+    if std::env::var_os("RUST_LOG").is_none() {
+        cmd.env("RUST_LOG", "info");
+    }
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    match log_file {
+        Ok(file) => {
+            cmd.stderr(std::process::Stdio::from(file));
+        }
+        Err(err) => {
+            tracing::warn!(%err, path = %log_path.display(), "portal log file unavailable");
+            cmd.stderr(std::process::Stdio::null());
+        }
+    }
+    match cmd.spawn() {
+        Ok(mut child) => {
+            tracing::info!(
+                pid = child.id(),
+                wayland_display,
+                log = %log_path.display(),
+                "started metis-portal backend (Settings, Screenshot, ScreenCast)"
+            );
+            std::thread::Builder::new()
+                .name("metis-portal-reaper".into())
+                .spawn(move || {
+                    match child.wait() {
+                        Ok(status) => tracing::warn!(?status, "metis-portal exited"),
+                        Err(err) => tracing::warn!(%err, "metis-portal wait failed"),
+                    }
+                })
+                .ok();
+        }
         Err(err) => tracing::warn!(
             %err,
             portal = %portal_bin,

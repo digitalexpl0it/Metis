@@ -664,14 +664,15 @@ latency and clear setup docs.
       ports, and Wayland capture path (portal ScreenCast / PipeWire vs RustDesk’s
       own capture); verify remote mouse/keyboard into Metis compositor + XWayland
       clients under the DRM session
-- [ ] **RDP (GNOME Remote Desktop / xrdp)** — document enabling RDP on Metis
-      (`gnome-remote-desktop`, `xrdp` + XWayland fallback); note which stack works
-      on pure-Wayland vs XWayland apps; test from Windows/macOS/Linux RDP clients
+- [x] **RDP (gnome-remote-desktop headless)** — `metis-remote` orchestrates
+      `gnome-remote-desktop-headless.service` + `grdctl --headless`; Settings →
+      **Remote access** master toggle; `remote.json` + session autostart; USER_GUIDE
+      + UBUNTU_DEV spike docs. **Deferred:** classic `xrdp` X11 login sessions
+      (out of toggle scope).
 - [ ] **Other tools** — spot-check AnyDesk, Chrome Remote Desktop, TigerVNC /
       `wayvnc` where relevant; capture known-good / known-broken matrix in dev docs
-- [ ] **Settings → System → Remote access** (optional) — read-only status: which
-      services are installed/running, port hints, link to setup docs (no secrets in
-      the UI)
+- [x] **Settings → System → Remote access** — master switch, status card, password
+      gate, install hint, copy connection address (`metis-cmd settings remote`)
 
 ### B. Metis-native / portal integration (longer term)
 
@@ -687,8 +688,8 @@ latency and clear setup docs.
 
 ### C. Security & session policy
 
-- [ ] **Firewall / LAN-only defaults** — document ufw/nftables rules; warn against
-      exposing RDP/RustDesk to the open internet without VPN or strong auth
+- [x] **Firewall / LAN-only defaults** — `remote.json` `lan_only: true` + USER_GUIDE
+      ufw example and internet exposure warning
 - [x] **Session lock** — ~~remote session behaviour when Metis is locked /
       idle~~ **local lock done** (2026-07-02): compositor-rendered lock screen
       (Option A) with configurable background (wallpaper reuse / picture / solid /
@@ -698,6 +699,8 @@ latency and clear setup docs.
       Client render/input and focus/capture IPC are blocked while locked. Remaining
       follow-ups: `ext-session-lock-v1` protocol support for third-party lockers,
       fingerprint/greeter niceties, and remote-session behaviour when locked.
+      **Remote RDP (2026-07-05):** capture blocked while locked — remote viewers
+      see frozen/black until unlock (documented in USER_GUIDE).
 - [ ] **Multi-user / VT** — clarify behaviour when switching TTYs or multiple seats
 
 ---

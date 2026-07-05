@@ -56,6 +56,13 @@ impl ImageCaptureRuntime {
         !self.pending.is_empty()
     }
 
+    /// True while a portal ScreenCast / image-copy-capture client holds a session
+    /// (e.g. gnome-remote-desktop). Night light is suppressed on every render
+    /// target during screencast so the local desktop matches the remote stream.
+    pub fn screencast_active(&self) -> bool {
+        !self.active_sessions.is_empty()
+    }
+
     pub(crate) fn take_pending(&mut self) -> Vec<PendingCapture> {
         std::mem::take(&mut self.pending)
     }
@@ -94,12 +101,18 @@ impl ImageCopyCaptureHandler for MetisState {
             session.update_constraints(constraints);
         }
         self.image_capture.active_sessions.push(session);
+        self.night_light_commit.increment();
+        self.schedule_redraw();
     }
 
     fn session_destroyed(&mut self, session: SessionRef) {
         self.image_capture
             .active_sessions
             .retain(|active| *active != session);
+        if !self.image_capture.screencast_active() {
+            self.night_light_commit.increment();
+            self.schedule_redraw();
+        }
     }
 
     fn frame(&mut self, session: &SessionRef, frame: Frame) {
@@ -113,6 +126,10 @@ impl ImageCopyCaptureHandler for MetisState {
             frame,
         });
         self.damaged = true;
+        // DRM is heartbeat/vblank-driven — request_redraw() is a no-op there.
+        // schedule_redraw() arms scan-out surfaces immediately so the pending
+        // capture is fulfilled on the next render pass without waiting for input.
+        self.schedule_redraw();
         self.request_redraw();
     }
 }
@@ -186,6 +203,7 @@ pub(crate) fn render_output_to_buffer(
         crate::night_light::RenderTargetInfo {
             size: size_phys,
             output_name: Some(output.name().as_str()),
+            skip_night_light: true,
         },
     );
     if draw_cursor {
@@ -240,6 +258,7 @@ pub(crate) fn render_output_to_buffer(
             data.stride as usize,
             data.width as usize,
             data.height as usize,
+            data.format,
         )
     })
     .map_err(map_buffer_error)?;
@@ -247,6 +266,12 @@ pub(crate) fn render_output_to_buffer(
     Ok(vec![region])
 }
 
+/// Copy a GLES `Abgr8888` readback into a client `wl_shm` buffer.
+///
+/// Smithay renders capture targets as [`Fourcc::Abgr8888`] (R,G,B,A bytes in
+/// memory). Wayland `ARGB8888` SHM expects B,G,R,(A|X) — a raw memcpy swaps red
+/// and blue, which shows up as a warm/orange wash in portal screenshots and
+/// screencasts.
 fn copy_pixels_to_shm(
     src: &[u8],
     src_stride_px: usize,
@@ -256,10 +281,10 @@ fn copy_pixels_to_shm(
     dst_stride: usize,
     width: usize,
     buf_height: usize,
+    shm_format: wl_shm::Format,
 ) -> Result<(), CaptureFailureReason> {
     let src_stride = src_stride_px * 4;
-    let row_bytes = width * 4;
-    if row_bytes > dst_stride || row_bytes > src_stride {
+    if width == 0 || src_stride_px == 0 || dst_stride == 0 {
         return Err(CaptureFailureReason::BufferConstraints);
     }
     let needed = dst_stride.saturating_mul(buf_height);
@@ -273,17 +298,90 @@ fn copy_pixels_to_shm(
         for row in 0..height.min(buf_height) {
             let src_off = row * src_stride;
             let dst_off = row * dst_stride;
-            if src_off + row_bytes > src.len() || dst_off + row_bytes > dst_len {
-                return Err(CaptureFailureReason::BufferConstraints);
+            for x in 0..width {
+                let si = src_off + x * 4;
+                let di = dst_off + x * 4;
+                if si + 3 >= src.len() || di + 3 >= dst_len {
+                    return Err(CaptureFailureReason::BufferConstraints);
+                }
+                let r = *src.get_unchecked(si);
+                let g = *src.get_unchecked(si + 1);
+                let b = *src.get_unchecked(si + 2);
+                let a = *src.get_unchecked(si + 3);
+                match shm_format {
+                    wl_shm::Format::Argb8888 => {
+                        *dst_base.add(di) = b;
+                        *dst_base.add(di + 1) = g;
+                        *dst_base.add(di + 2) = r;
+                        *dst_base.add(di + 3) = a;
+                    }
+                    wl_shm::Format::Xrgb8888 => {
+                        *dst_base.add(di) = b;
+                        *dst_base.add(di + 1) = g;
+                        *dst_base.add(di + 2) = r;
+                        *dst_base.add(di + 3) = 255;
+                    }
+                    wl_shm::Format::Abgr8888 => {
+                        *dst_base.add(di) = r;
+                        *dst_base.add(di + 1) = g;
+                        *dst_base.add(di + 2) = b;
+                        *dst_base.add(di + 3) = a;
+                    }
+                    wl_shm::Format::Xbgr8888 => {
+                        *dst_base.add(di) = r;
+                        *dst_base.add(di + 1) = g;
+                        *dst_base.add(di + 2) = b;
+                        *dst_base.add(di + 3) = 255;
+                    }
+                    _ => return Err(CaptureFailureReason::BufferConstraints),
+                }
             }
-            std::ptr::copy_nonoverlapping(
-                src.as_ptr().add(src_off),
-                dst_base.add(dst_off),
-                row_bytes,
-            );
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn argb8888_shm_swaps_red_and_blue_from_gl_readback() {
+        let src = [69_u8, 68, 132, 255];
+        let mut dst = [0_u8; 4];
+        copy_pixels_to_shm(
+            &src,
+            1,
+            1,
+            dst.as_mut_ptr(),
+            dst.len(),
+            4,
+            1,
+            1,
+            wl_shm::Format::Argb8888,
+        )
+        .expect("copy");
+        assert_eq!(dst, [132, 68, 69, 255]);
+    }
+
+    #[test]
+    fn abgr8888_shm_keeps_gl_byte_order() {
+        let src = [69_u8, 68, 132, 255];
+        let mut dst = [0_u8; 4];
+        copy_pixels_to_shm(
+            &src,
+            1,
+            1,
+            dst.as_mut_ptr(),
+            dst.len(),
+            4,
+            1,
+            1,
+            wl_shm::Format::Abgr8888,
+        )
+        .expect("copy");
+        assert_eq!(dst, src);
+    }
 }
 
 fn map_buffer_error(err: BufferAccessError) -> CaptureFailureReason {

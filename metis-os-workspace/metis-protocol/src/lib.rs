@@ -125,6 +125,16 @@ pub enum CompositorCommand {
         #[serde(default)]
         app_id: Option<String>,
     },
+    /// Inject remote-desktop pointer motion (absolute desktop coordinates).
+    InjectRemotePointerAbsolute { x: f64, y: f64 },
+    /// Inject remote-desktop pointer motion (relative delta in logical pixels).
+    InjectRemotePointerRelative { dx: f64, dy: f64 },
+    /// Inject remote-desktop pointer button (Linux evdev button code).
+    InjectRemotePointerButton { button: u32, pressed: bool },
+    /// Inject remote-desktop scroll delta (logical pixels).
+    InjectRemotePointerScroll { dx: f64, dy: f64 },
+    /// Inject remote-desktop keyboard key (evdev keycode, 8 = ESC).
+    InjectRemoteKey { keycode: u32, pressed: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

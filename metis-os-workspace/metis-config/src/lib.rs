@@ -12,6 +12,7 @@ pub mod lock;
 pub mod menu;
 pub mod outputs;
 pub mod power;
+pub mod remote;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
@@ -169,6 +170,9 @@ pub use outputs::{
 pub use power::{
     load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,
     PowerProfile,
+};
+pub use remote::{
+    load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
 };
 pub use lock::{
     load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,

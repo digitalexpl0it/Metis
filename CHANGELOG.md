@@ -9,6 +9,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 7 — Desktop sharing (RDP v1)** — GNOME-style **Settings → Remote access**
+  master toggle for headless RDP via `gnome-remote-desktop`. New `metis-remote`
+  CLI (`status`, `enable`, `disable`, `autostart`, `set-credentials`) wraps
+  `grdctl --headless` and `gnome-remote-desktop-headless.service`. Config in
+  `~/.config/metis/remote.json` (`metis-config`); session autostart from
+  `metis-session` when enabled. Launch page with `metis-cmd settings remote`.
+  RustDesk, VNC, and classic xrdp deferred to follow-up milestones.
 - **Phase 6 wrap-up — portal stubs** — `metis-portal` now serves
   `org.freedesktop.impl.portal.Background` (allows sandboxed background runs;
   autostart returns false) and `org.freedesktop.impl.portal.PowerProfileMonitor`
@@ -31,6 +38,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **USER_GUIDE** — portal permission management (`flatpak permission-show/reset`),
   Flatpak override cookbook, expanded controller/touch notes, and handheld
   compatibility guidance.
+
+### Fixed
+
+- **RDP remote desktop black screen** — gnome-remote-desktop connected and EIS
+  input worked, but the RDP client showed a blank display. Capture and PipeWire
+  negotiation succeeded (`Streaming`, frames pushed to the portal), yet memfd
+  buffers were never filled for GRD: the PipeWire hub used `ThreadLoop` incorrectly
+  (340k+ `pthread_equal` failures in `portal.log`), and the output-stream process
+  callback was not scheduled. Rewrote the hub on a single-threaded `MainLoop`,
+  call `set_active(true)` when the stream enters `Streaming`, and
+  `trigger_process()` after each captured frame so pixels reach GRD. Portal stderr
+  now flushes line-by-line to `$XDG_RUNTIME_DIR/metis/portal.log` for live
+  `tail -f` diagnostics (`metis-portal` pipewire + logging).
 
 ## [2026-07-04]
 

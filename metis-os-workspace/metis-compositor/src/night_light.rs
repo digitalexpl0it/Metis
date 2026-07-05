@@ -18,6 +18,8 @@ pub struct RenderTargetInfo<'a> {
     /// Compositor output name when rendering a single output (DRM); `None` for the
     /// nested winit desktop or when unknown.
     pub output_name: Option<&'a str>,
+    /// Omit the night-light warmth overlay (remote-desktop capture shows sRGB).
+    pub skip_night_light: bool,
 }
 
 impl RenderTargetInfo<'_> {
@@ -25,6 +27,7 @@ impl RenderTargetInfo<'_> {
         Self {
             size: Size::from((0, 0)),
             output_name: None,
+            skip_night_light: false,
         }
     }
 }
@@ -32,6 +35,19 @@ impl RenderTargetInfo<'_> {
 /// Whether night light should tint the current render target.
 pub fn night_light_active(cfg: &OutputsConfig, _output_name: Option<&str>) -> bool {
     metis_config::night_light_effective(cfg)
+}
+
+/// True when the warm overlay should be composited for `target`.
+pub fn should_render_night_light(state: &MetisState, target: &RenderTargetInfo<'_>) -> bool {
+    if target.skip_night_light {
+        return false;
+    }
+    // Remote-desktop / portal capture must never pick up the warmth layer.
+    if state.image_capture.screencast_active() || state.image_capture.has_pending() {
+        return false;
+    }
+    let cfg = state.output_runtime.cached();
+    night_light_active(cfg, target.output_name)
 }
 
 /// Map colour temperature (2700–6500 K) to a warm overlay (straight RGBA, not yet

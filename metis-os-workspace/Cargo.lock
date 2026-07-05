@@ -2118,12 +2118,14 @@ dependencies = [
  "metis-config",
  "metis-protocol",
  "pipewire",
+ "pkg-config",
  "png 0.17.16",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "wayland-client",
  "wayland-protocols",
+ "xkbcommon 0.8.0",
  "zbus",
 ]
 
@@ -2134,6 +2136,18 @@ dependencies = [
  "metis-grid",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "metis-remote"
+version = "0.1.0"
+dependencies = [
+ "metis-config",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3431,7 +3445,7 @@ dependencies = [
  "wayland-sys",
  "winit",
  "x11rb",
- "xkbcommon",
+ "xkbcommon 0.9.0",
 ]
 
 [[package]]
@@ -5028,6 +5042,17 @@ name = "xcursor"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bec9e4a500ca8864c5b47b8b482a73d62e4237670e5b5f1d6b9e3cae50f28f2b"
+
+[[package]]
+name = "xkbcommon"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d66ca9352cbd4eecbbc40871d8a11b4ac8107cfc528a6e14d7c19c69d0e1ac9"
+dependencies = [
+ "libc",
+ "memmap2",
+ "xkeysym",
+]
 
 [[package]]
 name = "xkbcommon"

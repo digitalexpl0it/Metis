@@ -76,6 +76,9 @@ pub fn refresh_night_light(state: &mut MetisState, before: &OutputsConfig) {
     if vis_before != vis_after || before.night_light_temperature != cfg.night_light_temperature {
         state.night_light_commit.increment();
     }
+    if !vis_after {
+        state.night_light_schedule_effective = None;
+    }
     state.schedule_redraw();
 }
 

@@ -17,10 +17,14 @@ libc = "0.2"
 metis-config = { workspace = true }
 metis-protocol = { workspace = true }
 png = "0.17"
-pipewire = "0.8"
+pipewire = { version = "0.8", features = ["v0_3_34"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+xkbcommon = "0.8"
 zbus = { version = "5", default-features = false, features = ["tokio"] }
+
+[build-dependencies]
+pkg-config = "0.3"

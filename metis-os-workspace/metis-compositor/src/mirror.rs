@@ -183,6 +183,7 @@ fn ensure_mirror_batch_cache(state: &mut MetisState, renderer: &mut GlesRenderer
         RenderTargetInfo {
             size: src_size,
             output_name: Some(source.name().as_str()),
+            skip_night_light: false,
         },
     );
     let mut cursor = state.build_cursor_elements(renderer, &source, output_scale);

@@ -809,6 +809,17 @@ impl MetisState {
                 }
             }
         }
+        // While a portal screencast holds an image-copy session, keep repainting
+        // so capture frames are produced even when the desktop is visually static.
+        if self.image_capture.screencast_active() || self.image_capture.has_pending() {
+            if let Some(udev) = self.udev.as_mut() {
+                for surface in udev.surfaces.values_mut() {
+                    if !surface.user_disabled {
+                        surface.pending = true;
+                    }
+                }
+            }
+        }
         let crtcs: Vec<crtc::Handle> = self
             .udev
             .as_ref()
@@ -1020,6 +1031,7 @@ impl MetisState {
                         .map(|m| m.size)
                         .unwrap_or_default(),
                     output_name: Some(output.name().as_str()),
+                    skip_night_light: false,
                 },
             );
 
