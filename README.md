@@ -182,22 +182,18 @@ reference.
 - **Portal capture (Screenshot):** `metis-portal` serves
   `org.freedesktop.impl.portal.Screenshot` via native `ext-image-copy-capture`
   (compositor-side protocol + portal Wayland client). Verified with Flameshot
-  and other xdg-desktop-portal screenshot apps. ScreenCast stream registration
-  works; live PipeWire frame pump is still TODO.
+  and other xdg-desktop-portal screenshot apps. ScreenCast PipeWire streaming works
+  (SHM frame pump; dmabuf zero-copy deferred).
 - **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — Settings →
   Display now supports resolution/refresh, multi-monitor arrangement, and
   duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR
   remain upcoming.
-- **Phase 6 — Flatpak, Steam & gaming:** in progress — idle-inhibit portal and
-  the ScreenCast PipeWire pump have landed, Flatpak apps appear in the
-  launcher/dock (session adds the Flatpak `exports/share` dirs to
-  `XDG_DATA_DIRS`), the compositor forwards its render GPU to spawned clients for
-  hybrid-laptop correctness (`DRI_PRIME` / `MESA_VK_DEVICE_SELECT`), and a
-  Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs have
-  landed (2026-07-03). Proton keyboard/pointer-lock input, automatic dGPU offload
-  for game launches, and Steam tray/focus fixes shipped and were verified on
-  hardware with a Proton title (2026-07-04). Remaining: broader on-hardware
-  verification and GPU perf vs Mutter on hybrid laptops.
+- **Phase 6 — Flatpak, Steam & gaming:** **complete** (2026-07-05) — idle-inhibit
+  portal, ScreenCast PipeWire pump (SHM; dmabuf zero-copy deferred), Flatpak launcher
+  integration, GPU steering + dGPU game offload, Proton verified on hardware,
+  Background + PowerProfileMonitor portal stubs, `wl_touch`, Settings → Gaming page,
+  and full permission/override docs. Optional follow-up: dmabuf screencast perf,
+  Deck-class hardware verification.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and

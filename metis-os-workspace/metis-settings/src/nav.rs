@@ -181,6 +181,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Battery, profiles, and idle behaviour"),
     },
     NavItem {
+        page_id: Some("gaming"),
+        title: "Gaming",
+        icon: Some("applications-games-symbolic"),
+        hue: Some(NavHue::Orange),
+        subtitle: Some("Gamepads, touchscreens, Steam, and GPU hints"),
+    },
+    NavItem {
         page_id: Some("printers"),
         title: "Printers",
         icon: Some("printer-symbolic"),

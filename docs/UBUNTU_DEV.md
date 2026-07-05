@@ -176,7 +176,8 @@ This installs:
   environment, then execs the compositor)
 - `/usr/local/share/wayland-sessions/metis.desktop` — the greeter entry
 - `/usr/share/xdg-desktop-portal/{metis-portals.conf,portals/metis.portal}` —
-  routes Settings, Screenshot, and ScreenCast to the Metis portal backend
+  routes Settings, Screenshot, ScreenCast, Background, and PowerProfileMonitor
+  to the Metis portal backend
 
 Log out and choose **Metis** at the login screen. The display manager hands the
 session its own VT + seat, so libseat takes DRM master cleanly and exiting drops

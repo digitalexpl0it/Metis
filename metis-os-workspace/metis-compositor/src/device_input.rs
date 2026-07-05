@@ -1,4 +1,10 @@
 //! Apply `input.json` to libinput devices and the seat keyboard (xkb + repeat).
+//!
+//! Only pointer-class devices (mouse, touchpad) receive scroll/accel settings.
+//! Gamepads, joysticks, and other non-pointer libinput nodes are tracked for
+//! logging but intentionally not configured or forwarded — games read
+//! `/dev/input/event*` directly via evdev/SDL/Proton, and libinput does not
+//! EVIOCGRAB those nodes, so compositor seat membership does not block them.
 
 use std::time::{Duration, Instant};
 
@@ -35,10 +41,12 @@ impl InputRuntime {
 
     pub fn on_device_added(&mut self, mut device: Device) {
         let touchpad = device.config_tap_finger_count() > 0;
+        let caps = device_capabilities(&device);
         tracing::info!(
             name = %device.name(),
             touchpad,
-            "libinput device added — applying input.json"
+            capabilities = %caps,
+            "libinput device added — applying input.json where applicable"
         );
         apply_to_device(&self.cached, &mut device);
         self.devices.push(device);
@@ -210,6 +218,28 @@ fn log_cfg(name: &str, setting: &str, result: DeviceConfigResult) {
             ?err,
             "libinput setting rejected"
         );
+    }
+}
+
+fn device_capabilities(device: &Device) -> String {
+    let mut caps = Vec::new();
+    for (cap, label) in [
+        (DeviceCapability::Keyboard, "keyboard"),
+        (DeviceCapability::Pointer, "pointer"),
+        (DeviceCapability::Touch, "touch"),
+        (DeviceCapability::TabletTool, "tablet-tool"),
+        (DeviceCapability::TabletPad, "tablet-pad"),
+        (DeviceCapability::Gesture, "gesture"),
+        (DeviceCapability::Switch, "switch"),
+    ] {
+        if device.has_capability(cap) {
+            caps.push(label);
+        }
+    }
+    if caps.is_empty() {
+        "none".into()
+    } else {
+        caps.join(",")
     }
 }
 

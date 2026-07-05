@@ -210,6 +210,9 @@ fn render_devices(sections: &Sections, bt: &BluetoothSnapshot) {
         } else {
             "No Bluetooth adapter"
         });
+        if sections.devices_empty.parent().is_some() {
+            sections.devices_empty.unparent();
+        }
         let empty_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         empty_row.add_css_class("metis-settings-row");
         empty_row.append(&sections.devices_empty);

@@ -289,6 +289,9 @@ pub fn init_udev(
                         let _ = device.led_update(led_state.into());
                     }
                 }
+                if device.has_capability(DeviceCapability::Touch) {
+                    state.ensure_touch_device();
+                }
                 state.input_runtime.on_device_added(device.clone());
             } else             if let InputEvent::DeviceRemoved { device } = &event {
                 state.input_runtime.on_device_removed(device);

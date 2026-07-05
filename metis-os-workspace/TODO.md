@@ -1,24 +1,19 @@
 # Metis Shell — Edge Bar (v2)
 
 **Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
-compositing item. **Phase 4** (settings-app expansion) is complete for the planned
-Device + System pages. **Phase 5** is in progress — mirror/clone, VRR, night-light schedule, ICC profile
-config, and the `wp_color_management_v1` compositor handler landed (2026-06-28), and
-per-output ICC `vcgt` hardware-gamma calibration now applies to the display, and the
-protocol handler is hardened but still opt-in (advertising it to Chromium crashed the
-session — see below) (2026-07-02); full 3D gamut transforms and
-HDR remain. **Phase 6** (Flatpak, Steam & gaming) is now in progress — the idle
-**inhibit portal** landed (compositor idle blank + Wayland/D-Bus inhibitors,
-2026-07-02), Flatpak apps appear in the launcher/dock, the compositor forwards
-its render GPU to spawned clients for hybrid-laptop correctness, and a
-Steam-gated **Big Picture** launcher plus full Steam/Proton/gaming docs shipped
-(2026-07-03). Proton input (keyboard, pointer lock, in-game menu clicks), automatic
-dGPU offload for game launches, and Steam tray/focus fixes landed and were
-verified on hardware with a Proton title (2026-07-04). Remaining: broader
-on-hardware verification (handheld, overlay edge cases) and GPU perf vs Mutter,
-**Phase 7** (remote access / full desktop sharing), **Phase 8**
-(internationalization — Metis is English-US only today; not yet started), and
-**Phase 9** (first-run setup wizard / onboarding — **done** 2026-07-04).
+compositing item and **ScreenCast dmabuf zero-copy** (SHM pump works at ~1080p30;
+deferred to Phase 3 perf / Phase 7 remote latency). **Phase 4** (settings-app
+expansion) is complete for the planned Device + System pages. **Phase 5** is in
+progress — mirror/clone, VRR, night-light schedule, ICC profile config, and the
+`wp_color_management_v1` compositor handler landed (2026-06-28); per-output ICC
+`vcgt` hardware-gamma calibration applies on DRM; full 3D gamut transforms and
+HDR remain. **Phase 6** (Flatpak, Steam & gaming) is **complete** (2026-07-05) —
+idle-inhibit portal, Flatpak launcher integration, Steam/Proton on hardware,
+dGPU offload, pointer lock, fullscreen perf fix, Background + PowerProfileMonitor
+portal stubs, `wl_touch` forwarding, Settings → Gaming diagnostics page, and
+permission/override docs. **Phase 7** (remote access / full desktop sharing),
+**Phase 8** (internationalization — not yet started), **Phase 9** (onboarding —
+**done** 2026-07-04), and **Phase 10** (edge-bar system dashboard — planned).
 
 ---
 
@@ -533,25 +528,25 @@ need `--device=all` (or equivalent overrides), not a compositor gamepad driver.
       screen (Option A) with PAM auth; the **Lock when the screen blanks** toggle
       in Settings → Appearance → Background → Lock screen wires idle-blank to
       `lock_session()`. See Phase 7 "Session lock".
-- [ ] **ScreenCast live pump** — ~~finish Phase 3 PipeWire frame streaming~~ done
-      (OBS / Discord / browser share); remaining: dmabuf zero-copy perf pass
-- [ ] **Background / PowerProfile** — route or stub via portal (can no-op
-      initially). GameMode needs no Metis portal — it is its own D-Bus service
-      (`com.feralinteractive.GameMode`); install `gamemode` + `gamemoderun` (docs done)
-- [ ] **Permission UX docs** — `flatpak permission-show`, portal permission reset,
-      `~/.local/share/xdg-desktop-portal/` permission files
+- [x] **ScreenCast live pump** — OBS / Discord / browser share via PipeWire SHM
+      pump (~1080p30). **Deferred:** dmabuf zero-copy perf pass (Phase 3 / Phase 7)
+- [x] **Background / PowerProfile** — stub backends in `metis-portal` (2026-07-05):
+      Background allows sandboxed background runs; PowerProfileMonitor mirrors
+      `powerprofilesctl` for GIO clients. GameMode remains a standalone D-Bus service
+- [x] **Permission UX docs** — `flatpak permission-show/reset`, override cookbook,
+      portal file locations in `docs/USER_GUIDE.md` (2026-07-05)
 
 ### C. Controllers & input (host + Flatpak)
 
-- [ ] **Flatpak override guide** — document `flatpak override --user --device=all`
-      for controller-heavy games; `--device=dri` alone is often insufficient
-- [ ] **Settings → Gaming / Input** — read-only list of connected gamepads
-      (`/proc/bus/input/devices` or libudev); no compositor evdev grab that blocks
-      games
-- [ ] **libinput audit** — confirm compositor does not exclusively grab gamepad
-      nodes opened via libinput
-- [ ] **Touch (optional)** — `wl_touch` on seat for touchscreen Flatpak apps
-      (separate from gamepads)
+- [x] **Flatpak override guide** — override cookbook + controller notes in
+      `docs/USER_GUIDE.md` (2026-07-05)
+- [x] **Settings → Gaming** — read-only gamepad/touchscreen list, Steam detection,
+      GPU hint; `metis-cmd settings gaming` (2026-07-05)
+- [x] **libinput audit** — confirmed compositor does not EVIOCGRAB gamepad nodes;
+      capability logging on device add; documented in `device_input.rs` + USER_GUIDE
+      (2026-07-05)
+- [x] **Touch** — `wl_touch` on seat for touchscreen Flatpak apps; lazy
+      `seat.add_touch()` on libinput touch device (2026-07-05)
 
 ### D. Steam & Proton (SteamOS-class desktop gaming)
 
@@ -609,9 +604,9 @@ Running **Metis on SteamOS** (replacing Desktop Mode) or on Deck-class hardware
 is a stretch goal — SteamOS is immutable/read-only and ships Gamescope for Gaming
 Mode. Track compatibility either way:
 
-- [ ] **Steam Deck / handheld inputs** — SD card reader, volume buttons, gyro
-      (where exposed as evdev) documented or passed through to Steam Input
-      (needs hardware to verify)
+- [x] **Steam Deck / handheld inputs** — documented in `USER_GUIDE.md` (SD reader,
+      volume buttons, gyro via evdev → Steam Input); on-hardware verification not
+      done (no Deck in test rig)
 - [x] **SteamOS host notes** — documented (`USER_GUIDE.md`): read-only root,
       `steamos-readonly disable` caveat, one-session-compositor-at-a-time; marked
       experimental / unsupported
@@ -818,6 +813,81 @@ Display arrangement / resolution / Hz deliberately deferred to Settings → Disp
 
 ---
 
+## Phase 10 — Edge-bar system dashboard (pull-down monitor)
+
+A **system dashboard** that slides down from the edge bar — the Metis answer to
+GNOME's usage popover / KDE's system monitor tray, but richer and gesture-driven.
+Click-and-drag **down** on the bar (or a dedicated strip/handle) reveals a
+full-width panel under the bar with live resource graphs, storage/network
+throughput, and a process list with end-task actions. Designed from the start for
+**pluggable widgets** so users can add/reorder panels later (weather summary,
+GPU stats, custom scripts, etc.) without rewriting the shell.
+
+**Target UX:** feels like pulling down a shade from the bar — smooth slide
+(~200–300 ms), bar stays visible at the top, dashboard fills the area below
+(does not steal the whole screen unless expanded to a "full monitor" mode later).
+Dismiss: drag up, click outside (compositor `close-popovers`-style signal), or
+`Esc`. Same layer-shell lifetime rules as splash/onboarding — park off-screen,
+never destroy mid-session.
+
+### A. Shell surface & gesture
+
+- [ ] **Pull-down gesture** — `GtkGestureDrag` (or equivalent) on the bar pill /
+      a slim drag affordance at the bar's inner edge; downward drag past a
+      threshold opens the dashboard; rubber-band + snap on release.
+- [ ] **Dashboard layer surface** — `gtk4-layer-shell` `Layer::Overlay` (or
+      `Layer::Top` below popovers), namespace `metis-dashboard`, anchored to the
+      bar's screen edge; height animates from `0` → configured max (e.g. 40–60%
+      of monitor or content-sized with scroll); width tracks the bar output.
+- [ ] **Exclusive zone cooperation** — while open, extend the bar's exclusive
+      zone or reserve space so tiled windows do not reflow under the panel;
+      coordinate with compositor bar geometry (`on_bar_layer_committed`).
+- [ ] **Dismiss & focus** — pointer-outside and `Esc` via compositor dismiss
+      path; no keyboard grab that blocks the session; park hidden when closed.
+
+### B. Core widgets (v1)
+
+- [ ] **CPU** — per-core and aggregate utilization sparkline + current % (read
+      `/proc/stat` or `sysinfo` on a background thread; ~1 Hz UI refresh).
+- [ ] **Memory** — RAM + swap used/total, optional pressure indicator.
+- [ ] **Disk** — per-mount used/free for `/` and user-visible volumes (`sysfs` /
+      `statvfs`).
+- [ ] **Network** — aggregate + per-interface RX/TX rates (reuse/extend bar
+      network poller data where possible).
+- [ ] **Processes** — sortable table: name, PID, CPU%, mem%, user; search filter;
+      **End task** (SIGTERM, hold-for-SIGKILL) with confirmation; show Metis /
+      compositor / shell PIDs distinctly; optional "only my processes" default.
+
+### C. Data & services (`metis-shell`)
+
+- [ ] **`spawn_dashboard_pollers()`** — dedicated thread(s) + channel snapshots
+      (same pattern as weather/tray); avoid blocking the GTK main loop.
+- [ ] **Shared snapshot type** in `metis-protocol` or `metis-shell` services
+      (`DashboardSnapshot`) for widgets to subscribe to.
+- [ ] **Process actions** — safe `kill` wrapper (`nix`/`libc`); document polkit
+      gap for root/other-user processes (v1: own uid only).
+
+### D. Extensibility (v2+)
+
+- [ ] **`dashboard.json`** — widget order, enabled modules, panel height, refresh
+      interval; live reload (mirror `bar.json` file monitor).
+- [ ] **Widget registry** — built-in widgets register by id; later: JSON-defined
+      "script widgets" (periodic command output → text/graph) or Rust plugin slots.
+- [ ] **Optional additions** — GPU load/temp (NVML / sysfs), top per-process CPU,
+      battery history graph, quick links (open full `htop`/`btop` in terminal),
+      log tail snippet.
+
+### E. Settings & docs
+
+- [ ] **Settings → System** (or Edge bar) — enable/disable dashboard, max height,
+      default widgets, confirm-before-kill toggle.
+- [ ] **USER_GUIDE** — gesture, widgets, kill semantics, custom widget roadmap.
+
+**Dependencies:** Phase 1 edge bar (done); benefits from Phase 4 System page
+patterns; i18n (Phase 8) before shipping strings broadly.
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
@@ -838,6 +908,7 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
+| `dashboard.json` | *(Phase 10)* Pull-down system dashboard: widget order, height, refresh interval |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
 | `outputs.json` | Per-output scale, enabled, layout, saved video mode, night-light prefs |

@@ -1,6 +1,8 @@
+mod background;
 mod capture;
 mod compositor_ipc;
 mod pipewire;
+mod power_profile;
 mod screensaver;
 mod screenshot;
 mod screencast;
@@ -9,6 +11,7 @@ mod settings;
 use std::sync::Arc;
 
 use futures_util::future::pending;
+use background::MetisBackground;
 use screenshot::MetisScreenshot;
 use screencast::MetisScreencast;
 use settings::MetisSettings;
@@ -35,17 +38,28 @@ async fn main() -> ashpd::Result<()> {
         return Ok(());
     }
 
-    tracing::info!("starting Metis portal backend (Settings, Screenshot, ScreenCast)");
+    tracing::info!(
+        "starting Metis portal backend (Settings, Screenshot, ScreenCast, Background, PowerProfile)"
+    );
 
     let pipewire = Arc::new(pipewire::PipeWireHub::start()?);
     let capture = Arc::new(capture::CaptureHub::new(Arc::clone(&pipewire)));
+
+    let connection = zbus::Connection::session().await.map_err(|err| {
+        ashpd::PortalError::Failed(format!("session bus connection: {err}"))
+    })?;
 
     ashpd::backend::Builder::new(DBUS_NAME)?
         .settings(MetisSettings)
         .screenshot(MetisScreenshot::new(Arc::clone(&capture)))
         .screencast(MetisScreencast::new(capture, pipewire))
-        .build()
+        .background(MetisBackground)
+        .build_with_connection(connection.clone())
         .await?;
+
+    if let Err(err) = power_profile::serve(&connection).await {
+        tracing::warn!(%err, "PowerProfileMonitor portal unavailable");
+    }
 
     // Own the legacy idle-inhibit D-Bus names (games/media keep the screen awake
     // through these). Kept alive for the whole session; a startup failure is

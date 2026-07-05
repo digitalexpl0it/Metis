@@ -2,11 +2,14 @@ use smithay::{
     backend::input::{
         AbsolutePositionEvent, Axis, ButtonState, Event, InputBackend, InputEvent,
         KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent,
+        TouchCancelEvent, TouchDownEvent, TouchEvent, TouchFrameEvent, TouchMotionEvent,
+        TouchUpEvent,
     },
     backend::input::KeyState,
     input::{
         keyboard::{keysyms, FilterResult},
         pointer::{AxisFrame, ButtonEvent, MotionEvent, RelativeMotionEvent},
+        touch::{DownEvent, MotionEvent as TouchMotionEventWl, UpEvent},
     },
     utils::{Logical, Point, SERIAL_COUNTER, Serial},
     wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
@@ -75,6 +78,17 @@ impl MetisState {
                         if e.state() == ButtonState::Pressed && e.button_code() == 0x110 {
                             let loc = pointer.current_location();
                             self.lock_pointer_click(loc);
+                        }
+                    }
+                    InputEvent::TouchDown { event: e, .. } => {
+                        if let Some(loc) = self.touch_location_transformed(e) {
+                            self.lock_update_hover(loc);
+                            self.lock_pointer_click(loc);
+                        }
+                    }
+                    InputEvent::TouchMotion { event: e, .. } => {
+                        if let Some(loc) = self.touch_location_transformed(e) {
+                            self.lock_update_hover(loc);
                         }
                     }
                     _ => {}
@@ -705,10 +719,116 @@ impl MetisState {
                 pointer.axis(self, frame);
                 pointer.frame(self);
             }
+            InputEvent::TouchDown { event, .. } => {
+                needs_redraw = true;
+                self.on_touch_down::<B>(event);
+            }
+            InputEvent::TouchUp { event, .. } => {
+                needs_redraw = true;
+                self.on_touch_up::<B>(event);
+            }
+            InputEvent::TouchMotion { event, .. } => {
+                needs_redraw = true;
+                self.on_touch_motion::<B>(event);
+            }
+            InputEvent::TouchFrame { event, .. } => {
+                self.on_touch_frame::<B>(event);
+            }
+            InputEvent::TouchCancel { event, .. } => {
+                needs_redraw = true;
+                self.on_touch_cancel::<B>(event);
+            }
             _ => {}
         }
         if needs_redraw {
             self.schedule_redraw();
+        }
+    }
+
+    /// Lazily add a `wl_touch` device when the first touchscreen appears.
+    pub fn ensure_touch_device(&mut self) {
+        if self.seat.get_touch().is_none() {
+            self.seat.add_touch();
+            tracing::info!("touchscreen detected — wl_touch enabled on seat");
+        }
+    }
+
+    fn touch_location_transformed<B: InputBackend, E: AbsolutePositionEvent<B>>(
+        &self,
+        evt: &E,
+    ) -> Option<Point<f64, Logical>> {
+        let bounds = self.desktop_bounds();
+        Some(evt.position_transformed(bounds.size) + bounds.loc.to_f64())
+    }
+
+    fn on_touch_down<B: InputBackend>(&mut self, evt: B::TouchDownEvent) {
+        self.ensure_touch_device();
+        let Some(handle) = self.seat.get_touch() else {
+            return;
+        };
+        let Some(loc) = self.touch_location_transformed(&evt) else {
+            return;
+        };
+        let serial = SERIAL_COUNTER.next_serial();
+        self.update_keyboard_focus(loc, serial);
+        let under = self.pointer_target_at(loc);
+        handle.down(
+            self,
+            under,
+            &DownEvent {
+                slot: evt.slot(),
+                location: loc,
+                serial,
+                time: evt.time_msec(),
+            },
+        );
+    }
+
+    fn on_touch_up<B: InputBackend>(&mut self, evt: B::TouchUpEvent) {
+        self.ensure_touch_device();
+        let Some(handle) = self.seat.get_touch() else {
+            return;
+        };
+        let serial = SERIAL_COUNTER.next_serial();
+        handle.up(
+            self,
+            &UpEvent {
+                slot: evt.slot(),
+                serial,
+                time: evt.time_msec(),
+            },
+        );
+    }
+
+    fn on_touch_motion<B: InputBackend>(&mut self, evt: B::TouchMotionEvent) {
+        self.ensure_touch_device();
+        let Some(handle) = self.seat.get_touch() else {
+            return;
+        };
+        let Some(loc) = self.touch_location_transformed(&evt) else {
+            return;
+        };
+        let under = self.pointer_target_at(loc);
+        handle.motion(
+            self,
+            under,
+            &TouchMotionEventWl {
+                slot: evt.slot(),
+                location: loc,
+                time: evt.time_msec(),
+            },
+        );
+    }
+
+    fn on_touch_frame<B: InputBackend>(&mut self, _evt: B::TouchFrameEvent) {
+        if let Some(handle) = self.seat.get_touch() {
+            handle.frame(self);
+        }
+    }
+
+    fn on_touch_cancel<B: InputBackend>(&mut self, _evt: B::TouchCancelEvent) {
+        if let Some(handle) = self.seat.get_touch() {
+            handle.cancel(self);
         }
     }
 

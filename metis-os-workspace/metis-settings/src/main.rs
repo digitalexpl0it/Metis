@@ -4,6 +4,7 @@
 //! watchers (or an explicit `reload-*` runtime command).
 
 mod bluetooth;
+mod gaming;
 mod msauth;
 mod nav;
 mod net;
@@ -104,6 +105,7 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
+    stack.add_titled(&pages::gaming::build(), Some("gaming"), "Gaming");
     stack.add_titled(
         &pages::display::build(&window),
         Some("display"),

@@ -5,6 +5,33 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-05]
+
+### Added
+
+- **Phase 6 wrap-up — portal stubs** — `metis-portal` now serves
+  `org.freedesktop.impl.portal.Background` (allows sandboxed background runs;
+  autostart returns false) and `org.freedesktop.impl.portal.PowerProfileMonitor`
+  (mirrors `powerprofilesctl get` with property-change signals). Registered in
+  `metis.portal` and `metis-portals.conf`.
+- **Phase 6 wrap-up — touch input** — compositor forwards libinput touch events
+  through `wl_touch` (lazy `seat.add_touch()` when a touchscreen appears). Lock
+  screen handles touch taps on power controls. Multi-output coordinate mapping
+  uses the same desktop-bounds transform as absolute pointer motion.
+- **Settings → Gaming page** — read-only diagnostics under Input: connected
+  gamepads and touchscreens (from `/proc/bus/input/devices`), Steam install
+  detection, GPU offload env hints, and links to the user guide. Launch with
+  `metis-cmd settings gaming`.
+
+### Changed
+
+- **libinput device logging** — `on_device_added` now logs capability flags
+  (keyboard, pointer, touch, etc.) and documents that gamepad nodes are not
+  configured or grabbed by the compositor.
+- **USER_GUIDE** — portal permission management (`flatpak permission-show/reset`),
+  Flatpak override cookbook, expanded controller/touch notes, and handheld
+  compatibility guidance.
+
 ## [2026-07-04]
 
 ### Added

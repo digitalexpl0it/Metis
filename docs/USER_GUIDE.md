@@ -181,19 +181,55 @@ right alongside native apps, and new installs appear live without a restart.
    often `--device=all` for gamepads (`flatpak override --user --device=all …`).
 2. **Portal prompts** — screenshot/screencast/file access; stored by system
    `xdg-permission-store` (the first-time Flameshot dialog).
-3. **Metis portal backends** — Settings, Screenshot, and ScreenCast via
-   `metis-portal`; file dialogs and notifications via the GTK portal backend.
+3. **Metis portal backends** — Settings, Screenshot, ScreenCast, Background, and
+   PowerProfileMonitor via `metis-portal`; idle-inhibit via legacy ScreenSaver
+   D-Bus names; file dialogs and notifications via the GTK portal backend.
+
+#### Portal permission management
+
+First-time portal prompts (screenshot, screencast, etc.) are stored by the system
+**permission store**, not by Metis:
+
+```bash
+# List persisted portal permissions for an app
+flatpak permission-show com.example.App
+
+# Reset all portal permissions for an app
+flatpak permission-reset com.example.App
+
+# Show Flatpak sandbox overrides (devices, filesystems, sockets)
+flatpak override --show com.example.App
+flatpak info --show-permissions com.example.App
+```
+
+On-disk state lives under `~/.local/share/xdg-desktop-portal/` (portal runtime
+data) and the system `xdg-permission-store` service. If a sandboxed app keeps
+failing capture or file access after you denied a prompt once, reset its
+permissions and try again.
+
+#### Flatpak override cookbook
+
+| Goal | Command |
+|------|---------|
+| Gamepads / all input devices | `flatpak override --user --device=all com.example.Game` |
+| GPU / render node | `flatpak override --user --device=dri com.example.Game` |
+| Extra game library on another disk | `flatpak override --user --filesystem=/mnt/games com.example.Game` |
+| Wayland socket (usually in manifest) | `flatpak override --user --socket=wayland com.example.Game` |
+| Steam (Flatpak) — typical gaming setup | `flatpak override --user --device=all com.valvesoftware.Steam` |
 
 **Controllers:** games read `/dev/input/event*` directly (SDL, Proton), not through
-the compositor. If a Flatpak game has no gamepad, try:
+the compositor. Metis opens libinput devices in **shared** mode and does **not**
+EVIOCGRAB gamepad nodes — native and Proton titles keep full evdev access while
+Metis runs. Touchscreens are forwarded to Wayland clients via `wl_touch`. Check
+*Settings → Gaming* for a live list of detected gamepads and touchscreens. If a
+Flatpak game has no gamepad, try:
 
 ```bash
 flatpak override --user --device=all com.example.Game
 ```
 
 Your user should also be in the `input`, `video`, and `render` groups for DRM
-and evdev access. See [`TODO.md`](../metis-os-workspace/TODO.md) Phase 6 for the
-full Flatpak & gaming roadmap.
+and evdev access.
 
 ### Steam, Proton & SteamOS-class gaming
 
@@ -336,9 +372,15 @@ handheld Gaming Mode and KDE for Desktop Mode. Running Metis *on* SteamOS
 (replacing Desktop Mode) is experimental and unsupported: SteamOS mounts its
 root filesystem read-only (use `steamos-readonly disable` at your own risk to
 install packages), and Gamescope Gaming Mode and Metis are alternative session
-compositors — you run one *or* the other, not both as the outer session. The
+compositors — you run one *or* the other, not as the outer session. The
 supported target is **Steam + Proton working on a Metis session** on Ubuntu and
 similar distros.
+
+On Deck-class hardware running Metis on a normal distro, SD-card readers, volume
+buttons, and gyro (where exposed as evdev) should pass through to Steam Input
+like on any other desktop — this has **not** been verified on Metis hardware yet.
+Use *Settings → Gaming* to confirm controllers and touchscreens are visible to the
+session.
 
 ---
 

@@ -6,6 +6,7 @@ pub mod calendars;
 pub mod display;
 pub mod edgebar;
 pub mod input_common;
+pub mod gaming;
 pub mod keyboard;
 pub mod menu;
 pub mod mouse;

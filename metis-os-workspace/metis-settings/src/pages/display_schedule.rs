@@ -12,7 +12,8 @@ use metis_config::{
 
 pub struct ScheduleTimePicker {
     pub root: gtk::Box,
-    button: gtk::MenuButton,
+    button: gtk::Button,
+    popover: gtk::Popover,
     popover_entry: gtk::Entry,
     list: gtk::ListBox,
     hhmm: Rc<RefCell<String>>,
@@ -76,13 +77,8 @@ pub fn build_schedule_time_picker(
     title.set_width_chars(3);
     root.append(&title);
 
-    let button = gtk::MenuButton::new();
-    button.add_css_class("metis-settings-secondary");
-    root.append(&button);
-
     let popover = gtk::Popover::new();
     popover.add_css_class("metis-settings-schedule-popover");
-    popover.set_parent(&button);
     let pop_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     pop_box.set_size_request(268, -1);
 
@@ -133,7 +129,19 @@ pub fn build_schedule_time_picker(
     pop_box.append(&scrolled);
 
     popover.set_child(Some(&pop_box));
-    button.set_popover(Some(&popover));
+
+    // GtkButton + popover.set_parent — do not combine MenuButton with
+    // popover.set_parent(); MenuButton owns its popover via set_popover() only.
+    let button = gtk::Button::new();
+    button.add_css_class("metis-settings-secondary");
+    popover.set_parent(&button);
+    {
+        let popover = popover.clone();
+        button.connect_clicked(move |_| {
+            popover.popup();
+        });
+    }
+    root.append(&button);
 
     {
         let list = list.clone();
@@ -241,6 +249,7 @@ pub fn build_schedule_time_picker(
     let picker = ScheduleTimePicker {
         root,
         button,
+        popover,
         popover_entry,
         list,
         hhmm,
