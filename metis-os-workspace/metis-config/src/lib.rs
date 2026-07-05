@@ -32,7 +32,7 @@ pub struct AppConfig {
 }
 
 fn default_theme() -> String {
-    "dark".into()
+    "light".into()
 }
 
 fn default_show_briefing() -> bool {

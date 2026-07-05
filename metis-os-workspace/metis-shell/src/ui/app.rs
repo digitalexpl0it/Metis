@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 use gtk::glib;
 
 use crate::state::{MetisInit, SystemEvent};
-use crate::ui::{bar, splash, theme};
+use crate::ui::{bar, onboarding, splash, theme};
 
 /// Minimal GTK shell — edge bar only (no command overlay).
 ///
@@ -30,6 +30,7 @@ pub fn run(init: MetisInit) {
 
     theme::install_theme();
     splash::show();
+    splash::on_complete(onboarding::show_if_needed);
     bar::init_and_show();
     attach_system_events(init.event_rx);
     // The bar maps and pollers attach shortly after; let the splash ramp to

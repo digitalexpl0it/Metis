@@ -18,8 +18,7 @@ verified on hardware with a Proton title (2026-07-04). Remaining: broader
 on-hardware verification (handheld, overlay edge cases) and GPU perf vs Mutter,
 **Phase 7** (remote access / full desktop sharing), **Phase 8**
 (internationalization — Metis is English-US only today; not yet started), and
-**Phase 9** (first-run setup wizard / onboarding — the `onboarding_complete` flag
-exists but no wizard UI reads it yet).
+**Phase 9** (first-run setup wizard / onboarding — **done** 2026-07-04).
 
 ---
 
@@ -779,42 +778,41 @@ strings, and lays out correctly for RTL scripts — without per-string rebuilds.
 
 A welcoming **first-login wizard** that runs once on a fresh install, greets the
 user, and walks them through a few simple choices before dropping them at the
-desktop. The plumbing already half-exists: `metis-config` has an
-`onboarding_complete: bool` flag and `mark_onboarding_complete()`, but **nothing
-reads the flag and there is no wizard UI yet** — the flag is currently unused.
+desktop. Implemented as a GTK4 layer-shell overlay in `metis-shell` (`ui/onboarding.rs`).
 
 **Target:** on first session start (when `onboarding_complete == false`), the
 shell presents a clean, modern, multi-step wizard; finishing (or skipping) sets
 `onboarding_complete = true` so it never shows again. Re-runnable on demand from
-Settings ("Run setup again").
+Settings → Appearance ("Run setup again") or `metis-cmd.sh show-onboarding`.
 
 ### A. Shell & trigger
 
-- [ ] **Wizard surface** — decide the presentation: a centered layer-shell
-      overlay window (compositor-owned, like the lock screen) vs. a normal GTK
-      window from `metis-shell`/`metis-settings`. Should appear above the bar and
-      block interaction until completed or skipped.
-- [ ] **First-run gate** — read `onboarding_complete` at shell startup; launch the
+- [x] **Wizard surface** — centered layer-shell overlay (`Layer::Overlay`,
+      namespace `metis-onboarding`); blocks interaction until completed or skipped;
+      desktop visible behind for live preview.
+- [x] **First-run gate** — read `onboarding_complete` after splash fade; launch the
       wizard when false, and call `mark_onboarding_complete()` on finish/skip.
-      Add a "Run setup again" entry in Settings so it can be re-triggered.
+      `METIS_NO_ONBOARDING=1` disables for dev. "Run setup again" in Settings
+      Appearance re-triggers via `show-onboarding` runtime command.
 
 ### B. Steps (keep it short and friendly)
 
-- [ ] **Welcome** — branded greeting + one-line intro to Metis.
-- [ ] **Appearance** — **Dark / Light mode** toggle (live preview) + accent color;
-      writes the active theme via the existing theming path.
-- [ ] **Basics** — a few simple, high-value settings, e.g. 12/24-hour clock,
-      wallpaper pick (reuse the background picker), and optionally edge-bar position.
-      Keep the list minimal; everything else stays in Settings.
+- [x] **Welcome** — branded greeting + intro to Metis.
+- [x] **Theme** — Light / Dark toggle (Light default; live preview).
+- [x] **Wallpaper** — bundled thumbnails only; live apply via compositor IPC.
+- [x] **Clock** — 12h / 24h format (`bar.json`).
+- [x] **Edge bar** — position, show on all/primary, opacity, blur.
+- [x] **Weather** — auto-detect on; optional city search (Open-Meteo geocoding).
 - [ ] **(Later) Language & region** — once Phase 8 lands, offer locale selection
       here as the very first step.
-- [ ] **Finish** — summary + "You're all set"; link to the User Guide / keybind
-      cheatsheet.
+- [x] **Finish** — keybind cheatsheet + pointer to Settings → Display for monitors.
+
+Display arrangement / resolution / Hz deliberately deferred to Settings → Display.
 
 ### C. Polish
 
-- [ ] **Skippable + resumable** — a clear "Skip" that still marks onboarding done;
-      remember progress if the session restarts mid-wizard.
+- [x] **Skippable** — clear "Skip" that still marks onboarding done.
+- [ ] **Resumable** — remember progress if the session restarts mid-wizard.
 - [ ] **Accessible & translatable** — keyboard-navigable, and route all copy
       through the Phase 8 i18n catalog so the wizard itself is localizable.
 

@@ -1589,6 +1589,112 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border: none;
     }}
 
+    /* ---- First-run onboarding (content-sized overlay — splash pattern) ---- */
+    window.metis-onboarding-window {{
+        background-color: transparent;
+    }}
+    .metis-onboarding-card {{
+        padding: 28px 36px 24px 36px;
+        border-radius: 24px;
+        background-color: rgba(12, 16, 24, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: {shadow},
+                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        min-width: 520px;
+        max-width: 520px;
+    }}
+    .metis-onboarding-body {{
+        min-width: 448px;
+        max-width: 448px;
+    }}
+    .metis-onboarding-step-content {{
+        min-width: 448px;
+        max-width: 448px;
+    }}
+    .metis-onboarding-title {{
+        font-size: 22px;
+        font-weight: 700;
+        color: {text};
+    }}
+    .metis-onboarding-subtitle {{
+        font-size: 14px;
+        color: {muted};
+        line-height: 1.45;
+    }}
+    .metis-onboarding-skip {{
+        font-size: 13px;
+        color: {muted};
+    }}
+    .metis-onboarding-skip:hover {{
+        color: {text};
+    }}
+    .metis-onboarding-stepper {{
+        min-height: 28px;
+    }}
+    .metis-onboarding-dot {{
+        min-width: 10px;
+        min-height: 10px;
+        border-radius: 999px;
+        background-color: rgba(255, 255, 255, 0.18);
+        margin: 0 5px;
+    }}
+    .metis-onboarding-dot-active {{
+        background-color: {accent};
+        min-width: 12px;
+        min-height: 12px;
+    }}
+    .metis-onboarding-dot-done {{
+        background-color: rgba({accent_rgb}, 0.55);
+        min-width: 10px;
+        min-height: 10px;
+    }}
+    .metis-onboarding-preview-tile {{
+        border-radius: 12px;
+        border: 2px solid transparent;
+        padding: 4px;
+        min-width: 0;
+        min-height: 0;
+    }}
+    .metis-onboarding-preview-tile:checked {{
+        border-color: {accent};
+    }}
+    .metis-onboarding-wall-grid {{
+        margin-top: 4px;
+    }}
+    .metis-onboarding-wall-pick {{
+        padding: 0;
+        min-width: 0;
+        min-height: 0;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        box-shadow: none;
+        overflow: hidden;
+    }}
+    .metis-onboarding-wall-img {{
+        border-radius: 8px;
+    }}
+    .metis-onboarding-wall-pick:hover {{
+        outline: 2px solid rgba({accent_rgb}, 0.85);
+        outline-offset: 1px;
+    }}
+    .metis-onboarding-wall-pick.selected {{
+        outline: 2px solid {accent};
+        outline-offset: 1px;
+    }}
+    .metis-onboarding-hint {{
+        font-size: 12px;
+        color: {muted};
+    }}
+    .metis-onboarding-keybind {{
+        font-family: monospace;
+        font-size: 13px;
+        color: {text};
+    }}
+    .metis-onboarding-nav button {{
+        min-width: 96px;
+    }}
+
     .metis-cal-head-weekday {{
         font-size: 13px;
         color: {muted};

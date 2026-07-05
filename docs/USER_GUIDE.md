@@ -42,6 +42,14 @@ METIS_VIRTUAL_OUTPUTS=2 ./run-metis.sh --session
 Each virtual output gets its own edge bar, wallpaper, and workspaces (subject to
 your settings).
 
+**First-run setup.** On a fresh install (when `onboarding_complete` is false in
+`config.json`), the shell shows a 7-step onboarding wizard after the startup
+splash: theme, wallpaper, clock format, edge bar, weather, and a finish screen
+with keybind tips. Skip or Finish marks setup complete so it does not appear
+again. Reopen it anytime from **Settings → Appearance → Run setup again**, or
+with `metis-cmd.sh show-onboarding`. Disable for dev with
+`METIS_NO_ONBOARDING=1`.
+
 ---
 
 ## 2. The desktop at a glance

@@ -237,6 +237,24 @@ pub fn build() -> gtk::Widget {
         });
     }
 
+    // ---- Re-run first-run wizard ------------------------------------------
+    let (setup_card, setup_body) =
+        ui::section_with_icon("Setup", "system-run-symbolic");
+    let setup_hint = gtk::Label::new(Some(
+        "Reopen the first-run setup wizard to walk through theme, wallpaper, \
+         clock, edge bar, and weather again.",
+    ));
+    setup_hint.set_xalign(0.0);
+    setup_hint.set_wrap(true);
+    setup_hint.add_css_class("metis-settings-hint");
+    setup_body.append(&setup_hint);
+    let setup_btn = gtk::Button::with_label("Run setup again");
+    setup_btn.set_halign(gtk::Align::Start);
+    setup_btn.set_margin_top(8);
+    setup_btn.connect_clicked(|_| runtime::send("show-onboarding"));
+    setup_body.append(&setup_btn);
+    content.append(&setup_card);
+
     scroller.upcast()
 }
 

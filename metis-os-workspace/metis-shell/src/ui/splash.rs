@@ -47,6 +47,8 @@ thread_local! {
     static SPLASH: RefCell<Option<Rc<RefCell<Splash>>>> = const { RefCell::new(None) };
     /// Keeps the startup chime alive until playback ends (GTK media backend).
     static STARTUP_SOUND: RefCell<Option<gtk::MediaFile>> = const { RefCell::new(None) };
+    /// One-shot callback invoked once the splash fade finishes and the surface is parked.
+    static ON_COMPLETE: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
 }
 
 fn monitor_size() -> (i32, i32) {
@@ -224,10 +226,26 @@ pub fn show() {
             s.window.set_opacity(0.0);
             s.window.set_margin(Edge::Top, mon_h + 400);
             SPLASH.with(|cell| *cell.borrow_mut() = None);
+            ON_COMPLETE.with(|cell| {
+                if let Some(f) = cell.borrow_mut().take() {
+                    f();
+                }
+            });
             return glib::ControlFlow::Break;
         }
         glib::ControlFlow::Continue
     });
+}
+
+/// Register a one-shot callback for when the splash fade finishes. If the splash
+/// already completed, the callback runs immediately on the GTK main loop.
+pub fn on_complete(f: impl FnOnce() + 'static) {
+    let already_done = SPLASH.with(|cell| cell.borrow().is_none());
+    if already_done {
+        glib::idle_add_local_once(f);
+        return;
+    }
+    ON_COMPLETE.with(|cell| *cell.borrow_mut() = Some(Box::new(f)));
 }
 
 /// Signal that the desktop is ready; the splash will ramp to 100% and fade out

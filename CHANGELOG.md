@@ -9,6 +9,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **First-run onboarding wizard (Phase 9)** — a 7-step GTK4 layer-shell overlay
+  in `metis-shell` (`ui/onboarding.rs`) runs after the startup splash when
+  `config.json` → `onboarding_complete` is false. Steps: Welcome, Light/Dark theme
+  (Light default), bundled wallpaper pick, 12h/24h clock, edge-bar position/
+  displays/opacity/blur, weather auto-detect + optional city search, and Finish
+  with keybind tips + pointer to Settings → Display. Skip or Finish calls
+  `mark_onboarding_complete()`. Re-run from Settings → Appearance → "Run setup
+  again" or `metis-cmd.sh show-onboarding`. Dev opt-out: `METIS_NO_ONBOARDING=1`.
+  Default theme for fresh installs is now **light** (`metis-config`).
+
 - **Game mouse-look: pointer lock & relative motion** — the compositor now
   implements `zwp_pointer_constraints_v1` (locked/confined pointer) and
   `zwp_relative_pointer_v1` (raw, unaccelerated deltas). Together these let games
@@ -60,6 +70,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Onboarding Finish crashed the edge bar** — the Finish button's click handler
+  held a mutable `RefCell` borrow on the wizard state and then called
+  `dismiss()`, which tried to borrow again — a runtime panic that took down the
+  whole shell (looked like the edge bar dying). Skip worked because it called
+  `dismiss()` without an active borrow. Finish now checks the step with an
+  immutable borrow before calling `dismiss()` (`onboarding.rs`).
 - **In-game menu clicks always open Settings (Proton / pointer lock)** — while a
   `zwp_locked_pointer_v1` lock is active the compositor cursor stays at the lock
   anchor, but Proton games track menu hover via `set_cursor_position_hint` and

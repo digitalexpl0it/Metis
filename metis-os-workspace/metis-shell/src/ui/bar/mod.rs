@@ -331,8 +331,13 @@ fn watch_compositor_dismiss() {
                 "reload-theme" => {
                     let _ = crate::ui::theme::init_theme();
                 }
-                "reload-weather" => crate::services::weather::weather_refresh(),
+                "reload-weather" => {
+                    if !crate::ui::onboarding::is_active() {
+                        crate::services::weather::weather_refresh();
+                    }
+                }
                 "reload-calendars" => crate::services::reload_calendars(),
+                "show-onboarding" => crate::ui::onboarding::show(),
                 "settings" => {
                     let program = if arg.trim().is_empty() {
                         "metis-settings".to_string()
@@ -613,7 +618,7 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
 fn rehydrate_widget_state(refs: &widgets::WidgetRefs) {
     if let Some(snapshot) = last_weather_snapshot() {
         refs.apply_weather(&snapshot);
-    } else {
+    } else if !crate::ui::onboarding::is_active() {
         weather_refresh();
     }
     crate::services::sync_tray();
@@ -859,7 +864,16 @@ pub fn broadcast_audio(percent: u8, muted: bool, mic_percent: u8, mic_muted: boo
     });
 }
 
+/// Close all bar dropdown popovers (e.g. before a bar surface rebuild).
+pub fn close_popovers() {
+    dropdown::request_close_all();
+}
+
 pub fn rebuild_from_config() {
+    if crate::ui::onboarding::is_active() {
+        tracing::debug!("bar rebuild deferred — onboarding active");
+        return;
+    }
     // Coalesce bursts: one settings change writes bar.json (which can emit several
     // file-change events) *and* sends a `reload-bar` runtime command, so multiple
     // rebuild triggers land within a few hundred ms. Collapsing them into a single
@@ -870,14 +884,17 @@ pub fn rebuild_from_config() {
     }
     glib::timeout_add_local_once(std::time::Duration::from_millis(80), || {
         REBUILD_SCHEDULED.with(|f| f.set(false));
+        if crate::ui::onboarding::is_active() {
+            tracing::debug!("bar rebuild deferred — onboarding active");
+            return;
+        }
         rebuild_from_config_now();
     });
 }
 
-fn rebuild_from_config_now() {
-    // Clone the config Rc out and drop the BARS borrow *before* calling the
-    // rebuild helpers, which re-borrow BARS mutably. Holding the borrow across the
-    // call panics with "RefCell already borrowed".
+/// Apply the current `bar.json` immediately. Called after onboarding dismisses
+/// its overlay window so bar layer surfaces are not rebuilt concurrently.
+pub fn apply_bar_config_now() {
     let (config, cur_count) = BARS.with(|bars| {
         let bars = bars.borrow();
         (bars.first().map(|h| h.config.clone()), bars.len())
@@ -887,16 +904,36 @@ fn rebuild_from_config_now() {
     };
     let old = config.borrow().clone();
     let new = load_bar_config();
+    apply_config_diff(config, cur_count, &old, &new);
+}
+
+fn apply_config_diff(
+    config: Rc<RefCell<BarConfig>>,
+    cur_count: usize,
+    old: &BarConfig,
+    new: &BarConfig,
+) {
     *config.borrow_mut() = new.clone();
-    let target_count = target_monitors(&new).len();
+    let target_count = target_monitors(new).len();
     if target_count != cur_count {
-        // The set of outputs changed (hotplug, or `displays` toggled) — recreate
-        // the bar surfaces so each output gets (or loses) its bar.
         rebuild_all_bars(config.clone());
-    } else if needs_widget_rebuild(&old, &new) {
+    } else if needs_widget_rebuild(old, new) {
         rebuild_bars_in_place(config.clone());
     } else {
         apply_bars_live(config.clone());
     }
     crate::ui::theme::reload_stylesheet();
+}
+
+fn rebuild_from_config_now() {
+    let (config, cur_count) = BARS.with(|bars| {
+        let bars = bars.borrow();
+        (bars.first().map(|h| h.config.clone()), bars.len())
+    });
+    let Some(config) = config else {
+        return;
+    };
+    let old = config.borrow().clone();
+    let new = load_bar_config();
+    apply_config_diff(config, cur_count, &old, &new);
 }

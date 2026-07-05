@@ -6,7 +6,7 @@ CMD_FILE="$RUNTIME/metis/command"
 CMD_LOG="$RUNTIME/metis/cmd.log"
 mkdir -p "$(dirname "$CMD_FILE")"
 if [[ $# -lt 1 ]]; then
-    echo "Usage: metis-cmd.sh {close-popovers|reload-bar|reload-theme|reload-weather|reload-calendars|settings [page]}" >&2
+    echo "Usage: metis-cmd.sh {close-popovers|reload-bar|reload-theme|reload-weather|reload-calendars|show-onboarding|settings [page]}" >&2
     echo "  settings page: appearance | weather | network | calendars" >&2
     exit 2
 fi

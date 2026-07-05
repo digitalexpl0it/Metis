@@ -97,6 +97,12 @@ pub fn lock_session() -> std::io::Result<()> {
     Ok(())
 }
 
+/// Ask the compositor to re-read `wallpaper.json` and apply the background live.
+pub fn apply_background() -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::ApplyBackground)?;
+    Ok(())
+}
+
 /// Ask the compositor to end the Metis session (stops its event loop).
 pub fn end_session() -> std::io::Result<()> {
     match send_command(CompositorCommand::EndSession) {

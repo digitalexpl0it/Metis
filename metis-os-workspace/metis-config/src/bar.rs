@@ -275,7 +275,7 @@ impl Default for WindowBorder {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BarConfig {
     #[serde(default)]
     pub position: BarPosition,
