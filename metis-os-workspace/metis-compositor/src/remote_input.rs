@@ -63,17 +63,18 @@ impl MetisState {
         let Some(pointer) = self.seat.get_pointer() else {
             return;
         };
+        let loc = pointer.current_location();
+        self.sync_selection_focus_at(loc);
         let state = if pressed {
             ButtonState::Pressed
         } else {
             ButtonState::Released
         };
         let serial = SERIAL_COUNTER.next_serial();
-        let loc = pointer.current_location();
         let under = self.pointer_target_at(loc);
         pointer.motion(
             self,
-            under.clone(),
+            under,
             &MotionEvent {
                 location: loc,
                 serial,

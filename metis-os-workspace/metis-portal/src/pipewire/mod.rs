@@ -349,7 +349,6 @@ fn create_video_stream(
             process_output_buffer(stream, &user_data.shared);
         })
         .state_changed(|stream, _user_data, _old, new| {
-            tracing::info!(?new, "pipewire screencast stream state changed");
             if matches!(new, pw::stream::StreamState::Streaming) {
                 if let Err(err) = stream.set_active(true) {
                     tracing::warn!(%err, "pipewire set_active(true) on Streaming failed");
@@ -554,15 +553,9 @@ unsafe fn set_header_meta(spa_buf: *mut spa::sys::spa_buffer, state: &StreamShar
 /// Fill one dequeued output buffer and return it to PipeWire (process callback only).
 fn process_output_buffer(stream: &pw::stream::StreamRef, state: &StreamSharedState) {
     let call = state.process_calls.fetch_add(1, Ordering::Relaxed) + 1;
-    if call == 1 {
-        tracing::info!("pipewire screencast process callback invoked");
-    }
 
     let pw_buf = unsafe { stream.dequeue_raw_buffer() };
     if pw_buf.is_null() {
-        if call <= 3 {
-            tracing::warn!(call, "pipewire screencast process: no buffer available to dequeue");
-        }
         return;
     }
     let spa_buf = unsafe { (*pw_buf).buffer };
@@ -583,7 +576,7 @@ fn process_output_buffer(stream: &pw::stream::StreamRef, state: &StreamSharedSta
                 );
             }
         } else if call <= 5 {
-            tracing::warn!(call, "pipewire screencast process: frame not ready yet");
+            tracing::debug!(call, "pipewire screencast process: frame not ready yet");
         }
     }
     unsafe { stream.queue_raw_buffer(pw_buf) };

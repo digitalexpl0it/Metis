@@ -27,6 +27,8 @@ use gtk::prelude::*;
 use nav::{NavHue, NAV};
 
 const SIDEBAR_WIDTH: i32 = 248;
+/// Embedded settings icon — same asset installed as `metis-settings` in the icon theme.
+const APP_ICON_BYTES: &[u8] = include_bytes!("../../assets/metis-settings.png");
 
 fn main() {
     tracing_subscriber::fmt()
@@ -86,6 +88,11 @@ fn build_ui(page: Option<String>) {
         .decorated(!under_metis)
         .build();
     window.add_css_class("metis-settings-window");
+    let window_for_icon = window.clone();
+    window.connect_map(move |win| {
+        apply_window_icon(win);
+    });
+    apply_window_icon(&window_for_icon);
 
     stack.add_titled(
         &pages::appearance::build(),
@@ -254,11 +261,25 @@ fn build_ui(page: Option<String>) {
     let sidebar_title = gtk::Label::new(Some("Settings"));
     sidebar_title.set_xalign(0.0);
     sidebar_title.add_css_class("metis-settings-sidebar-title");
-    sidebar_title.set_margin_top(18);
-    sidebar_title.set_margin_bottom(10);
-    sidebar_title.set_margin_start(20);
-    sidebar_title.set_margin_end(16);
-    sidebar.append(&sidebar_title);
+    sidebar_title.set_hexpand(true);
+
+    let title_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(10)
+        .margin_top(18)
+        .margin_bottom(10)
+        .margin_start(20)
+        .margin_end(16)
+        .build();
+    if let Some(icon) = load_app_icon() {
+        let title_icon = gtk::Image::new();
+        title_icon.set_paintable(Some(&icon));
+        title_icon.set_pixel_size(28);
+        title_icon.add_css_class("metis-settings-sidebar-icon");
+        title_row.append(&title_icon);
+    }
+    title_row.append(&sidebar_title);
+    sidebar.append(&title_row);
     sidebar.append(&search);
     sidebar.append(&nav_scroll);
 
@@ -285,6 +306,29 @@ fn build_ui(page: Option<String>) {
 
     window.set_child(Some(&layout));
     window.present();
+}
+
+fn load_app_icon() -> Option<gtk::gdk::Texture> {
+    let bytes = glib::Bytes::from_static(APP_ICON_BYTES);
+    match gtk::gdk::Texture::from_bytes(&bytes) {
+        Ok(texture) => Some(texture),
+        Err(err) => {
+            tracing::warn!(%err, "failed to decode embedded settings icon");
+            None
+        }
+    }
+}
+
+fn apply_window_icon(window: &gtk::Window) {
+    if let Some(texture) = load_app_icon() {
+        if let Some(surface) = window.surface() {
+            if let Some(toplevel) = surface.downcast_ref::<gtk::gdk::Toplevel>() {
+                toplevel.set_icon_list(&[texture]);
+                return;
+            }
+        }
+    }
+    window.set_icon_name(Some("metis-settings"));
 }
 
 const FILTER_DEBOUNCE_MS: u64 = 16;

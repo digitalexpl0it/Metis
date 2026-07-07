@@ -41,6 +41,31 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let c_info_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.info);
     let c_payment_rgb = crate::theme::rgb_triplet_from_hex(&theme.semantic.payment);
 
+    // Control center: frosted panel over the desktop, slightly more opaque cards.
+    let surface_rgb = theme.surface_rgb();
+    let raised_rgb = theme.surface_raised_rgb();
+    let is_light = theme.mode.eq_ignore_ascii_case("light");
+    let dash_panel_bg = if is_light {
+        format!("rgba({surface_rgb}, 0.72)")
+    } else {
+        format!("rgba({surface_rgb}, 0.82)")
+    };
+    let dash_card_bg = if is_light {
+        format!("rgba({raised_rgb}, 0.94)")
+    } else {
+        format!("rgba({raised_rgb}, 0.90)")
+    };
+    let dash_shadow = if is_light {
+        format!("0 12px 40px {shadow}")
+    } else {
+        "0 12px 32px rgba(0, 0, 0, 0.42)".to_string()
+    };
+    let dash_shadow_up = if is_light {
+        format!("0 -12px 40px {shadow}")
+    } else {
+        "0 -12px 32px rgba(0, 0, 0, 0.42)".to_string()
+    };
+
     // Optional DE-wide font family/size; empty unless the user customized them.
     let font_decls = theme.font_declarations();
 
@@ -376,6 +401,29 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-workspaces {{
         padding: 2px 6px;
+    }}
+
+    button.metis-bar-control-center-btn {{
+        padding: 4px 5px;
+        margin-inline-start: 2px;
+        min-width: 0;
+        min-height: 0;
+        border-radius: 6px;
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+    }}
+
+    button.metis-bar-control-center-btn:hover {{
+        background-color: rgba({text_rgb}, 0.10);
+    }}
+
+    button.metis-bar-control-center-btn:active {{
+        background-color: rgba({text_rgb}, 0.16);
+    }}
+
+    button.metis-bar-control-center-btn image {{
+        opacity: 0.88;
     }}
 
     .metis-bar-ws-dot {{
@@ -2200,6 +2248,377 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {text};
         margin-top: 2px;
     }}
+
+    window.metis-dashboard-window {{
+        background: transparent;
+        overflow: hidden;
+    }}
+    .metis-dashboard-root {{
+        background-color: {dash_panel_bg};
+        border-radius: {rl}px;
+        border: 1px solid {border};
+        box-shadow: {dash_shadow};
+        overflow: hidden;
+        min-height: 0;
+        min-width: 0;
+        margin-top: 4px;
+    }}
+    .metis-dashboard-host {{
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+        border-radius: {rl}px;
+    }}
+    .metis-dashboard-root-bottom {{
+        border-radius: {rl}px;
+        margin-top: 0;
+        margin-bottom: 4px;
+        box-shadow: {dash_shadow_up};
+    }}
+    .metis-dashboard-header {{
+        padding: 8px 14px 6px 14px;
+        border-bottom: 1px solid {border};
+        background-color: transparent;
+    }}
+    .metis-dashboard-stack {{
+        min-height: 0;
+        background-color: transparent;
+    }}
+    .metis-dashboard-title {{
+        font-size: 15px;
+        font-weight: 600;
+        color: {text};
+    }}
+    button.metis-dashboard-close {{
+        min-width: 32px;
+        min-height: 32px;
+        padding: 4px;
+        color: {muted};
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+        border-radius: {rs}px;
+    }}
+    button.metis-dashboard-close:hover {{
+        color: {text};
+        background-color: rgba({text_rgb}, 0.10);
+    }}
+    button.metis-dashboard-close:active {{
+        background-color: rgba({text_rgb}, 0.16);
+    }}
+    .metis-dash-tabs stackswitcher {{
+        padding: 2px;
+        background-color: transparent;
+    }}
+    .metis-dash-tabs stackswitcher button {{
+        padding: 5px 14px;
+        min-height: 0;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 500;
+        color: {muted};
+        background-image: none;
+        background-color: rgba({text_rgb}, 0.06);
+        box-shadow: none;
+        border: 1px solid transparent;
+        -gtk-icon-filter: none;
+    }}
+    .metis-dash-tabs stackswitcher button label {{
+        color: {muted};
+    }}
+    .metis-dash-tabs stackswitcher button:hover {{
+        color: {text};
+        background-color: rgba({text_rgb}, 0.10);
+    }}
+    .metis-dash-tabs stackswitcher button:checked {{
+        color: {text};
+        background-color: rgba({accent_rgb}, 0.20);
+        border-color: rgba({accent_rgb}, 0.50);
+    }}
+    .metis-dash-tabs stackswitcher button:checked label {{
+        color: {text};
+        font-weight: 600;
+    }}
+    .metis-dash-tabs stackswitcher button:checked:hover {{
+        background-color: rgba({accent_rgb}, 0.26);
+    }}
+    .metis-dashboard-proc-header label {{
+        font-size: 11px;
+        font-weight: 600;
+        color: {muted};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+    .metis-dashboard-filter {{
+        min-width: 140px;
+    }}
+    .metis-dashboard-card {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        min-width: 280px;
+    }}
+    .metis-dashboard-card-title {{
+        font-size: 12px;
+        font-weight: 600;
+        color: {muted};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+    .metis-dashboard-search {{
+        border-radius: {rs}px;
+    }}
+    .metis-dashboard-process-row {{
+        border-bottom: 1px solid rgba({accent_rgb}, 0.08);
+    }}
+    .metis-dashboard-process-metis {{
+        color: {accent};
+        font-weight: 600;
+    }}
+    .metis-dash-health-row {{
+        margin-bottom: 2px;
+    }}
+    .metis-dash-health {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 8px 12px;
+    }}
+    image.metis-dash-card-icon {{
+        -gtk-icon-size: 16px;
+        color: {accent};
+        opacity: 0.92;
+    }}
+    .metis-dash-value-inline {{
+        font-size: 15px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-dash-chart-cpu {{
+        min-height: 120px;
+    }}
+    paned.metis-dash-paned separator {{
+        background-color: {border};
+        min-width: 1px;
+    }}
+    .metis-dash-pane-left {{
+        min-width: 280px;
+    }}
+    .metis-dash-legend {{
+        margin-top: 2px;
+    }}
+    .metis-dash-legend-label {{
+        font-size: 10px;
+        color: {muted};
+    }}
+    .metis-dash-mid {{
+        margin-top: 2px;
+    }}
+    .metis-dash-mid > widget:nth-child(1) {{
+        min-width: 280px;
+    }}
+    .metis-dash-session-value {{
+        font-size: 14px;
+        font-weight: 600;
+        color: {text};
+        line-height: 1.35;
+    }}
+    .metis-dash-session-grid {{
+        margin-top: 2px;
+    }}
+    .metis-dash-session-key {{
+        font-size: 12px;
+        font-weight: 500;
+        color: {muted};
+        min-width: 96px;
+    }}
+    .metis-dash-process-page {{
+        min-height: 0;
+    }}
+    .metis-dash-proc-panel {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        min-height: 0;
+    }}
+    .metis-dash-disk-grid {{
+        margin-top: 4px;
+    }}
+    .metis-dash-disk-tile {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        min-width: 180px;
+    }}
+    .metis-dash-overview {{
+        min-height: 360px;
+    }}
+    .metis-dash-overview-body {{
+        min-height: 0;
+    }}
+    button.metis-dash-sort {{
+        background: transparent;
+        border: none;
+        padding: 2px 0;
+        font-size: 11px;
+        font-weight: 600;
+        color: {muted};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+    button.metis-dash-sort.metis-dash-sort-active {{
+        color: {accent};
+    }}
+    .metis-dash-proc-cols {{
+        grid-template-columns: minmax(140px, 2.2fr) 64px 88px 64px 64px 80px 36px;
+    }}
+    .metis-dash-proc-cols > label,
+    .metis-dash-proc-cols > button {{
+        min-width: 0;
+    }}
+    button.metis-dash-sort {{
+        width: 100%;
+    }}
+    button.metis-dash-sort.metis-dash-sort-end {{
+        margin-left: auto;
+    }}
+    button.metis-dash-sort.metis-dash-sort-end label {{
+        margin-left: auto;
+    }}
+    .metis-dash-health-value {{
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    .metis-dash-health-good {{
+        color: {c_success};
+    }}
+    .metis-dash-health-warn {{
+        color: {c_warning};
+    }}
+    .metis-dash-health-crit {{
+        color: {c_error};
+    }}
+    .metis-dash-metrics {{
+        margin-top: 4px;
+    }}
+    .metis-dash-card {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 10px 12px;
+    }}
+    .metis-dash-card-title {{
+        font-size: 11px;
+        font-weight: 600;
+        color: {muted};
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }}
+    .metis-dash-value {{
+        font-size: 20px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-dash-sub {{
+        font-size: 12px;
+        color: {muted};
+    }}
+    .metis-dash-muted {{
+        color: {muted};
+        font-size: 12px;
+    }}
+    .metis-dash-gauge {{
+        margin-top: 2px;
+    }}
+    .metis-dash-gauge-value {{
+        font-size: 15px;
+        font-weight: 600;
+        color: {text};
+        margin-bottom: 2px;
+    }}
+    .metis-dash-gauge-card {{
+        min-width: 108px;
+        padding: 10px 10px 8px;
+    }}
+    .metis-dash-temp-gauges {{
+        flex-shrink: 0;
+    }}
+    .metis-dash-system-row {{
+        align-items: start;
+    }}
+    .metis-dash-chart {{
+        margin-top: 2px;
+        min-height: 64px;
+    }}
+    levelbar.metis-dash-meter {{
+        min-height: 6px;
+        border-radius: 999px;
+    }}
+    levelbar.metis-dash-meter block {{
+        background-color: {accent};
+        border-radius: 999px;
+    }}
+    levelbar.metis-dash-meter block.empty {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    .metis-dash-kv-grid {{
+        margin-top: 6px;
+    }}
+    .metis-dash-kv-key {{
+        font-size: 12px;
+        color: {muted};
+        min-width: 88px;
+    }}
+    .metis-dash-kv {{
+        font-size: 13px;
+        color: {text};
+    }}
+    .metis-dash-search {{
+        border-radius: {rs}px;
+        color: {text};
+        background-color: rgba({text_rgb}, 0.06);
+        border: 1px solid {border};
+    }}
+    .metis-dash-search:focus-within {{
+        border-color: rgba({accent_rgb}, 0.45);
+        background-color: rgba({text_rgb}, 0.08);
+    }}
+    .metis-dash-filter {{
+        min-width: 140px;
+        color: {text};
+    }}
+    .metis-dash-table-head label {{
+        font-size: 11px;
+        font-weight: 600;
+        color: {muted};
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }}
+    list.metis-dash-table {{
+        background: transparent;
+    }}
+    list.metis-dash-table row.metis-dash-table-row {{
+        padding: 0;
+        border: none;
+    }}
+    list.metis-dash-table row.metis-dash-table-row:nth-child(odd) {{
+        background-color: rgba({accent_rgb}, 0.04);
+    }}
+    list.metis-dash-table row.metis-dash-table-row:nth-child(even) {{
+        background-color: transparent;
+    }}
+    list.metis-dash-table row.metis-dash-table-row:hover {{
+        background-color: rgba({accent_rgb}, 0.10);
+    }}
+    .metis-dash-process-metis {{
+        color: {accent};
+        font-weight: 600;
+    }}
+    label.dim-label {{
+        color: {muted};
+        font-size: 12px;
+    }}
 "#,
         surface = surface,
         border = theme.border,
@@ -2211,5 +2630,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         accent = accent,
         text = theme.text,
         muted = theme.text_muted,
+        c_success = c_success,
+        c_warning = c_warning,
+        c_error = c_error,
     )
 }

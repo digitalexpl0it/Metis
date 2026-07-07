@@ -9,6 +9,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Control Center (dashboard v2)** — Metis-style system monitor with four tabs:
+  **Overview** (health badges, CPU/memory sparklines, storage meters, load/uptime),
+  **Processes** (zebra-striped table, search, All/User/System filter, end-task),
+  **Network** (RX/TX rate charts + firewall status via ufw/firewalld), and
+  **System** (hostname, CPU model, cores, kernel, memory, uptime). Theme-aware
+  Cairo charts and semantic health colors follow light/dark tokens. Lazy-loaded on
+  first bar pull; pollers collect hardware info, load average, and metric history.
+
+- **Phase 10 — System dashboard (v1)** — pull-down system monitor from the top
+  edge bar: drag the handle below the bar (or click it) to reveal CPU sparkline,
+  memory/swap, storage mounts, network throughput, and a searchable process list
+  with end-task (SIGTERM). Background polling via `spawn_dashboard_pollers()`
+  (`sysinfo` + `/proc/net/dev`); config in `~/.config/metis/dashboard.json`.
+  Dismiss with Esc, drag up on the header, click outside, or the close button.
 - **Phase 7 — Desktop sharing (RDP v1)** — GNOME-style **Settings → Remote access**
   master toggle for headless RDP via `gnome-remote-desktop`. New `metis-remote`
   CLI (`status`, `enable`, `disable`, `autostart`, `set-credentials`) wraps
@@ -30,8 +44,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   detection, GPU offload env hints, and links to the user guide. Launch with
   `metis-cmd settings gaming`.
 
+- **RDP clipboard bridge** — `metis-portal` now implements Mutter's
+  `EnableClipboard` / `SetSelection` / `SelectionRead` / `SelectionWrite` D-Bus
+  methods (correct `a{sv}` option dicts — the old wrong signatures caused GRD
+  `UnknownMethod` errors). Local clipboard changes from the compositor are
+  forwarded over the event socket; remote text pastes are written back via IPC.
+- **RDP remote input focus** — pointer button injection now syncs selection
+  focus at the click location before delivery so RDP clicks target the correct
+  window for focus and clipboard routing.
+
 ### Changed
 
+- **Portal PipeWire logging** — demoted noisy per-state transition logs to
+  debug; process warnings only when diagnostics are needed.
 - **libinput device logging** — `on_device_added` now logs capability flags
   (keyboard, pointer, touch, etc.) and documents that gamepad nodes are not
   configured or grabbed by the compositor.
@@ -39,7 +64,38 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   Flatpak override cookbook, expanded controller/touch notes, and handheld
   compatibility guidance.
 
+- **Control Center layout** — flush attach to the edge bar (no desktop gap), taller
+  default panel (58%), denser overview with icons, per-core CPU chart + legend,
+  network snapshot on Overview, scrollable content, and sortable process table
+  (Name, PID, User, Type, CPU, Memory).
+
+- **Control Center polish** — fixes process-sort crash (RefCell panic), live bar
+  attach inset, near-full-screen height (92%), memory line chart with swap overlay,
+  network sparklines on Overview, 2-column storage tiles, larger session stats.
+
 ### Fixed
+
+- **Control Center window push** — dashboard no longer sets a layer-shell
+  exclusive zone, so opening it overlays windows instead of reflowing the grid.
+
+- **App menu search focus** — typing in "Search applications" no longer unfocuses
+  after each key: search rebuild is debounced, focus is restored on idle, pinned
+  grid is not rebuilt while filtering, and focus-enter no longer cancels the list
+  on every `grab_focus` during rebuild.
+
+### Changed
+
+- **System dashboard tabs** — **Control Center** with Overview, Processes,
+  Network, and System tabs (health badges, sparkline charts, zebra process table,
+  firewall card, hardware panel). Theme-aware styling via `metis-dash-*` CSS.
+
+- **System dashboard peek + bar line** — removed the full-width drag handle below
+  the bar (it drew a visible accent line across the monitor). Open gesture is now
+  press-and-drag on the bar pill toward the desktop; panel tracks the drag live.
+  Dashboard layer starts fully hidden (opacity 0, extent 0, clipped) instead of
+  peeking under the bar. Works for all four bar positions (top/bottom/left/right).
+  **Lazy load:** dashboard surface + sysinfo pollers start on first pull and tear
+  down when dismissed — no idle resource use while closed.
 
 - **RDP remote desktop black screen** — gnome-remote-desktop connected and EIS
   input worked, but the RDP client showed a blank display. Capture and PipeWire

@@ -81,7 +81,7 @@ Metis integration: `~/.config/metis/remote.json` + `metis-remote {status|enable|
 
 | Tool | Status | Notes |
 |------|--------|-------|
-| **gnome-remote-desktop (RDP)** | Supported (v1) | Headless unit; portal/PipeWire capture; Settings toggle |
+| **gnome-remote-desktop (RDP)** | Supported (v1) | Headless unit; portal/PipeWire capture; Settings toggle; text clipboard |
 | **RustDesk** | Planned (M2) | Document + optional backend in `metis-remote` |
 | **wayvnc / VNC** | Planned (M3) | Needs Smithay capture spike |
 | **xrdp** | Out of toggle scope | Separate X11 login session; USER_GUIDE appendix only if needed |

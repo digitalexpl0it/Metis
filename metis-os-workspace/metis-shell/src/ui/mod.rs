@@ -1,5 +1,6 @@
 pub mod app;
 pub mod bar;
+pub mod dashboard;
 pub mod icons;
 pub mod onboarding;
 pub mod splash;

@@ -640,6 +640,10 @@ This matches Metis’s local lock posture.
 (the defaults after you turn sharing on), `metis-session` runs `metis-remote
 autostart` at login so you do not need to reopen Settings each time.
 
+**Clipboard.** Text copy/paste between the Metis session and an RDP client is
+synced via the portal's Mutter clipboard bridge (same path as GNOME). Image
+clipboard is best-effort; text (`text/plain`, UTF-8) is the supported v1 path.
+
 **Troubleshooting.** If the page shows an install hint, install
 `gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
 set a password first. PipeWire and the Metis ScreenCast portal must be running in
@@ -648,6 +652,27 @@ broken. Check status from a terminal: `metis-remote status` (JSON).
 
 RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are planned follow-ups
 — see [`TODO.md`](../metis-os-workspace/TODO.md) Phase 7.
+
+### System dashboard
+
+Press on the **edge bar** (empty pill area — not icons) and **drag toward the
+desktop** to pull open the system monitor:
+
+| Bar position | Drag direction |
+|--------------|----------------|
+| Top | Down |
+| Bottom | Up |
+| Left | Right |
+| Right | Left |
+
+The panel tracks your drag (rubber-band) and snaps open if you pull far enough.
+The dashboard **loads on demand** — no layer surface or background polling until
+you start a pull; it tears down again when dismissed.
+Shows CPU, memory, storage, network, and a searchable process list. **End task**
+sends SIGTERM to your own processes (optional confirmation in `dashboard.json`).
+
+Dismiss with **Esc**, the close button, **drag back toward the bar** on the
+header, or by clicking the desktop. Config: `~/.config/metis/dashboard.json`.
 
 ---
 
@@ -687,6 +712,7 @@ Metis session (future DRM backend), the default is Super.
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
+| `dashboard.json` | System dashboard: enabled, widget order, max height %, refresh interval |
 | `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |
 
 ### Key `bar.json` fields

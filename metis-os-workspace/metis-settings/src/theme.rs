@@ -170,12 +170,15 @@ fn settings_css(t: &ThemeTokens) -> String {
             box-shadow: none;
             border: none;
         }}
-        .metis-settings-sidebar-title {{
-            font-size: 22px;
-            font-weight: 800;
-            color: {text};
-            letter-spacing: -0.02em;
-        }}
+    .metis-settings-sidebar-title {{
+        font-size: 22px;
+        font-weight: 800;
+        color: {text};
+        letter-spacing: -0.02em;
+    }}
+    image.metis-settings-sidebar-icon {{
+        border-radius: 8px;
+    }}
         .metis-settings-search {{
             min-height: 32px;
             border-radius: 8px;

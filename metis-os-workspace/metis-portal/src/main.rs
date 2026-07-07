@@ -1,5 +1,6 @@
 mod background;
 mod capture;
+mod compositor_events;
 mod compositor_ipc;
 mod compositor_remote_input;
 mod mutter;

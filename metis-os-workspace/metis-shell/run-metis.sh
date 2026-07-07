@@ -99,7 +99,7 @@ while [[ $# -gt 0 ]]; do
         --verify-grid) DO_VERIFY_GRID=1 ;;
         --install-session) DO_INSTALL_SESSION=1 ;;
         -h|--help)
-            sed -n '2,29p' "$0"
+            sed -n '2,29p' "$ROOT/run-metis.sh"
             exit 0
             ;;
         *)
@@ -324,6 +324,16 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
 
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
+
+    echo "Installing Metis Settings launcher icon and desktop entry …"
+    ICONS_DST="${METIS_ICONS_DIR:-/usr/share/icons/hicolor}"
+    APPS_DST="${METIS_APPS_DIR:-/usr/share/applications}"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$ICONS_DST/48x48/apps/metis-settings.png"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.png" "$ICONS_DST/256x256/apps/metis-settings.png"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.desktop" "$APPS_DST/metis-settings.desktop"
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        $SUDO gtk-update-icon-cache -f -t "$ICONS_DST" >/dev/null 2>&1 || true
+    fi
 
     # PAM service for the compositor lock screen. Without it the compositor
     # falls back to the system "login" stack; installing the dedicated service

@@ -23,9 +23,20 @@ thread_local! {
     // `popover_position()` can be read while `BARS` is mutably borrowed (e.g. from
     // within `rebuild_bars`, which builds widgets that query the popover side).
     static BAR_POSITION: Cell<BarPosition> = const { Cell::new(BarPosition::Top) };
+    /// Screen-edge inset (px) where the control center attaches below the bar pill.
+    static DASH_ATTACH_INSET: Cell<i32> = const { Cell::new(0) };
     // Set while a coalesced rebuild is queued, so a burst of config/monitor change
     // triggers collapses into a single rebuild pass.
     static REBUILD_SCHEDULED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// GTK widgets the control center embeds into (same layer surface as the bar).
+#[derive(Clone)]
+pub struct BarShell {
+    pub window: gtk::Window,
+    pub outer: gtk::Box,
+    pub column: gtk::Box,
+    pub host: gtk::Box,
 }
 
 struct BarHandle {
@@ -33,6 +44,7 @@ struct BarHandle {
     outer: gtk::Box,
     column: gtk::Box,
     pill: gtk::Box,
+    dash_host: gtk::Box,
     config: Rc<RefCell<BarConfig>>,
     widget_refs: widgets::WidgetRefs,
     /// Compositor output name this bar is bound to (e.g. `metis-0`), used so its
@@ -71,6 +83,7 @@ pub fn init_and_show() {
         attach_poll_channel(spawn_bar_pollers());
         attach_weather_channel(spawn_weather_service());
         attach_notification_channel(spawn_notification_service());
+        crate::ui::dashboard::init();
         watch_bar_config();
         watch_theme_files();
         watch_compositor_dismiss();
@@ -124,9 +137,23 @@ fn build_bar(
 
     configure_surface(&outer, &column, &pill, &cfg);
 
-    column.append(&pill);
+    let dash_host = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .overflow(gtk::Overflow::Hidden)
+        .build();
+    dash_host.add_css_class("metis-dashboard-host");
+    dash_host.set_visible(false);
+    mount_dash_host(&cfg, &outer, &column, &pill, &dash_host);
 
-    // Click on empty bar space (not an icon button, not the popover) dismisses any
+    let shell = BarShell {
+        window: window.clone(),
+        outer: outer.clone(),
+        column: column.clone(),
+        host: dash_host.clone(),
+    };
+    crate::ui::dashboard::wire_bar_pull(&pill, &shell);
+
+    // Click on empty bar space
     // open popover. Bubble phase means child buttons that claim the press are
     // skipped, so this never fires when toggling/opening an icon.
     let dismiss = gtk::GestureClick::builder()
@@ -159,10 +186,20 @@ fn build_bar(
     });
     pill.add_controller(dismiss);
 
-    outer.append(&column);
+    if matches!(cfg.position, BarPosition::Left | BarPosition::Right) {
+        if matches!(cfg.position, BarPosition::Left) {
+            outer.append(&column);
+            outer.append(&dash_host);
+        } else {
+            outer.append(&dash_host);
+            outer.append(&column);
+        }
+    } else {
+        outer.append(&column);
+    }
     window.set_child(Some(&outer));
 
-    let widget_refs = widgets::build(&pill, config.clone(), output.clone());
+    let widget_refs = widgets::build(&pill, config.clone(), output.clone(), shell.clone());
     widget_refs.apply_snapshot(&BarSnapshot {
         workspaces: workspace_snapshot(),
         ..Default::default()
@@ -181,11 +218,86 @@ fn build_bar(
         outer,
         column,
         pill,
+        dash_host,
         config,
         widget_refs,
         output,
         chrome_suppressed: Cell::new(false),
     }
+}
+
+/// Place the pill and dashboard host in the bar tree for the current edge.
+fn mount_dash_host(
+    config: &BarConfig,
+    _outer: &gtk::Box,
+    column: &gtk::Box,
+    pill: &gtk::Box,
+    dash_host: &gtk::Box,
+) {
+    match config.position {
+        BarPosition::Top => {
+            column.append(pill);
+            column.append(dash_host);
+        }
+        BarPosition::Bottom => {
+            column.append(dash_host);
+            column.append(pill);
+        }
+        BarPosition::Left | BarPosition::Right => {
+            column.append(pill);
+        }
+    }
+}
+
+/// Grow or shrink the bar layer surface while the control center is pulled open.
+pub(crate) fn resize_bar_for_dashboard(shell: &BarShell, extent: i32) {
+    let cfg = load_bar_config();
+    let e = extent.max(0);
+    let cross = bar_cross_thickness(&cfg);
+    let closed = bar_body_thickness(&cfg);
+    let is_side = matches!(cfg.position, BarPosition::Left | BarPosition::Right);
+
+    let thickness = if e > 0 {
+        cross + e
+    } else {
+        closed
+    };
+
+    match cfg.position {
+        BarPosition::Top | BarPosition::Bottom => {
+            shell.window.set_height_request(thickness);
+            shell.column.set_size_request(-1, thickness);
+            shell.outer.set_size_request(-1, thickness);
+            shell.host.set_size_request(-1, e);
+        }
+        BarPosition::Left | BarPosition::Right => {
+            shell.window.set_width_request(thickness);
+            shell.outer.set_size_request(thickness, -1);
+            shell.column.set_size_request(if e > 0 { cross } else { closed }, -1);
+            shell.host.set_size_request(e, -1);
+        }
+    }
+
+    if is_side {
+        shell.host.set_orientation(gtk::Orientation::Vertical);
+    } else {
+        shell.host.set_orientation(gtk::Orientation::Vertical);
+    }
+
+    shell.host.set_visible(e > 0);
+    shell.host.set_hexpand(is_side && e > 0);
+    shell.host.set_vexpand(!is_side && e > 0);
+
+    // The dashboard is an overlay: grow the layer surface for rendering, but keep
+    // the exclusive zone at the visible bar strip only so tiled windows do not
+    // reflow when the control center opens.
+    if cfg.position == BarPosition::Top {
+        shell
+            .window
+            .set_exclusive_zone(cfg.margin_top as i32 + cross);
+    }
+
+    shell.window.queue_resize();
 }
 
 /// Hide or restore the edge bar on the output that has a true-fullscreen client.
@@ -326,7 +438,10 @@ fn watch_compositor_dismiss() {
             let cmd = cmd.trim();
             let (verb, arg) = cmd.split_once(char::is_whitespace).unwrap_or((cmd, ""));
             match verb {
-                "close-popovers" => dropdown::request_close_all(),
+                "close-popovers" => {
+                    dropdown::request_close_all();
+                    crate::ui::dashboard::request_close();
+                }
                 "reload-bar" => rebuild_from_config(),
                 "reload-theme" => {
                     let _ = crate::ui::theme::init_theme();
@@ -369,7 +484,7 @@ fn configure_surface(outer: &gtk::Box, column: &gtk::Box, pill: &gtk::Box, confi
     let thickness = bar_body_thickness(config);
 
     outer.set_orientation(if is_vertical {
-        gtk::Orientation::Vertical
+        gtk::Orientation::Horizontal
     } else {
         gtk::Orientation::Horizontal
     });
@@ -487,6 +602,11 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     }
 }
 
+/// Live attach inset for the pull-down control center (from the anchored screen edge).
+pub fn dashboard_layer_inset() -> i32 {
+    DASH_ATTACH_INSET.with(Cell::get)
+}
+
 fn orientation_for(config: &BarConfig) -> gtk::Orientation {
     match config.position {
         BarPosition::Top | BarPosition::Bottom => gtk::Orientation::Horizontal,
@@ -516,6 +636,7 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     // bar's bottom edge (the shadow pad region is transparent) instead of leaving a
     // chunk of dead space below the bar.
     let visible_thickness = bar_cross_thickness(config);
+    DASH_ATTACH_INSET.set(config.margin_top as i32 + visible_thickness);
     // Only the top bar reserves screen space (windows reflow below it). Bottom
     // and side bars overlay the desktop; maximize/snap insets come from config.
     let exclusive = match config.position {
@@ -608,7 +729,18 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
             while let Some(child) = handle.pill.first_child() {
                 handle.pill.remove(&child);
             }
-            handle.widget_refs = widgets::build(&handle.pill, config.clone(), handle.output.clone());
+            let shell = BarShell {
+                window: handle.window.clone(),
+                outer: handle.outer.clone(),
+                column: handle.column.clone(),
+                host: handle.dash_host.clone(),
+            };
+            handle.widget_refs = widgets::build(
+                &handle.pill,
+                config.clone(),
+                handle.output.clone(),
+                shell,
+            );
             rehydrate_widget_state(&handle.widget_refs);
         }
     });
@@ -936,4 +1068,5 @@ fn rebuild_from_config_now() {
     let old = config.borrow().clone();
     let new = load_bar_config();
     apply_config_diff(config, cur_count, &old, &new);
+    crate::ui::dashboard::on_bar_config_changed();
 }

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Metis Settings
+GenericName=Settings
+Comment=Configure Metis appearance, edge bar, network, and more
+Exec=metis-settings
+TryExec=metis-settings
+Icon=metis-settings
+Type=Application
+Categories=Settings;GNOME;GTK;
+StartupWMClass=metis-settings
+Keywords=metis;settings;appearance;theme;network;weather;display;

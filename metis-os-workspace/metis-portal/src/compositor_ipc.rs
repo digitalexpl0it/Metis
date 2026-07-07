@@ -59,3 +59,19 @@ pub fn uninhibit_idle(cookie: u32) {
         Err(err) => tracing::debug!(%err, "UninhibitIdle IPC failed"),
     }
 }
+
+pub fn set_clipboard(mime: &str, text: Option<&str>, image_path: Option<&str>) {
+    let cmd = CompositorCommand::SetClipboard {
+        mime: mime.to_string(),
+        text: text.map(str::to_string),
+        image_path: image_path.map(str::to_string),
+    };
+    match metis_protocol::send_compositor_command(&cmd) {
+        Ok(CompositorEvent::Pong) => {}
+        Ok(CompositorEvent::Error { message }) => {
+            tracing::warn!(%message, "SetClipboard rejected");
+        }
+        Ok(_) => {}
+        Err(err) => tracing::debug!(%err, "SetClipboard IPC failed"),
+    }
+}

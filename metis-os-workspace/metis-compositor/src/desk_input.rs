@@ -499,7 +499,10 @@ impl MetisState {
 
         for layer in layers
             .layers()
-            .filter(|layer| layer.namespace().starts_with("metis-bar"))
+            .filter(|layer| {
+                let ns = layer.namespace();
+                ns.starts_with("metis-bar") || ns == "metis-dashboard"
+            })
         {
             if layer_accepts_pointer(layer, &layers, rel) {
                 return true;

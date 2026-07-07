@@ -129,6 +129,21 @@ pub enum TrayIconMode {
 pub const SHADOW_PAD: i32 = 16;
 pub const PILL_SIDE_INSET: i32 = SHADOW_PAD - 4;
 
+/// Layer-shell margin from the anchored screen edge to the inner side of the bar
+/// pill (not including shadow pad). Used to attach the control center flush below
+/// the visible bar strip.
+pub fn bar_pill_inset(cfg: &BarConfig) -> i32 {
+    cfg.margin_top as i32 + cfg.height as i32
+}
+
+/// Control-center attach inset: tuck slightly under the bar pill so no desktop
+/// gap shows through the bar's shadow pad region.
+pub fn dashboard_attach_inset(cfg: &BarConfig) -> i32 {
+    // Overlap a few px into the bar pill bottom edge for a seamless pull-down.
+    const FLUSH_OVERLAP: i32 = 4;
+    bar_pill_inset(cfg).saturating_sub(FLUSH_OVERLAP)
+}
+
 /// How the compositor strokes an accent border (title pill or window frame).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

@@ -2,19 +2,22 @@ use gtk::prelude::*;
 
 use crate::config::BarPosition;
 use crate::services::{active_workspace_for, dispatch_workspace, WorkspaceSnapshot};
+use crate::ui::bar::BarShell;
+use metis_config::load_dashboard_config;
 
 const DOT_PX: i32 = 7;
 
 pub struct WorkspacesWidget {
     root: gtk::Box,
     buttons: gtk::Box,
+    control_btn: gtk::Button,
     /// Compositor output name this bar lives on, used to switch / read that
     /// output's own workspaces. `None` for a bar not bound to a specific output.
     output: Option<String>,
 }
 
 impl WorkspacesWidget {
-    pub fn new(position: BarPosition, output: Option<String>) -> Self {
+    pub fn new(position: BarPosition, output: Option<String>, shell: BarShell) -> Self {
         let axis = match position {
             BarPosition::Top | BarPosition::Bottom => gtk::Orientation::Horizontal,
             BarPosition::Left | BarPosition::Right => gtk::Orientation::Vertical,
@@ -40,9 +43,26 @@ impl WorkspacesWidget {
         buttons.set_halign(gtk::Align::Center);
         root.append(&buttons);
 
+        let control_btn = gtk::Button::builder()
+            .has_frame(false)
+            .tooltip_text("Control Center")
+            .build();
+        control_btn.add_css_class("metis-bar-control-center-btn");
+        let icon = gtk::Image::from_icon_name("view-grid-symbolic");
+        icon.add_css_class("metis-bar-icon");
+        icon.set_pixel_size(16);
+        control_btn.set_child(Some(&icon));
+        control_btn.set_visible(load_dashboard_config().enabled);
+        let shell_click = shell.clone();
+        control_btn.connect_clicked(move |_| {
+            crate::ui::dashboard::request_toggle(&shell_click);
+        });
+        root.append(&control_btn);
+
         Self {
             root,
             buttons,
+            control_btn,
             output,
         }
     }
@@ -52,6 +72,9 @@ impl WorkspacesWidget {
     }
 
     pub fn update(&self, snapshot: &WorkspaceSnapshot) {
+        self.control_btn
+            .set_visible(load_dashboard_config().enabled);
+
         while let Some(child) = self.buttons.first_child() {
             self.buttons.remove(&child);
         }

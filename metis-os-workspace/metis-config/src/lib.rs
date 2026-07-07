@@ -6,6 +6,7 @@ pub mod bar;
 pub mod calendars;
 pub mod clocks;
 pub mod css;
+pub mod dashboard;
 pub mod game_rules;
 pub mod input;
 pub mod lock;
@@ -176,6 +177,10 @@ pub use remote::{
 };
 pub use lock::{
     load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
+};
+pub use dashboard::{
+    dashboard_config_path, load_dashboard_config, save_dashboard_config,
+    save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
 };
 pub use game_rules::{
     game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,

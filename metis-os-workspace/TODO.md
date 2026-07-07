@@ -13,7 +13,9 @@ dGPU offload, pointer lock, fullscreen perf fix, Background + PowerProfileMonito
 portal stubs, `wl_touch` forwarding, Settings → Gaming diagnostics page, and
 permission/override docs. **Phase 7** (remote access / full desktop sharing),
 **Phase 8** (internationalization — not yet started), **Phase 9** (onboarding —
-**done** 2026-07-04), and **Phase 10** (edge-bar system dashboard — planned).
+**done** 2026-07-04), and **Phase 10** (edge-bar Control Center / system dashboard —
+**v2 shipped** 2026-07-05),
+2026-07-05).
 
 ---
 
@@ -667,8 +669,8 @@ latency and clear setup docs.
 - [x] **RDP (gnome-remote-desktop headless)** — `metis-remote` orchestrates
       `gnome-remote-desktop-headless.service` + `grdctl --headless`; Settings →
       **Remote access** master toggle; `remote.json` + session autostart; USER_GUIDE
-      + UBUNTU_DEV spike docs. **Deferred:** classic `xrdp` X11 login sessions
-      (out of toggle scope).
+      + UBUNTU_DEV spike docs. **Video + input + text clipboard v1** (2026-07-05).
+      **Deferred:** classic `xrdp` X11 login sessions (out of toggle scope).
 - [ ] **Other tools** — spot-check AnyDesk, Chrome Remote Desktop, TigerVNC /
       `wayvnc` where relevant; capture known-good / known-broken matrix in dev docs
 - [x] **Settings → System → Remote access** — master switch, status card, password
@@ -676,9 +678,14 @@ latency and clear setup docs.
 
 ### B. Metis-native / portal integration (longer term)
 
-- [ ] **Remote input path** — audit compositor input routing so injected pointer/
-      keyboard events from a remote server reach focused Wayland/XWayland clients
-      reliably (multi-monitor, per-output workspaces, layer-shell bar)
+- [x] **Remote input path (v1)** — compositor injects EIS pointer/keyboard via
+      `remote_input.rs`; pointer clicks sync selection focus at the click location
+      so RDP focus and clipboard targeting match local behaviour (2026-07-05).
+      **Follow-up:** multi-monitor edge cases, scroll/wheel polish, game pointer-lock.
+- [x] **RDP clipboard bridge (v1)** — `metis-portal` Mutter session clipboard
+      D-Bus (`EnableClipboard`, `SetSelection`, `SelectionRead`/`Write`); compositor
+      `ClipboardChanged` events forwarded to active GRD sessions (2026-07-05).
+      **Follow-up:** image clipboard, mime-type option parsing.
 - [ ] **ScreenCast as capture backend** — optional: remote servers that consume
       portal PipeWire streams use `metis-portal` instead of brittle screencopy;
       follow-up: dmabuf zero-copy (Phase 3 perf item) for lower latency
@@ -835,45 +842,44 @@ never destroy mid-session.
 
 ### A. Shell surface & gesture
 
-- [ ] **Pull-down gesture** — `GtkGestureDrag` (or equivalent) on the bar pill /
-      a slim drag affordance at the bar's inner edge; downward drag past a
-      threshold opens the dashboard; rubber-band + snap on release.
-- [ ] **Dashboard layer surface** — `gtk4-layer-shell` `Layer::Overlay` (or
-      `Layer::Top` below popovers), namespace `metis-dashboard`, anchored to the
-      bar's screen edge; height animates from `0` → configured max (e.g. 40–60%
-      of monitor or content-sized with scroll); width tracks the bar output.
-- [ ] **Exclusive zone cooperation** — while open, extend the bar's exclusive
-      zone or reserve space so tiled windows do not reflow under the panel;
-      coordinate with compositor bar geometry (`on_bar_layer_committed`).
-- [ ] **Dismiss & focus** — pointer-outside and `Esc` via compositor dismiss
-      path; no keyboard grab that blocks the session; park hidden when closed.
+- [x] **Pull-down gesture** — press the bar pill and drag toward the desktop;
+      panel tracks the drag (rubber-band) and snaps open past a threshold.
+      Direction follows bar edge: top→down, bottom→up, left→right, right→left
+      (2026-07-05). Skips bar icon widgets so popovers still work.
+- [x] **Dashboard layer surface** — `gtk4-layer-shell` `Layer::Overlay`,
+      namespace `metis-dashboard`, anchored below the bar; height animates to
+      `max_height_percent` from config (2026-07-05).
+- [x] **Overlay behavior** — dashboard uses `exclusive_zone(0)` so it draws on top
+      of tiled windows without pushing or reflowing them (2026-07-05).
+- [x] **Dismiss & focus** — pointer-outside via compositor `close-popovers`
+      (dashboard included in bar UI hit test), Esc, drag-up on header, close
+      button; `KeyboardMode::OnDemand` (2026-07-05).
 
 ### B. Core widgets (v1)
 
-- [ ] **CPU** — per-core and aggregate utilization sparkline + current % (read
-      `/proc/stat` or `sysinfo` on a background thread; ~1 Hz UI refresh).
-- [ ] **Memory** — RAM + swap used/total, optional pressure indicator.
-- [ ] **Disk** — per-mount used/free for `/` and user-visible volumes (`sysfs` /
-      `statvfs`).
-- [ ] **Network** — aggregate + per-interface RX/TX rates (reuse/extend bar
-      network poller data where possible).
-- [ ] **Processes** — sortable table: name, PID, CPU%, mem%, user; search filter;
-      **End task** (SIGTERM, hold-for-SIGKILL) with confirmation; show Metis /
-      compositor / shell PIDs distinctly; optional "only my processes" default.
+- [x] **CPU** — aggregate % + sparkline history (sysinfo, ~1 Hz refresh).
+- [x] **Memory** — RAM + swap used/total with level bar + history chart.
+- [x] **Disk** — per-mount used/free (sysinfo disks).
+- [x] **Network** — aggregate RX/TX rates from `/proc/net/dev` + throughput charts.
+- [x] **Processes** — all processes; search filter; All/User/System filter; end task
+      (SIGTERM) with optional confirmation; Metis PIDs highlighted; zebra rows.
+- [x] **System health** — CPU/memory/storage health badges (semantic colors).
+- [x] **Firewall** — ufw / firewalld status card on Network tab (2026-07-05).
+- [x] **Hardware** — hostname, CPU model, cores, kernel on System tab (2026-07-05).
 
 ### C. Data & services (`metis-shell`)
 
-- [ ] **`spawn_dashboard_pollers()`** — dedicated thread(s) + channel snapshots
-      (same pattern as weather/tray); avoid blocking the GTK main loop.
-- [ ] **Shared snapshot type** in `metis-protocol` or `metis-shell` services
-      (`DashboardSnapshot`) for widgets to subscribe to.
-- [ ] **Process actions** — safe `kill` wrapper (`nix`/`libc`); document polkit
-      gap for root/other-user processes (v1: own uid only).
+- [x] **`spawn_dashboard_pollers()`** — dedicated thread + channel snapshots
+      (2026-07-05).
+- [x] **Shared snapshot type** — `DashboardSnapshot` in `metis-shell` services
+      (2026-07-05).
+- [x] **Process actions** — `kill_process()` via `nix` (own uid only; v1).
 
 ### D. Extensibility (v2+)
 
-- [ ] **`dashboard.json`** — widget order, enabled modules, panel height, refresh
-      interval; live reload (mirror `bar.json` file monitor).
+- [x] **`dashboard.json`** — enabled flag, widget order, max height %, refresh
+      interval, confirm-before-kill; default written on first run (2026-07-05).
+      **Follow-up:** live reload file monitor.
 - [ ] **Widget registry** — built-in widgets register by id; later: JSON-defined
       "script widgets" (periodic command output → text/graph) or Rust plugin slots.
 - [ ] **Optional additions** — GPU load/temp (NVML / sysfs), top per-process CPU,

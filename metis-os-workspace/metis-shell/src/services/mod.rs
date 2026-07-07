@@ -1,5 +1,6 @@
 pub mod applications;
 pub mod calendar;
+mod dashboard;
 mod notifications;
 mod clipboard;
 mod notify_dbus;
@@ -22,6 +23,12 @@ pub use clipboard::{
     private_mode, recall_entry, register_refresh as register_clipboard_refresh, page_size,
     runtime_clipboard_entries, set_page_size, set_private_mode, toggle_favorite,
     active_entry_id, ClipboardEntry, ClipboardPage,
+};
+pub use dashboard::{
+    format_bytes, format_rate, format_uptime, kill_process, polling_active, set_polling_active,
+    short_kernel_version, spawn_dashboard_pollers, DashboardSnapshot, DiskMount, GpuTempReading,
+    HealthLevel,
+    ProcessClass, ProcessRow,
 };
 pub use notifications::{
     clear_notifications, close_notification, dismiss_notification, invoke_action,

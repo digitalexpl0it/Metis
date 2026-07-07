@@ -15,6 +15,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 
 use crate::config::{BarConfig, BarWidgetId};
+use crate::ui::bar::BarShell;
 use crate::services::BarSnapshot;
 
 use clock::ClockWidget;
@@ -115,7 +116,12 @@ impl WidgetRefs {
     }
 }
 
-pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<String>) -> WidgetRefs {
+pub fn build(
+    root: &gtk::Box,
+    config: Rc<RefCell<BarConfig>>,
+    output: Option<String>,
+    shell: BarShell,
+) -> WidgetRefs {
     let refs = WidgetRefs {
         workspaces: RefCell::new(None),
         tasks: RefCell::new(None),
@@ -159,7 +165,7 @@ pub fn build(root: &gtk::Box, config: Rc<RefCell<BarConfig>>, output: Option<Str
                 root.append(&spacer);
             }
             BarWidgetId::Workspaces => {
-                let w = WorkspacesWidget::new(cfg.position, output.clone());
+                let w = WorkspacesWidget::new(cfg.position, output.clone(), shell.clone());
                 append_bar_widget(root, w.root(), bar_orientation);
                 w.update(&crate::services::workspace_snapshot_for(output.as_deref()));
                 *refs.workspaces.borrow_mut() = Some(w);

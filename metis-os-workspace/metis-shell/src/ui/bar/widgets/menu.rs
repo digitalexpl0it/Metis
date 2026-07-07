@@ -151,6 +151,7 @@ pub fn install(button: &gtk::Button) {
     };
 
     let list_generation = Rc::new(Cell::new(0_u64));
+    let search_debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
     let rebuild: Rc<dyn Fn()> = {
         let apps_container = apps_container.clone();
@@ -173,7 +174,9 @@ pub fn install(button: &gtk::Button) {
                 &search,
                 &list_generation,
             );
-            populate_pinned(&pinned_flow, &pinned_hint, &apps, &refresh);
+            if query.trim().is_empty() {
+                populate_pinned(&pinned_flow, &pinned_hint, &apps, &refresh);
+            }
             restore_search_focus(&search, keep_search_focus);
         })
     };
@@ -182,7 +185,20 @@ pub fn install(button: &gtk::Button) {
 
     let search_changed = {
         let rebuild = rebuild.clone();
-        search.connect_search_changed(move |_| rebuild())
+        let search_debounce = search_debounce.clone();
+        search.connect_search_changed(move |_| {
+            if let Some(id) = search_debounce.borrow_mut().take() {
+                id.remove();
+            }
+            let rebuild = rebuild.clone();
+            let debounce_slot = search_debounce.clone();
+            let id = glib::timeout_add_local(std::time::Duration::from_millis(40), move || {
+                *debounce_slot.borrow_mut() = None;
+                rebuild();
+                glib::ControlFlow::Break
+            });
+            *search_debounce.borrow_mut() = Some(id);
+        })
     };
 
     // ---- Popover (non-autohide; mirrors dropdown::wire_toggle) ----
@@ -204,11 +220,22 @@ pub fn install(button: &gtk::Button) {
 
     {
         let list_generation = list_generation.clone();
+        let search_had_focus = Rc::new(Cell::new(false));
         let focus_ctrl = gtk::EventControllerFocus::new();
-        focus_ctrl.connect_enter(move |_| {
-            // Cancel in-flight alphabetical list appends — they were stealing focus
-            // from the search entry a few seconds after the menu opened.
-            list_generation.set(list_generation.get().wrapping_add(1));
+        focus_ctrl.connect_enter({
+            let list_generation = list_generation.clone();
+            let search_had_focus = search_had_focus.clone();
+            move |_| {
+                if !search_had_focus.replace(true) {
+                    list_generation.set(list_generation.get().wrapping_add(1));
+                }
+            }
+        });
+        focus_ctrl.connect_leave({
+            let search_had_focus = search_had_focus.clone();
+            move |_| {
+                search_had_focus.set(false);
+            }
         });
         search.add_controller(focus_ctrl);
     }
@@ -405,9 +432,15 @@ fn attach_tooltip(
 }
 
 fn restore_search_focus(search: &gtk::SearchEntry, had_focus: bool) {
-    if had_focus {
-        search.grab_focus();
+    if !had_focus {
+        return;
     }
+    let search = search.clone();
+    glib::idle_add_local_once(move || {
+        if !search.has_focus() {
+            search.grab_focus();
+        }
+    });
 }
 
 fn populate_center(

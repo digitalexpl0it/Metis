@@ -36,29 +36,28 @@ pub fn active_tokens() -> ThemeTokens {
 }
 
 fn load_active_theme() -> ThemeTokens {
-    let mode = config::load_theme_preference().unwrap_or(ThemeMode::Dark);
-    let user_path = config::theme_file_path(&mode);
-    if user_path.exists() {
-        if let Ok(text) = std::fs::read_to_string(&user_path) {
-            if let Ok(tokens) = serde_json::from_str(&text) {
-                return tokens;
+    config::load_theme_tokens(effective_theme_name())
+}
+
+/// Resolve the on-disk theme token file name for the saved preference.
+fn effective_theme_name() -> &'static str {
+    match config::load_theme_preference().unwrap_or(ThemeMode::Dark) {
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+        ThemeMode::System => {
+            if detect_system_prefers_dark() {
+                "dark"
+            } else {
+                "light"
             }
         }
     }
-    match mode {
-        ThemeMode::Light => ThemeTokens::light_default(),
-        ThemeMode::System => detect_system_theme(),
-        ThemeMode::Dark => ThemeTokens::dark_default(),
-    }
 }
 
-fn detect_system_theme() -> ThemeTokens {
-    if let Some(settings) = gtk::Settings::default() {
-        if settings.is_gtk_application_prefer_dark_theme() {
-            return ThemeTokens::dark_default();
-        }
-    }
-    ThemeTokens::light_default()
+fn detect_system_prefers_dark() -> bool {
+    gtk::Settings::default()
+        .map(|s| s.is_gtk_application_prefer_dark_theme())
+        .unwrap_or(true)
 }
 
 /// Match GTK's built-in Adwaita variant to the saved theme preference so native
@@ -74,9 +73,7 @@ fn active_mode_is_dark() -> bool {
     match config::load_theme_preference().unwrap_or(ThemeMode::Dark) {
         ThemeMode::Dark => true,
         ThemeMode::Light => false,
-        ThemeMode::System => gtk::Settings::default()
-            .map(|s| s.is_gtk_application_prefer_dark_theme())
-            .unwrap_or(true),
+        ThemeMode::System => detect_system_prefers_dark(),
     }
 }
 
@@ -104,6 +101,7 @@ fn apply_tokens(tokens: &ThemeTokens) {
         BAR_POSITION.with(Cell::get),
     );
     apply_menu_opacity(MENU_OPACITY.with(Cell::get));
+    crate::ui::dashboard::on_theme_changed();
 }
 
 /// Apply the edge bar's background transparency *and* its configurable border
@@ -240,10 +238,8 @@ pub fn apply_menu_opacity(opacity: f32) {
 }
 
 pub fn reload_stylesheet() {
-    THEME_STATE.with(|state| {
-        let tokens = state.borrow().tokens.clone();
-        apply_tokens(&tokens);
-    });
+    let tokens = load_active_theme();
+    apply_tokens(&tokens);
 }
 
 pub fn export_embedded_themes_to_config() -> std::io::Result<()> {

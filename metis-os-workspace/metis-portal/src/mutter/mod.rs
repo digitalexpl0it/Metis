@@ -4,6 +4,7 @@
 //! and `org.gnome.Mutter.ScreenCast` are available on the session bus.
 
 mod eis;
+pub mod clipboard;
 
 use std::collections::HashMap;
 use std::os::fd::OwnedFd as StdOwnedFd;
@@ -34,6 +35,7 @@ struct MutterHub {
     capture: Arc<CaptureHub>,
     rd_sessions: Arc<Mutex<HashMap<String, String>>>,
     sc_streams: Arc<Mutex<HashMap<String, StreamSlot>>>,
+    clipboard_sessions: Arc<Mutex<Vec<clipboard::ClipboardSession>>>,
 }
 
 struct StreamSlot {
@@ -50,6 +52,7 @@ impl MutterHub {
             capture,
             rd_sessions: Arc::new(Mutex::new(HashMap::new())),
             sc_streams: Arc::new(Mutex::new(HashMap::new())),
+            clipboard_sessions: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -94,11 +97,17 @@ impl RemoteDesktopRoot {
             .map_err(|_| fdo::Error::Failed("session map lock".into()))?
             .insert(path.clone(), session_id.clone());
 
+        let clipboard = clipboard::ClipboardSession::new(self.conn.clone(), path.clone());
+        if let Ok(mut list) = self.hub.clipboard_sessions.lock() {
+            list.push(clipboard.clone());
+        }
         let iface = RemoteDesktopSession {
             hub: self.hub.clone(),
+            conn: self.conn.clone(),
             session_id,
             path: path.clone(),
             started: false,
+            clipboard,
         };
         self.conn
             .object_server()
@@ -112,9 +121,11 @@ impl RemoteDesktopRoot {
 
 struct RemoteDesktopSession {
     hub: MutterHub,
+    conn: zbus::Connection,
     session_id: String,
     path: String,
     started: bool,
+    clipboard: clipboard::ClipboardSession,
 }
 
 #[interface(name = "org.gnome.Mutter.RemoteDesktop.Session")]
@@ -145,22 +156,57 @@ impl RemoteDesktopSession {
     }
 
     #[zbus(name = "EnableClipboard")]
-    async fn enable_clipboard(&mut self) -> fdo::Result<()> {
+    async fn enable_clipboard(
+        &mut self,
+        options: HashMap<&str, Value<'_>>,
+    ) -> fdo::Result<()> {
+        self.clipboard
+            .enable(&options)
+            .map_err(|e| fdo::Error::Failed(e))?;
         Ok(())
     }
 
     #[zbus(name = "DisableClipboard")]
     async fn disable_clipboard(&mut self) -> fdo::Result<()> {
+        self.clipboard
+            .disable()
+            .map_err(|e| fdo::Error::Failed(e))?;
         Ok(())
     }
 
     #[zbus(name = "SetSelection")]
     async fn set_selection(
         &mut self,
-        _mime_types: Vec<String>,
-        _data: zbus::zvariant::Value<'_>,
+        options: HashMap<&str, Value<'_>>,
     ) -> fdo::Result<()> {
+        self.clipboard
+            .set_selection(&options)
+            .map_err(|e| fdo::Error::Failed(e))?;
         Ok(())
+    }
+
+    #[zbus(name = "SelectionWrite")]
+    async fn selection_write(&mut self, serial: u32) -> fdo::Result<zbus::zvariant::OwnedFd> {
+        self.clipboard
+            .selection_write(serial)
+            .map(zbus::zvariant::OwnedFd::from)
+            .map_err(|e| fdo::Error::Failed(e))
+    }
+
+    #[zbus(name = "SelectionWriteDone")]
+    async fn selection_write_done(&mut self, serial: u32, success: bool) -> fdo::Result<()> {
+        self.clipboard
+            .selection_write_done(serial, success)
+            .map_err(|e| fdo::Error::Failed(e))?;
+        Ok(())
+    }
+
+    #[zbus(name = "SelectionRead")]
+    async fn selection_read(&mut self, mime_type: &str) -> fdo::Result<zbus::zvariant::OwnedFd> {
+        self.clipboard
+            .selection_read(mime_type)
+            .map(zbus::zvariant::OwnedFd::from)
+            .map_err(|e| fdo::Error::Failed(e.to_string()))
     }
 
     #[zbus(name = "ConnectToEIS")]
@@ -434,6 +480,7 @@ pub async fn serve(
 ) -> Result<(), PortalError> {
     tracing::info!("mutter shim: registering RemoteDesktop + ScreenCast D-Bus APIs");
     let hub = MutterHub::new(pipewire, capture);
+    crate::compositor_events::spawn_clipboard_listener(Arc::clone(&hub.clipboard_sessions));
 
     conn.object_server()
         .at(
