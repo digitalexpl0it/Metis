@@ -653,10 +653,11 @@ broken. Check status from a terminal: `metis-remote status` (JSON).
 RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are planned follow-ups
 — see [`TODO.md`](../metis-os-workspace/TODO.md) Phase 7.
 
-### System dashboard
+### System dashboard (Control Center)
 
-Press on the **edge bar** (empty pill area — not icons) and **drag toward the
-desktop** to pull open the system monitor:
+Open the monitor by **pressing on the edge bar** and **dragging toward the desktop**,
+or click the **grid icon** to the right of the workspace dots. The panel is
+embedded directly under the bar with no gap.
 
 | Bar position | Drag direction |
 |--------------|----------------|
@@ -666,13 +667,30 @@ desktop** to pull open the system monitor:
 | Right | Left |
 
 The panel tracks your drag (rubber-band) and snaps open if you pull far enough.
-The dashboard **loads on demand** — no layer surface or background polling until
-you start a pull; it tears down again when dismissed.
-Shows CPU, memory, storage, network, and a searchable process list. **End task**
-sends SIGTERM to your own processes (optional confirmation in `dashboard.json`).
+The dashboard **loads on demand** — no background polling until you open it; it
+tears down again when dismissed.
+
+**Overview** tab:
+
+| Row | Cards |
+|-----|--------|
+| 1 | **Processor** (per-core lines + Σ total, gradient charts) · **Memory** (RAM + swap) |
+| 2 | **Network** (ethernet/wifi rates + chart) · **Disk I/O** (read/write chart) |
+| 3 | **Session** (load, uptime) · **Storage** (mount tiles) |
+| 4 | **CPU temp** gauge · **GPU temp** gauge(s) for discrete GPUs only · **System** (hostname, CPU, kernel) |
+
+CPU and discrete-GPU temperature gauges use a 0–150 °C semicircle. On hybrid
+laptops (Intel + NVIDIA), the Intel iGPU is not shown; NVIDIA temps are read from
+sysfs when available, otherwise from `nvidia-smi`.
+
+**Processes** tab — searchable, sortable table (Name, PID, User, Type, CPU, Memory)
+with optional end-task confirmation (`dashboard.json`).
 
 Dismiss with **Esc**, the close button, **drag back toward the bar** on the
 header, or by clicking the desktop. Config: `~/.config/metis/dashboard.json`.
+
+**Metis Settings** — installed to the app menu via `./run-metis.sh --install-session`
+(`metis-settings` + `metis-settings` icon theme name).
 
 ---
 

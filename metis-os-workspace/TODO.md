@@ -880,17 +880,28 @@ never destroy mid-session.
 - [x] **`dashboard.json`** — enabled flag, widget order, max height %, refresh
       interval, confirm-before-kill; default written on first run (2026-07-05).
       **Follow-up:** live reload file monitor.
+- [x] **Overview v2 layout** — CPU | Memory, Network | Disk I/O, Session | Storage,
+      System row with temp gauges; embedded in bar window (no gap) (2026-07-06).
+- [x] **Control Center button** — workspace-dot grid icon toggles panel with
+      slide animation (2026-07-06).
+- [x] **Chart polish** — gradient fills/strokes, smooth curves, Y-axis ticks,
+      per-core CPU palette, aggregate fill behind core lines (2026-07-06).
 - [ ] **Widget registry** — built-in widgets register by id; later: JSON-defined
       "script widgets" (periodic command output → text/graph) or Rust plugin slots.
-- [ ] **Optional additions** — GPU load/temp (NVML / sysfs), top per-process CPU,
-      battery history graph, quick links (open full `htop`/`btop` in terminal),
-      log tail snippet.
+- [x] **GPU temperature (partial)** — discrete GPUs only; sysfs `hwmon` + DRM
+      device paths; `nvidia-smi` fallback on hybrid laptops without NVIDIA
+      `hwmon`; Intel iGPU skipped (2026-07-06).
+- [ ] **Optional additions** — GPU load %, battery history graph, quick links
+      (open full `htop`/`btop` in terminal), log tail snippet.
 
 ### E. Settings & docs
 
 - [ ] **Settings → System** (or Edge bar) — enable/disable dashboard, max height,
       default widgets, confirm-before-kill toggle.
-- [ ] **USER_GUIDE** — gesture, widgets, kill semantics, custom widget roadmap.
+- [x] **USER_GUIDE** — gesture, overview layout, temp gauges, discrete GPU
+      behaviour, kill semantics (2026-07-06).
+- [x] **Metis Settings icon** — `metis-settings.png`, desktop entry, install via
+      `--install-session` (2026-07-06).
 
 **Dependencies:** Phase 1 edge bar (done); benefits from Phase 4 System page
 patterns; i18n (Phase 8) before shipping strings broadly.

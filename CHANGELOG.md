@@ -5,6 +5,51 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-06]
+
+### Added
+
+- **Control Center bar button** — `view-grid` icon to the right of workspace dots opens
+  the system monitor with the same slide-down animation as a bar pull gesture.
+- **Overview charts** — gradient fills and strokes on CPU, memory, network, and disk
+  series; cubic-smoothed curves; Y-axis grid labels (percent and throughput).
+- **Network & disk I/O cards** — per-interface ethernet/wifi rates, dual-line
+  RX/TX and read/write charts with colour legends.
+- **Temperature gauges** — semicircular CPU and discrete-GPU cards (0–150 °C) with
+  theme-gradient arc bands; hybrid-laptop NVIDIA temps via `nvidia-smi` when sysfs
+  has no `hwmon` entry.
+- **Metis Settings icon** — `assets/metis-settings.png` embedded in the app,
+  freedesktop launcher (`metis-settings.desktop`), and hicolor icons installed by
+  `./run-metis.sh --install-session`.
+- **Dashboard icon fallbacks** — card icons resolve through a candidate list so
+  missing theme names (e.g. on Yaru) do not show broken glyphs.
+
+### Changed
+
+- **Control Center embed** — dashboard lives in the bar's layer window directly
+  below the pill (no separate surface gap); `resize_bar_for_dashboard()` grows the
+  bar host for the overlay without reflowing tiled windows.
+- **Overview layout** — rows: CPU | Memory, Network | Disk I/O, Session | Storage,
+  then CPU/GPU gauges + compact System card; health badges removed from overview.
+- **Processor chart** — per-core gradient strokes with an expanded palette (C0
+  white, theme accents, distinct hues); aggregate Σ fill drawn **behind** core
+  lines so the gradient does not paint over them.
+- **GPU gauges** — only discrete GPUs (Intel iGPU skipped); one card per discrete
+  GPU with a readable temp — no placeholder N/A card when no dGPU sensor exists.
+- **Processes tab** — opaque card wrapper, aligned sortable headers, user column
+  falls back to `/proc/<pid>/status` when `sysinfo` omits the username.
+- **Theme reload** — `reload_stylesheet()` calls `load_active_theme()` so
+  dashboard tabs and cards follow light/dark switches immediately.
+
+### Fixed
+
+- **CPU temp gauge** — Cairo arc direction (was ~full ring at ~78 °C on 0–150 scale);
+  replaced stroked-cap “arrow” artefact with a filled annular band; symmetric layout.
+- **`run-metis.sh --help`** — help text used `$0` after `cd` to the workspace root.
+- **GPU services compile error** — duplicate/corrupt `drm_gpu_label` definition.
+- **Dashboard icons** — CPU temp and Processor cards no longer reference icons
+  absent from Adwaita/Yaru.
+
 ## [2026-07-05]
 
 ### Added
