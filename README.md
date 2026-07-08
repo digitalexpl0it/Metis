@@ -29,6 +29,7 @@ New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 │   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
 │   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
 │   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
+│   ├── metis-gaming/            # Flatpak optimizer, health checks, metis-gamingd daemon
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
 │   └── assets/                  # Wallpapers, portal registration, session launcher
 └── docs/                        # User guide + development setup
@@ -93,6 +94,10 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 - **Edge bar** — app launcher, taskbar dock, workspaces, weather, battery,
   Bluetooth (when an adapter is present), network, volume, notifications, and a
   tabbed clock. Right-click dock icons to pin/close.
+- **Control Center** — pull the edge bar toward the desktop (or click the grid
+  icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
+  charts, temperature gauges, and a searchable process list with right-click
+  actions. Configure in Settings → Control Center.
 - **Windows** — every app gets a server-side titlebar with close / minimize /
   maximize. Drag the titlebar to move; drag to a screen edge to snap
   (half / quarter / maximize); drag a border to resize. On the default desktop
@@ -108,7 +113,10 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 - **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
   sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
   include Display, Appearance, Metis Menu, Weather, Network, Calendars,
-  Input, Bluetooth, Printers, Power, and Sound.
+  Input, Bluetooth, Printers, Power, Sound, **Gaming**, and **Control Center**.
+- **Gaming** — hybrid-GPU routing (`gaming.json`), Flatpak Steam/Lutris/Heroic
+  overrides, health checklist, and `metis-gamingd` for auto performance profile
+  + GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
 
 | Shortcut | Action |
 |----------|--------|
@@ -150,7 +158,10 @@ Other files are created on demand:
 | `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
 | `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
-| `power.json` | You configure power settings | Power profile, idle timeouts, lid-close action |
+| `power.json` | You configure power settings | Power profile (`powerprofilesctl`), idle blank/suspend, lid-close |
+| `dashboard.json` | You configure Control Center | Enable, widget order, max height %, refresh interval, confirm-before-kill |
+| `gaming.json` | You configure gaming | Graphics mode, auto performance/GameMode, Flatpak GPU env |
+| `gaming-flatpak.json` | Gaming setup runs | Record of applied Flatpak gaming overrides |
 | `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, `display_mode` / `mirror_source`, night-light prefs |
 
 Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
@@ -188,12 +199,22 @@ reference.
   Display now supports resolution/refresh, multi-monitor arrangement, and
   duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR
   remain upcoming.
-- **Phase 6 — Flatpak, Steam & gaming:** **complete** (2026-07-05) — idle-inhibit
+- **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05) — idle-inhibit
   portal, ScreenCast PipeWire pump (SHM; dmabuf zero-copy deferred), Flatpak launcher
   integration, GPU steering + dGPU game offload, Proton verified on hardware,
   Background + PowerProfileMonitor portal stubs, `wl_touch`, Settings → Gaming page,
-  and full permission/override docs. Optional follow-up: dmabuf screencast perf,
-  Deck-class hardware verification.
+  and full permission/override docs.
+- **Phase 10 — Control Center:** **complete** (2026-07-07) — pull-down system monitor
+  embedded in the edge bar; Overview charts (CPU, memory, network, disk I/O, temps),
+  searchable/sortable Processes tab with right-click actions, Settings → Control Center
+  page, and `dashboard.json` live reload.
+- **Phase 11 — Gaming Platform 2.0:** **complete** (2026-07-07) — `gaming.json` +
+  `metis-gaming` crate, Flatpak zero-config optimizer, health checklist + setup wizard,
+  `metis-gamingd` (auto performance profile / GameMode), hybrid PRIME scanout polish,
+  and `metis-cmd reload-gaming` / `optimize-gaming`.
+
+Optional follow-up: dmabuf screencast perf, Deck-class hardware verification,
+compositor **dim on battery** hook.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
