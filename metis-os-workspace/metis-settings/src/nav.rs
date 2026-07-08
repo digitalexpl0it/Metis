@@ -167,6 +167,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: None,
     },
     NavItem {
+        page_id: Some("control_center"),
+        title: "Control Center",
+        icon: Some("utilities-system-monitor-symbolic"),
+        hue: Some(NavHue::Green),
+        subtitle: Some("System monitor panel, refresh rate, and process controls"),
+    },
+    NavItem {
         page_id: Some("sound"),
         title: "Sound",
         icon: Some("audio-volume-high-symbolic"),

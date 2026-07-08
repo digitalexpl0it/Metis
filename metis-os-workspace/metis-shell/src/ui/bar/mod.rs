@@ -1,4 +1,5 @@
 mod dropdown;
+pub(crate) use dropdown::{close_all as close_bar_popovers, register as register_bar_popover};
 pub(crate) mod widgets;
 
 use std::cell::{Cell, RefCell};
@@ -85,6 +86,8 @@ pub fn init_and_show() {
         attach_notification_channel(spawn_notification_service());
         crate::ui::dashboard::init();
         watch_bar_config();
+        watch_dashboard_config();
+        spawn_gaming_daemon();
         watch_theme_files();
         watch_compositor_dismiss();
         watch_monitors();
@@ -452,6 +455,16 @@ fn watch_compositor_dismiss() {
                     }
                 }
                 "reload-calendars" => crate::services::reload_calendars(),
+                "reload-gaming" => {
+                    let _ = metis_config::load_gaming_config();
+                    let _ = crate::compositor::reload_gaming_config();
+                }
+                "optimize-gaming" => {
+                    std::thread::spawn(|| {
+                        let _ = metis_gaming::optimize_flatpak_gaming(&[]);
+                        let _ = metis_gaming::ensure_steam_launcher();
+                    });
+                }
                 "show-onboarding" => crate::ui::onboarding::show(),
                 "settings" => {
                     let program = if arg.trim().is_empty() {
@@ -827,6 +840,52 @@ fn watch_bar_config() {
             rebuild_from_config();
         });
     });
+}
+
+fn watch_dashboard_config() {
+    let path = crate::config::dashboard_config_path();
+    if !path.exists() {
+        if let Err(err) = crate::config::save_default_dashboard_config() {
+            tracing::warn!(%err, "failed to create default dashboard.json");
+        }
+    }
+    let file = gio::File::for_path(&path);
+    let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    else {
+        tracing::warn!(path = %path.display(), "dashboard.json file monitor unavailable");
+        return;
+    };
+
+    monitor.connect_changed(move |_, _, _event, _| {
+        glib::timeout_add_local_once(std::time::Duration::from_millis(250), || {
+            crate::ui::dashboard::on_dashboard_config_changed();
+        });
+    });
+}
+
+fn spawn_gaming_daemon() {
+    if std::env::var_os("METIS_NO_GAMINGD").is_some() {
+        return;
+    }
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("metis-gamingd")))
+        .filter(|p| p.is_file());
+    let exe = exe.or_else(|| {
+        std::env::var_os("PATH").and_then(|paths| {
+            std::env::split_paths(&paths)
+                .map(|dir| dir.join("metis-gamingd"))
+                .find(|p| p.is_file())
+        })
+    });
+    let Some(exe) = exe else {
+        tracing::debug!("metis-gamingd not found beside shell or on PATH");
+        return;
+    };
+    match std::process::Command::new(&exe).spawn() {
+        Ok(_) => tracing::info!(path = %exe.display(), "spawned metis-gamingd"),
+        Err(err) => tracing::warn!(%err, "failed to spawn metis-gamingd"),
+    }
 }
 
 /// Live-reload the active theme when any `themes/*.json` changes. Mirrors

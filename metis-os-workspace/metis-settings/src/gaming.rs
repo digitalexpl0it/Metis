@@ -59,13 +59,16 @@ fn gpu_hint_label() -> String {
         return format!("METIS_GAME_GPU={v}");
     }
     if std::env::var_os("METIS_NO_CLIENT_GPU").is_some() {
-        return "METIS_NO_CLIENT_GPU=1 (compositor GPU steering disabled)".into();
+        return "METIS_NO_CLIENT_GPU=1".into();
     }
-    if let Ok(v) = std::env::var("DRI_PRIME") {
-        return format!("DRI_PRIME={v} (from session env)");
-    }
-    "Automatic — compositor sets DRI_PRIME / MESA_VK_DEVICE_SELECT for game launches"
-        .into()
+    let cfg = metis_config::load_gaming_config();
+    let hybrid = metis_config::detect_hybrid_gpu(metis_config::display_gpu_pci().as_deref())
+        .map(|h| h.discrete_label)
+        .unwrap_or_else(|| "single GPU".into());
+    format!(
+        "Mode: {:?} · {} · compositor auto-offload for games",
+        cfg.graphics_mode, hybrid
+    )
 }
 
 fn detect_steam() -> SteamInstall {

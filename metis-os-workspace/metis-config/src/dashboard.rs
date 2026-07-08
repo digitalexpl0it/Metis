@@ -21,6 +21,16 @@ impl DashboardWidgetId {
             DashboardWidgetId::Processes,
         ]
     }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Cpu => "Processor",
+            Self::Memory => "Memory",
+            Self::Disk => "Storage",
+            Self::Network => "Network",
+            Self::Processes => "Processes",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

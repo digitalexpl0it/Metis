@@ -153,6 +153,12 @@ rg 'game-pointer' ~/.local/state/metis/logs/session-*.log
 
 Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proton--steamos-class-gaming).
 
+**Gaming Platform 2.0 (Phase 11):** `metis-gamingd` starts automatically with the
+Metis session (`run-metis.sh` / `metis-session`). Settings → Gaming writes
+`gaming.json`; reload with `metis-cmd reload-gaming`, optimize Flatpak overrides
+with `metis-cmd optimize-gaming`. Optional: `gamemode` package for per-game CPU
+scheduler tweaks (`gamemoderun %command%` in Steam launch options).
+
 ### Release build profiles
 
 Default **`release`** uses thin LTO, single codegen unit, and strips symbols —

@@ -1,21 +1,13 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phase 3 is complete except the deferred **full multi-GPU**
-compositing item and **ScreenCast dmabuf zero-copy** (SHM pump works at ~1080p30;
-deferred to Phase 3 perf / Phase 7 remote latency). **Phase 4** (settings-app
-expansion) is complete for the planned Device + System pages. **Phase 5** is in
-progress — mirror/clone, VRR, night-light schedule, ICC profile config, and the
-`wp_color_management_v1` compositor handler landed (2026-06-28); per-output ICC
-`vcgt` hardware-gamma calibration applies on DRM; full 3D gamut transforms and
-HDR remain. **Phase 6** (Flatpak, Steam & gaming) is **complete** (2026-07-05) —
-idle-inhibit portal, Flatpak launcher integration, Steam/Proton on hardware,
-dGPU offload, pointer lock, fullscreen perf fix, Background + PowerProfileMonitor
-portal stubs, `wl_touch` forwarding, Settings → Gaming diagnostics page, and
-permission/override docs. **Phase 7** (remote access / full desktop sharing),
-**Phase 8** (internationalization — not yet started), **Phase 9** (onboarding —
-**done** 2026-07-04), and **Phase 10** (edge-bar Control Center / system dashboard —
-**v2 shipped** 2026-07-05),
-2026-07-05).
+**Current phase:** **Phase 11** (Gaming Platform 2.0) is **complete** (2026-07-07) —
+`gaming.json`, Flatpak zero-config, gaming health checks, `metis-gamingd`, onboarding
+gaming step, and hybrid PRIME / scanout polish. **Phase 3** is complete except deferred **full multi-GPU** compositing and
+**ScreenCast dmabuf zero-copy**. **Phase 4** (settings-app expansion) is complete.
+**Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
+(Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
+access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
+2026-07-04), and **Phase 10** (Control Center — v2 shipped 2026-07-07) are done.
 
 ---
 
@@ -373,10 +365,10 @@ compositor live-reloads (mirrors the `bar.json` watcher pattern).
 
 ### System
 - [x] **Power / Battery** — power profiles (power-saver / balanced / performance) via
-      `powerprofilesctl`, battery details via sysfs, idle-dim / blank /
-      suspend timeouts + lid-close action persisted to `power.json` (logind
-      best-effort); battery widget links to Power settings; **Connected devices**
-      section lists Bluetooth peripherals with battery + charging status
+      `powerprofilesctl`, battery details via sysfs, idle blank via compositor +
+      suspend/lid via logind (best-effort); persisted to `power.json`; battery widget
+      links to Power settings; **Connected devices** section lists Bluetooth peripherals
+      with battery + charging status. **Follow-up:** wire **Dim on battery** to compositor.
 - [x] **Sound** — output / input device selection via `pactl` default sink/source;
       volume readout on the settings page (bar volume widget unchanged)
 - [x] **Display (settings UI)** — Settings → Display: monitor picker chips, per-output
@@ -879,25 +871,31 @@ never destroy mid-session.
 
 - [x] **`dashboard.json`** — enabled flag, widget order, max height %, refresh
       interval, confirm-before-kill; default written on first run (2026-07-05).
-      **Follow-up:** live reload file monitor.
+      **Live reload** via file monitor (2026-07-07).
 - [x] **Overview v2 layout** — CPU | Memory, Network | Disk I/O, Session | Storage,
       System row with temp gauges; embedded in bar window (no gap) (2026-07-06).
 - [x] **Control Center button** — workspace-dot grid icon toggles panel with
       slide animation (2026-07-06).
 - [x] **Chart polish** — gradient fills/strokes, smooth curves, Y-axis ticks,
       per-core CPU palette, aggregate fill behind core lines (2026-07-06).
-- [ ] **Widget registry** — built-in widgets register by id; later: JSON-defined
-      "script widgets" (periodic command output → text/graph) or Rust plugin slots.
+- [x] **Widget registry** — built-in widgets register by id in
+      `metis-shell/src/ui/dashboard/widgets.rs`; later: JSON-defined script widgets
+      or Rust plugin slots (2026-07-07).
 - [x] **GPU temperature (partial)** — discrete GPUs only; sysfs `hwmon` + DRM
       device paths; `nvidia-smi` fallback on hybrid laptops without NVIDIA
       `hwmon`; Intel iGPU skipped (2026-07-06).
-- [ ] **Optional additions** — GPU load %, battery history graph, quick links
-      (open full `htop`/`btop` in terminal), log tail snippet.
+- [x] **Optional additions** — GPU load % on discrete GPU gauges (`gpu_busy_percent`
+      / `nvidia-smi`); quick link to open `btop`/`htop` from the Processes tab
+      (2026-07-07).
+- [x] **Process context menu** — right-click End task / Force quit / Copy PID;
+      cursor-anchored popover, list refresh paused while open (2026-07-07).
+- [ ] **Optional additions** — battery history graph, log tail snippet.
 
 ### E. Settings & docs
 
-- [ ] **Settings → System** (or Edge bar) — enable/disable dashboard, max height,
-      default widgets, confirm-before-kill toggle.
+- [x] **Settings → Control Center** — enable/disable dashboard, max height,
+      refresh interval, confirm-before-kill toggle, overview widget checkboxes
+      (`dashboard.json`) (2026-07-07).
 - [x] **USER_GUIDE** — gesture, overview layout, temp gauges, discrete GPU
       behaviour, kill semantics (2026-07-06).
 - [x] **Metis Settings icon** — transparent `metis-settings.png` for Settings app
@@ -905,6 +903,72 @@ never destroy mid-session.
 
 **Dependencies:** Phase 1 edge bar (done); benefits from Phase 4 System page
 patterns; i18n (Phase 8) before shipping strings broadly.
+
+---
+
+## Phase 11 — Gaming Platform 2.0
+
+Beat Pop!_OS out of the box: hybrid GPU switching without launch-option hacks,
+Flatpak Steam/Lutris/Heroic auto-setup, first-run gaming wizard, compositor hybrid
+PRIME + fullscreen scanout polish, and a lean event-driven `metis-gamingd` service.
+
+**Principles:** productize compositor dGPU offload (`gaming.json` + Settings UI);
+automate first-run setup; finish hybrid PRIME / scanout perf; stay lean (no polling
+daemon).
+
+### A. GPU switching (productize compositor wins)
+
+- [x] **`gaming.json`** — `graphics_mode`, `on_battery_prefer_igpu`,
+      `auto_performance_profile`, `auto_gamemode`, `flatpak_gpu_env`,
+      `steam_prefer_native`; per-game Gamescope profiles (optional).
+- [x] **Compositor wiring** — read `gaming.json` on spawn + `ReloadGaming` IPC;
+      map modes to `prefer_dgpu` / battery-aware offload.
+- [x] **Settings → Gaming v2** — editable controls, hybrid GPU summary, optimize
+      button (replaces read-only diagnostics page).
+
+### B. Flatpak zero-config
+
+- [x] **`metis-gaming` Flatpak optimizer** — idempotent overrides for Steam,
+      Lutris, Heroic (`--device=all`, sockets, GPU env); state in
+      `gaming-flatpak.json`.
+- [x] **Flatpak GPU env injection** — NVIDIA/Mesa offload vars via `flatpak override`.
+- [x] **Menu launcher wrappers** — `~/.local/share/metis/bin/launch-steam` for
+      Flatpak + GPU env when configured.
+
+### C. First-run gaming onboarding
+
+- [x] **Onboarding gaming step** — optional skippable step before Finish; detect
+      Steam / hybrid GPU / i386 Vulkan / gamemode.
+- [x] **Gaming setup wizard** — re-runnable from Settings → Gaming.
+- [x] **`gaming_setup_complete`** flag in `config.json`.
+
+### D. Compositor performance (hybrid PRIME + scanout)
+
+- [x] **`scripts/gaming-prime-smoke.sh`** — hybrid PRIME validation helper.
+- [x] **Fullscreen scanout promotion** — trace when primary-plane scanout succeeds;
+      audit `surface_primary_scanout_output` path.
+
+### E. Auto-detect and self-heal
+
+- [x] **Health check engine** — Steam, Flatpak overrides, i386 Vulkan, gamemode,
+      input group, NVIDIA driver, PipeWire; per-row Fix in Settings.
+- [x] **`metis-gamingd`** — event-driven: compositor `GameSession` +
+      `WindowFullscreen` / idle inhibit; auto performance profile + GameMode hooks.
+- [x] **Protocol** — `ReloadGaming` command, `GameSession` event.
+
+### F. Session integration
+
+- [x] **Spawn `metis-gamingd`** — from `metis-session` / `run-metis.sh`.
+- [x] **`metis-cmd reload-gaming`** — runtime reload hook.
+- [x] **Docs** — `USER_GUIDE.md`, `PERF_AUDIT.md`, `CHANGELOG.md`.
+
+**Deferred (later phase):** apt/polkit auto-install of Steam, drivers, i386 Vulkan,
+and GameMode; ProtonDB per-title tuning; session-wide auto-optimize on first login
+without user clicking **Optimize now**; **Settings → Power → Dim on battery**
+compositor hook (preference saved in `power.json` today).
+
+**Dependencies:** Phase 6 (done); compositor `DgpuOffload` (done); Phase 9
+onboarding shell (done).
 
 ---
 
@@ -929,6 +993,8 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `dashboard.json` | *(Phase 10)* Pull-down system dashboard: widget order, height, refresh interval |
+| `gaming.json` | *(Phase 11)* Graphics mode, auto performance/GameMode, Flatpak GPU env |
+| `gaming-flatpak.json` | *(Phase 11)* Record of applied Flatpak gaming overrides |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
 | `outputs.json` | Per-output scale, enabled, layout, saved video mode, night-light prefs |

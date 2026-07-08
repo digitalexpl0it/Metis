@@ -298,6 +298,8 @@ pub struct MetisState {
     /// Gaming window rules (float / auto-fullscreen by app-id/class/title) so
     /// games and launchers escape the tiling grid. Loaded once at startup.
     pub(crate) game_rules: metis_config::GameRulesConfig,
+    /// Phase 11 gaming preferences (`gaming.json`).
+    pub(crate) gaming_config: metis_config::GamingConfig,
     /// Windows a game rule asked to fullscreen, awaiting readiness (fullscreen is
     /// applied once the client has committed a buffer and been placed).
     pub(crate) pending_game_fullscreen: std::collections::HashSet<u32>,
@@ -872,6 +874,7 @@ impl MetisState {
             idle,
             lock: crate::lock::LockState::new(),
             game_rules: metis_config::load_game_rules_config(),
+            gaming_config: metis_config::load_gaming_config(),
             pending_game_fullscreen: std::collections::HashSet::new(),
             drm_syncobj_state: None,
             idle_inhibit_state,
@@ -1071,6 +1074,51 @@ impl MetisState {
         self.output_fullscreen_windows
             .get(name)
             .is_some_and(|s| !s.is_empty())
+    }
+
+    /// True when a fullscreen client on `output` was promoted to primary-plane scanout.
+    pub(crate) fn output_scanout_promoted(
+        &self,
+        output: &smithay::output::Output,
+        states: &smithay::backend::renderer::element::RenderElementStates,
+    ) -> bool {
+        use std::cell::Cell;
+
+        use smithay::backend::renderer::element::default_primary_scanout_output_compare;
+        use smithay::desktop::utils::{
+            surface_primary_scanout_output, update_surface_primary_scanout_output,
+        };
+
+        let name = output.name();
+        if !self.output_has_fullscreen(Some(name.as_ref())) {
+            return false;
+        }
+        let cfg = metis_config::load_outputs_config();
+        if crate::night_light::night_light_active(&cfg, Some(name.as_ref())) {
+            return false;
+        }
+        let promoted = Cell::new(false);
+        for window in self.space.elements() {
+            if !self.space.outputs_for_element(window).contains(output) {
+                continue;
+            }
+            window.with_surfaces(|surface, surface_data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    surface_data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+                if let Some(scanout) = surface_primary_scanout_output(surface, surface_data) {
+                    if scanout == *output {
+                        promoted.set(true);
+                    }
+                }
+            });
+        }
+        promoted.get()
     }
 
     /// While a locked-pointer constraint is active the game draws its own cursor
@@ -1771,12 +1819,9 @@ impl MetisState {
         };
 
         // Games/launchers run on the discrete GPU; desktop apps on the iGPU.
-        // METIS_GAME_GPU overrides the heuristic: `dgpu`/`igpu`/`off`.
-        let prefer_dgpu = match std::env::var("METIS_GAME_GPU").ok().as_deref() {
-            Some("igpu") | Some("off") => false,
-            Some("dgpu") => true,
-            _ => command_prefers_dgpu(program),
-        };
+        // `gaming.json` + METIS_GAME_GPU override the heuristic.
+        let prefer_dgpu =
+            metis_config::prefer_dgpu_for_launch(program, &self.gaming_config);
         if prefer_dgpu && self.dgpu_offload.is_some() {
             tracing::info!(program, "spawn: steering launch onto discrete GPU (PRIME offload)");
         }
@@ -1794,12 +1839,20 @@ impl MetisState {
 
         match cmd.spawn() {
             Ok(child) => {
+                let pid = child.id();
                 tracing::info!(
                     program,
-                    pid = child.id(),
+                    pid,
                     wayland_display = ?self.socket_name,
                     "spawned client"
                 );
+                if metis_config::command_prefers_dgpu(program) && prefer_dgpu {
+                    self.event_bus.emit(&metis_protocol::CompositorEvent::GameSession {
+                        active: true,
+                        label: Some(program.to_string()),
+                        pid: Some(pid),
+                    });
+                }
                 self.child_processes.push(child);
             }
             Err(err) => tracing::warn!(program, %err, "failed to spawn client"),
@@ -7634,6 +7687,14 @@ impl MetisState {
             }
             CompositorCommand::ReloadLock => {
                 self.lock_reload();
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadGaming => {
+                self.gaming_config = metis_config::load_gaming_config();
+                tracing::info!(
+                    graphics_mode = ?self.gaming_config.graphics_mode,
+                    "reloaded gaming config"
+                );
                 CompositorEvent::Pong
             }
             CompositorCommand::SetClipboard {

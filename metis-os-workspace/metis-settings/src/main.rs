@@ -114,6 +114,11 @@ fn build_ui(app: &gtk::Application, page: Option<String>) {
     stack.add_titled(&pages::keyboard::build(), Some("keyboard"), "Keyboard");
     stack.add_titled(&pages::bluetooth::build(), Some("bluetooth"), "Bluetooth");
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
+    stack.add_titled(
+        &pages::control_center::build(),
+        Some("control_center"),
+        "Control Center",
+    );
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
     stack.add_titled(

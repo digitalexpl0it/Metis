@@ -2117,6 +2117,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "metis-gaming"
+version = "0.1.0"
+dependencies = [
+ "metis-config",
+ "metis-protocol",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "metis-grid"
 version = "0.1.0"
 dependencies = [
@@ -2185,6 +2197,7 @@ dependencies = [
  "glib",
  "gtk4",
  "metis-config",
+ "metis-gaming",
  "metis-protocol",
  "metis-secrets",
  "reqwest",
@@ -2211,6 +2224,7 @@ dependencies = [
  "ical",
  "libc",
  "metis-config",
+ "metis-gaming",
  "metis-protocol",
  "metis-secrets",
  "nix 0.29.0",

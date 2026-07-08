@@ -450,12 +450,5 @@ pub fn steam_big_picture_command() -> Option<String> {
     if on_path("steam") {
         return Some("steam -gamepadui".to_string());
     }
-    let has_flatpak_steam = list_apps().iter().any(|e| {
-        e.flatpak_id.as_deref() == Some("com.valvesoftware.Steam")
-            || e.id == "com.valvesoftware.Steam.desktop"
-    });
-    if has_flatpak_steam && on_path("flatpak") {
-        return Some("flatpak run com.valvesoftware.Steam -gamepadui".to_string());
-    }
-    None
+    metis_gaming::flatpak_steam_launch_command("-gamepadui")
 }

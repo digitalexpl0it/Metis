@@ -25,7 +25,7 @@ use metis_config::{
 /// Metis wordmark (same asset as the splash).
 const LOGO_BYTES: &[u8] = include_bytes!("../../assets/metis_logo.png");
 
-const STEP_COUNT: usize = 7;
+const STEP_COUNT: usize = 8;
 const FADE: Duration = Duration::from_millis(320);
 
 const STEP_TITLES: [&str; STEP_COUNT] = [
@@ -35,6 +35,7 @@ const STEP_TITLES: [&str; STEP_COUNT] = [
     "Clock format",
     "Edge bar",
     "Weather",
+    "Gaming",
     "You're all set",
 ];
 
@@ -72,6 +73,8 @@ thread_local! {
     static BAR_CONFIG_DIRTY: Cell<bool> = const { Cell::new(false) };
     static WEATHER_RELOAD_PENDING: Cell<bool> = const { Cell::new(false) };
     static PARK_HANDOFF_DONE: Cell<bool> = const { Cell::new(false) };
+    static GAMING_OPTIMIZE: Cell<bool> = const { Cell::new(true) };
+    static GAMING_AUTO_GPU: Cell<bool> = const { Cell::new(true) };
 }
 
 /// Whether the onboarding overlay is on-screen or fading out.
@@ -324,6 +327,7 @@ fn park_off_screen(window: &gtk::Window) {
 }
 
 fn dismiss(ob: Rc<RefCell<Onboarding>>) {
+    apply_onboarding_gaming_prefs();
     if let Err(err) = crate::config::mark_onboarding_complete() {
         tracing::warn!(%err, "failed to mark onboarding complete");
     }
@@ -357,7 +361,8 @@ fn refresh_step(o: &mut Onboarding) {
         3 => build_clock(),
         4 => build_edge_bar(),
         5 => build_weather(),
-        6 => build_finish(),
+        6 => build_gaming(),
+        7 => build_finish(),
         _ => gtk::Label::new(Some("")).upcast(),
     };
     o.body.append(&widget);
@@ -729,6 +734,74 @@ fn build_weather() -> gtk::Widget {
     });
 
     col.upcast()
+}
+
+fn build_gaming() -> gtk::Widget {
+    let col = step_shell();
+
+    let hybrid = metis_config::detect_hybrid_gpu(None).is_some();
+    let steam = match metis_gaming::detect_steam() {
+        metis_gaming::SteamInstall::Native => "native Steam",
+        metis_gaming::SteamInstall::Flatpak => "Flatpak Steam",
+        metis_gaming::SteamInstall::None => "not installed",
+    };
+    let summary = gtk::Label::new(Some(&format!(
+        "Hybrid GPU: {}\nSteam: {}\nGameMode: {}\n32-bit Vulkan: {}",
+        if hybrid { "detected" } else { "not detected" },
+        steam,
+        if metis_gaming::gamemode_installed() {
+            "installed"
+        } else {
+            "optional — install gamemode"
+        },
+        if metis_gaming::i386_vulkan_likely_missing() {
+            "may be missing (install mesa-vulkan-drivers:i386)"
+        } else {
+            "looks OK"
+        },
+    )));
+    summary.add_css_class("metis-onboarding-subtitle");
+    summary.set_xalign(0.0);
+    summary.set_wrap(true);
+    col.append(&summary);
+
+    let auto_gpu = gtk::CheckButton::with_label("Enable automatic GPU switching for games");
+    auto_gpu.set_active(GAMING_AUTO_GPU.get());
+    auto_gpu.connect_active_notify(|s| GAMING_AUTO_GPU.set(s.is_active()));
+    col.append(&auto_gpu);
+
+    let optimize = gtk::CheckButton::with_label("Optimize Flatpak Steam / Lutris / Heroic");
+    optimize.set_active(GAMING_OPTIMIZE.get());
+    optimize.connect_active_notify(|s| GAMING_OPTIMIZE.set(s.is_active()));
+    col.append(&optimize);
+
+    let hint = gtk::Label::new(Some(
+        "You can rerun gaming setup anytime from Settings → Gaming.",
+    ));
+    hint.add_css_class("metis-onboarding-hint");
+    hint.set_xalign(0.0);
+    hint.set_margin_top(8);
+    hint.set_wrap(true);
+    col.append(&hint);
+
+    col.upcast()
+}
+
+fn apply_onboarding_gaming_prefs() {
+    let mut cfg = metis_config::load_gaming_config();
+    if GAMING_AUTO_GPU.get() {
+        cfg.graphics_mode = metis_config::GraphicsMode::Auto;
+        cfg.flatpak_gpu_env = true;
+    }
+    let _ = metis_config::save_gaming_config(&cfg);
+    if GAMING_OPTIMIZE.get() {
+        std::thread::spawn(|| {
+            let _ = metis_gaming::optimize_flatpak_gaming(&[]);
+            let _ = metis_gaming::ensure_steam_launcher();
+        });
+    }
+    let _ = metis_config::mark_gaming_setup_complete();
+    metis_gaming::session::request_reload();
 }
 
 fn build_finish() -> gtk::Widget {

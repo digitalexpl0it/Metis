@@ -106,6 +106,7 @@ fn settings_css(t: &ThemeTokens) -> String {
     let on_accent = &t.text_on_accent;
     let error = &t.semantic.error;
     let warning = &t.semantic.warning;
+    let success = &t.semantic.success;
     let rl = t.radius_lg;
     let rs = t.radius_sm;
     let accent2 = t.accent_secondary();
@@ -377,6 +378,41 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-section-body > .metis-settings-hint,
         .metis-settings-section-body > label.metis-settings-hint {{
             padding: 4px 16px 10px;
+        }}
+        .metis-settings-actions {{
+            padding: 4px 16px 14px;
+            gap: 8px;
+        }}
+        .metis-settings-actions button {{
+            align-self: start;
+        }}
+        .metis-settings-gaming-status {{
+            margin: 0 16px 12px;
+            padding: 12px 14px;
+            border-radius: {rs}px;
+            background-color: color-mix(in srgb, {raised} 80%, transparent);
+            border: 1px solid color-mix(in srgb, {border} 70%, transparent);
+            gap: 10px;
+        }}
+        .metis-settings-gaming-status.metis-settings-gaming-status-ok {{
+            background-color: color-mix(in srgb, {success} 12%, {surface});
+            border-color: color-mix(in srgb, {success} 35%, transparent);
+        }}
+        .metis-settings-gaming-status.metis-settings-gaming-status-warn {{
+            background-color: color-mix(in srgb, {warning} 12%, {surface});
+            border-color: color-mix(in srgb, {warning} 35%, transparent);
+        }}
+        .metis-settings-gaming-status-icon {{ -gtk-icon-style: symbolic; }}
+        .metis-settings-gaming-status.metis-settings-gaming-status-ok .metis-settings-gaming-status-icon {{
+            color: {success};
+        }}
+        .metis-settings-gaming-status.metis-settings-gaming-status-warn .metis-settings-gaming-status-icon {{
+            color: {warning};
+        }}
+        .metis-settings-gaming-status-text {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 600;
         }}
         .metis-display-arrangement {{
             padding: 8px 12px 12px;

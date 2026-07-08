@@ -55,6 +55,7 @@ pub struct ProcessPage {
     pub widget: gtk::Widget,
     pub search: gtk::SearchEntry,
     pub filter: gtk::DropDown,
+    pub monitor_btn: gtk::Button,
     pub list: gtk::ListBox,
     pub headers: ProcessHeader,
 }
@@ -382,8 +383,14 @@ pub fn build_processes() -> ProcessPage {
     search.add_css_class("metis-dash-search");
     let filter = gtk::DropDown::from_strings(&["All processes", "User apps", "System"]);
     filter.add_css_class("metis-dash-filter");
+    let monitor_btn = gtk::Button::builder()
+        .label("Open monitor")
+        .tooltip_text("Open btop or htop in a terminal")
+        .build();
+    monitor_btn.add_css_class("metis-dash-monitor-btn");
     toolbar.append(&search);
     toolbar.append(&filter);
+    toolbar.append(&monitor_btn);
     panel.append(&toolbar);
 
     let table = gtk::Box::builder()
@@ -437,6 +444,7 @@ pub fn build_processes() -> ProcessPage {
         widget: page.upcast(),
         search,
         filter,
+        monitor_btn,
         list,
         headers: ProcessHeader {
             name,

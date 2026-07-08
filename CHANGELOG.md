@@ -5,6 +5,60 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-07]
+
+### Added
+
+- **Gaming Platform 2.0 (Phase 11)** — `gaming.json` config, `metis-gaming` crate
+  with Flatpak optimizer, health checks, and event-driven `metis-gamingd` daemon.
+- **Settings → Gaming v2** — editable graphics mode, battery/performance/GameMode
+  toggles, health checklist with Fix buttons, Optimize and Run gaming setup.
+- **Compositor gaming integration** — `ReloadGaming` IPC, `GameSession` events,
+  battery-aware dGPU offload from `gaming.json`, scanout promotion trace.
+- **Onboarding gaming step** — optional skippable step before Finish; applies
+  Flatpak overrides and GPU defaults.
+- **Flatpak launcher wrapper** — `~/.local/share/metis/bin/launch-steam` with GPU
+  env for Flatpak Steam; Big Picture uses it automatically.
+- **`metis-cmd reload-gaming` / `optimize-gaming`** — runtime reload and Flatpak
+  optimize hooks.
+- **`scripts/gaming-prime-smoke.sh`** — hybrid PRIME validation helper.
+
+**Gaming automation scope:** Metis auto-detects hybrid GPU, routes game launches to
+the dGPU, applies Flatpak overrides after **Optimize now** / **Run gaming setup**, and
+switches power profile / GameMode while gaming. It does **not** install Steam,
+drivers, `mesa-vulkan-drivers:i386`, or `gamemode` — the health checklist shows
+install commands for those gaps.
+
+### Fixed
+
+- **Settings → Gaming** — background health checks use an mpsc channel back to the
+  GTK main thread (fixes release-build `Send` errors on `MainContext::invoke`).
+- **Gaming setup wizard** — undecorated dialog with in-panel header (no duplicate
+  title bar under Metis SSD); singleton reuse avoids duplicate windows; clearer
+  message when no Flatpak Steam/Lutris/Heroic is installed (normal for native Steam).
+- **Control Center end task** — confirm uses a popover instead of a modal dialog
+  (no longer freezes the layer-shell session).
+- **Processes tab** — right-click context menu (End task, Force quit, Copy PID)
+  anchors at the cursor, uses non-autohide layer-shell popovers, and pauses list
+  rebuild while open (Task Manager–style stability).
+
+### Changed
+
+- **Settings → Control Center** — toggle the pull-down system monitor, panel
+  height %, refresh interval, confirm-before-kill, and which overview widgets are
+  active; writes `dashboard.json` for live shell reload.
+- **`dashboard.json` live reload** — file monitor reapplies enabled state, max
+  height, Processes tab visibility, and workspace Control Center button without
+  restarting the shell.
+- **GPU load %** — discrete GPU gauge cards show utilization when sysfs
+  (`gpu_busy_percent`) or `nvidia-smi` exposes it (e.g. `78°C · 45%`).
+- **Processes → Open monitor** — launches `btop` or `htop` directly, or in the
+  configured terminal as a fallback.
+- **Widget registry** — built-in Control Center widgets registered by id for
+  future script/plugin extensions.
+- **Bar pull gesture** — always wired; gated at drag time so re-enabling Control
+  Center in Settings works without a bar rebuild.
+
 ## [2026-07-06]
 
 ### Added

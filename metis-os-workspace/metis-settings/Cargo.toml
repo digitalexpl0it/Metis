@@ -18,3 +18,4 @@ tracing-subscriber = { workspace = true }
 metis-config = { workspace = true }
 metis-secrets = { workspace = true }
 metis-protocol = { workspace = true }
+metis-gaming = { workspace = true }

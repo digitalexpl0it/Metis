@@ -1,0 +1,166 @@
+//! Gaming health checks with optional auto-fix actions.
+
+use metis_config::load_gaming_config;
+
+use crate::detect::{
+    detect_steam, flatpak_has_app, gamemode_installed, hybrid_gpu_summary, i386_vulkan_likely_missing,
+    nvidia_driver_loaded, pipewire_or_pulse_available, user_in_input_group, SteamInstall,
+};
+use crate::flatpak::{flatpak_steam_needs_optimize, optimize_flatpak_gaming};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HealthSeverity {
+    Ok,
+    Info,
+    Warn,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HealthItem {
+    pub id: &'static str,
+    pub label: String,
+    pub severity: HealthSeverity,
+    pub detail: String,
+    pub fix_hint: Option<String>,
+    pub auto_fixable: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct HealthCheck {
+    pub items: Vec<HealthItem>,
+}
+
+pub fn run_health_check() -> HealthCheck {
+    let cfg = load_gaming_config();
+    let mut items = Vec::new();
+
+    match detect_steam() {
+        SteamInstall::Native => items.push(ok("steam", "Steam", "Installed (native)")),
+        SteamInstall::Flatpak => items.push(ok("steam", "Steam", "Installed (Flatpak)")),
+        SteamInstall::None => items.push(HealthItem {
+            id: "steam",
+            label: "Steam".into(),
+            severity: HealthSeverity::Info,
+            detail: "Not detected".into(),
+            fix_hint: Some(
+                "apt install steam-installer  OR  flatpak install flathub com.valvesoftware.Steam"
+                    .into(),
+            ),
+            auto_fixable: false,
+        }),
+    }
+
+    if flatpak_has_app("com.valvesoftware.Steam") && flatpak_steam_needs_optimize() {
+        items.push(HealthItem {
+            id: "flatpak_steam",
+            label: "Flatpak Steam overrides".into(),
+            severity: HealthSeverity::Warn,
+            detail: "Gaming overrides not applied".into(),
+            fix_hint: Some("Click Optimize below".into()),
+            auto_fixable: true,
+        });
+    } else if flatpak_has_app("com.valvesoftware.Steam") {
+        items.push(ok(
+            "flatpak_steam",
+            "Flatpak Steam overrides",
+            "Optimized",
+        ));
+    }
+
+    if i386_vulkan_likely_missing() {
+        items.push(HealthItem {
+            id: "vulkan_i386",
+            label: "32-bit Vulkan".into(),
+            severity: HealthSeverity::Error,
+            detail: "Proton may fail without i386 Vulkan drivers".into(),
+            fix_hint: Some("sudo apt install mesa-vulkan-drivers:i386".into()),
+            auto_fixable: false,
+        });
+    } else {
+        items.push(ok("vulkan_i386", "32-bit Vulkan", "OK"));
+    }
+
+    if cfg.auto_gamemode && !gamemode_installed() {
+        items.push(HealthItem {
+            id: "gamemode",
+            label: "GameMode".into(),
+            severity: HealthSeverity::Info,
+            detail: "auto_gamemode on but gamemoderun missing".into(),
+            fix_hint: Some("sudo apt install gamemode".into()),
+            auto_fixable: false,
+        });
+    } else if gamemode_installed() {
+        items.push(ok("gamemode", "GameMode", "Available"));
+    }
+
+    if !user_in_input_group() {
+        items.push(HealthItem {
+            id: "input_group",
+            label: "Input group".into(),
+            severity: HealthSeverity::Warn,
+            detail: "User not in input group".into(),
+            fix_hint: Some("sudo usermod -aG input $USER".into()),
+            auto_fixable: false,
+        });
+    } else {
+        items.push(ok("input_group", "Input group", "OK"));
+    }
+
+    if let Some(label) = hybrid_gpu_summary() {
+        if label.to_lowercase().contains("nvidia") && !nvidia_driver_loaded() {
+            items.push(HealthItem {
+                id: "nvidia_driver",
+                label: "NVIDIA driver".into(),
+                severity: HealthSeverity::Error,
+                detail: "NVIDIA GPU without proprietary driver".into(),
+                fix_hint: Some("sudo ubuntu-drivers install".into()),
+                auto_fixable: false,
+            });
+        } else {
+            items.push(ok("hybrid_gpu", "Hybrid GPU", &format!("Discrete: {label}")));
+        }
+    } else {
+        items.push(ok("hybrid_gpu", "Hybrid GPU", "Single GPU"));
+    }
+
+    if !pipewire_or_pulse_available() {
+        items.push(HealthItem {
+            id: "audio",
+            label: "Audio".into(),
+            severity: HealthSeverity::Warn,
+            detail: "No PipeWire/Pulse on PATH".into(),
+            fix_hint: Some("sudo apt install pipewire-audio".into()),
+            auto_fixable: false,
+        });
+    } else {
+        items.push(ok("audio", "Audio", "OK"));
+    }
+
+    HealthCheck { items }
+}
+
+pub fn auto_fix_item(id: &str) -> Result<String, String> {
+    match id {
+        "flatpak_steam" => {
+            let results = optimize_flatpak_gaming(&[])?;
+            Ok(results
+                .iter()
+                .map(|r| format!("{}: {}", r.app_id, r.message))
+                .collect::<Vec<_>>()
+                .join("; "))
+        }
+        other => Err(format!("no auto-fix for {other}")),
+    }
+}
+
+fn ok(id: &'static str, label: &str, detail: &str) -> HealthItem {
+    HealthItem {
+        id,
+        label: label.into(),
+        severity: HealthSeverity::Ok,
+        detail: detail.into(),
+        fix_hint: None,
+        auto_fixable: false,
+    }
+}

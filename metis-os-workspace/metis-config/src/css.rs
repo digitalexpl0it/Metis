@@ -2499,6 +2499,30 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-dash-health-crit {{
         color: {c_error};
     }}
+    popover.metis-dash-popover {{
+        padding: 0;
+    }}
+    .metis-dash-popover-title {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+    button.metis-dash-menu-item {{
+        border-radius: 0;
+        border: none;
+        background: transparent;
+        padding: 8px 12px;
+        min-height: 32px;
+    }}
+    button.metis-dash-menu-item:hover {{
+        background-color: {dash_card_bg};
+    }}
+    button.metis-dash-menu-item label {{
+        font-size: 13px;
+    }}
+    .metis-dash-context-menu {{
+        padding: 2px 0;
+    }}
     .metis-dash-metrics {{
         margin-top: 4px;
     }}

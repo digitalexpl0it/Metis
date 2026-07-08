@@ -8,6 +8,8 @@ pub mod clocks;
 pub mod css;
 pub mod dashboard;
 pub mod game_rules;
+pub mod gaming;
+pub mod gpu_offload;
 pub mod input;
 pub mod lock;
 pub mod menu;
@@ -29,6 +31,8 @@ pub struct AppConfig {
     pub theme: String,
     #[serde(default)]
     pub onboarding_complete: bool,
+    #[serde(default)]
+    pub gaming_setup_complete: bool,
     #[serde(default = "default_show_briefing")]
     pub show_briefing_on_login: bool,
 }
@@ -46,6 +50,7 @@ impl Default for AppConfig {
         Self {
             theme: default_theme(),
             onboarding_complete: false,
+            gaming_setup_complete: false,
             show_briefing_on_login: default_show_briefing(),
         }
     }
@@ -137,6 +142,12 @@ pub fn mark_onboarding_complete() -> std::io::Result<()> {
     save_app_config(&cfg)
 }
 
+pub fn mark_gaming_setup_complete() -> std::io::Result<()> {
+    let mut cfg = load_app_config();
+    cfg.gaming_setup_complete = true;
+    save_app_config(&cfg)
+}
+
 /// Persist a theme token set to `themes/<name>.json` (used by the settings app's
 /// Appearance page). The shell's file watcher re-applies it live.
 pub fn save_theme_tokens(name: &str, tokens: &theme::ThemeTokens) -> std::io::Result<()> {
@@ -185,6 +196,15 @@ pub use dashboard::{
 pub use game_rules::{
     game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,
     WindowRule, WindowRuleOutcome,
+};
+pub use gaming::{
+    command_prefers_dgpu, gaming_config_path, gaming_flatpak_state_path, load_gaming_config,
+    load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch, save_default_gaming_config,
+    save_gaming_config, save_gaming_flatpak_state, GameScopeProfile, GamingConfig,
+    GamingFlatpakState, GraphicsMode,
+};
+pub use gpu_offload::{
+    detect_hybrid_gpu, display_gpu_pci, offload_env_vars, GpuOffloadKind, HybridGpuInfo,
 };
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,

@@ -308,6 +308,30 @@ __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia %command%   # NVIDI
 Set `METIS_NO_CLIENT_GPU=1` in the session environment to disable the automatic
 forwarding entirely.
 
+**Gaming Platform 2.0 (Settings → Gaming).** Metis productizes GPU routing and
+Flatpak setup in `~/.config/metis/gaming.json` instead of env-var recipes:
+
+- **Graphics mode** — `auto`, desktop iGPU / games dGPU, always dGPU/iGPU, or off.
+- **On battery** — prefer iGPU unless you override per session.
+- **Auto performance profile** — `metis-gamingd` switches to Performance while a
+  game session is active and restores on exit.
+- **Auto GameMode** — registers detected game PIDs with `gamemoded` when installed.
+- **Flatpak GPU env** — applies NVIDIA/Mesa offload vars to Steam, Lutris, and Heroic
+  via idempotent `flatpak override` (state in `gaming-flatpak.json`).
+- **Optimize for gaming** — one-click health check + Flatpak fixes.
+- **First-run wizard** — optional Gaming step in onboarding; re-run from Settings.
+
+Flatpak Steam launches through `~/.local/share/metis/bin/launch-steam` when the
+Flatpak is installed (Big Picture and menu entries use it automatically). Runtime
+reload: `metis-cmd reload-gaming`; optimize: `metis-cmd optimize-gaming`.
+
+**What Metis does not install automatically:** Steam, GPU drivers, 32-bit Vulkan
+(`mesa-vulkan-drivers:i386`), GameMode, or PipeWire. Settings → Gaming detects
+these gaps and shows install commands. Run **Optimize now** or **Run gaming setup**
+for Flatpak overrides and GPU routing only. If you use **native** Steam (not
+Flatpak), **Run gaming setup** may report that no Flatpak gaming apps were found —
+that is expected; the launcher wrapper and compositor GPU routing still apply.
+
 **Controllers & Steam Input.** Games read `/dev/input/event*` directly (SDL,
 Proton, Steam Input) — Metis does **not** grab evdev devices, so gamepads,
 the Steam Controller, DualSense, and Switch Pro controllers work as they do
@@ -579,9 +603,16 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   30s), pair / connect / trust / remove. Battery percentage and charging state
   appear when the device or driver reports them.
 - **Printers** — list CUPS queues; open the system printer config when needed.
-- **Power** — power profile (power-saver / balanced / performance), laptop battery
-  details, idle blank/suspend timeouts, lid-close action, and a **Connected
-  devices** list for Bluetooth peripherals with battery status.
+- **Gaming** — graphics mode (auto / iGPU / dGPU), battery and performance
+  toggles, health checklist with Fix buttons, **Optimize now**, and **Run gaming
+  setup** wizard; writes `gaming.json` and applies Flatpak overrides when installed.
+- **Control Center** — enable/disable the pull-down system monitor, max panel
+  height %, refresh interval, confirm-before-kill, and which overview widgets
+  appear; writes `dashboard.json` for live shell reload.
+- **Power** — power profile (power-saver / balanced / performance via
+  `power-profiles-daemon`), laptop battery details, idle blank/suspend timeouts,
+  lid-close action, and a **Connected devices** list for Bluetooth peripherals
+  with battery status. See [Power profiles](#power-profiles-settings--power) below.
 - **Remote access** — GNOME-style desktop sharing toggle: enable RDP to your
   **live** Metis session via `gnome-remote-desktop` (headless). Set credentials,
   copy the connection address, and connect from Microsoft Remote Desktop, Remmina,
@@ -599,6 +630,20 @@ receiver or install Solaar.
 
 Most appearance and bar changes apply live; some device-backed settings only take
 full effect under a real (DRM) session.
+
+### Power profiles (Settings → Power)
+
+| Control | Applies via | Notes |
+|---------|-------------|-------|
+| **Power saver / Balanced / Performance** | `powerprofilesctl` → `power-profiles-daemon` | Requires the daemon package (`power-profiles-daemon` on Ubuntu). Changes CPU/platform power behaviour on supported laptops. On desktops without platform profiles the effect may be minimal. Verify with `powerprofilesctl get`. |
+| **Blank screen after** | Metis compositor (DPMS) | Live-reloaded via `ReloadPower` IPC; independent of logind. |
+| **Suspend after idle** | systemd-logind (`busctl`) | Best-effort; needs logind and appropriate permissions. |
+| **When lid is closed** | systemd-logind | Laptop only; suspend / ignore / hibernate / power off. |
+| **Dim on battery** | *(not wired yet)* | Saved to `power.json` only — compositor dim hook is planned. |
+
+While gaming, **Settings → Gaming → Auto performance profile** (via `metis-gamingd`)
+can temporarily switch to **Performance** and restore your previous profile when the
+game session ends.
 
 ### Remote desktop (RDP)
 
@@ -683,11 +728,15 @@ CPU and discrete-GPU temperature gauges use a 0–150 °C semicircle. On hybrid
 laptops (Intel + NVIDIA), the Intel iGPU is not shown; NVIDIA temps are read from
 sysfs when available, otherwise from `nvidia-smi`.
 
-**Processes** tab — searchable, sortable table (Name, PID, User, Type, CPU, Memory)
-with optional end-task confirmation (`dashboard.json`).
+**Processes** tab — searchable, sortable table (Name, PID, User, Type, CPU, Memory).
+Right-click a killable row for **End task**, **Force quit** (SIGKILL), or **Copy PID**.
+End-task confirmation is optional (`dashboard.json` → `confirm_before_kill`). Use
+**Open monitor** to launch `btop` or `htop` (or your configured terminal as fallback).
+The process list pauses refresh while a context menu is open so actions stay usable.
 
 Dismiss with **Esc**, the close button, **drag back toward the bar** on the
-header, or by clicking the desktop. Config: `~/.config/metis/dashboard.json`.
+header, or by clicking the desktop. Configure in Settings → **Control Center** or
+edit `~/.config/metis/dashboard.json` directly.
 
 ---
 
@@ -725,9 +774,11 @@ Metis session (future DRM backend), the default is Super.
 | `dismissed.json` | Dismissed calendar reminder IDs |
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
-| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
+| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery preference (dim not wired yet) |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
-| `dashboard.json` | System dashboard: enabled, widget order, max height %, refresh interval |
+| `dashboard.json` | System dashboard: enabled, widget order, max height %, refresh interval, confirm-before-kill |
+| `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |
+| `gaming-flatpak.json` | Record of applied Flatpak gaming overrides (managed by `metis-gaming`) |
 | `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |
 
 ### Key `bar.json` fields

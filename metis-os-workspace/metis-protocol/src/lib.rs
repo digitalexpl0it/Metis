@@ -90,6 +90,8 @@ pub enum CompositorCommand {
     LockSession,
     /// Re-read `lock.json` and re-decode the lock-screen background live.
     ReloadLock,
+    /// Re-read `gaming.json` and apply graphics/offload preferences live.
+    ReloadGaming,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {
@@ -208,6 +210,14 @@ pub enum CompositorEvent {
         preview_text: Option<String>,
         #[serde(default)]
         image_path: Option<String>,
+    },
+    /// Game or launcher session started/ended (Phase 11 gaming daemon).
+    GameSession {
+        active: bool,
+        #[serde(default)]
+        label: Option<String>,
+        #[serde(default)]
+        pid: Option<u32>,
     },
 }
 

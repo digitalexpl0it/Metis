@@ -5,14 +5,16 @@
 
 mod charts;
 mod views;
+mod widgets;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
+use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::LayerShell;
-use metis_config::{load_bar_config, load_dashboard_config, BarPosition};
+use metis_config::{load_bar_config, load_dashboard_config, BarPosition, DashboardWidgetId};
 
 use crate::services::{
     format_bytes, format_rate, format_uptime, kill_process, short_kernel_version,
@@ -53,6 +55,8 @@ const PULL_START_SLOP: f64 = 6.0;
 thread_local! {
     static DASHBOARD: RefCell<Option<Rc<Dashboard>>> = const { RefCell::new(None) };
     static POLL_ATTACHED: Cell<bool> = const { Cell::new(false) };
+    /// Open process-row context menu; list rebuild is paused while set.
+    static PROCESS_CONTEXT_MENU: RefCell<Option<gtk::Popover>> = const { RefCell::new(None) };
 }
 
 struct Dashboard {
@@ -97,10 +101,6 @@ pub fn init() {
 
 /// Press on the bar pill and drag toward the desktop to pull the dashboard open.
 pub fn wire_bar_pull(pill: &gtk::Box, shell: &BarShell) {
-    if !load_dashboard_config().enabled {
-        return;
-    }
-
     let pill_weak = pill.downgrade();
     let _shell_pull = shell.clone();
 
@@ -109,6 +109,10 @@ pub fn wire_bar_pull(pill: &gtk::Box, shell: &BarShell) {
     drag.set_touch_only(false);
 
     drag.connect_drag_begin(move |gesture, start_x, start_y| {
+        if !load_dashboard_config().enabled {
+            gesture.set_state(gtk::EventSequenceState::Denied);
+            return;
+        }
         let Some(pill) = pill_weak.upgrade() else {
             return;
         };
@@ -119,6 +123,9 @@ pub fn wire_bar_pull(pill: &gtk::Box, shell: &BarShell) {
 
     let shell_update = shell.clone();
     drag.connect_drag_update(move |gesture, offset_x, offset_y| {
+        if !load_dashboard_config().enabled {
+            return;
+        }
         let position = load_bar_config().position;
         let delta = pull_delta(position, offset_x, offset_y);
         if delta < PULL_START_SLOP {
@@ -186,6 +193,29 @@ pub fn on_bar_config_changed() {
                 ));
                 dash.apply_extent(dash.max_extent.get());
                 dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
+            }
+        }
+    });
+}
+
+pub fn on_dashboard_config_changed() {
+    crate::ui::bar::refresh_workspaces();
+
+    if !load_dashboard_config().enabled {
+        request_close();
+    }
+
+    DASHBOARD.with(|d| {
+        if let Some(dash) = d.borrow().as_ref() {
+            dash.apply_widget_config();
+            let position = load_bar_config().position;
+            let max = compute_max_extent(position, dash.shell.window.monitor().as_ref());
+            dash.max_extent.set(max);
+            if dash.open.get() {
+                dash.apply_extent(max);
+                dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
+            } else if !dash.pulling.get() {
+                dash.set_closed_state();
             }
         }
     });
@@ -474,6 +504,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     });
 
     wire_process_sort(&dash.processes.headers, &dash.processes.list);
+    dash.processes.monitor_btn.connect_clicked(|_| launch_process_monitor());
 
     {
         let stack = dash.stack.clone();
@@ -503,10 +534,20 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     dash.header.add_controller(header_drag);
 
     dash.refresh_sort_headers();
+    dash.apply_widget_config();
     dash
 }
 
 impl Dashboard {
+    fn apply_widget_config(&self) {
+        let cfg = load_dashboard_config();
+        let show_processes = cfg.widgets.contains(&DashboardWidgetId::Processes);
+        self.processes.widget.set_visible(show_processes);
+        if !show_processes && self.stack.visible_child_name().as_deref() == Some("processes") {
+            self.stack.set_visible_child_name("overview");
+        }
+    }
+
     fn relayout_for_bar(&self) {
         let position = load_bar_config().position;
         self.max_extent.set(compute_max_extent(
@@ -864,8 +905,11 @@ impl Dashboard {
 
         for (slot, reading) in slots.iter_mut().zip(readings.iter()) {
             slot.title.set_text(&reading.label);
-            slot.value
-                .set_text(&format!("{:.0}°C", reading.temp_celsius));
+            let value = match reading.util_percent {
+                Some(util) => format!("{:.0}°C · {:.0}%", reading.temp_celsius, util),
+                None => format!("{:.0}°C", reading.temp_celsius),
+            };
+            slot.value.set_text(&value);
             *slot.temp.borrow_mut() = Some(reading.temp_celsius);
             slot.gauge.queue_draw();
         }
@@ -884,6 +928,9 @@ impl Dashboard {
     }
 
     fn rebuild_process_list(&self, list: &gtk::ListBox) {
+        if process_context_menu_open() {
+            return;
+        }
         self.refresh_sort_headers();
         while let Some(child) = list.first_child() {
             list.remove(&child);
@@ -1113,41 +1160,224 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
     let pid_val = proc.pid;
     kill.connect_clicked(move |btn| {
         let cfg = load_dashboard_config();
-        let btn = btn.clone();
         if cfg.confirm_before_kill {
-            let Some(win) = btn
-                .root()
-                .and_then(|r| r.downcast::<gtk::Window>().ok())
-            else {
-                tracing::warn!(pid = pid_val, "end task dialog: no parent window");
-                return;
-            };
-            let dialog = gtk::MessageDialog::builder()
-                .transient_for(&win)
-                .modal(true)
-                .message_type(gtk::MessageType::Warning)
-                .text(format!("End process {pid_val}?"))
-                .secondary_text("This sends SIGTERM to the process.")
-                .build();
-            dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-            dialog.add_button("End task", gtk::ResponseType::Accept);
-            dialog.connect_response(move |d, resp| {
-                if resp == gtk::ResponseType::Accept {
-                    if let Err(err) = kill_process(pid_val, false) {
-                        tracing::warn!(%err, pid = pid_val, "end task failed");
-                    }
-                }
-                d.close();
-            });
-            dialog.present();
+            confirm_kill_process(btn, pid_val, false);
         } else if let Err(err) = kill_process(pid_val, false) {
             tracing::warn!(%err, pid = pid_val, "end task failed");
         }
     });
 
     grid.attach(&kill, 6, 0, 1, 1);
+
+    if proc.killable {
+        attach_process_context_menu(&row, proc.pid, &proc.name);
+    }
+
     row.set_child(Some(&grid));
     row
+}
+
+fn process_context_menu_open() -> bool {
+    PROCESS_CONTEXT_MENU.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .is_some_and(|p| p.is_visible() || p.parent().is_some())
+    })
+}
+
+fn dismiss_process_context_menu() {
+    PROCESS_CONTEXT_MENU.with(|slot| {
+        if let Some(popover) = slot.borrow_mut().take() {
+            if popover.parent().is_some() {
+                popover.popdown();
+                if popover.parent().is_some() {
+                    popover.unparent();
+                }
+            }
+        }
+    });
+}
+
+fn attach_process_context_menu(row: &gtk::ListBoxRow, pid: u32, name: &str) {
+    let gesture = gtk::GestureClick::builder()
+        .button(gdk::BUTTON_SECONDARY)
+        .build();
+    let row_widget: gtk::Widget = row.clone().upcast();
+    let name = name.to_string();
+    gesture.connect_pressed(move |_, _n, x, y| {
+        show_process_context_menu(&row_widget, pid, &name, x, y);
+    });
+    row.add_controller(gesture);
+}
+
+fn show_process_context_menu(anchor: &gtk::Widget, pid: u32, name: &str, x: f64, y: f64) {
+    dismiss_process_context_menu();
+    crate::ui::bar::close_bar_popovers();
+
+    let panel = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    panel.add_css_class("metis-dash-context-menu");
+    panel.set_margin_top(6);
+    panel.set_margin_bottom(6);
+    panel.set_margin_start(4);
+    panel.set_margin_end(4);
+    panel.set_width_request(210);
+
+    let header = gtk::Label::new(Some(name));
+    header.set_xalign(0.0);
+    header.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    header.add_css_class("metis-dash-popover-title");
+    header.set_margin_start(8);
+    header.set_margin_end(8);
+    header.set_margin_top(4);
+    panel.append(&header);
+
+    append_process_menu_item(&panel, "End task", {
+        let anchor = anchor.clone();
+        move || {
+            dismiss_process_context_menu();
+            confirm_kill_process(&anchor, pid, false);
+        }
+    });
+    append_process_menu_item(&panel, "Force quit", {
+        let anchor = anchor.clone();
+        move || {
+            dismiss_process_context_menu();
+            confirm_kill_process(&anchor, pid, true);
+        }
+    });
+    append_process_menu_item(&panel, &format!("Copy PID ({pid})"), move || {
+        copy_text_to_clipboard(&pid.to_string());
+        dismiss_process_context_menu();
+    });
+
+    let popover = gtk::Popover::builder()
+        .autohide(false)
+        .has_arrow(true)
+        .position(crate::ui::bar::popover_position())
+        .child(&panel)
+        .build();
+    popover.add_css_class("metis-dash-popover");
+    popover.set_parent(anchor);
+    let rect = gdk::Rectangle::new(x.round() as i32, y.round() as i32, 1, 1);
+    popover.set_pointing_to(Some(&rect));
+
+    PROCESS_CONTEXT_MENU.with(|slot| *slot.borrow_mut() = Some(popover.clone()));
+    crate::ui::bar::register_bar_popover(&popover);
+
+    let weak = popover.downgrade();
+    popover.connect_closed(move |_| {
+        PROCESS_CONTEXT_MENU.with(|slot| {
+            if slot.borrow().as_ref().is_some_and(|p| p.downgrade() == weak) {
+                *slot.borrow_mut() = None;
+            }
+        });
+        if let Some(p) = weak.upgrade() {
+            if p.parent().is_some() {
+                p.unparent();
+            }
+        }
+    });
+
+    let popover_show = popover.clone();
+    glib::idle_add_local_once(move || {
+        popover_show.popup();
+    });
+}
+
+fn append_process_menu_item<F>(panel: &gtk::Box, label: &str, action: F)
+where
+    F: Fn() + 'static,
+{
+    let item = gtk::Button::builder()
+        .label(label)
+        .has_frame(false)
+        .halign(gtk::Align::Fill)
+        .build();
+    item.add_css_class("metis-dash-menu-item");
+    if let Some(child) = item.child() {
+        if let Ok(lbl) = child.downcast::<gtk::Label>() {
+            lbl.set_halign(gtk::Align::Start);
+            lbl.set_xalign(0.0);
+        }
+    }
+    item.connect_clicked(move |_| action());
+    panel.append(&item);
+}
+
+fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool) {
+    let panel = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    panel.set_margin_top(10);
+    panel.set_margin_bottom(10);
+    panel.set_margin_start(12);
+    panel.set_margin_end(12);
+    panel.set_width_request(240);
+
+    let title = if force {
+        "Force quit?"
+    } else {
+        "End task?"
+    };
+    let body = if force {
+        format!("Send SIGKILL to process {pid}? This cannot be undone.")
+    } else {
+        format!("Send SIGTERM to process {pid}?")
+    };
+
+    let t = gtk::Label::new(Some(title));
+    t.set_xalign(0.0);
+    t.add_css_class("metis-dash-popover-title");
+    panel.append(&t);
+    let b = gtk::Label::new(Some(&body));
+    b.set_xalign(0.0);
+    b.set_wrap(true);
+    b.add_css_class("metis-dash-muted");
+    panel.append(&b);
+
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.set_halign(gtk::Align::End);
+    actions.set_margin_top(4);
+    let cancel = gtk::Button::with_label("Cancel");
+    let ok_label = if force { "Force quit" } else { "End task" };
+    let ok = gtk::Button::with_label(ok_label);
+    if force {
+        ok.add_css_class("destructive-action");
+    }
+    actions.append(&cancel);
+    actions.append(&ok);
+    panel.append(&actions);
+
+    let popover = gtk::Popover::builder()
+        .autohide(false)
+        .has_arrow(true)
+        .position(crate::ui::bar::popover_position())
+        .child(&panel)
+        .build();
+    popover.add_css_class("metis-dash-popover");
+    popover.set_parent(anchor);
+    crate::ui::bar::register_bar_popover(&popover);
+
+    let pop_cancel = popover.clone();
+    cancel.connect_clicked(move |_| pop_cancel.popdown());
+    let pop_ok = popover.clone();
+    ok.connect_clicked(move |_| {
+        if let Err(err) = kill_process(pid, force) {
+            tracing::warn!(%err, pid, force, "kill failed");
+        }
+        pop_ok.popdown();
+    });
+    let popover_show = popover.clone();
+    glib::idle_add_local_once(move || {
+        popover_show.popup();
+    });
+}
+
+fn copy_text_to_clipboard(text: &str) {
+    let display = gdk::Display::default();
+    let Some(display) = display else {
+        return;
+    };
+    let clipboard = display.clipboard();
+    clipboard.set_text(text);
 }
 
 fn class_label(class: ProcessClass) -> &'static str {
@@ -1156,6 +1386,47 @@ fn class_label(class: ProcessClass) -> &'static str {
         ProcessClass::UserApp => "App",
         ProcessClass::System => "System",
     }
+}
+
+fn launch_process_monitor() {
+    let cfg = metis_config::load_menu_config();
+    let term = cfg.terminal.as_deref();
+    let snippet = format!(
+        "if command -v btop >/dev/null 2>&1; then exec btop; fi; \
+         if command -v htop >/dev/null 2>&1; then exec htop; fi; \
+         {}",
+        terminal_with_command_snippet(term, "htop")
+    );
+    if let Err(err) = crate::compositor::launch_program(&snippet) {
+        tracing::warn!(%err, "failed to launch process monitor");
+    }
+}
+
+fn shell_dquote(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('`', "\\`")
+}
+
+fn terminal_with_command_snippet(chosen: Option<&str>, command: &str) -> String {
+    let cmd = shell_dquote(command);
+    let mut snippet = String::new();
+    if let Some(chosen) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
+        let c = shell_dquote(chosen);
+        snippet.push_str(&format!(
+            "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\" -e {cmd}; fi; "
+        ));
+    }
+    snippet.push_str("for x in \"$TERMINAL\"");
+    for (bin, _) in metis_config::KNOWN_TERMINALS {
+        snippet.push(' ');
+        snippet.push_str(bin);
+    }
+    snippet.push_str(&format!(
+        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\" -e {cmd}; done"
+    ));
+    snippet
 }
 
 fn set_temp_label(label: &gtk::Label, temp: Option<f32>) {

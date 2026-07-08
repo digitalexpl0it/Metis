@@ -103,6 +103,11 @@ pub fn apply_background() -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn reload_gaming_config() -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::ReloadGaming)?;
+    Ok(())
+}
+
 /// Ask the compositor to end the Metis session (stops its event loop).
 pub fn end_session() -> std::io::Result<()> {
     match send_command(CompositorCommand::EndSession) {

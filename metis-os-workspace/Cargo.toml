@@ -10,6 +10,7 @@ members = [
     "metis-settings",
     "metis-portal",
     "metis-remote",
+    "metis-gaming",
 ]
 
 [workspace.package]
@@ -25,6 +26,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 metis-grid = { path = "metis-grid" }
 metis-protocol = { path = "metis-protocol" }
 metis-config = { path = "metis-config" }
+metis-gaming = { path = "metis-gaming" }
 metis-secrets = { path = "metis-secrets" }
 
 # Compile wallpaper/image deps optimized in dev — without this, `image` decodes

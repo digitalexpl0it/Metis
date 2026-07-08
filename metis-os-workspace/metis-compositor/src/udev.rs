@@ -1090,6 +1090,16 @@ impl MetisState {
                     });
                     self.send_layer_frames(&out, now);
 
+                    if let Some(states) = frame_states.as_ref() {
+                        if self.output_scanout_promoted(&out, states) {
+                            tracing::trace!(
+                                output = %out.name(),
+                                scanout_promoted = true,
+                                "direct primary-plane scanout"
+                            );
+                        }
+                    }
+
                     // Per-surface dmabuf feedback: tell a surface that was scanned
                     // out directly (a fullscreen game on the primary plane) to keep
                     // allocating scannable buffers; everyone else gets the render

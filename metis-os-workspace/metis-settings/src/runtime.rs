@@ -82,6 +82,16 @@ pub fn reload_lock_async() {
     });
 }
 
+/// Re-read `gaming.json` and apply graphics/offload preferences live.
+pub fn reload_gaming_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::ReloadGaming) {
+            tracing::debug!(%err, "failed to reload gaming config via compositor IPC");
+        }
+        send("reload-gaming");
+    });
+}
+
 /// Lock the session now (used by the Settings "Lock now" affordance and shell
 /// menu). Best-effort; never blocks the GTK main thread.
 pub fn lock_session_async() {

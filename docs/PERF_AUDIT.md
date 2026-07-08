@@ -14,7 +14,7 @@ capture, binary footprint, and recommended follow-ups.
 | DRM session | **OK** | Vblank + damage-gated flips; single-GPU only |
 | Shell / edge bar | **OK** | Background poll thread; subprocess I/O every 400 ms–6 s |
 | Screen capture | **Early** | Full-scene GL render + CPU SHM copy per screenshot |
-| Gaming / Steam | **Improving** | Fullscreen fast path (skip wallpaper/night-light/cursor under lock); vblank-paced present; scanout feedback wired — verify direct scanout + cross-GPU PRIME on hybrid laptops |
+| Gaming / Steam | **Improving** | Fullscreen fast path + scanout trace; `metis-gamingd` auto performance profile; hybrid PRIME smoke script — verify on real hybrid laptops |
 | Install footprint | **Improved** | Release profiles use LTO + strip; optional `release-small` |
 
 Metis is **past prototype** on compositor fundamentals (no busy loops, deliberate
@@ -70,15 +70,23 @@ a PipeWire zero-copy path.
 **Recommendation:** dmabuf capture session + register with PipeWire; avoid
 `pixels().to_vec()` in the portal client loop.
 
-### P1 — No fullscreen direct scanout
+### P1 — Fullscreen direct scanout (hybrid PRIME)
 
-Games and Proton (XWayland) are **always composited**. No unredirect / direct
-lease for full-screen clients.
+**Status (2026-07-07):** Fullscreen fast path skips wallpaper, blur, night-light,
+and compositor cursor when a client is true fullscreen. Per-surface dmabuf feedback
+advertises scanout-capable formats; `surface_primary_scanout_output` records
+primary-plane promotion. Compositor emits `scanout_promoted=true` at trace level
+when direct scanout succeeds (`RUST_LOG=metis_compositor=trace`).
 
-**Impact:** Extra latency and GPU fill rate vs Gamescope or mature compositors.
+**Validation:** run `metis-os-workspace/scripts/gaming-prime-smoke.sh` inside a
+Metis session on hybrid hardware — launches a Vulkan test app on the dGPU while
+the panel scans out via the iGPU PRIME path.
 
-**Recommendation:** Phase 6 — optional per-game Gamescope wrapper; long-term
-evaluate direct scanout for true fullscreen XWayland/Wayland clients.
+**Remaining gap:** cross-GPU dmabuf import on some NVIDIA + AMD APU combos may
+still fall back to compositing; profile with the smoke script and trace logs.
+
+**Recommendation:** optional per-game Gamescope wrapper for problematic titles;
+long-term continue auditing `udev.rs` scanout feedback on real hybrid laptops.
 
 ### P2 — `state.rs` monolith (~6k lines)
 

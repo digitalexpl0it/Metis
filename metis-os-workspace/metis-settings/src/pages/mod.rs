@@ -3,6 +3,7 @@ pub mod appearance_common;
 pub mod background;
 pub mod bluetooth;
 pub mod calendars;
+pub mod control_center;
 pub mod display;
 pub mod edgebar;
 pub mod input_common;

@@ -64,6 +64,8 @@ pub struct DashboardSnapshot {
 pub struct GpuTempReading {
     pub label: String,
     pub temp_celsius: f32,
+    /// Discrete GPU utilization (0–100%), when the driver exposes it.
+    pub util_percent: Option<f32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -740,7 +742,8 @@ fn collect_drm_discrete_gpu_temps(out: &mut Vec<GpuTempReading>) {
         };
         for hwmon in hwmons.flatten() {
             if let Some(temp) = read_hwmon_highest_temp(&hwmon.path()) {
-                push_gpu_temp(out, label, temp);
+                let util = read_gpu_busy_percent(&device);
+                push_gpu_temp(out, label, temp, util);
                 break;
             }
         }
@@ -770,7 +773,10 @@ fn collect_standalone_discrete_hwmon_temps(out: &mut Vec<GpuTempReading>) {
         }
         if let Some(temp) = read_hwmon_highest_temp(&path) {
             let label = discrete_hwmon_label(&name);
-            push_gpu_temp(out, label, temp);
+            let util = hwmon_pci_device(&path)
+                .as_deref()
+                .and_then(read_gpu_busy_percent);
+            push_gpu_temp(out, label, temp, util);
         }
     }
 }
@@ -786,7 +792,7 @@ fn collect_nvidia_smi_temps(out: &mut Vec<GpuTempReading>) {
 
     let output = Command::new("nvidia-smi")
         .args([
-            "--query-gpu=index,temperature.gpu,name",
+            "--query-gpu=index,temperature.gpu,utilization.gpu,name",
             "--format=csv,noheader,nounits",
         ])
         .output();
@@ -804,26 +810,46 @@ fn collect_nvidia_smi_temps(out: &mut Vec<GpuTempReading>) {
         let Some(temp_str) = parts.next() else {
             continue;
         };
+        let Some(util_str) = parts.next() else {
+            continue;
+        };
         let Some(name) = parts.next() else {
             continue;
         };
         let Ok(temp) = temp_str.parse::<f32>() else {
             continue;
         };
+        let util = util_str
+            .trim_end_matches('%')
+            .parse::<f32>()
+            .ok()
+            .filter(|v| (0.0..=100.0).contains(v));
         if !(1.0..150.0).contains(&temp) {
             continue;
         }
-        push_gpu_temp(out, shorten_nvidia_name(name), temp);
+        push_gpu_temp(out, shorten_nvidia_name(name), temp, util);
     }
 }
 
-fn push_gpu_temp(out: &mut Vec<GpuTempReading>, label: String, temp_celsius: f32) {
+fn read_gpu_busy_percent(device: &Path) -> Option<f32> {
+    let text = fs::read_to_string(device.join("gpu_busy_percent")).ok()?;
+    let value = text.trim().parse::<f32>().ok()?;
+    (0.0..=100.0).contains(&value).then_some(value)
+}
+
+fn push_gpu_temp(
+    out: &mut Vec<GpuTempReading>,
+    label: String,
+    temp_celsius: f32,
+    util_percent: Option<f32>,
+) {
     if out.iter().any(|r| r.label == label) {
         return;
     }
     out.push(GpuTempReading {
         label,
         temp_celsius,
+        util_percent,
     });
 }
 
