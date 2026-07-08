@@ -900,8 +900,8 @@ never destroy mid-session.
       default widgets, confirm-before-kill toggle.
 - [x] **USER_GUIDE** — gesture, overview layout, temp gauges, discrete GPU
       behaviour, kill semantics (2026-07-06).
-- [x] **Metis Settings icon** — `metis-settings.png`, desktop entry, install via
-      `--install-session` (2026-07-06).
+- [x] **Metis Settings icon** — transparent `metis-settings.png` for Settings app
+  only; edge-bar menu launcher unchanged (`metis_icon.png`) (2026-07-06).
 
 **Dependencies:** Phase 1 edge bar (done); benefits from Phase 4 System page
 patterns; i18n (Phase 8) before shipping strings broadly.

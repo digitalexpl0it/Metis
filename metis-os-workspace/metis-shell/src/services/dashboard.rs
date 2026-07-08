@@ -175,6 +175,7 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
     let mut last_sent = DashboardSnapshot::default();
     let mut firewall_cache = FirewallStatus::default();
     let mut firewall_at = Instant::now() - Duration::from_secs(60);
+    let mut process_tick: u32 = 0;
 
     loop {
         let cfg = load_dashboard_config();
@@ -187,7 +188,13 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
         sys.refresh_cpu_usage();
         sys.refresh_memory();
         disks.refresh(false);
-        sys.refresh_processes(ProcessesToUpdate::All, true);
+        // Full process enumeration is expensive; refresh it every third poll
+        // (~3 s at the default 1 s interval). CPU/memory/network stay live.
+        process_tick = process_tick.wrapping_add(1);
+        let refresh_processes = process_tick % 3 == 0;
+        if refresh_processes {
+            sys.refresh_processes(ProcessesToUpdate::All, true);
+        }
 
         let cpu_percent = sys.global_cpu_usage();
         let cpu_per_core: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
@@ -291,7 +298,11 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
             uptime_secs: read_uptime_secs(),
             firewall: firewall_cache.clone(),
             health,
-            processes: collect_processes(&sys),
+            processes: if refresh_processes {
+                collect_processes(&sys)
+            } else {
+                last_sent.processes.clone()
+            },
             cpu_temp_celsius: read_cpu_temp_celsius(),
             gpu_temps: read_gpu_temps(),
         };
@@ -516,6 +527,7 @@ fn collect_disks(disks: &Disks) -> Vec<DiskMount> {
 fn collect_processes(sys: &System) -> Vec<ProcessRow> {
     let my_uid = current_uid();
     let own_pid = std::process::id();
+    let cpu_count = sys.cpus().len().max(1);
     let mut rows: Vec<ProcessRow> = sys
         .processes()
         .iter()
@@ -539,7 +551,7 @@ fn collect_processes(sys: &System) -> Vec<ProcessRow> {
             ProcessRow {
                 pid: pid.as_u32(),
                 name,
-                cpu_percent: proc_.cpu_usage(),
+                cpu_percent: normalize_process_cpu(proc_.cpu_usage(), cpu_count),
                 memory_bytes: proc_.memory(),
                 user,
                 uid,
@@ -555,6 +567,13 @@ fn collect_processes(sys: &System) -> Vec<ProcessRow> {
             .then_with(|| a.name.cmp(&b.name))
     });
     rows
+}
+
+/// sysinfo reports per-process CPU as 100% per core (multi-threaded jobs can exceed
+/// 100%). Scale to a 0–100% share of total system capacity for the process list.
+fn normalize_process_cpu(raw: f32, cpu_count: usize) -> f32 {
+    let cores = cpu_count.max(1) as f32;
+    (raw / cores).clamp(0.0, 100.0)
 }
 
 fn uid_for_pid(pid: u32, sysinfo_uid: Option<u32>) -> u32 {

@@ -214,8 +214,8 @@ This installs:
   `XDG_CURRENT_DESKTOP=Metis`, `METIS_BACKEND=drm`, exports the activation
   environment, then execs the compositor)
 - `/usr/local/share/wayland-sessions/metis.desktop` — the greeter entry
-- `/usr/local/share/applications/metis-settings.desktop` and hicolor icons for
-  **Metis Settings** (launcher + window icon)
+- `/usr/local/share/applications/metis-settings.desktop` — Settings app launcher
+  (`Icon=metis-settings`, transparent PNG installed to hicolor)
 - `/usr/share/xdg-desktop-portal/{metis-portals.conf,portals/metis.portal}` —
   routes Settings, Screenshot, ScreenCast, Background, and PowerProfileMonitor
   to the Metis portal backend

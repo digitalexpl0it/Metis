@@ -83,6 +83,10 @@ struct Dashboard {
     class_filter: RefCell<ProcessClassFilter>,
     sort_column: RefCell<ProcessSortColumn>,
     sort_direction: RefCell<SortDirection>,
+    last_legend_cores: Cell<usize>,
+    last_disk_sig: RefCell<String>,
+    last_relayout_key: Cell<(i32, i32)>,
+    last_process_sig: RefCell<u64>,
 }
 
 pub fn init() {
@@ -407,6 +411,10 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         class_filter: RefCell::new(ProcessClassFilter::All),
         sort_column: RefCell::new(ProcessSortColumn::Cpu),
         sort_direction: RefCell::new(SortDirection::Desc),
+        last_legend_cores: Cell::new(0),
+        last_disk_sig: RefCell::new(String::new()),
+        last_relayout_key: Cell::new((0, 0)),
+        last_process_sig: RefCell::new(0),
     };
 
     dash.relayout_for_bar();
@@ -466,6 +474,22 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     });
 
     wire_process_sort(&dash.processes.headers, &dash.processes.list);
+
+    {
+        let stack = dash.stack.clone();
+        let list = dash.processes.list.clone();
+        stack.connect_visible_child_notify(move |s| {
+            if s.visible_child_name().as_deref() != Some("processes") {
+                return;
+            }
+            DASHBOARD.with(|d| {
+                if let Some(dash) = d.borrow().as_ref() {
+                    *dash.last_process_sig.borrow_mut() = 0;
+                    dash.rebuild_process_list(&list);
+                }
+            });
+        });
+    }
 
     let header_drag = gtk::GestureDrag::new();
     header_drag.set_button(0);
@@ -566,29 +590,9 @@ impl Dashboard {
         for gauge in self.gpu_gauges.borrow().iter() {
             gauge.gauge.queue_draw();
         }
-        let snapshot = self.snapshot.borrow();
-        while let Some(child) = self.overview.cpu_legend.first_child() {
-            self.overview.cpu_legend.remove(&child);
-        }
-        let core_count = snapshot.cpu_per_core.len();
-        let legend_cap = core_count.min(16);
-        for i in 0..legend_cap {
-            let label = if core_count <= 16 {
-                format!("C{i}")
-            } else if i == 15 {
-                format!("+{}", core_count - 15)
-            } else {
-                format!("C{i}")
-            };
-            self.overview
-                .cpu_legend
-                .append(&views::legend_chip(i, &label));
-        }
-        if core_count > 0 {
-            self.overview
-                .cpu_legend
-                .append(&views::aggregate_legend_chip("Σ total"));
-        }
+        let core_count = self.snapshot.borrow().cpu_per_core.len();
+        self.last_legend_cores.set(0);
+        self.sync_cpu_legend(core_count);
     }
 
     fn apply_extent(&self, extent: i32) {
@@ -679,7 +683,6 @@ impl Dashboard {
         *self.tx_hist.borrow_mut() = snapshot.net_tx_history.clone();
         *self.disk_read_hist.borrow_mut() = snapshot.disk_read_history.clone();
         *self.disk_write_hist.borrow_mut() = snapshot.disk_write_history.clone();
-        self.has_swap.set(snapshot.swap_total_bytes > 0);
 
         self.overview.cpu_value.set_text(&format!(
             "{:.0}% total · {} cores",
@@ -687,29 +690,7 @@ impl Dashboard {
             snapshot.cpu_per_core.len().max(1)
         ));
         self.overview.cpu_chart.queue_draw();
-
-        while let Some(child) = self.overview.cpu_legend.first_child() {
-            self.overview.cpu_legend.remove(&child);
-        }
-        let core_count = snapshot.cpu_per_core.len();
-        let legend_cap = core_count.min(16);
-        for i in 0..legend_cap {
-            let label = if core_count <= 16 {
-                format!("C{i}")
-            } else if i == 15 {
-                format!("+{}", core_count - 15)
-            } else {
-                format!("C{i}")
-            };
-            self.overview
-                .cpu_legend
-                .append(&views::legend_chip(i, &label));
-        }
-        if core_count > 0 {
-            self.overview
-                .cpu_legend
-                .append(&views::aggregate_legend_chip("Σ total"));
-        }
+        self.sync_cpu_legend(snapshot.cpu_per_core.len());
 
         let mem_pct = pct(snapshot.memory_used_bytes, snapshot.memory_total_bytes);
         self.overview.mem_value.set_text(&format!(
@@ -762,20 +743,7 @@ impl Dashboard {
             format_rate(snapshot.disk_write_bps)
         ));
         self.overview.disk_io_chart.queue_draw();
-
-        while let Some(child) = self.overview.disk_box.first_child() {
-            self.overview.disk_box.remove(&child);
-        }
-        for disk in &snapshot.disks {
-            let disk_pct = pct(disk.used_bytes, disk.total_bytes);
-            let tile = views::disk_mount_card(
-                &disk.mount_point,
-                disk_pct,
-                &format_bytes(disk.used_bytes),
-                &format_bytes(disk.total_bytes),
-            );
-            self.overview.disk_box.append(&tile);
-        }
+        self.sync_disk_tiles(&snapshot.disks);
 
         let hw = &snapshot.hardware;
         self.overview.hostname.set_text(&hw.hostname);
@@ -798,11 +766,77 @@ impl Dashboard {
         self.overview.cpu_temp.gauge.queue_draw();
         self.sync_gpu_gauges(&snapshot.gpu_temps);
 
-        self.rebuild_process_list(&self.processes.list);
-        self.refresh_sort_headers();
+        if self.processes_tab_active() {
+            let sig = process_list_sig(&snapshot.processes);
+            if sig != *self.last_process_sig.borrow() {
+                *self.last_process_sig.borrow_mut() = sig;
+                self.rebuild_process_list(&self.processes.list);
+            }
+        }
 
         if self.open.get() {
-            self.relayout_for_size(self.shell.host.width(), self.current_extent.get());
+            let key = (self.shell.host.width(), self.current_extent.get());
+            if key != self.last_relayout_key.get() {
+                self.last_relayout_key.set(key);
+                self.relayout_for_size(key.0, key.1);
+            }
+        }
+    }
+
+    fn processes_tab_active(&self) -> bool {
+        self.stack.visible_child_name().as_deref() == Some("processes")
+    }
+
+    fn sync_cpu_legend(&self, core_count: usize) {
+        if core_count == self.last_legend_cores.get() {
+            return;
+        }
+        self.last_legend_cores.set(core_count);
+        while let Some(child) = self.overview.cpu_legend.first_child() {
+            self.overview.cpu_legend.remove(&child);
+        }
+        let legend_cap = core_count.min(16);
+        for i in 0..legend_cap {
+            let label = if core_count <= 16 {
+                format!("C{i}")
+            } else if i == 15 {
+                format!("+{}", core_count - 15)
+            } else {
+                format!("C{i}")
+            };
+            self.overview
+                .cpu_legend
+                .append(&views::legend_chip(i, &label));
+        }
+        if core_count > 0 {
+            self.overview
+                .cpu_legend
+                .append(&views::aggregate_legend_chip("Σ total"));
+        }
+    }
+
+    fn sync_disk_tiles(&self, disks: &[crate::services::DiskMount]) {
+        let sig: String = disks
+            .iter()
+            .map(|d| format!("{}:{}:{}", d.mount_point, d.used_bytes, d.total_bytes))
+            .collect::<Vec<_>>()
+            .join("|");
+        if sig == *self.last_disk_sig.borrow() {
+            return;
+        }
+        *self.last_disk_sig.borrow_mut() = sig;
+        while let Some(child) = self.overview.disk_box.first_child() {
+            self.overview.disk_box.remove(&child);
+        }
+        for disk in disks {
+            let disk_pct = pct(disk.used_bytes, disk.total_bytes);
+            let tile = views::disk_mount_card(
+                &disk.mount_point,
+                disk_pct,
+                &format_bytes(disk.used_bytes),
+                &format_bytes(disk.total_bytes),
+            );
+            self.overview.disk_box.append(&tile);
         }
     }
 
@@ -850,6 +884,7 @@ impl Dashboard {
     }
 
     fn rebuild_process_list(&self, list: &gtk::ListBox) {
+        self.refresh_sort_headers();
         while let Some(child) = list.first_child() {
             list.remove(&child);
         }
@@ -896,6 +931,18 @@ impl Dashboard {
             list.append(&row);
         }
     }
+}
+
+fn process_list_sig(procs: &[ProcessRow]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    procs.len().hash(&mut hasher);
+    for proc in procs.iter().take(48) {
+        proc.pid.hash(&mut hasher);
+        (proc.cpu_percent as u32).hash(&mut hasher);
+        proc.memory_bytes.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 fn set_sort_label(btn: &gtk::Button, title: &str, active: bool, dir: SortDirection) {

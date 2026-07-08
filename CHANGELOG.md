@@ -18,9 +18,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Temperature gauges** — semicircular CPU and discrete-GPU cards (0–150 °C) with
   theme-gradient arc bands; hybrid-laptop NVIDIA temps via `nvidia-smi` when sysfs
   has no `hwmon` entry.
-- **Metis Settings icon** — `assets/metis-settings.png` embedded in the app,
-  freedesktop launcher (`metis-settings.desktop`), and hicolor icons installed by
-  `./run-metis.sh --install-session`.
+- **Metis Settings icon** — `metis_Settings.png` (transparent RGBA) for the Settings
+  app and app-menu entry only; edge-bar **Metis menu launcher keeps its original
+  `metis_icon.png`**.
 - **Dashboard icon fallbacks** — card icons resolve through a candidate list so
   missing theme names (e.g. on Yaru) do not show broken glyphs.
 

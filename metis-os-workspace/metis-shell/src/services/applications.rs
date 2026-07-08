@@ -115,6 +115,9 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
         .commandline()
         .map(|cmd| clean_exec(&cmd.to_string_lossy()))
         .filter(|s| !s.is_empty())?;
+    if is_stub_exec(&exec) {
+        return None;
+    }
 
     let desktop = info.downcast_ref::<gio::DesktopAppInfo>();
     let keywords = desktop
@@ -152,6 +155,15 @@ fn clean_exec(exec: &str) -> String {
         .filter(|tok| !(tok.len() == 2 && tok.starts_with('%')))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Snap ships placeholder `.desktop` stubs (`Exec=/usr/bin/false`) alongside the
+/// real launcher — drop them so the menu does not list non-startable entries.
+fn is_stub_exec(exec: &str) -> bool {
+    matches!(
+        exec.split_whitespace().next(),
+        Some("false" | "/usr/bin/false" | "/bin/false")
+    )
 }
 
 /// Apps the user has launched at least once, ordered by descending launch count
@@ -246,6 +258,92 @@ pub fn toggle_pin(id: &str) -> bool {
 /// Fallback icon name used when a window's `app_id` matches no installed app.
 pub const FALLBACK_ICON_NAME: &str = "application-x-executable-symbolic";
 
+/// Paint the best available icon for `entry` onto `image` at `size` pixels.
+pub fn set_app_icon(image: &gtk::Image, entry: &AppEntry, size: i32) {
+    image.set_pixel_size(size);
+    if let Some(icon) = &entry.icon {
+        if paint_gicon(image, icon, size) {
+            return;
+        }
+    }
+    if entry
+        .id
+        .strip_suffix(".desktop")
+        .unwrap_or(&entry.id)
+        .eq_ignore_ascii_case("metis-settings")
+        && paint_file_icon(image, metis_settings_icon_path())
+    {
+        return;
+    }
+    image.set_from_icon_name(Some(FALLBACK_ICON_NAME));
+}
+
+fn paint_gicon(image: &gtk::Image, icon: &gio::Icon, size: i32) -> bool {
+    if let Some(file_icon) = icon.downcast_ref::<gio::FileIcon>() {
+        if let Some(path) = file_icon.file().path() {
+            return paint_file_icon(image, Some(path));
+        }
+    }
+    if let Some(themed) = icon.downcast_ref::<gio::ThemedIcon>() {
+        let names: Vec<String> = themed
+            .names()
+            .iter()
+            .flat_map(|name| {
+                let name = name.as_str();
+                if name.ends_with("-symbolic") {
+                    vec![name.to_string()]
+                } else {
+                    vec![name.to_string(), format!("{name}-symbolic")]
+                }
+            })
+            .collect();
+        if paint_themed_names(image, &names, size) {
+            return true;
+        }
+    }
+    image.set_from_gicon(icon);
+    true
+}
+
+fn paint_themed_names(image: &gtk::Image, names: &[String], size: i32) -> bool {
+    let Some(display) = gtk::gdk::Display::default() else {
+        return false;
+    };
+    let theme = gtk::IconTheme::for_display(&display);
+    for name in names {
+        if !theme.has_icon(name) {
+            continue;
+        }
+        let paintable = theme.lookup_icon(
+            name,
+            &[],
+            size,
+            1,
+            gtk::TextDirection::Ltr,
+            gtk::IconLookupFlags::empty(),
+        );
+        image.set_from_paintable(Some(&paintable));
+        return true;
+    }
+    false
+}
+
+fn paint_file_icon(image: &gtk::Image, path: Option<std::path::PathBuf>) -> bool {
+    let Some(path) = path else {
+        return false;
+    };
+    match gtk::gdk::Texture::from_filename(&path) {
+        Ok(texture) => {
+            image.set_from_paintable(Some(&texture));
+            true
+        }
+        Err(err) => {
+            tracing::debug!(%err, path = %path.display(), "failed to load app icon file");
+            false
+        }
+    }
+}
+
 /// Resolve a running window's Wayland `app_id` to its launcher entry. The
 /// Wayland `app_id` is usually reverse-DNS (e.g. `org.gnome.Calculator`), which
 /// matches a desktop file basename, but some apps report their `StartupWMClass`
@@ -280,7 +378,38 @@ pub fn resolve_icon_for_app_id(app_id: Option<&str>) -> gio::Icon {
     app_id
         .and_then(resolve_entry_for_app_id)
         .and_then(|e| e.icon)
+        .or_else(|| {
+            app_id.and_then(|id| {
+                id.eq_ignore_ascii_case("metis-settings")
+                    .then(metis_settings_icon_path)
+                    .flatten()
+                    .map(|path| gio::FileIcon::new(&gio::File::for_path(path)).upcast())
+            })
+        })
         .unwrap_or_else(|| gio::ThemedIcon::new(FALLBACK_ICON_NAME).upcast())
+}
+
+fn metis_settings_icon_path() -> Option<std::path::PathBuf> {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(data_home) = std::env::var_os("XDG_DATA_HOME") {
+        candidates.push(
+            std::path::PathBuf::from(data_home)
+                .join("icons/hicolor/256x256/apps/metis-settings.png"),
+        );
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        candidates.push(
+            std::path::PathBuf::from(home)
+                .join(".local/share/icons/hicolor/256x256/apps/metis-settings.png"),
+        );
+    }
+    candidates.push(std::path::PathBuf::from(
+        "/usr/share/icons/hicolor/256x256/apps/metis-settings.png",
+    ));
+    candidates.push(std::path::PathBuf::from(
+        "/usr/local/share/icons/hicolor/256x256/apps/metis-settings.png",
+    ));
+    candidates.into_iter().find(|path| path.is_file())
 }
 
 /// Record a launch (bumping its frequency) and spawn the app via the compositor.

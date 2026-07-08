@@ -360,7 +360,7 @@ fn rebuild(
                         Some(app_id.to_string()),
                         app_id.to_lowercase(),
                         window_label(w),
-                        fallback_icon(),
+                        applications::resolve_icon_for_app_id(Some(app_id)),
                         None,
                         false,
                     )

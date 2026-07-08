@@ -233,7 +233,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Metis compositor running — apps, layer-shell overlays, and notifications supported"
     );
 
-    event_loop.run(Some(std::time::Duration::from_millis(1)), &mut state, |state| {
+    // Block until calloop sources fire (input, timers, Wayland). A short fixed
+    // timeout here spun at ~1 kHz idle and burned a full CPU core for no work.
+    event_loop.run(None, &mut state, |state| {
         state.flush_clients_if_pending();
     })?;
 

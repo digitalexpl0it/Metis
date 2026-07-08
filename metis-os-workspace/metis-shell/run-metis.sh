@@ -114,6 +114,40 @@ log() {
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
+# Keep Metis Settings visible to gio::AppInfo (launcher + taskbar icons).
+install_metis_settings_user_data() {
+    local assets="$WORKSPACE/assets"
+    local data="${XDG_DATA_HOME:-$HOME/.local/share}"
+    mkdir -p "$data/applications" \
+        "$data/icons/hicolor/256x256/apps" \
+        "$data/icons/hicolor/48x48/apps"
+    install -Dm644 "$assets/metis-settings.desktop" "$data/applications/metis-settings.desktop"
+    install -Dm644 "$assets/metis-settings.png" "$data/icons/hicolor/256x256/apps/metis-settings.png"
+    install -Dm644 "$assets/metis-settings-48.png" "$data/icons/hicolor/48x48/apps/metis-settings.png"
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
+    fi
+}
+
+metis_data_dirs_base() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}:/usr/local/share:/usr/share"
+}
+
+# Append distro export trees so gio::AppInfo sees Flatpak and Snap launchers.
+metis_extend_data_dirs() {
+    XDG_DATA_DIRS="$(metis_data_dirs_base)"
+    for _dir in "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
+                "/var/lib/flatpak/exports/share" \
+                "/var/lib/snapd/desktop"; do
+        case ":$XDG_DATA_DIRS:" in
+            *":$_dir:"*) : ;;
+            *) XDG_DATA_DIRS="$XDG_DATA_DIRS:$_dir" ;;
+        esac
+    done
+    unset _dir
+    export XDG_DATA_DIRS
+}
+
 # Map PROFILE (dev | release | release-small) to cargo flags and target subdir.
 cargo_target_subdir() {
     case "$PROFILE" in
@@ -325,7 +359,7 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
 
-    echo "Installing Metis Settings launcher icon and desktop entry …"
+    echo "Installing Metis Settings icon and desktop entry …"
     ICONS_DST="${METIS_ICONS_DIR:-/usr/share/icons/hicolor}"
     APPS_DST="${METIS_APPS_DIR:-/usr/share/applications}"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$ICONS_DST/48x48/apps/metis-settings.png"
@@ -717,19 +751,10 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
         # forced `--ozone-platform=x11`; the Ozone hint covers other Electron apps.
         export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
         export CLAUDE_USE_WAYLAND="${CLAUDE_USE_WAYLAND:-1}"
-        # Flatpak apps export their .desktop/icons under exports/share; put those
-        # on XDG_DATA_DIRS so the Metis launcher/dock (via gio::AppInfo) sees them.
-        # Mirrors assets/metis-session; harmless when Flatpak is not installed.
-        export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-        for _fp_dir in "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
-                       "/var/lib/flatpak/exports/share"; do
-            case ":$XDG_DATA_DIRS:" in
-                *":$_fp_dir:"*) : ;;
-                *) XDG_DATA_DIRS="$XDG_DATA_DIRS:$_fp_dir" ;;
-            esac
-        done
-        unset _fp_dir
-        export XDG_DATA_DIRS
+        # Flatpak + Snap export their .desktop/icons under dedicated trees; put
+        # those on XDG_DATA_DIRS so the Metis launcher/dock (via gio::AppInfo)
+        # sees them. Mirrors assets/metis-session; harmless when absent.
+        metis_extend_data_dirs
         # Nested session: ignore stale IPC sockets from a prior crashed run.
         rm -f "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor.sock" \
               "${XDG_RUNTIME_DIR:-/tmp}/metis/compositor-events.sock" 2>/dev/null || true
@@ -797,6 +822,11 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     fi
     echo
 
+    # Dev binaries live in the cargo target dir, which is usually not on PATH.
+    # GIO's TryExec check (via AppInfo::should_show) needs them there so menu
+    # entries such as metis-settings are not filtered out before launch.
+    export PATH="$TARGET_DIR/$TARGET_SUB${PATH:+:$PATH}"
+
     # --- run -----------------------------------------------------------------
 
     if [[ -f "$PID_FILE" ]]; then
@@ -809,6 +839,7 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
     fi
 
     run_section "Run"
+    install_metis_settings_user_data
     log "Controls: Metis edge bar · Mod+F maximize · Mod+Q close (see METIS_MOD)"
     log "Stop shell: ./run-metis.sh --stop"
     echo

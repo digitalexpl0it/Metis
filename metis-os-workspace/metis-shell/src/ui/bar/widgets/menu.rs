@@ -219,28 +219,6 @@ pub fn install(button: &gtk::Button) {
     search.set_key_capture_widget(Some(&popover));
 
     {
-        let list_generation = list_generation.clone();
-        let search_had_focus = Rc::new(Cell::new(false));
-        let focus_ctrl = gtk::EventControllerFocus::new();
-        focus_ctrl.connect_enter({
-            let list_generation = list_generation.clone();
-            let search_had_focus = search_had_focus.clone();
-            move |_| {
-                if !search_had_focus.replace(true) {
-                    list_generation.set(list_generation.get().wrapping_add(1));
-                }
-            }
-        });
-        focus_ctrl.connect_leave({
-            let search_had_focus = search_had_focus.clone();
-            move |_| {
-                search_had_focus.set(false);
-            }
-        });
-        search.add_controller(focus_ctrl);
-    }
-
-    {
         let btn = button.clone();
         let rebuild = rebuild.clone();
         let search = search.clone();
@@ -466,7 +444,6 @@ fn populate_center(
             container,
             apps,
             refresh,
-            search,
             list_generation,
             generation,
             0,
@@ -493,13 +470,12 @@ fn append_alpha_chunk(
     container: &gtk::Box,
     apps: &[AppEntry],
     refresh: &Rc<dyn Fn()>,
-    search: &gtk::SearchEntry,
     list_generation: &Rc<Cell<u64>>,
     generation: u64,
     start: usize,
     mut last_letter: char,
 ) {
-    if list_generation.get() != generation || search.has_focus() {
+    if list_generation.get() != generation {
         return;
     }
     if start >= apps.len() {
@@ -523,14 +499,12 @@ fn append_alpha_chunk(
         let container = container.clone();
         let apps = apps.to_vec();
         let refresh = refresh.clone();
-        let search = search.clone();
         let list_generation = list_generation.clone();
         glib::idle_add_local_once(move || {
             append_alpha_chunk(
                 &container,
                 &apps,
                 &refresh,
-                &search,
                 &list_generation,
                 generation,
                 end,
@@ -660,12 +634,7 @@ fn attach_pin_gesture(widget: &impl IsA<gtk::Widget>, id: &str, refresh: &Rc<dyn
 
 fn app_image(entry: &AppEntry, size: i32) -> gtk::Image {
     let image = gtk::Image::new();
-    image.set_pixel_size(size);
-    if let Some(icon) = &entry.icon {
-        image.set_from_gicon(icon);
-    } else {
-        image.set_from_icon_name(Some("application-x-executable-symbolic"));
-    }
+    applications::set_app_icon(&image, entry, size);
     image
 }
 

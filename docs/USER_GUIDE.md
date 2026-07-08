@@ -689,9 +689,6 @@ with optional end-task confirmation (`dashboard.json`).
 Dismiss with **Esc**, the close button, **drag back toward the bar** on the
 header, or by clicking the desktop. Config: `~/.config/metis/dashboard.json`.
 
-**Metis Settings** — installed to the app menu via `./run-metis.sh --install-session`
-(`metis-settings` + `metis-settings` icon theme name).
-
 ---
 
 ## 10. Configuration reference

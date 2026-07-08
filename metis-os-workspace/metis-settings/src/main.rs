@@ -27,7 +27,6 @@ use gtk::prelude::*;
 use nav::{NavHue, NAV};
 
 const SIDEBAR_WIDTH: i32 = 248;
-/// Embedded settings icon — same asset installed as `metis-settings` in the icon theme.
 const APP_ICON_BYTES: &[u8] = include_bytes!("../../assets/metis-settings.png");
 
 fn main() {
@@ -40,12 +39,16 @@ fn main() {
 
     let page = parse_page_arg();
 
-    if let Err(err) = gtk::init() {
-        tracing::error!(?err, "gtk::init() failed");
-        std::process::exit(1);
-    }
-    build_ui(page);
-    glib::MainLoop::new(None, false).run();
+    let app = gtk::Application::builder()
+        .application_id("metis-settings")
+        .flags(gio::ApplicationFlags::NON_UNIQUE | gio::ApplicationFlags::HANDLES_OPEN)
+        .build();
+
+    app.connect_activate(move |app| {
+        build_ui(app, page.clone());
+    });
+
+    std::process::exit(app.run().into());
 }
 
 fn parse_page_arg() -> Option<String> {
@@ -71,7 +74,7 @@ fn normalize_page(name: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn build_ui(page: Option<String>) {
+fn build_ui(app: &gtk::Application, page: Option<String>) {
     theme::install();
 
     let stack = gtk::Stack::new();
@@ -81,18 +84,18 @@ fn build_ui(page: Option<String>) {
     stack.set_vexpand(true);
 
     let under_metis = std::env::var_os("METIS_SESSION").is_some();
-    let window = gtk::Window::builder()
+    let window = gtk::ApplicationWindow::builder()
+        .application(app)
         .title("Settings")
         .default_width(960)
         .default_height(680)
         .decorated(!under_metis)
         .build();
     window.add_css_class("metis-settings-window");
-    let window_for_icon = window.clone();
-    window.connect_map(move |win| {
+    window.connect_map(|win| {
         apply_window_icon(win);
     });
-    apply_window_icon(&window_for_icon);
+    apply_window_icon(&window);
 
     stack.add_titled(
         &pages::appearance::build(),
@@ -113,10 +116,14 @@ fn build_ui(page: Option<String>) {
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
-    stack.add_titled(&pages::remote::build(&window), Some("remote"), "Remote access");
+    stack.add_titled(
+        &pages::remote::build(window.upcast_ref()),
+        Some("remote"),
+        "Remote access",
+    );
     stack.add_titled(&pages::gaming::build(), Some("gaming"), "Gaming");
     stack.add_titled(
-        &pages::display::build(&window),
+        &pages::display::build(window.upcast_ref()),
         Some("display"),
         "Display",
     );
@@ -182,6 +189,7 @@ fn build_ui(page: Option<String>) {
         .build();
     nav_scroll.add_css_class("metis-settings-nav-scroll");
     nav_scroll.set_kinetic_scrolling(false);
+    ui::wire_vertical_scroll(&nav_scroll);
 
     let search = gtk::Entry::builder()
         .placeholder_text("Search")
@@ -319,7 +327,7 @@ fn load_app_icon() -> Option<gtk::gdk::Texture> {
     }
 }
 
-fn apply_window_icon(window: &gtk::Window) {
+fn apply_window_icon(window: &gtk::ApplicationWindow) {
     if let Some(texture) = load_app_icon() {
         if let Some(surface) = window.surface() {
             if let Some(toplevel) = surface.downcast_ref::<gtk::gdk::Toplevel>() {

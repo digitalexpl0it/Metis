@@ -44,9 +44,10 @@ metis_add_data_dir() {
     esac
 }
 # Seed the freedesktop default if the login stack left it unset.
-export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export XDG_DATA_DIRS="${XDG_DATA_HOME:-$HOME/.local/share}:/usr/local/share:/usr/share"
 metis_add_data_dir "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share"
 metis_add_data_dir "/var/lib/flatpak/exports/share"
+metis_add_data_dir "/var/lib/snapd/desktop"
 export XDG_DATA_DIRS
 
 # GTK shell: prefer the Wayland backend.
