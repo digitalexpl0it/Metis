@@ -19,7 +19,7 @@ use wayland_protocols::ext::{
     },
 };
 
-use super::shm::{BufferFormat, ShmBuffer};
+use crate::shm::{BufferFormat, ShmBuffer};
 
 #[derive(Debug, Clone)]
 pub struct Frame {
@@ -28,6 +28,22 @@ pub struct Frame {
     pub stride: u32,
     pub shm_format: Format,
     pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CaptureOptions {
+    pub draw_cursor: bool,
+    /// Zero-based index into the connected `wl_output` list.
+    pub output_index: usize,
+}
+
+impl Default for CaptureOptions {
+    fn default() -> Self {
+        Self {
+            draw_cursor: false,
+            output_index: 0,
+        }
+    }
 }
 
 struct SessionState {
@@ -44,7 +60,8 @@ pub struct AppState {
     shm: Option<WlShm>,
     copy_manager: Option<ExtImageCopyCaptureManagerV1>,
     source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
-    output: Option<WlOutput>,
+    outputs: Vec<WlOutput>,
+    options: CaptureOptions,
     session: Option<SessionState>,
     result: Option<Result<Frame, String>>,
 }
@@ -60,8 +77,8 @@ impl AppState {
     }
 
     fn start_capture(&mut self, qh: &QueueHandle<Self>) {
-        let Some(output) = self.output.clone() else {
-            self.fail("no wl_output");
+        let Some(output) = self.outputs.get(self.options.output_index).cloned() else {
+            self.fail("no wl_output for capture index");
             return;
         };
         let Some(source_manager) = self.source_manager.as_ref() else {
@@ -74,7 +91,11 @@ impl AppState {
         };
 
         let source = source_manager.create_source(&output, qh, ());
-        let options = ext_image_copy_capture_manager_v1::Options::PaintCursors;
+        let options = if self.options.draw_cursor {
+            ext_image_copy_capture_manager_v1::Options::PaintCursors
+        } else {
+            ext_image_copy_capture_manager_v1::Options::empty()
+        };
         let session = copy_manager.create_session(&source, options, qh, ());
 
         self.session = Some(SessionState {
@@ -191,7 +212,7 @@ impl AppState {
     }
 }
 
-pub fn capture_output_frame() -> Result<Frame, String> {
+pub fn capture_output_frame(options: CaptureOptions) -> Result<Frame, String> {
     let conn = Connection::connect_to_env()
         .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
     let (globals, mut event_queue) =
@@ -201,13 +222,14 @@ pub fn capture_output_frame() -> Result<Frame, String> {
     let shm = globals.bind(&qh, 1..=1, ()).ok();
     let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
     let source_manager = globals.bind(&qh, 1..=1, ()).ok();
-    let output = globals.bind(&qh, 1..=4, ()).ok();
+    let outputs: Vec<WlOutput> = globals.bind(&qh, 1..=4, ()).ok().into_iter().collect();
 
     let mut state = AppState {
         shm,
         copy_manager,
         source_manager,
-        output,
+        outputs,
+        options,
         session: None,
         result: None,
     };
@@ -216,6 +238,9 @@ pub fn capture_output_frame() -> Result<Frame, String> {
         return Err(
             "compositor does not expose ext-image-copy-capture (rebuild metis-compositor)".into(),
         );
+    }
+    if state.outputs.is_empty() {
+        return Err("no wl_output available for capture".into());
     }
 
     state.start_capture(&qh);
@@ -234,7 +259,7 @@ pub fn capture_output_frame() -> Result<Frame, String> {
     }
 }
 
-pub(crate) fn prefer_shm_format(current: Format, offered: Format) -> Format {
+pub fn prefer_shm_format(current: Format, offered: Format) -> Format {
     fn rank(format: Format) -> u8 {
         match format {
             Format::Argb8888 => 0,

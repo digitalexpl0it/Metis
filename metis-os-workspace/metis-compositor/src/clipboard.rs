@@ -296,14 +296,26 @@ impl MetisState {
         text: Option<String>,
         image_path: Option<String>,
     ) -> Result<(), String> {
-        let (user_data, mime_types) = if let Some(t) = text {
-            let data = t.into_bytes();
+        let history_bytes = if let Some(t) = text.as_ref() {
+            let data = t.as_bytes().to_vec();
             if data.is_empty() {
                 return Err("clipboard data is empty".into());
             }
             if data.len() > MAX_CLIPBOARD_BYTES {
                 return Err("clipboard payload exceeds size cap".into());
             }
+            Some(data)
+        } else if let Some(path) = image_path.as_ref() {
+            if !std::path::Path::new(path).is_file() {
+                return Err(format!("image not found: {path}"));
+            }
+            Some(std::fs::read(path).map_err(|err| format!("read image: {err}"))?)
+        } else {
+            return Err("SetClipboard requires text or image_path".into());
+        };
+
+        let (user_data, mime_types) = if let Some(t) = text {
+            let data = t.into_bytes();
             let offer = CompositorClipboardOffer {
                 mime: mime.clone(),
                 data,
@@ -316,9 +328,6 @@ impl MetisState {
                 recall_mime_types(&mime, None),
             )
         } else if let Some(path) = image_path {
-            if !std::path::Path::new(&path).is_file() {
-                return Err(format!("image not found: {path}"));
-            }
             (
                 MetisSelectionUserData {
                     offer: None,
@@ -331,6 +340,9 @@ impl MetisState {
         };
 
         self.install_compositor_selection(mime_types, user_data);
+        if let Some(data) = history_bytes {
+            emit_clipboard_changed(&self.event_bus, &mime, data);
+        }
         Ok(())
     }
 

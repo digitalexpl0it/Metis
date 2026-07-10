@@ -205,6 +205,7 @@ pub(crate) fn render_output_to_buffer(
             output_name: Some(output.name().as_str()),
             skip_night_light: true,
         },
+        &["metis-screenshot"],
     );
     if draw_cursor {
         let mut cursor = state.build_cursor_elements(renderer, output, output_scale);

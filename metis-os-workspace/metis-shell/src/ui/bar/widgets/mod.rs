@@ -101,10 +101,16 @@ impl WidgetRefs {
         }
     }
 
-    /// Repaint the workspace dots from the current per-output active workspace.
     pub fn refresh_workspaces(&self) {
         if let Some(w) = self.workspaces.borrow().as_ref() {
             w.update(&crate::services::workspace_snapshot());
+        }
+    }
+
+    /// Live-toggle the Control Center grid button without rebuilding workspace dots.
+    pub fn sync_control_center_button(&self) {
+        if let Some(w) = self.workspaces.borrow().as_ref() {
+            w.sync_control_center_visible();
         }
     }
 

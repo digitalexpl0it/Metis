@@ -127,6 +127,10 @@ pub enum CompositorCommand {
         #[serde(default)]
         app_id: Option<String>,
     },
+    /// Native Metis screenshot UI is active (shell layer namespace `metis-screenshot`).
+    BeginScreenshotOverlay,
+    /// Tear down native screenshot overlay tracking.
+    EndScreenshotOverlay,
     /// Inject remote-desktop pointer motion (absolute desktop coordinates).
     InjectRemotePointerAbsolute { x: f64, y: f64 },
     /// Inject remote-desktop pointer motion (relative delta in logical pixels).

@@ -19,8 +19,7 @@ use wayland_protocols::ext::{
     },
 };
 
-use super::shm::{BufferFormat, ShmBuffer};
-use super::wayland::{prefer_shm_format, Frame};
+use metis_capture::{prefer_shm_format, BufferFormat, Frame, ShmBuffer};
 
 enum CaptureMode {
     OneShot,

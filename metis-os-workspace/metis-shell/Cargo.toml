@@ -23,6 +23,7 @@ metis-protocol = { workspace = true }
 metis-config = { workspace = true }
 metis-secrets = { workspace = true }
 metis-gaming = { workspace = true }
+metis-capture = { workspace = true }
 ical = "0.11"
 rrule = "0.14.0"
 async-trait = "0.1.89"

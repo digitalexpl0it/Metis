@@ -155,6 +155,13 @@ impl MetisState {
                         }
                         if key_state == KeyState::Pressed {
                             let sym = u32::from(keysym.modified_sym());
+                            if state.screenshot_overlay_active()
+                                && sym == keysyms::KEY_Escape
+                                && !mod_active(modifiers)
+                            {
+                                let _ = metis_protocol::write_runtime_command("dismiss-screenshot");
+                                return FilterResult::Intercept(());
+                            }
                             // Use the layout's raw Latin sym so Mod+Shift+<n>
                             // (whose modified sym is punctuation) still maps to a digit.
                             let digit_sym = keysym
@@ -177,6 +184,19 @@ impl MetisState {
                                     state.drm_change_vt(vt);
                                     return FilterResult::Intercept(());
                                 }
+                            }
+                            if (sym == keysyms::KEY_Print || sym == keysyms::KEY_Sys_Req)
+                                && !state.lock.locked
+                            {
+                                let cmd = if modifiers.shift {
+                                    "screenshot instant-full"
+                                } else if modifiers.ctrl {
+                                    "screenshot window"
+                                } else {
+                                    "screenshot"
+                                };
+                                let _ = metis_protocol::write_runtime_command(cmd);
+                                return FilterResult::Intercept(());
                             }
                             // Super+Alt+←/→ cycles workspaces in order (wraps at
                             // 1..=count). Always Super+Alt regardless of METIS_MOD.
@@ -837,6 +857,11 @@ impl MetisState {
         let pointer = self.seat.get_pointer().unwrap();
 
         if pointer.is_grabbed() || keyboard.is_grabbed() {
+            return;
+        }
+
+        if self.screenshot_overlay_active() {
+            self.focus_screenshot_overlay(serial);
             return;
         }
 

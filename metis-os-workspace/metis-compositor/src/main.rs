@@ -2,6 +2,7 @@
 
 mod blur;
 mod capture_overlay;
+mod screenshot_overlay;
 mod clipboard;
 mod cursor;
 mod decoration;

@@ -81,7 +81,7 @@ impl ShmBuffer {
 }
 
 fn memfd(size: usize) -> Result<OwnedFd, String> {
-    let name = b"metis-portal-capture\0";
+    let name = b"metis-capture\0";
     let fd = unsafe { libc::memfd_create(name.as_ptr() as *const libc::c_char, 0) };
     if fd < 0 {
         return Err(format!(

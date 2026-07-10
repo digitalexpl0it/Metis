@@ -199,6 +199,7 @@ pub fn on_bar_config_changed() {
 }
 
 pub fn on_dashboard_config_changed() {
+    crate::ui::bar::sync_control_center_button();
     crate::ui::bar::refresh_workspaces();
 
     if !load_dashboard_config().enabled {

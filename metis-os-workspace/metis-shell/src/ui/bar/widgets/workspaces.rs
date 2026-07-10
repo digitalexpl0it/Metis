@@ -71,9 +71,13 @@ impl WorkspacesWidget {
         &self.root
     }
 
+    pub fn sync_control_center_visible(&self) {
+        let enabled = load_dashboard_config().enabled;
+        self.control_btn.set_visible(enabled);
+    }
+
     pub fn update(&self, snapshot: &WorkspaceSnapshot) {
-        self.control_btn
-            .set_visible(load_dashboard_config().enabled);
+        self.sync_control_center_visible();
 
         while let Some(child) = self.buttons.first_child() {
             self.buttons.remove(&child);

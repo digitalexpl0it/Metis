@@ -11,6 +11,7 @@ members = [
     "metis-portal",
     "metis-remote",
     "metis-gaming",
+    "metis-capture",
 ]
 
 [workspace.package]
@@ -27,6 +28,7 @@ metis-grid = { path = "metis-grid" }
 metis-protocol = { path = "metis-protocol" }
 metis-config = { path = "metis-config" }
 metis-gaming = { path = "metis-gaming" }
+metis-capture = { path = "metis-capture" }
 metis-secrets = { path = "metis-secrets" }
 
 # Compile wallpaper/image deps optimized in dev — without this, `image` decodes

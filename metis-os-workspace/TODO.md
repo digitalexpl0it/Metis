@@ -1,6 +1,8 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 11** (Gaming Platform 2.0) is **complete** (2026-07-07) —
+**Current phase:** **Phase 12** (Native Screenshot Tool) is **complete** (2026-07-09) —
+PrtSc overlay, `metis-capture`, theme-aware toolbar, and compositor capture exclusion.
+**Phase 11** (Gaming Platform 2.0) is **complete** (2026-07-07) —
 `gaming.json`, Flatpak zero-config, gaming health checks, `metis-gamingd`, onboarding
 gaming step, and hybrid PRIME / scanout polish. **Phase 3** is complete except deferred **full multi-GPU** compositing and
 **ScreenCast dmabuf zero-copy**. **Phase 4** (settings-app expansion) is complete.
@@ -972,6 +974,40 @@ onboarding shell (done).
 
 ---
 
+## Phase 12 — Native Screenshot Tool
+
+Metis-native interactive screenshot: **PrtSc** opens a Deepin-inspired overlay
+(default **Selection**), frosted theme-aware toolbar, accent **Capture** button,
+clipboard/save, and compositor exclusion so overlay chrome never appears in the PNG.
+
+### Core
+
+- [x] **`metis-capture` crate** — shared Wayland `ext-image-copy-capture` client +
+      crop/PNG helpers (used by shell + portal).
+- [x] **`screenshot.json`** — default mode, pointer toggle, delay, after-capture
+      action, save directory (`~/Pictures/Metis`).
+- [x] **Compositor** — PrtSc / Shift+PrtSc / Ctrl+PrtSc → runtime commands;
+      `BeginScreenshotOverlay` / `EndScreenshotOverlay` IPC; exclude
+      `metis-screenshot` namespace from capture pass.
+- [x] **Shell `ui/screenshot/`** — Selection / Screen / Window modes, dashed rect +
+      size label, bottom toolbar, hide-before-capture (unmap + frame delay).
+- [x] **Overlay UX polish** — icon mode toggles + Options popover; click-to-lock
+      window pick; **Esc** dismiss via compositor (`dismiss-screenshot`); segmented
+      after-capture buttons (no `GtkDropDown` under layer-shell popovers).
+- [x] **Theme integration** — `metis-screenshot-*` CSS in `css.rs`; live reload via
+      `screenshot::on_theme_changed()` (dark/light/custom accent tokens).
+- [x] **Clipboard + save** — `SetClipboard` image path; optional save copy and
+      `xdg-open` viewer via `after_capture` config.
+- [x] **`metis-cmd screenshot`** — open overlay from script/launcher.
+- [x] **Docs** — `USER_GUIDE.md`, `CHANGELOG.md`.
+
+**Deferred (v1.1):** Settings → System → Screenshot page; annotation editor; OCR;
+scroll/pin/recording; per-output capture index for multi-monitor polish.
+
+**Dependencies:** Phase 1 theme/CSS pipeline (done); compositor image capture (done).
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
@@ -995,6 +1031,7 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `dashboard.json` | *(Phase 10)* Pull-down system dashboard: widget order, height, refresh interval |
 | `gaming.json` | *(Phase 11)* Graphics mode, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | *(Phase 11)* Record of applied Flatpak gaming overrides |
+| `screenshot.json` | *(Phase 12)* Native screenshot defaults: mode, pointer, delay, after-capture, save dir |
 | `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action |
 | `outputs.json` | Per-output scale, enabled, layout, saved video mode, night-light prefs |

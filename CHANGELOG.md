@@ -5,6 +5,47 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-09]
+
+### Added
+
+- **Native Screenshot Tool (Phase 12)** — **PrtSc** opens a Metis-themed interactive
+  overlay (Selection / Screen / Window) with accent Capture button, pointer toggle,
+  and configurable after-capture (clipboard, save, viewer).
+- **`metis-capture` crate** — shared Wayland `ext-image-copy-capture` client for
+  shell and portal; crop + PNG encoding.
+- **`screenshot.json`** — default mode, draw cursor, delay, after-capture action,
+  save directory under `~/.config/metis/`.
+- **Theme-aware screenshot CSS** — `metis-screenshot-*` classes in the global
+  stylesheet; live reload with dark/light/custom token edits.
+- **Compositor keybinds** — PrtSc, Shift+PrtSc (instant full screen), Ctrl+PrtSc
+  (window mode); `BeginScreenshotOverlay` / `EndScreenshotOverlay` IPC; capture pass
+  excludes `metis-screenshot` layer namespace.
+- **`metis-cmd screenshot`** — scriptable overlay trigger.
+
+### Fixed
+
+- **Screenshot Capture button** — accent blue in the default state (no longer grey
+  until hover); `background-image: none` on the base CSS rule.
+- **Screenshot clipboard history** — `SetClipboard` after capture emits
+  `ClipboardChanged` so PNG copies appear in the bar clipboard history.
+- **Screenshot Options popover** — after-capture control uses inline segmented
+  toggles (Copy / Save / Both / Open) instead of `GtkDropDown`, which rendered
+  behind layer-shell popovers on Metis.
+- **Screenshot window mode** — click locks the highlighted window; hover no longer
+  overwrites the pick when moving to the Capture button; `ListWindows` returns
+  top-to-bottom stacking order so the frontmost window wins hit-testing.
+- **Screenshot Escape** — compositor intercepts bare **Esc** while the overlay is
+  active (`dismiss-screenshot` runtime command) and routes keyboard focus to the
+  `metis-screenshot` layer; dismiss works in all modes without clicking the toolbar
+  first.
+
+### Changed
+
+- **Screenshot toolbar** — icon toggle buttons for Selection / Full screen / Window
+  plus an Options gear popover (include pointer, delay, after-capture); replaces
+  the mode `StackSwitcher` and dropdown after-capture control.
+
 ## [2026-07-07]
 
 ### Added

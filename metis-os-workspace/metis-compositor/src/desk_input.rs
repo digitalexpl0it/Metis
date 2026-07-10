@@ -682,6 +682,14 @@ impl MetisState {
 
     /// Keyboard focus follows the same desk/app passthrough rules as pointer routing.
     pub fn focus_target_at(&self, location: Point<f64, Logical>) -> Option<KeyboardFocusTarget> {
+        if self.screenshot_overlay_active() {
+            if let Some(layer) = self.screenshot_overlay_layer() {
+                if layer.can_receive_keyboard_focus() {
+                    return Some(layer.into());
+                }
+            }
+        }
+
         if self.capture_overlay_active() {
             return self
                 .top_capture_overlay_window()

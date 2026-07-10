@@ -16,6 +16,7 @@ pub mod menu;
 pub mod outputs;
 pub mod power;
 pub mod remote;
+pub mod screenshot;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
@@ -185,6 +186,11 @@ pub use power::{
 };
 pub use remote::{
     load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
+};
+pub use screenshot::{
+    expand_save_dir, load_screenshot_config, save_default_screenshot_config,
+    save_screenshot_config, screenshot_config_path, AfterCaptureAction, ScreenshotConfig,
+    ScreenshotMode,
 };
 pub use lock::{
     load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,

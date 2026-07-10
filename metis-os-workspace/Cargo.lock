@@ -2081,6 +2081,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "metis-capture"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "metis-grid",
+ "png 0.17.16",
+ "wayland-client",
+ "wayland-protocols",
+]
+
+[[package]]
 name = "metis-compositor"
 version = "0.1.0"
 dependencies = [
@@ -2146,6 +2157,7 @@ dependencies = [
  "enumflags2",
  "futures-util",
  "libc",
+ "metis-capture",
  "metis-config",
  "metis-protocol",
  "pipewire",
@@ -2223,6 +2235,7 @@ dependencies = [
  "gtk4-layer-shell",
  "ical",
  "libc",
+ "metis-capture",
  "metis-config",
  "metis-gaming",
  "metis-protocol",

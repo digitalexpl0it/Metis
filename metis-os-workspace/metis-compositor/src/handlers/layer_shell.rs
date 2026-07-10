@@ -101,6 +101,21 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
         return;
     }
 
+    if namespace == "metis-screenshot" {
+        map.arrange();
+        if !initial_configure_sent {
+            tracing::debug!(namespace, "layer surface initial configure");
+            layer_surface.send_configure();
+        }
+        drop(map);
+        if state.screenshot_overlay_active() {
+            let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+            state.focus_screenshot_overlay(serial);
+        }
+        state.schedule_redraw();
+        return;
+    }
+
     map.arrange();
 
     if !initial_configure_sent {

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use metis_grid::{cell_to_pixels, app_tile_body_rect, GridLayout, GridMetrics, MonitorRect, PixelRect, TileKind, TileModeState};
-use metis_protocol::CompositorCommand;
+use metis_protocol::{CompositorCommand, WindowInfo};
 use smithay::{
     desktop::{PopupManager, Space, Window, layer_map_for_output},
     input::{Seat, SeatState},
@@ -227,6 +227,7 @@ pub struct MetisState {
     last_focused_window: Option<u32>,
     /// Screenshot / screencast overlay windows elevated above ordinary clients.
     pub(crate) capture_overlay: crate::capture_overlay::CaptureOverlaySession,
+    pub(crate) screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession,
     /// Active snap-zone preview while a window is being dragged by its titlebar:
     /// the target rect (already inset) plus a short label. `None` when no drag is
     /// in progress or the pointer isn't over a snap band. Drives both the live
@@ -840,6 +841,7 @@ impl MetisState {
             hover_cursor: None,
             last_focused_window: None,
             capture_overlay: crate::capture_overlay::CaptureOverlaySession::default(),
+            screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession::default(),
             snap_preview: None,
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
@@ -915,6 +917,7 @@ impl MetisState {
     pub fn tick_housekeeping(&mut self) {
         self.run_pending_startup();
         crate::ipc::drain_ipc(self);
+        self.tick_portal_elevate();
 
         if self.wallpaper.tick_decode() {
             self.damaged = true;
@@ -3646,6 +3649,13 @@ impl MetisState {
             return current;
         }
 
+        // Proton games sometimes publish (0, 0) before the first real menu hint.
+        // Remapping a gameplay click through that bogus hint warps the pointer to
+        // the surface origin (top-left) once; ignore the sentinel.
+        if hint_loc.x.abs() < 1.0 && hint_loc.y.abs() < 1.0 {
+            return current;
+        }
+
         self.surface_space_origin(surface)
             .map(|origin| origin + *hint_loc)
             .unwrap_or(current)
@@ -3761,6 +3771,7 @@ impl MetisState {
                 self.pointer_constraint_phases
                     .insert(surface_id.clone(), PointerConstraintPhase::Active);
                 if prev != Some(PointerConstraintPhase::Active) {
+                    self.cursor_position_hint = None;
                     trace = Some((
                         "constraint became active",
                         PointerConstraintPhase::Active,
@@ -7482,11 +7493,29 @@ impl MetisState {
             }
             CompositorCommand::ListWindows => {
                 let focused = self.focused_window_id();
-                let mut windows = self.windows.list();
-                if let Some(fid) = focused {
-                    for w in &mut windows {
-                        w.focused = w.id == fid;
+                let mut windows = Vec::new();
+                // Top-to-bottom (front to back) so clients can hit-test the visible window.
+                for window in self.space.elements().rev() {
+                    let Some(id) = self.windows.id_for_window(window) else {
+                        continue;
+                    };
+                    let Some(record) = self.windows.get(id) else {
+                        continue;
+                    };
+                    if !record.ready || record.minimized {
+                        continue;
                     }
+                    windows.push(WindowInfo {
+                        id,
+                        title: record.title.clone(),
+                        app_id: record.app_id.clone(),
+                        rect: record.target_rect,
+                        fullscreen: record.fullscreen,
+                        minimized: false,
+                        focused: focused == Some(id),
+                        output: record.output.clone(),
+                        workspace: record.workspace,
+                    });
                 }
                 CompositorEvent::WindowList { windows }
             }
@@ -7734,6 +7763,14 @@ impl MetisState {
             }
             CompositorCommand::EndCaptureOverlay { app_id } => {
                 self.end_capture_overlay_portal(app_id);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::BeginScreenshotOverlay => {
+                self.begin_screenshot_overlay();
+                CompositorEvent::Pong
+            }
+            CompositorCommand::EndScreenshotOverlay => {
+                self.end_screenshot_overlay();
                 CompositorEvent::Pong
             }
             CompositorCommand::InjectRemotePointerAbsolute { x, y } => {

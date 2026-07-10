@@ -1033,6 +1033,7 @@ impl MetisState {
                     output_name: Some(output.name().as_str()),
                     skip_night_light: false,
                 },
+                &[],
             );
 
             // Pointer goes on top of everything; only on the output under the cursor.

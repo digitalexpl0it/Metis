@@ -123,20 +123,45 @@ apps are dimmed.
 
 ### Screenshots
 
-Metis implements the freedesktop **Screenshot** portal
-(`org.freedesktop.impl.portal.Screenshot`). Any app that captures through
-**xdg-desktop-portal** — Flameshot, GNOME Screenshot, browser screen-share
-pickers, etc. — can take a desktop screenshot without `grim` or
-`wlr-screencopy`.
+Metis ships a **native screenshot tool** (Phase 12) integrated into the shell.
+Press **PrtSc** to open the interactive overlay (default **Selection** mode):
+
+| Key | Action |
+|-----|--------|
+| **PrtSc** | Interactive overlay (Selection / Screen / Window) |
+| **Shift+PrtSc** | Instant full-screen capture (no overlay) |
+| **Ctrl+PrtSc** | Interactive overlay starting in **Window** mode |
+| **Esc** | Close the overlay without capturing (all modes) |
+
+The overlay uses your active Metis theme (dark/light/custom tokens): frosted
+toolbar, accent **Capture** button, and dashed selection border all update live when
+you change theme in Settings or edit `themes/*.json`.
+
+**Modes** — toolbar icon toggles for **Selection** (drag a rectangle), **Full screen**
+(entire monitor), and **Window** (hover to preview, **click to lock** a window, then
+**Capture**). Press **Esc** at any time to close the overlay without capturing.
+
+**Options** (gear icon) — include pointer in the PNG, capture delay (seconds), and
+after-capture action (Copy, Save, Both, or Open in the default image viewer).
+
+Configure defaults in `~/.config/metis/screenshot.json` (`default_mode`,
+`draw_cursor`, `delay_seconds`, `after_capture`, `save_dir`). PNGs save under
+`~/Pictures/Metis` by default; copies go to the compositor clipboard when
+`after_capture` is `copy` or `copy_and_save`.
+
+From a script: `metis-cmd screenshot` (same as PrtSc).
+
+**Third-party apps** (Flameshot, browser pickers, etc.) still use the freedesktop
+**Screenshot** portal (`org.freedesktop.impl.portal.Screenshot`):
 
 - The **first** capture from an app may show a permission dialog; grant it once
   and later captures proceed silently.
-- Screenshots are saved as PNGs under `$XDG_RUNTIME_DIR/metis-screenshot-*.png`
+- Portal screenshots are saved as PNGs under `$XDG_RUNTIME_DIR/metis-screenshot-*.png`
   and returned to the requesting app as a `file://` URI.
 
 If screenshots fail after an upgrade, log out and back into Metis so the updated
 compositor and portal binaries are running (`./run-metis.sh --install-session`
-installs both). To verify capture directly:
+installs both). To verify portal capture directly:
 
 ```bash
 metis-portal --capture-test /tmp/test.png

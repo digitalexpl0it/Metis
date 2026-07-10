@@ -85,6 +85,7 @@ pub fn init_and_show() {
         attach_weather_channel(spawn_weather_service());
         attach_notification_channel(spawn_notification_service());
         crate::ui::dashboard::init();
+        crate::ui::screenshot::init();
         watch_bar_config();
         watch_dashboard_config();
         spawn_gaming_daemon();
@@ -350,6 +351,16 @@ pub fn refresh_workspaces() {
     });
 }
 
+/// Show or hide the Control Center grid button on every bar (live reload from
+/// `dashboard.json`).
+pub fn sync_control_center_button() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            handle.widget_refs.sync_control_center_button();
+        }
+    });
+}
+
 /// The outputs the bar should appear on, as GDK monitors. Returns at least one
 /// entry; `None` means "no specific monitor" (compositor picks the primary).
 /// `BarDisplays::Primary` yields a single bar on the first monitor.
@@ -445,7 +456,16 @@ fn watch_compositor_dismiss() {
                     dropdown::request_close_all();
                     crate::ui::dashboard::request_close();
                 }
+                "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
+                "reload-dashboard" => crate::ui::dashboard::on_dashboard_config_changed(),
+                "screenshot" => crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Interactive),
+                "screenshot instant-full" => {
+                    crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::InstantFull);
+                }
+                "screenshot window" => {
+                    crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Window);
+                }
                 "reload-theme" => {
                     let _ = crate::ui::theme::init_theme();
                 }

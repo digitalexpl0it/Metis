@@ -65,6 +65,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     } else {
         "0 -12px 32px rgba(0, 0, 0, 0.42)".to_string()
     };
+    let screenshot_toolbar_bg = dash_panel_bg.clone();
+    let text_on_accent = theme.text_on_accent.clone();
 
     // Optional DE-wide font family/size; empty unless the user customized them.
     let font_decls = theme.font_declarations();
@@ -2643,6 +2645,154 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {muted};
         font-size: 12px;
     }}
+
+    window.metis-screenshot-window {{
+        background: transparent;
+    }}
+    .metis-screenshot-canvas {{
+        background: transparent;
+    }}
+    .metis-screenshot-toolbar-wrap {{
+        background: transparent;
+    }}
+    .metis-screenshot-toolbar {{
+        background-color: {screenshot_toolbar_bg};
+        border: 1px solid {border};
+        border-radius: 999px;
+        padding: 8px 12px;
+        box-shadow: {dash_shadow};
+    }}
+    .metis-screenshot-mode {{
+        background: transparent;
+        border-radius: 999px;
+        padding: 2px;
+    }}
+    button.metis-screenshot-mode-btn {{
+        background: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 999px;
+        padding: 8px;
+        color: {text};
+        box-shadow: none;
+        outline: none;
+    }}
+    button.metis-screenshot-mode-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    button.metis-screenshot-mode-btn:checked {{
+        background-color: {accent};
+        color: {text_on_accent};
+    }}
+    button.metis-screenshot-mode-btn:checked image {{
+        -gtk-icon-filter: none;
+        color: {text_on_accent};
+    }}
+    .metis-screenshot-mode stackswitcher {{
+        background: transparent;
+        border-radius: 999px;
+    }}
+    .metis-screenshot-mode stackswitcher button {{
+        background: transparent;
+        border: none;
+        border-radius: 999px;
+        padding: 6px 14px;
+        color: {text};
+        box-shadow: none;
+    }}
+    .metis-screenshot-mode stackswitcher button:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    .metis-screenshot-mode stackswitcher button:checked {{
+        background-color: {accent};
+        color: {text_on_accent};
+    }}
+    .metis-screenshot-mode stackswitcher button:checked label {{
+        color: {text_on_accent};
+    }}
+    button.metis-screenshot-icon {{
+        background: transparent;
+        border: none;
+        border-radius: 999px;
+        padding: 6px;
+        color: {text};
+        box-shadow: none;
+    }}
+    button.metis-screenshot-icon:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    button.metis-screenshot-icon:checked {{
+        background-color: rgba({accent_rgb}, 0.22);
+        color: {accent};
+    }}
+    button.metis-screenshot-capture {{
+        background-color: {accent};
+        background-image: none;
+        color: {text_on_accent};
+        border: none;
+        border-radius: 999px;
+        padding: 10px 22px;
+        font-weight: 600;
+        box-shadow: none;
+        outline: none;
+    }}
+    button.metis-screenshot-capture label {{
+        color: {text_on_accent};
+    }}
+    button.metis-screenshot-capture:hover {{
+        background-image: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.12),
+            rgba(255, 255, 255, 0.0)
+        );
+        background-color: {accent};
+    }}
+    button.metis-screenshot-capture:active {{
+        background-color: {accent};
+        opacity: 0.88;
+    }}
+    label.metis-screenshot-size {{
+        background-color: {raised};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    popover.metis-screenshot-popover {{
+        background-color: {surface_solid};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 8px;
+    }}
+    popover.metis-screenshot-popover label {{
+        color: {text};
+    }}
+    label.metis-screenshot-option-label {{
+        font-size: 13px;
+        color: {text};
+    }}
+    .metis-screenshot-after-seg {{
+        border-radius: {rs}px;
+    }}
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn {{
+        background-image: none;
+        background-color: transparent;
+        border: 1px solid {border};
+        color: {text};
+        padding: 6px 10px;
+        font-size: 12px;
+        box-shadow: none;
+    }}
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn:checked {{
+        background-color: {accent};
+        color: {text_on_accent};
+        border-color: {accent};
+    }}
 "#,
         surface = surface,
         border = theme.border,
@@ -2657,5 +2807,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         c_success = c_success,
         c_warning = c_warning,
         c_error = c_error,
+        screenshot_toolbar_bg = screenshot_toolbar_bg,
+        text_on_accent = text_on_accent,
     )
 }

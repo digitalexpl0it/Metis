@@ -3,6 +3,7 @@ pub mod bar;
 pub mod dashboard;
 pub mod icons;
 pub mod onboarding;
+pub mod screenshot;
 pub mod splash;
 pub mod theme;
 pub mod toast;

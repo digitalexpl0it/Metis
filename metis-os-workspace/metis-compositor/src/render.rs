@@ -81,6 +81,7 @@ impl MetisState {
         render_origin: Point<i32, Physical>,
         output_scale: Scale<f64>,
         target: RenderTargetInfo<'_>,
+        exclude_layer_namespaces: &[&str],
     ) -> Vec<OutputStack> {
         // Locked: draw ONLY the compositor lock UI and skip every client, layer,
         // and decoration element — no client content is ever composited while the
@@ -190,6 +191,12 @@ impl MetisState {
                 .unwrap_or_default();
             let map = layer_map_for_output(out);
             for surface in map.layers().rev() {
+                if exclude_layer_namespaces
+                    .iter()
+                    .any(|ns| surface.namespace() == *ns)
+                {
+                    continue;
+                }
                 let Some(geo) = map.layer_geometry(surface) else {
                     continue;
                 };

@@ -219,4 +219,5 @@ fn persist(mutate: impl FnOnce(&mut DashboardConfig)) {
     if let Err(err) = save_dashboard_config(&cfg) {
         tracing::warn!(%err, "failed to save dashboard.json");
     }
+    crate::runtime::send("reload-dashboard");
 }

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
 
 use metis_protocol::PixelRect;
 use smithay::utils::{Logical, Point};
@@ -10,22 +11,47 @@ use crate::state::MetisState;
 /// normal/maximized apps sit below the bar and never match.
 const DESKTOP_SPAN_MARGIN: i32 = 12;
 
+/// How long after a portal screenshot request we keep elevating the app's picker.
+const PORTAL_ELEVATE_TIMEOUT: Duration = Duration::from_secs(20);
+
 #[derive(Debug, Default)]
 pub(crate) struct CaptureOverlaySession {
     /// Windows elevated above ordinary clients for the duration of capture.
     pub windows: HashSet<u32>,
     /// App ids signalled by the xdg-desktop-portal before capture UI spawns.
     pub portal_app_ids: HashSet<String>,
+    /// Drop [`portal_app_ids`] if no picker registered by this instant.
+    pub portal_elevate_until: Option<Instant>,
+    /// Window ids that already existed when the portal request started — never
+    /// force-resize these to full desktop (Flameshot config/tray windows).
+    pub portal_elevate_baseline: HashSet<u32>,
 }
 
 impl CaptureOverlaySession {
+    /// True while a capture picker window is registered — blocks focus stacking
+    /// beneath it and routes pointer hits to the overlay.
     pub fn active(&self) -> bool {
         !self.windows.is_empty()
+    }
+
+    pub fn portal_elevate_active(&self) -> bool {
+        !self.portal_app_ids.is_empty()
     }
 }
 
 fn norm_app_id(app_id: &str) -> String {
     app_id.trim().to_ascii_lowercase()
+}
+
+/// Screenshot / region-select tools that spawn a full-screen picker after the portal
+/// returns a framebuffer capture.
+fn is_known_capture_tool_app(app_id: &str) -> bool {
+    let id = norm_app_id(app_id);
+    id.contains("flameshot")
+        || id.contains("spectacle")
+        || id.contains("org.kde.spectacle")
+        || id.contains("gnome-screenshot")
+        || id.contains("org.gnome.Snapshot")
 }
 
 impl MetisState {
@@ -34,11 +60,14 @@ impl MetisState {
     }
 
     pub(crate) fn begin_capture_overlay_portal(&mut self, app_id: Option<String>) {
+        self.capture_overlay.portal_elevate_baseline = self.windows.ids().into_iter().collect();
         if let Some(id) = app_id {
             self.capture_overlay
                 .portal_app_ids
                 .insert(norm_app_id(&id));
         }
+        self.capture_overlay.portal_elevate_until =
+            Some(Instant::now() + PORTAL_ELEVATE_TIMEOUT);
         self.register_portal_capture_windows();
         self.schedule_redraw();
     }
@@ -48,6 +77,38 @@ impl MetisState {
             self.capture_overlay.portal_app_ids.remove(&norm_app_id(&id));
         } else {
             self.capture_overlay.portal_app_ids.clear();
+        }
+        if self.capture_overlay.portal_app_ids.is_empty() {
+            self.capture_overlay.portal_elevate_until = None;
+            self.capture_overlay.portal_elevate_baseline.clear();
+        }
+    }
+
+    /// Expire stale portal-elevate sessions (picker never mapped / capture failed).
+    pub(crate) fn tick_portal_elevate(&mut self) {
+        let Some(until) = self.capture_overlay.portal_elevate_until else {
+            return;
+        };
+        if Instant::now() < until {
+            return;
+        }
+        if self.capture_overlay.portal_app_ids.is_empty() {
+            self.capture_overlay.portal_elevate_until = None;
+            return;
+        }
+        tracing::debug!("portal capture elevate session expired");
+        self.capture_overlay.portal_app_ids.clear();
+        self.capture_overlay.portal_elevate_until = None;
+        self.capture_overlay.portal_elevate_baseline.clear();
+    }
+
+    fn clear_portal_elevate_for_app(&mut self, app_id: &str) {
+        self.capture_overlay
+            .portal_app_ids
+            .remove(&norm_app_id(app_id));
+        if self.capture_overlay.portal_app_ids.is_empty() {
+            self.capture_overlay.portal_elevate_until = None;
+            self.capture_overlay.portal_elevate_baseline.clear();
         }
     }
 
@@ -63,7 +124,12 @@ impl MetisState {
     fn register_portal_capture_windows(&mut self) {
         let ids: Vec<u32> = self.windows.ids();
         for id in ids {
-            if self.portal_wants_app(self.windows.get(id).and_then(|r| r.app_id.as_deref())) {
+            if !self.portal_wants_app(self.windows.get(id).and_then(|r| r.app_id.as_deref())) {
+                continue;
+            }
+            // Only pre-elevate a picker that already spans the desktop (retry path).
+            // Do not resize Flameshot's small tray/config window on portal begin.
+            if self.window_spans_desktop(id) {
                 let _ = self.maybe_register_capture_overlay(id);
             }
         }
@@ -71,6 +137,25 @@ impl MetisState {
 
     pub(crate) fn unregister_capture_overlay(&mut self, id: u32) {
         self.capture_overlay.windows.remove(&id);
+        if self.capture_overlay.windows.is_empty() {
+            self.capture_overlay.portal_app_ids.clear();
+            self.capture_overlay.portal_elevate_until = None;
+            self.capture_overlay.portal_elevate_baseline.clear();
+        }
+    }
+
+    /// Region-select UI is near full-screen; ignore small config/tray windows.
+    fn is_likely_capture_picker(&self, id: u32) -> bool {
+        let bounds = self.desktop_bounds();
+        let Some(rect) = self
+            .windows
+            .target_rect(id)
+            .or_else(|| self.window_body_rect(id))
+        else {
+            return false;
+        };
+        rect.width >= bounds.size.w.saturating_sub(64)
+            && rect.height >= bounds.size.h.saturating_sub(64)
     }
 
     fn window_spans_desktop(&self, id: u32) -> bool {
@@ -109,7 +194,19 @@ impl MetisState {
         }
 
         if self.portal_wants_app(record.app_id.as_deref()) {
+            if self.capture_overlay.portal_elevate_baseline.contains(&id) {
+                return self.is_likely_capture_picker(id) || self.window_spans_desktop(id);
+            }
             return true;
+        }
+
+        if record
+            .app_id
+            .as_deref()
+            .is_some_and(is_known_capture_tool_app)
+        {
+            return self.capture_overlay.portal_elevate_active()
+                && (self.is_likely_capture_picker(id) || self.window_spans_desktop(id));
         }
 
         // Geometry fallback for capture tools that do NOT go through the portal
@@ -145,6 +242,13 @@ impl MetisState {
         }
 
         self.capture_overlay.windows.insert(id);
+        if let Some(app_id) = self
+            .windows
+            .get(id)
+            .and_then(|r| r.app_id.clone())
+        {
+            self.clear_portal_elevate_for_app(&app_id);
+        }
         self.enforce_capture_overlay_stacking();
         self.focus_window_id(id);
         tracing::info!(
