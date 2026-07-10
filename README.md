@@ -11,6 +11,23 @@
 
 New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 
+## Screenshots
+
+**Desktop** — edge bar, workspaces, weather, and server-side window decorations on a
+theme-aware wallpaper.
+
+![Metis desktop with edge bar, workspaces, and tiled windows](Screenshots/metis_desktop.png)
+
+**Control Center** — pull-down system monitor with live charts and a searchable process
+list (Settings → Control Center to configure).
+
+![Metis Control Center with CPU, memory, and process list](Screenshots/metis_control_center.png)
+
+**Settings** — grouped sidebar for display, appearance, connectivity, input, gaming,
+and system configuration.
+
+![Metis Settings control center](Screenshots/metis_settings.png)
+
 ## Philosophy
 
 - **Performance first** — idiomatic, low-overhead Rust with `tokio` async and damage-driven rendering.
@@ -29,9 +46,11 @@ New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 │   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
 │   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
 │   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
+│   ├── metis-capture/           # Shared Wayland ext-image-copy-capture client (shell + portal)
 │   ├── metis-gaming/            # Flatpak optimizer, health checks, metis-gamingd daemon
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
 │   └── assets/                  # Wallpapers, portal registration, session launcher
+├── Screenshots/                 # README showcase images
 └── docs/                        # User guide + development setup
 ```
 
@@ -117,9 +136,17 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 - **Gaming** — hybrid-GPU routing (`gaming.json`), Flatpak Steam/Lutris/Heroic
   overrides, health checklist, and `metis-gamingd` for auto performance profile
   + GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
+- **Screenshots** — **PrtSc** opens a native Metis overlay (Selection / Full screen /
+  Window); **Shift+PrtSc** captures the full screen instantly; **Ctrl+PrtSc** starts in
+  Window mode. **Esc** dismisses without capturing. Third-party apps (Flameshot, etc.)
+  still use the xdg-desktop-portal Screenshot interface via `metis-portal`.
 
 | Shortcut | Action |
 |----------|--------|
+| `PrtSc` | Interactive screenshot overlay |
+| `Shift`+`PrtSc` | Instant full-screen capture (no overlay) |
+| `Ctrl`+`PrtSc` | Screenshot overlay starting in Window mode |
+| `Esc` | (screenshot overlay) Dismiss without capturing |
 | `Super`+`1`..`9` | Switch workspace (on the monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move focused window to a workspace |
 | `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
@@ -127,7 +154,7 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move active workspace to adjacent monitor (independent mode) |
 | `Super`+`F` | Toggle maximize for the focused window (below the edge bar) |
 | `Super`+`Q` | Close the focused window |
-| `Escape` | Exit fullscreen / immersive |
+| `Esc` | Exit fullscreen / immersive (focused window) |
 | `Super`+`\` | Toggle the active workspace between grid and scrolling |
 | `Super`+arrows | (scrolling) Move focus across columns / within a stack |
 | `Super`+`Shift`+arrows | (scrolling) Move the column / window |
@@ -162,6 +189,7 @@ Other files are created on demand:
 | `dashboard.json` | You configure Control Center | Enable, widget order, max height %, refresh interval, confirm-before-kill |
 | `gaming.json` | You configure gaming | Graphics mode, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | Gaming setup runs | Record of applied Flatpak gaming overrides |
+| `screenshot.json` | You configure screenshots | Default mode, pointer toggle, delay, after-capture, save dir |
 | `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, `display_mode` / `mirror_source`, night-light prefs |
 
 Edit `bar.json` or `themes/*.json` while the shell runs — bar changes apply
@@ -195,6 +223,9 @@ reference.
   (compositor-side protocol + portal Wayland client). Verified with Flameshot
   and other xdg-desktop-portal screenshot apps. ScreenCast PipeWire streaming works
   (SHM frame pump; dmabuf zero-copy deferred).
+- **Phase 12 — Native Screenshot Tool:** **complete** (2026-07-09) — PrtSc overlay
+  (Selection / Screen / Window), theme-aware toolbar, `metis-capture` crate,
+  clipboard/save/viewer, compositor keybinds, and `screenshot.json` defaults.
 - **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — Settings →
   Display now supports resolution/refresh, multi-monitor arrangement, and
   duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR
