@@ -18,7 +18,8 @@ also install the session, input, and GPU libraries:
 ```bash
 sudo apt install -y \
   libudev-dev libinput-dev libseat-dev \
-  libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+  libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
+  libdisplay-info-dev libpam0g-dev
 ```
 
 If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.

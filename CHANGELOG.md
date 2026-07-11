@@ -36,6 +36,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **CI `.deb` build** — install `libdisplay-info-dev` and `libpam0g-dev` on the
+  Ubuntu 24.04 runner so `libdisplay-info-sys` / compositor PAM link successfully.
 - **Control Center search types into app behind** — Top-layer shell panels
   (`metis-dashboard`) now win pointer and keyboard focus over desk AppBody
   passthrough, so Processes search no longer sends keys to the window underneath.

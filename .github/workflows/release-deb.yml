@@ -33,6 +33,7 @@ jobs:
             libgtk-4-dev libadwaita-1-dev \
             libudev-dev libinput-dev libseat-dev \
             libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libdisplay-info-dev libpam0g-dev \
             libpipewire-0.3-dev \
             libwayland-dev wayland-protocols \
             libgirepository1.0-dev gobject-introspection \
