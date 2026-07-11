@@ -25,11 +25,12 @@ impl StopwatchPage {
     pub fn new() -> Self {
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(20)
-            .halign(gtk::Align::Center)
+            .spacing(12)
+            .halign(gtk::Align::Fill)
+            .hexpand(true)
             .build();
         root.add_css_class("metis-sw-page");
-        root.set_width_request(420);
+        root.set_width_request(-1);
 
         let label = gtk::Label::new(Some("00:00:00.0"));
         label.add_css_class("metis-sw-digits");

@@ -40,6 +40,16 @@ thread_local! {
     /// Outgoing channel back to the D-Bus daemon thread for action/close signals.
     /// Set once at startup from the GTK main thread by `set_action_sender`.
     static ACTION_TX: RefCell<Option<UnboundedSender<NotifyOutgoing>>> = const { RefCell::new(None) };
+    /// Do Not Disturb — suppresses toasts; list still accumulates.
+    static DND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub fn do_not_disturb() -> bool {
+    DND.with(|d| d.get())
+}
+
+pub fn set_do_not_disturb(on: bool) {
+    DND.with(|d| d.set(on));
 }
 
 /// Register the outgoing channel used to notify the freedesktop daemon thread of
@@ -140,6 +150,11 @@ fn fire_refresh() {
     for cb in callbacks {
         cb();
     }
+}
+
+/// Re-run all registered notification UI refresh hooks (badge, lists, DND).
+pub fn notify_store_changed() {
+    fire_refresh();
 }
 
 /// Push a notification into the in-bar notification popup. Identical

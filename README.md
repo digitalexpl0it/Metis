@@ -140,6 +140,9 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   Window); **Shift+PrtSc** captures the full screen instantly; **Ctrl+PrtSc** starts in
   Window mode. **Esc** dismisses without capturing. Third-party apps (Flameshot, etc.)
   still use the xdg-desktop-portal Screenshot interface via `metis-portal`.
+- **Notification Center** — click the clock for a right-side panel (notifications,
+  calendar events, world clocks / timer / alarms). Toasts appear top-right with a
+  close button.
 
 | Shortcut | Action |
 |----------|--------|
@@ -226,6 +229,9 @@ reference.
 - **Phase 12 — Native Screenshot Tool:** **complete** (2026-07-09) — PrtSc overlay
   (Selection / Screen / Window), theme-aware toolbar, `metis-capture` crate,
   clipboard/save/viewer, compositor keybinds, and `screenshot.json` defaults.
+- **Phase 13 — Notification Center:** **complete** (2026-07-10) — right-edge panel
+  from the clock (bell merged), collapsible notification/events cards, calendar
+  tool rail, closable toasts, theme-aware `metis-nc-*` CSS.
 - **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — Settings →
   Display now supports resolution/refresh, multi-monitor arrangement, and
   duplicate (mirror) mode on DRM sessions; VRR, night-light compositor, and HDR

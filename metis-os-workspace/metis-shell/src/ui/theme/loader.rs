@@ -103,6 +103,7 @@ fn apply_tokens(tokens: &ThemeTokens) {
     apply_menu_opacity(MENU_OPACITY.with(Cell::get));
     crate::ui::dashboard::on_theme_changed();
     crate::ui::screenshot::on_theme_changed();
+    crate::ui::notification_center::on_theme_changed();
 }
 
 /// Apply the edge bar's background transparency *and* its configurable border

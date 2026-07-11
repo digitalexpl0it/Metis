@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::sync::{Arc, Mutex};
 
 use metis_protocol::CompositorEvent;
@@ -11,9 +11,9 @@ pub struct EventBus {
 
 impl EventBus {
     pub fn subscribe(&self, stream: std::os::unix::net::UnixStream) {
-        // Blocking writes so ClipboardChanged (and other) events are not dropped
-        // when the shell reader is briefly behind.
-        let _ = stream.set_nonblocking(false);
+        // Non-blocking: a stalled shell/portal reader must never freeze the
+        // compositor (ClipboardChanged after screenshots previously could).
+        let _ = stream.set_nonblocking(true);
         if let Ok(mut subs) = self.subscribers.lock() {
             subs.push(stream);
         }
@@ -25,9 +25,10 @@ impl EventBus {
         };
         let mut payload = line;
         payload.push('\n');
+        let bytes = payload.as_bytes();
 
         if let Ok(mut subs) = self.subscribers.lock() {
-            subs.retain_mut(|stream| stream.write_all(payload.as_bytes()).is_ok());
+            subs.retain_mut(|stream| write_event_nonblocking(stream, bytes));
         }
     }
 
@@ -36,6 +37,25 @@ impl EventBus {
             subs.retain(|stream| stream.peer_addr().is_ok());
         }
     }
+}
+
+/// Best-effort non-blocking write. Drop the subscriber on hard errors; keep it
+/// on WouldBlock so a briefly busy reader is not permanently removed.
+fn write_event_nonblocking(stream: &mut std::os::unix::net::UnixStream, bytes: &[u8]) -> bool {
+    let mut offset = 0;
+    while offset < bytes.len() {
+        match stream.write(&bytes[offset..]) {
+            Ok(0) => return false,
+            Ok(n) => offset += n,
+            Err(err) if err.kind() == ErrorKind::Interrupted => continue,
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                tracing::debug!("event subscriber temporarily busy; dropping event for that client");
+                return true;
+            }
+            Err(_) => return false,
+        }
+    }
+    true
 }
 
 pub fn init_events_listener(

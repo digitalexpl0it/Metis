@@ -14,7 +14,6 @@ use crate::state::MetisState;
 const TEXT_PREVIEW_CHARS: usize = 200;
 const MAX_CLIPBOARD_BYTES: usize = 10 * 1024 * 1024;
 const DRAIN_CLIPBOARD_BYTES_PER_TICK: usize = 512 * 1024;
-const ASYNC_WRITE_THRESHOLD: usize = 256 * 1024;
 
 const TEXT_MIMES: &[&str] = &[
     "text/plain;charset=utf-8",
@@ -54,19 +53,17 @@ pub struct CompositorClipboardOffer {
 }
 
 impl MetisSelectionUserData {
-    /// Resolve bytes to serve for a paste request.
-    pub fn resolve_payload(&self) -> Option<(String, Vec<u8>)> {
+    /// Whether this offer can satisfy a paste without reading the file yet.
+    /// Prefer this on the compositor thread — loading a lazy image sync-reads
+    /// the full PNG and can stall the session if done inline.
+    pub fn has_payload(&self) -> bool {
         if let Some(offer) = self.offer.as_ref() {
-            return Some((offer.mime.clone(), offer.data.clone()));
+            return !offer.data.is_empty() && offer.data.len() <= MAX_CLIPBOARD_BYTES;
         }
-        if let Some((path, mime)) = self.lazy_file.as_ref() {
-            let data = std::fs::read(path).ok()?;
-            if data.is_empty() || data.len() > MAX_CLIPBOARD_BYTES {
-                return None;
-            }
-            return Some((mime.clone(), data));
+        if let Some((path, _)) = self.lazy_file.as_ref() {
+            return std::path::Path::new(path).is_file();
         }
-        None
+        false
     }
 }
 
@@ -158,37 +155,71 @@ pub fn preferred_clipboard_mime(mimes: &[String]) -> Option<String> {
 }
 
 /// Write compositor-owned selection bytes to the fd offered by the client.
+///
+/// Always runs off the compositor thread. A blocking `write_all` on the event
+/// loop deadlocks when the pasting client (especially XWayland/Electron) waits
+/// for the compositor before draining the pipe — classic screenshot→paste TTY
+/// lockup for region PNGs under a few hundred KB.
 pub fn write_selection_to_fd(fd: std::os::unix::io::OwnedFd, data: Vec<u8>) {
-    if data.len() >= ASYNC_WRITE_THRESHOLD {
-        std::thread::spawn(move || {
-            let mut file = std::fs::File::from(fd);
-            if let Err(err) = file.write_all(&data) {
-                tracing::debug!(?err, "failed to write compositor clipboard offer (async)");
-            }
-        });
-    } else {
+    std::thread::spawn(move || {
         let mut file = std::fs::File::from(fd);
         if let Err(err) = file.write_all(&data) {
             tracing::debug!(?err, "failed to write compositor clipboard offer");
         }
-    }
+    });
 }
 
 /// Serve a compositor-owned selection if possible.
 /// Returns `Ok(())` when handled; returns the fd back when not applicable.
+///
+/// Lazy image offers are read and written entirely on a worker thread so paste
+/// never blocks the compositor event loop.
 pub fn serve_compositor_selection(
     user_data: &MetisSelectionUserData,
     request_mime: &str,
     fd: std::os::unix::io::OwnedFd,
 ) -> Result<(), std::os::unix::io::OwnedFd> {
-    let Some((offer_mime, data)) = user_data.resolve_payload() else {
-        return Err(fd);
-    };
-    if !selection_mime_satisfies(&offer_mime, request_mime) {
-        return Err(fd);
+    if let Some(offer) = user_data.offer.as_ref() {
+        if !selection_mime_satisfies(&offer.mime, request_mime) {
+            return Err(fd);
+        }
+        if offer.data.is_empty() || offer.data.len() > MAX_CLIPBOARD_BYTES {
+            return Err(fd);
+        }
+        write_selection_to_fd(fd, offer.data.clone());
+        return Ok(());
     }
-    write_selection_to_fd(fd, data);
-    Ok(())
+
+    if let Some((path, mime)) = user_data.lazy_file.as_ref() {
+        if !selection_mime_satisfies(mime, request_mime) {
+            return Err(fd);
+        }
+        let path = path.clone();
+        std::thread::spawn(move || {
+            let data = match std::fs::read(&path) {
+                Ok(data)
+                    if !data.is_empty() && data.len() <= MAX_CLIPBOARD_BYTES =>
+                {
+                    data
+                }
+                Ok(_) => {
+                    tracing::debug!(%path, "lazy clipboard file empty or over size cap");
+                    return;
+                }
+                Err(err) => {
+                    tracing::debug!(?err, %path, "lazy clipboard file read failed");
+                    return;
+                }
+            };
+            let mut file = std::fs::File::from(fd);
+            if let Err(err) = file.write_all(&data) {
+                tracing::debug!(?err, "failed to write compositor clipboard offer");
+            }
+        });
+        return Ok(());
+    }
+
+    Err(fd)
 }
 
 impl MetisState {
@@ -296,29 +327,17 @@ impl MetisState {
         text: Option<String>,
         image_path: Option<String>,
     ) -> Result<(), String> {
-        let history_bytes = if let Some(t) = text.as_ref() {
-            let data = t.as_bytes().to_vec();
+        let (user_data, mime_types, history) = if let Some(t) = text {
+            let data = t.into_bytes();
             if data.is_empty() {
                 return Err("clipboard data is empty".into());
             }
             if data.len() > MAX_CLIPBOARD_BYTES {
                 return Err("clipboard payload exceeds size cap".into());
             }
-            Some(data)
-        } else if let Some(path) = image_path.as_ref() {
-            if !std::path::Path::new(path).is_file() {
-                return Err(format!("image not found: {path}"));
-            }
-            Some(std::fs::read(path).map_err(|err| format!("read image: {err}"))?)
-        } else {
-            return Err("SetClipboard requires text or image_path".into());
-        };
-
-        let (user_data, mime_types) = if let Some(t) = text {
-            let data = t.into_bytes();
             let offer = CompositorClipboardOffer {
                 mime: mime.clone(),
-                data,
+                data: data.clone(),
             };
             (
                 MetisSelectionUserData {
@@ -326,22 +345,43 @@ impl MetisState {
                     lazy_file: None,
                 },
                 recall_mime_types(&mime, None),
+                ClipboardHistory::Bytes(data),
             )
         } else if let Some(path) = image_path {
+            if !std::path::Path::new(&path).is_file() {
+                return Err(format!("image not found: {path}"));
+            }
+            let len = std::fs::metadata(&path)
+                .map_err(|err| format!("stat image: {err}"))?
+                .len() as usize;
+            if len == 0 {
+                return Err("clipboard image is empty".into());
+            }
+            if len > MAX_CLIPBOARD_BYTES {
+                return Err("clipboard payload exceeds size cap".into());
+            }
+            // Do not sync-read the PNG on the compositor thread (stalls the
+            // session). Paste reads lazily off-thread; history reuses the path.
             (
                 MetisSelectionUserData {
                     offer: None,
                     lazy_file: Some((path.clone(), mime.clone())),
                 },
                 recall_mime_types(&mime, Some(&path)),
+                ClipboardHistory::ImagePath(path),
             )
         } else {
             return Err("SetClipboard requires text or image_path".into());
         };
 
         self.install_compositor_selection(mime_types, user_data);
-        if let Some(data) = history_bytes {
-            emit_clipboard_changed(&self.event_bus, &mime, data);
+        match history {
+            ClipboardHistory::Bytes(data) => {
+                emit_clipboard_changed(&self.event_bus, &mime, data);
+            }
+            ClipboardHistory::ImagePath(path) => {
+                emit_clipboard_changed_image_path(&self.event_bus, &mime, path);
+            }
         }
         Ok(())
     }
@@ -378,56 +418,123 @@ impl MetisState {
     }
 }
 
+enum ClipboardHistory {
+    Bytes(Vec<u8>),
+    ImagePath(String),
+}
+
 fn emit_clipboard_changed(bus: &EventBus, mime: &str, data: Vec<u8>) {
     if data.len() > MAX_CLIPBOARD_BYTES {
         return;
     }
 
-    let (preview_text, image_path) = if mime.starts_with("text/")
-        || matches!(mime, "UTF8_STRING" | "TEXT" | "STRING")
-    {
+    if mime.starts_with("text/") || matches!(mime, "UTF8_STRING" | "TEXT" | "STRING") {
         let text = String::from_utf8_lossy(&data);
         let preview = if text.chars().count() > TEXT_PREVIEW_CHARS {
             text.chars().take(TEXT_PREVIEW_CHARS).collect::<String>() + "…"
         } else {
             text.into_owned()
         };
-        (Some(preview), None)
-    } else if mime.starts_with("image/") || normalize_mime(mime).starts_with("image/") {
-        let ext = image_file_extension(mime);
-        let dir = clipboard_image_dir();
-        if std::fs::create_dir_all(&dir).is_err() {
-            return;
-        }
-        let id = format!(
-            "{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
+        bus.emit(&metis_protocol::CompositorEvent::ClipboardChanged {
+            mime: mime.to_string(),
+            preview_text: Some(preview.clone()),
+            image_path: None,
+        });
+        tracing::info!(
+            mime,
+            bytes = data.len(),
+            has_text = true,
+            has_image = false,
+            "clipboard history captured"
         );
-        let path = dir.join(format!("{id}.{ext}"));
-        if std::fs::write(&path, &data).is_err() {
-            return;
-        }
-        (None, Some(path.to_string_lossy().into_owned()))
-    } else {
         return;
-    };
+    }
 
-    bus.emit(&metis_protocol::CompositorEvent::ClipboardChanged {
-        mime: mime.to_string(),
-        preview_text: preview_text.clone(),
-        image_path: image_path.clone(),
+    if !(mime.starts_with("image/") || normalize_mime(mime).starts_with("image/")) {
+        return;
+    }
+
+    // Never write multi-MB PNGs on the compositor thread — that stalls the
+    // session right as clients (and clipboard history) start negotiating paste.
+    let bus = bus.clone();
+    let mime = mime.to_string();
+    std::thread::spawn(move || {
+        let Some(path) = write_history_image(&mime, &data) else {
+            return;
+        };
+        bus.emit(&metis_protocol::CompositorEvent::ClipboardChanged {
+            mime: mime.clone(),
+            preview_text: None,
+            image_path: Some(path),
+        });
+        tracing::info!(
+            mime = %mime,
+            bytes = data.len(),
+            has_text = false,
+            has_image = true,
+            "clipboard history captured"
+        );
     });
-    tracing::info!(
-        mime,
-        bytes = data.len(),
-        has_text = preview_text.is_some(),
-        has_image = image_path.is_some(),
-        "clipboard history captured"
-    );
+}
+
+/// History for a screenshot / image already on disk.
+///
+/// Copies into the clipboard cache on a worker thread so SetClipboard never
+/// blocks the compositor, and history keeps a durable path if the capture file
+/// is later moved/deleted.
+fn emit_clipboard_changed_image_path(bus: &EventBus, mime: &str, image_path: String) {
+    let bus = bus.clone();
+    let mime = mime.to_string();
+    std::thread::spawn(move || {
+        let history_path = durable_history_image(&mime, &image_path).unwrap_or(image_path);
+        bus.emit(&metis_protocol::CompositorEvent::ClipboardChanged {
+            mime: mime.clone(),
+            preview_text: None,
+            image_path: Some(history_path),
+        });
+        tracing::info!(
+            mime = %mime,
+            has_text = false,
+            has_image = true,
+            "clipboard history captured"
+        );
+    });
+}
+
+fn history_image_id() -> String {
+    format!(
+        "{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    )
+}
+
+fn write_history_image(mime: &str, data: &[u8]) -> Option<String> {
+    let dir = clipboard_image_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join(format!("{}.{}", history_image_id(), image_file_extension(mime)));
+    std::fs::write(&path, data).ok()?;
+    Some(path.to_string_lossy().into_owned())
+}
+
+fn durable_history_image(mime: &str, source: &str) -> Option<String> {
+    let dir = clipboard_image_dir();
+    std::fs::create_dir_all(&dir).ok()?;
+    let ext = std::path::Path::new(source)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| matches!(e.as_str(), "png" | "jpg" | "jpeg" | "webp" | "bmp"))
+        .unwrap_or_else(|| image_file_extension(mime).to_string());
+    let dest = dir.join(format!("{}.{}", history_image_id(), ext));
+    if source == dest.to_string_lossy() {
+        return Some(source.to_string());
+    }
+    std::fs::copy(source, &dest).ok()?;
+    Some(dest.to_string_lossy().into_owned())
 }
 
 fn image_file_extension(mime: &str) -> &'static str {

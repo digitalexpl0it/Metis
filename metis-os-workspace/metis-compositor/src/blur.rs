@@ -143,8 +143,9 @@ impl BlurRuntime {
         &self,
         rect: Rectangle<i32, Physical>,
     ) -> Rectangle<i32, Physical> {
-        let pad = metis_config::bar::SHADOW_PAD;
-        let side = metis_config::bar::PILL_SIDE_INSET;
+        let cfg = metis_config::load_bar_config();
+        let pad = metis_config::bar::bar_layer_shadow_pad(&cfg);
+        let side = metis_config::bar::bar_pill_side_inset(&cfg);
         let mut x = rect.loc.x;
         let mut y = rect.loc.y;
         let mut w = rect.size.w;

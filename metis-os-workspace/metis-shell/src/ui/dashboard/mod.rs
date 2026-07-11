@@ -1,7 +1,7 @@
 //! Pull-down / pull-aside system dashboard (Phase 10).
 //!
-//! The control center is embedded in the bar's layer window (below the pill) so
-//! there is no gap between the edge bar and the panel.
+//! The control center is a separate layer-shell surface attached just inside the
+//! edge-bar pill. The bar strip itself never resizes when the panel opens.
 
 mod charts;
 mod views;
@@ -13,14 +13,14 @@ use std::sync::mpsc::Receiver;
 
 use gtk::gdk;
 use gtk::prelude::*;
-use gtk4_layer_shell::LayerShell;
+use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_config::{load_bar_config, load_dashboard_config, BarPosition, DashboardWidgetId};
 
 use crate::services::{
     format_bytes, format_rate, format_uptime, kill_process, short_kernel_version,
     DashboardSnapshot, GpuTempReading, ProcessClass, ProcessRow,
 };
-use crate::ui::bar::{resize_bar_for_dashboard, BarShell};
+use crate::ui::bar::{ensure_bar_strip_geometry, BarShell};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum ProcessClassFilter {
@@ -61,6 +61,8 @@ thread_local! {
 
 struct Dashboard {
     shell: BarShell,
+    /// Dedicated layer-shell window — never shares geometry with the edge bar.
+    window: gtk::Window,
     root: gtk::Box,
     header: gtk::Box,
     tab_switcher: gtk::StackSwitcher,
@@ -192,7 +194,6 @@ pub fn on_bar_config_changed() {
                     dash.shell.window.monitor().as_ref(),
                 ));
                 dash.apply_extent(dash.max_extent.get());
-                dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
             }
         }
     });
@@ -214,7 +215,6 @@ pub fn on_dashboard_config_changed() {
             dash.max_extent.set(max);
             if dash.open.get() {
                 dash.apply_extent(max);
-                dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
             } else if !dash.pulling.get() {
                 dash.set_closed_state();
             }
@@ -282,13 +282,12 @@ fn start_polling() {
 fn teardown_dashboard() {
     crate::services::set_polling_active(false);
     DASHBOARD.with(|d| {
-        if let Some(dash) = d.borrow().as_ref() {
+        if let Some(dash) = d.borrow_mut().take() {
             dash.set_closed_state();
-            while let Some(child) = dash.shell.host.first_child() {
-                dash.shell.host.remove(&child);
-            }
+            dash.window.set_visible(false);
+            dash.window.destroy();
+            ensure_bar_strip_geometry(&dash.shell);
         }
-        *d.borrow_mut() = None;
     });
     tracing::debug!("system dashboard torn down (idle)");
 }
@@ -334,6 +333,21 @@ fn close_delta(position: BarPosition, offset_x: f64, offset_y: f64) -> f64 {
 }
 
 fn build_dashboard(shell: &BarShell) -> Dashboard {
+    let window = gtk::Window::builder()
+        .title("Metis Control Center")
+        .decorated(false)
+        .build();
+    window.add_css_class("metis-dashboard-window");
+    window.init_layer_shell();
+    window.set_namespace("metis-control-center");
+    window.set_layer(Layer::Top);
+    window.set_keyboard_mode(KeyboardMode::OnDemand);
+    window.set_exclusive_zone(-1);
+    if let Some(monitor) = shell.window.monitor() {
+        window.set_monitor(&monitor);
+    }
+    window.set_visible(false);
+
     let root = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(0)
@@ -416,6 +430,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
 
     let dash = Dashboard {
         shell: shell.clone(),
+        window: window.clone(),
         root,
         header,
         tab_switcher: switcher,
@@ -449,7 +464,8 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     };
 
     dash.relayout_for_bar();
-    dash.shell.host.append(&dash.root);
+    dash.window.set_child(Some(&dash.root));
+    ensure_bar_strip_geometry(shell);
 
     let key = gtk::EventControllerKey::new();
     key.connect_key_pressed(|_, key, _, _| {
@@ -470,7 +486,8 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         DASHBOARD.with(|d| {
             if let Some(dash) = d.borrow().as_ref() {
                 if dash.root == root && dash.current_extent.get() > 0 {
-                    dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
+                    let (w, h) = dash.host_content_size(dash.current_extent.get());
+                    dash.relayout_for_size(w, h);
                 }
             }
         });
@@ -558,14 +575,31 @@ impl Dashboard {
         while let Some(child) = self.root.first_child() {
             self.root.remove(&child);
         }
-        self.root.remove_css_class("metis-dashboard-root-bottom");
+        for class in [
+            "metis-dashboard-root-bottom",
+            "metis-dashboard-root-left",
+            "metis-dashboard-root-right",
+        ] {
+            self.root.remove_css_class(class);
+        }
         match position {
             BarPosition::Bottom => {
+                // Header sits against the pill (bottom of the panel).
                 self.root.add_css_class("metis-dashboard-root-bottom");
                 self.root.append(&self.stack);
                 self.root.append(&self.header);
             }
-            _ => {
+            BarPosition::Left => {
+                self.root.add_css_class("metis-dashboard-root-left");
+                self.root.append(&self.header);
+                self.root.append(&self.stack);
+            }
+            BarPosition::Right => {
+                self.root.add_css_class("metis-dashboard-root-right");
+                self.root.append(&self.header);
+                self.root.append(&self.stack);
+            }
+            BarPosition::Top => {
                 self.root.append(&self.header);
                 self.root.append(&self.stack);
             }
@@ -638,19 +672,109 @@ impl Dashboard {
     }
 
     fn apply_extent(&self, extent: i32) {
-        resize_bar_for_dashboard(&self.shell, extent);
-        let width = self.shell.host.width();
-        if width > 0 {
-            self.relayout_for_size(width, extent);
-        } else {
+        // Edge bar geometry stays fixed — only the CC layer surface changes.
+        ensure_bar_strip_geometry(&self.shell);
+        self.apply_panel_extent(extent);
+        let (width, height) = self.host_content_size(extent);
+        if width > 0 && height > 0 {
+            self.relayout_for_size(width, height);
+        } else if extent > 0 {
             let slf = DASHBOARD.with(|d| d.borrow().clone());
             glib::idle_add_local_once(move || {
                 if let Some(dash) = slf {
                     if dash.current_extent.get() > 0 {
-                        dash.relayout_for_size(dash.shell.host.width(), dash.current_extent.get());
+                        let (w, h) = dash.host_content_size(dash.current_extent.get());
+                        dash.relayout_for_size(w, h);
                     }
                 }
             });
+        }
+    }
+
+    /// Size/place the dedicated control-center layer surface.
+    fn apply_panel_extent(&self, extent: i32) {
+        let e = extent.max(0);
+        let cfg = load_bar_config();
+        // Attach to the inner edge of the pill (margin + height), not the shadow pad.
+        let attach = metis_config::bar::bar_pill_inset(&cfg);
+        let side = metis_config::bar::bar_pill_side_inset(&cfg);
+
+        for edge in [Edge::Left, Edge::Right, Edge::Top, Edge::Bottom] {
+            self.window.set_anchor(edge, false);
+            self.window.set_margin(edge, 0);
+        }
+        self.window.set_exclusive_zone(-1);
+
+        if e == 0 {
+            self.window.set_visible(false);
+            return;
+        }
+
+        match cfg.position {
+            BarPosition::Bottom => {
+                self.window.set_anchor(Edge::Bottom, true);
+                self.window.set_anchor(Edge::Left, true);
+                self.window.set_anchor(Edge::Right, true);
+                self.window.set_margin(Edge::Bottom, attach);
+                self.window.set_margin(Edge::Left, side);
+                self.window.set_margin(Edge::Right, side);
+                self.window.set_height_request(e);
+                self.window.set_default_size(-1, e);
+            }
+            BarPosition::Top => {
+                self.window.set_anchor(Edge::Top, true);
+                self.window.set_anchor(Edge::Left, true);
+                self.window.set_anchor(Edge::Right, true);
+                self.window.set_margin(Edge::Top, attach);
+                self.window.set_margin(Edge::Left, side);
+                self.window.set_margin(Edge::Right, side);
+                self.window.set_height_request(e);
+                self.window.set_default_size(-1, e);
+            }
+            BarPosition::Left => {
+                self.window.set_anchor(Edge::Left, true);
+                self.window.set_anchor(Edge::Top, true);
+                self.window.set_anchor(Edge::Bottom, true);
+                self.window.set_margin(Edge::Left, attach);
+                self.window.set_margin(Edge::Top, side);
+                self.window.set_margin(Edge::Bottom, side);
+                self.window.set_width_request(e);
+                self.window.set_default_size(e, -1);
+            }
+            BarPosition::Right => {
+                self.window.set_anchor(Edge::Right, true);
+                self.window.set_anchor(Edge::Top, true);
+                self.window.set_anchor(Edge::Bottom, true);
+                self.window.set_margin(Edge::Right, attach);
+                self.window.set_margin(Edge::Top, side);
+                self.window.set_margin(Edge::Bottom, side);
+                self.window.set_width_request(e);
+                self.window.set_default_size(e, -1);
+            }
+        }
+
+        if let Some(monitor) = self.shell.window.monitor() {
+            self.window.set_monitor(&monitor);
+        }
+        self.window.set_visible(true);
+        self.window.present();
+        self.window.queue_resize();
+    }
+
+    /// Panel content box size for the current bar edge.
+    fn host_content_size(&self, extent: i32) -> (i32, i32) {
+        let position = load_bar_config().position;
+        let (mon_w, mon_h) = monitor_size(self.shell.window.monitor().as_ref());
+        let side = metis_config::bar::bar_pill_side_inset(&load_bar_config());
+        match position {
+            BarPosition::Left | BarPosition::Right => {
+                let h = (mon_h - 2 * side).max(1);
+                (extent.max(1), h)
+            }
+            BarPosition::Top | BarPosition::Bottom => {
+                let w = (mon_w - 2 * side).max(1);
+                (w, extent.max(1))
+            }
         }
     }
 
@@ -817,7 +941,8 @@ impl Dashboard {
         }
 
         if self.open.get() {
-            let key = (self.shell.host.width(), self.current_extent.get());
+            let (w, h) = self.host_content_size(self.current_extent.get());
+            let key = (w, h);
             if key != self.last_relayout_key.get() {
                 self.last_relayout_key.set(key);
                 self.relayout_for_size(key.0, key.1);
@@ -1111,7 +1236,7 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
     match proc.class {
         ProcessClass::Metis => name.add_css_class("metis-dash-process-metis"),
         ProcessClass::System => name.add_css_class("metis-dash-muted"),
-        ProcessClass::UserApp => {}
+        ProcessClass::UserApp => name.add_css_class("metis-dash-proc-name"),
     }
 
     let pid = gtk::Label::new(Some(&proc.pid.to_string()));
@@ -1187,16 +1312,17 @@ fn process_context_menu_open() -> bool {
 }
 
 fn dismiss_process_context_menu() {
-    PROCESS_CONTEXT_MENU.with(|slot| {
-        if let Some(popover) = slot.borrow_mut().take() {
+    // Take the popover out before popdown — the closed handler also touches
+    // PROCESS_CONTEXT_MENU, so holding RefMut across popdown aborts the shell.
+    let popover = PROCESS_CONTEXT_MENU.with(|slot| slot.borrow_mut().take());
+    if let Some(popover) = popover {
+        if popover.parent().is_some() {
+            popover.popdown();
             if popover.parent().is_some() {
-                popover.popdown();
-                if popover.parent().is_some() {
-                    popover.unparent();
-                }
+                popover.unparent();
             }
         }
-    });
+    }
 }
 
 fn attach_process_context_menu(row: &gtk::ListBoxRow, pid: u32, name: &str) {
@@ -1268,7 +1394,11 @@ fn show_process_context_menu(anchor: &gtk::Widget, pid: u32, name: &str, x: f64,
     let weak = popover.downgrade();
     popover.connect_closed(move |_| {
         PROCESS_CONTEXT_MENU.with(|slot| {
-            if slot.borrow().as_ref().is_some_and(|p| p.downgrade() == weak) {
+            let clear = slot
+                .borrow()
+                .as_ref()
+                .is_some_and(|p| p.downgrade() == weak);
+            if clear {
                 *slot.borrow_mut() = None;
             }
         });

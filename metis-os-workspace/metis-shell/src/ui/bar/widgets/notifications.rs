@@ -1,28 +1,15 @@
-use std::cell::Cell;
-use std::rc::Rc;
-use std::time::Duration;
+//! Legacy notifications bell — opens the Notification Center (Phase 13).
+//! Kept so existing `bar.json` entries with `notifications` still work; the
+//! default layout no longer includes this widget (badge lives on the clock).
 
 use gtk::prelude::*;
 
-use crate::services::{
-    clear_notifications, notification_count, register_refresh, runtime_notifications,
-    BarNotification, NotificationEntry, NotificationKind,
-};
+use crate::services::{do_not_disturb, notification_count, register_refresh, BarNotification};
 use crate::ui::icons::{self, names};
-
-thread_local! {
-    static DND: Cell<bool> = const { Cell::new(false) };
-}
-
-pub fn do_not_disturb() -> bool {
-    DND.with(|d| d.get())
-}
-
-const SLIDE_MS: u32 = 240;
+use std::rc::Rc;
 
 pub struct NotificationsWidget {
     root: gtk::Button,
-    refresh: Rc<dyn Fn()>,
 }
 
 impl NotificationsWidget {
@@ -31,9 +18,9 @@ impl NotificationsWidget {
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-notifications");
         root.add_css_class("metis-bar-sys-icon");
+        root.set_tooltip_text(Some("Notifications"));
 
         let icon = icons::image(names::notification(do_not_disturb()));
-
         let overlay = gtk::Overlay::new();
         overlay.add_css_class("metis-bar-notif-overlay");
         overlay.set_child(Some(&icon));
@@ -43,80 +30,18 @@ impl NotificationsWidget {
         badge.set_visible(false);
         badge.set_halign(gtk::Align::End);
         badge.set_valign(gtk::Align::Start);
-
         overlay.add_overlay(&badge);
         root.set_child(Some(&overlay));
 
-        let panel = super::super::dropdown::build_panel();
-        panel.set_spacing(10);
-        panel.set_width_request(400);
+        root.connect_clicked(|_| {
+            crate::ui::notification_center::toggle();
+        });
 
-        let header = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(10)
-            .build();
-
-        let title = gtk::Label::builder()
-            .label("Notifications")
-            .hexpand(true)
-            .halign(gtk::Align::Start)
-            .build();
-        title.add_css_class("metis-bar-section-title");
-
-        let dnd_label = gtk::Label::builder()
-            .label("Do Not Disturb")
-            .halign(gtk::Align::End)
-            .build();
-        dnd_label.add_css_class("metis-notif-dnd-label");
-
-        let dnd_switch = gtk::Switch::new();
-        dnd_switch.set_active(do_not_disturb());
-
-        header.append(&title);
-        header.append(&dnd_label);
-        header.append(&dnd_switch);
-        panel.append(&header);
-
-        let scrolled = gtk::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk::PolicyType::Never)
-            .vscrollbar_policy(gtk::PolicyType::Automatic)
-            .height_request(320)
-            .width_request(372)
-            .build();
-        scrolled.add_css_class("metis-notif-scrolled");
-
-        let list = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(10)
-            .build();
-        list.set_margin_top(2);
-        list.set_margin_bottom(2);
-        list.set_margin_start(2);
-        list.set_margin_end(2);
-        scrolled.set_child(Some(&list));
-        panel.append(&scrolled);
-
-        // Footer with the clear-all action, bottom-right.
-        let footer = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .build();
-        let clear_btn = gtk::Button::with_label("Clear all");
-        clear_btn.add_css_class("metis-notif-clear");
-        clear_btn.set_halign(gtk::Align::End);
-        clear_btn.set_hexpand(true);
-        footer.append(&clear_btn);
-        panel.append(&footer);
-
-        // Recompute the feed from the runtime store and repaint badge + list.
-        // Runs on the GTK main thread; invoked on open and on runtime changes.
         let refresh: Rc<dyn Fn()> = {
             let badge = badge.clone();
             let icon = icon.clone();
-            let list = list.clone();
-            let clear_btn = clear_btn.clone();
             Rc::new(move || {
                 icons::set_icon(&icon, names::notification(do_not_disturb()));
-                let entries = runtime_notifications();
                 let total = notification_count();
                 if do_not_disturb() || total == 0 {
                     badge.set_visible(false);
@@ -124,204 +49,26 @@ impl NotificationsWidget {
                     badge.set_label(&total.to_string());
                     badge.set_visible(true);
                 }
-                clear_btn.set_sensitive(!entries.is_empty());
-                fill_list(&list, &entries);
             })
         };
-
-        dnd_switch.connect_state_set({
-            let refresh = refresh.clone();
-            move |_, state| {
-                DND.with(|d| d.set(state));
-                refresh();
-                glib::Propagation::Proceed
-            }
-        });
-
-        clear_btn.connect_clicked({
-            let list = list.clone();
-            move |_| animate_clear(&list)
-        });
-
         register_refresh(refresh.clone());
-
-        // Optional demo feed for exercising the popup (grouping, scroll, icons).
-        if std::env::var("METIS_DEMO_NOTIFICATIONS").is_ok() {
-            seed_demo_notifications();
-        }
-
         refresh();
 
-        {
-            let refresh = refresh.clone();
-            super::super::dropdown::wire_toggle_prepare(&root, &panel, move || refresh());
-        }
-
-        Self {
-            root: root.clone(),
-            refresh,
-        }
+        Self { root }
     }
 
     pub fn root(&self) -> &gtk::Button {
         &self.root
     }
 
-    /// Kept for the bar snapshot pipeline; runtime notifications are the source
-    /// of truth now, so poll-provided notifications are ignored here.
     pub fn update(&self, _notifications: &[BarNotification]) {
-        (self.refresh)();
+        // Runtime store drives refresh hooks.
     }
-}
-
-/// Slide every card out to the left, then clear the store once the animation
-/// has had time to play.
-fn animate_clear(list: &gtk::Box) {
-    let mut any = false;
-    let mut child = list.first_child();
-    while let Some(c) = child {
-        let next = c.next_sibling();
-        if let Ok(rev) = c.clone().downcast::<gtk::Revealer>() {
-            rev.set_reveal_child(false);
-            any = true;
-        }
-        child = next;
-    }
-    if any {
-        glib::timeout_add_local_once(Duration::from_millis(SLIDE_MS as u64 + 20), || {
-            clear_notifications();
-        });
-    } else {
-        clear_notifications();
-    }
-}
-
-fn fill_list(list: &gtk::Box, entries: &[NotificationEntry]) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    if entries.is_empty() {
-        let empty = gtk::Label::builder()
-            .label("No notifications")
-            .wrap(true)
-            .xalign(0.0)
-            .build();
-        empty.add_css_class("metis-notif-empty");
-        list.append(&empty);
-        return;
-    }
-    for entry in entries {
-        let card = build_notification_card(entry);
-        let revealer = gtk::Revealer::builder()
-            .transition_type(gtk::RevealerTransitionType::SlideRight)
-            .transition_duration(SLIDE_MS)
-            .reveal_child(true)
-            .child(&card)
-            .build();
-        list.append(&revealer);
-    }
-}
-
-fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
-    let notif = &entry.notification;
-    let card = gtk::Box::builder()
-        .orientation(gtk::Orientation::Horizontal)
-        .spacing(12)
-        .hexpand(true)
-        .build();
-    card.add_css_class("metis-notif-card");
-    card.add_css_class(&format!("metis-notif-card-{}", notif.kind.css_suffix()));
-
-    let icon = gtk::Image::from_icon_name(notif.kind.icon_name());
-    icon.add_css_class("metis-notif-icon");
-    icon.set_valign(gtk::Align::Start);
-    icon.set_halign(gtk::Align::Start);
-    icon.set_hexpand(false);
-    icon.set_vexpand(false);
-    card.append(&icon);
-
-    let text = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(4)
-        .hexpand(true)
-        .build();
-
-    // Wrapping labels need a bounded width or GTK's height-for-width pass
-    // overflows inside the horizontal card (it allocated INT_MIN/huge widths).
-    let title = gtk::Label::builder()
-        .label(&notif.title)
-        .halign(gtk::Align::Fill)
-        .xalign(0.0)
-        .wrap(true)
-        .wrap_mode(gtk::pango::WrapMode::WordChar)
-        .max_width_chars(34)
-        .build();
-    title.add_css_class("metis-notif-title");
-
-    let message = gtk::Label::builder()
-        .label(&notif.message)
-        .halign(gtk::Align::Fill)
-        .xalign(0.0)
-        .wrap(true)
-        .wrap_mode(gtk::pango::WrapMode::WordChar)
-        .max_width_chars(34)
-        .build();
-    message.add_css_class("metis-notif-message");
-
-    text.append(&title);
-    text.append(&message);
-
-    // Dismiss this card from the bar list once the user acts on it. Deferred to
-    // an idle tick so we don't mutate/rebuild the list from inside a button's own
-    // click handler. Keyed on the process-local uid so it works even for id-0
-    // internal notifications.
-    let uid = entry.uid;
-    let dismiss = move || {
-        glib::idle_add_local_once(move || crate::services::dismiss_notification(uid));
-    };
-
-    // Action / Open buttons, driven purely by what the sender provided.
-    if let Some(row) = build_action_row(notif, dismiss.clone()) {
-        text.append(&row);
-    }
-
-    card.append(&text);
-
-    // Clicking the card body invokes the conventional `default` action when the
-    // sender advertised one (e.g. "open the chat that pinged you").
-    if notif.has_default_action() {
-        card.add_css_class("metis-notif-card-clickable");
-        let gesture = gtk::GestureClick::new();
-        let id = notif.id;
-        let dismiss = dismiss.clone();
-        gesture.connect_released(move |gesture, _, _, _| {
-            gesture.set_state(gtk::EventSequenceState::Claimed);
-            crate::services::invoke_action(id, "default");
-            crate::services::close_notification(id, 2);
-            dismiss();
-        });
-        card.add_controller(gesture);
-    }
-
-    if entry.count > 1 {
-        let count = gtk::Label::new(Some(&format!("{}", entry.count)));
-        count.add_css_class("metis-notif-count");
-        count.set_valign(gtk::Align::Start);
-        card.append(&count);
-    }
-
-    card
 }
 
 /// Build a row of buttons for a notification using the detection rule:
 /// labeled actions become one button each; otherwise a `desktop-entry` becomes a
-/// single "Open" button. Returns `None` when the notification has neither (plain
-/// informational notification — buttons are never inferred from text).
-///
-/// `on_done` runs after a button's effect (action signal / app launch) so the
-/// caller can dismiss its own surface (remove the popover card, close the toast)
-/// — giving immediate local feedback even for internal notifications whose
-/// freedesktop id is 0 and therefore carry no `ActionInvoked` round-trip.
+/// single "Open" button. Returns `None` when the notification has neither.
 pub(crate) fn build_action_row<F>(notif: &BarNotification, on_done: F) -> Option<gtk::Box>
 where
     F: Fn() + Clone + 'static,
@@ -370,8 +117,6 @@ where
     any.then_some(row)
 }
 
-/// Launch the app behind a `desktop-entry` hint via its `.desktop` file. Tries
-/// the id as-is first, then with a `.desktop` suffix (the hint is usually bare).
 pub(crate) fn launch_desktop_entry(entry: &str) {
     use gio::prelude::*;
     let candidates = [entry.to_string(), format!("{entry}.desktop")];
@@ -384,37 +129,4 @@ pub(crate) fn launch_desktop_entry(entry: &str) {
         }
     }
     tracing::warn!(desktop = %entry, "notify: no .desktop entry found to open");
-}
-
-fn seed_demo_notifications() {
-    use crate::services::push_notification;
-    let demos = [
-        (NotificationKind::Success, "Workspace saved", "Layout stored to disk."),
-        (NotificationKind::Payment, "Payment received", "Invoice #1042 was paid."),
-        (NotificationKind::Error, "Sync failed", "Could not reach the calendar server."),
-        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
-        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
-        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
-    ];
-    for (kind, title, message) in demos {
-        push_notification(BarNotification::internal(kind, title, message));
-    }
-
-    // One entry with explicit actions (Install / Later) to exercise buttons.
-    let mut firmware =
-        BarNotification::internal(NotificationKind::Information, "Firmware update", "A firmware update is available for your dock.");
-    firmware.actions = vec![
-        ("install".into(), "Install".into()),
-        ("later".into(), "Later".into()),
-    ];
-    push_notification(firmware);
-
-    // One entry that only carries a desktop-entry hint -> single "Open" button.
-    let mut update = BarNotification::internal(
-        NotificationKind::Information,
-        "Update available",
-        "Restart Metis when convenient.",
-    );
-    update.desktop_entry = Some("org.gnome.Software".into());
-    push_notification(update);
 }

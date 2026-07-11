@@ -7,7 +7,7 @@
 //! auto-dismiss after the notification's `expire_timeout` with a short fade, and
 //! reuse the same action/Open buttons as the popover cards.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -18,8 +18,10 @@ use crate::services::BarNotification;
 
 /// Gap between the top of the screen / bar and the toast stack.
 const TOP_MARGIN: i32 = 56;
-/// Right-edge inset for the stack.
+/// Right-edge inset when the Notification Center is closed.
 const RIGHT_MARGIN: i32 = 16;
+/// Extra right inset while the Notification Center is open (~panel width + gap).
+const RIGHT_MARGIN_WITH_PANEL: i32 = 420;
 /// Fade-out duration before a card is removed.
 const FADE_MS: u32 = 220;
 /// Cap on simultaneously visible toasts; oldest is dropped past this.
@@ -33,6 +35,7 @@ struct Toast {
 
 thread_local! {
     static TOAST: RefCell<Option<Rc<RefCell<Toast>>>> = const { RefCell::new(None) };
+    static PANEL_OPEN: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Lazily build (or fetch) the shared toast overlay window. The window is never
@@ -52,7 +55,7 @@ fn overlay() -> Rc<RefCell<Toast>> {
         window.set_anchor(Edge::Top, true);
         window.set_anchor(Edge::Right, true);
         window.set_margin(Edge::Top, TOP_MARGIN);
-        window.set_margin(Edge::Right, RIGHT_MARGIN);
+        window.set_margin(Edge::Right, current_right_margin());
 
         let stack = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -65,6 +68,28 @@ fn overlay() -> Rc<RefCell<Toast>> {
         *cell.borrow_mut() = Some(toast.clone());
         toast
     })
+}
+
+fn current_right_margin() -> i32 {
+    // Only shift toasts when the Notification Center occupies the right edge.
+    if PANEL_OPEN.with(Cell::get) && crate::ui::notification_center::anchors_right() {
+        RIGHT_MARGIN_WITH_PANEL
+    } else {
+        RIGHT_MARGIN
+    }
+}
+
+/// Shift toasts while the Notification Center panel occupies the right edge.
+pub fn set_panel_open(open: bool) {
+    PANEL_OPEN.with(|c| c.set(open));
+    TOAST.with(|cell| {
+        if let Some(toast) = cell.borrow().as_ref() {
+            toast
+                .borrow()
+                .window
+                .set_margin(Edge::Right, current_right_margin());
+        }
+    });
 }
 
 /// Show a transient toast for `note`. No-op for notifications with no
@@ -175,16 +200,33 @@ where
         .hexpand(true)
         .build();
 
+    let title_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .build();
+
     let title = gtk::Label::builder()
         .label(&note.title)
         .halign(gtk::Align::Fill)
+        .hexpand(true)
         .xalign(0.0)
         .wrap(true)
         .wrap_mode(gtk::pango::WrapMode::WordChar)
-        .max_width_chars(34)
+        .max_width_chars(30)
         .build();
     title.add_css_class("metis-notif-title");
-    text.append(&title);
+    title_row.append(&title);
+
+    let close = gtk::Button::from_icon_name("window-close-symbolic");
+    close.add_css_class("metis-toast-close");
+    close.set_tooltip_text(Some("Dismiss"));
+    close.set_valign(gtk::Align::Start);
+    {
+        let on_done = on_done.clone();
+        close.connect_clicked(move |_| on_done());
+    }
+    title_row.append(&close);
+    text.append(&title_row);
 
     if !note.message.is_empty() {
         let message = gtk::Label::builder()

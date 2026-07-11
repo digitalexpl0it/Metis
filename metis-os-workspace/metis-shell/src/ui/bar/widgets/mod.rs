@@ -22,7 +22,7 @@ use clock::ClockWidget;
 use launcher::LauncherWidget;
 use notifications::NotificationsWidget;
 use clipboard::ClipboardWidget;
-pub use notifications::do_not_disturb;
+pub use crate::services::do_not_disturb;
 pub(crate) use notifications::build_action_row;
 use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
 use tasks::TasksWidget;
@@ -179,6 +179,17 @@ pub fn build(
             BarWidgetId::Tasks => {
                 let w = TasksWidget::new(compact, output.clone());
                 append_bar_widget(root, w.root(), bar_orientation);
+                // Claim flexible middle space so the dock grows with monitor
+                // width/height and scrolls when icons overflow.
+                if bar_orientation == gtk::Orientation::Horizontal {
+                    w.root().set_hexpand(true);
+                    w.root().set_halign(gtk::Align::Fill);
+                    w.root().set_propagate_natural_width(false);
+                } else {
+                    w.root().set_vexpand(true);
+                    w.root().set_valign(gtk::Align::Fill);
+                    w.root().set_propagate_natural_height(false);
+                }
                 *refs.tasks.borrow_mut() = Some(w);
             }
             BarWidgetId::Tray => {

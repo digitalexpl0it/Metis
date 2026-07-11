@@ -66,6 +66,12 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         "0 -12px 32px rgba(0, 0, 0, 0.42)".to_string()
     };
     let screenshot_toolbar_bg = dash_panel_bg.clone();
+    let nc_panel_bg = dash_panel_bg.clone();
+    let nc_card_bg = dash_card_bg.clone();
+    let toast_card_bg = dash_card_bg.clone();
+    // Notification rows inside the NC / legacy popover — follow raised surface,
+    // never a hardcoded dark charcoal (that looked like dark-mode in light theme).
+    let notif_card_bg = dash_card_bg.clone();
     let text_on_accent = theme.text_on_accent.clone();
 
     // Optional DE-wide font family/size; empty unless the user customized them.
@@ -95,13 +101,38 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-full {{
         border-radius: 999px;
         padding: 0 20px;
+    }}
+
+    /* Shadow always faces the desktop (inner side) so it never needs room
+       between the bar and the screen edge — distance maps 1:1 to margin_top. */
+    .metis-bar-full.metis-bar-edge-bottom {{
+        box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.42), 0 -1px 3px rgba(0, 0, 0, 0.30);
+    }}
+    .metis-bar-full.metis-bar-edge-top {{
         box-shadow: 0 3px 10px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.30);
+    }}
+    .metis-bar-full.metis-bar-edge-left {{
+        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.42), 1px 0 3px rgba(0, 0, 0, 0.30);
+    }}
+    .metis-bar-full.metis-bar-edge-right {{
+        box-shadow: -3px 0 10px rgba(0, 0, 0, 0.42), -1px 0 3px rgba(0, 0, 0, 0.30);
     }}
 
     .metis-bar-floating {{
         border-radius: 999px;
         padding: 0 14px;
+    }}
+    .metis-bar-floating.metis-bar-edge-bottom {{
+        box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }}
+    .metis-bar-floating.metis-bar-edge-top {{
         box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }}
+    .metis-bar-floating.metis-bar-edge-left {{
+        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    }}
+    .metis-bar-floating.metis-bar-edge-right {{
+        box-shadow: -3px 0 10px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
     }}
 
     /* Bar widget buttons share one geometry across every interaction state so
@@ -299,9 +330,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 0;
     }}
 
+    .metis-bar-clock-bell-wrap {{
+        background-color: transparent;
+        margin-left: 2px;
+    }}
+
+    .metis-bar-clock-bell {{
+        opacity: 0.92;
+    }}
+
     .metis-bar-clock-compact {{
         margin-left: 0;
         padding: 0 4px;
+    }}
+
+    .metis-bar-clock-icon {{
+        opacity: 0.95;
     }}
 
     .metis-bar-weather-compact {{
@@ -635,7 +679,27 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-notif-scrolled {{
-        min-width: 372px;
+        min-width: 0;
+    }}
+
+    .metis-nc-scrolled {{
+        background: transparent;
+        min-width: 0;
+    }}
+    .metis-nc-scrolled scrollbar.vertical {{
+        min-width: 8px;
+        margin: 2px 0;
+    }}
+    .metis-nc-scrolled scrollbar.vertical slider {{
+        background-color: rgba({text_rgb}, 0.25);
+        border-radius: 999px;
+        min-width: 6px;
+    }}
+    .metis-nc-scrolled scrollbar.vertical slider:hover {{
+        background-color: rgba({text_rgb}, 0.4);
+    }}
+    .metis-cal-events-scroll {{
+        min-height: 0;
     }}
 
     .metis-notif-scrolled scrollbar.vertical {{
@@ -660,15 +724,17 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-notif-card {{
-        background-color: rgba(12, 16, 22, 0.92);
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: {notif_card_bg};
+        border-radius: {rm}px;
+        border: 1px solid {border};
         padding: 12px 14px;
+        color: {text};
     }}
 
     .metis-notif-icon {{
         -gtk-icon-size: 20px;
         margin-top: 1px;
+        color: {text};
     }}
 
     .metis-notif-count {{
@@ -677,8 +743,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: 999px;
         font-size: 11px;
         font-weight: 700;
-        color: currentColor;
-        background-color: rgba(255, 255, 255, 0.12);
+        color: {text};
+        background-color: rgba({text_rgb}, 0.12);
     }}
 
     .metis-notif-clear {{
@@ -722,6 +788,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-notif-title {{
         font-size: 14px;
         font-weight: 700;
+        color: {text};
     }}
 
     .metis-notif-message {{
@@ -740,13 +807,13 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 12px;
         font-weight: 600;
         color: {text};
-        background-color: rgba(255, 255, 255, 0.07);
+        background-color: rgba({text_rgb}, 0.06);
         background-image: none;
         border: 1px solid {border};
         box-shadow: none;
     }}
     .metis-notif-action:hover {{
-        background-color: rgba(255, 255, 255, 0.13);
+        background-color: rgba({text_rgb}, 0.12);
     }}
     .metis-notif-action.suggested-action {{
         color: {text};
@@ -758,7 +825,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
 
     .metis-notif-card-clickable:hover {{
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: rgba({accent_rgb}, 0.08);
     }}
 
     /* ---- Toast banners (transient overlay, top-right) ---- */
@@ -769,80 +836,96 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         margin: 0;
     }}
     .metis-toast-card {{
-        background-color: rgba(12, 16, 22, 0.96);
+        background-color: {toast_card_bg};
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.10);
+        border: 1px solid {border};
         padding: 14px 16px;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        box-shadow: {dash_shadow};
+        color: {text};
+    }}
+    button.metis-toast-close {{
+        background: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        padding: 2px;
+        min-width: 24px;
+        min-height: 24px;
+        color: {muted};
+    }}
+    button.metis-toast-close:hover {{
+        color: {text};
+        background-color: rgba({accent_rgb}, 0.12);
+        border-radius: {rs}px;
     }}
 
     .metis-notif-card-error {{
-        box-shadow: 0 0 18px rgba({c_error_rgb}, 0.22);
-        border-color: rgba({c_error_rgb}, 0.35);
-        color: {c_error};
+        box-shadow: 0 0 18px rgba({c_error_rgb}, 0.18);
+        border-color: rgba({c_error_rgb}, 0.40);
     }}
 
     .metis-notif-card-error .metis-notif-accent {{
         background-color: {c_error};
     }}
 
-    .metis-notif-card-error .metis-notif-title {{
+    .metis-notif-card-error .metis-notif-title,
+    .metis-notif-card-error .metis-notif-icon {{
         color: {c_error};
     }}
 
     .metis-notif-card-notify {{
-        box-shadow: 0 0 18px rgba({c_warning_rgb}, 0.22);
-        border-color: rgba({c_warning_rgb}, 0.35);
-        color: {c_warning};
+        box-shadow: 0 0 18px rgba({c_warning_rgb}, 0.18);
+        border-color: rgba({c_warning_rgb}, 0.40);
     }}
 
     .metis-notif-card-notify .metis-notif-accent {{
         background-color: {c_warning};
     }}
 
-    .metis-notif-card-notify .metis-notif-title {{
+    .metis-notif-card-notify .metis-notif-title,
+    .metis-notif-card-notify .metis-notif-icon {{
         color: {c_warning};
     }}
 
     .metis-notif-card-success {{
-        box-shadow: 0 0 18px rgba({c_success_rgb}, 0.22);
-        border-color: rgba({c_success_rgb}, 0.35);
-        color: {c_success};
+        box-shadow: 0 0 18px rgba({c_success_rgb}, 0.18);
+        border-color: rgba({c_success_rgb}, 0.40);
     }}
 
     .metis-notif-card-success .metis-notif-accent {{
         background-color: {c_success};
     }}
 
-    .metis-notif-card-success .metis-notif-title {{
+    .metis-notif-card-success .metis-notif-title,
+    .metis-notif-card-success .metis-notif-icon {{
         color: {c_success};
     }}
 
     .metis-notif-card-info {{
-        box-shadow: 0 0 18px rgba({c_info_rgb}, 0.22);
-        border-color: rgba({c_info_rgb}, 0.35);
-        color: {c_info};
+        box-shadow: 0 0 18px rgba({c_info_rgb}, 0.18);
+        border-color: rgba({c_info_rgb}, 0.40);
     }}
 
     .metis-notif-card-info .metis-notif-accent {{
         background-color: {c_info};
     }}
 
-    .metis-notif-card-info .metis-notif-title {{
+    .metis-notif-card-info .metis-notif-title,
+    .metis-notif-card-info .metis-notif-icon {{
         color: {c_info};
     }}
 
     .metis-notif-card-payment {{
-        box-shadow: 0 0 18px rgba({c_payment_rgb}, 0.22);
-        border-color: rgba({c_payment_rgb}, 0.35);
-        color: {c_payment};
+        box-shadow: 0 0 18px rgba({c_payment_rgb}, 0.18);
+        border-color: rgba({c_payment_rgb}, 0.40);
     }}
 
     .metis-notif-card-payment .metis-notif-accent {{
         background-color: {c_payment};
     }}
 
-    .metis-notif-card-payment .metis-notif-title {{
+    .metis-notif-card-payment .metis-notif-title,
+    .metis-notif-card-payment .metis-notif-icon {{
         color: {c_payment};
     }}
 
@@ -1384,19 +1467,19 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     /* ---- Timer page ---- */
     .metis-timer-digits {{
-        font-size: 44px;
+        font-size: 36px;
         font-weight: 700;
         color: {text};
         font-feature-settings: "tnum";
     }}
     .metis-timer-section {{
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         color: {muted};
         letter-spacing: 0.06em;
     }}
     .metis-timer-preset {{
-        padding: 8px 0;
+        padding: 6px 0;
         min-height: 0;
         border: 1px solid {border};
         border-radius: {rs}px;
@@ -1405,19 +1488,20 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {text};
         box-shadow: none;
         font-weight: 600;
+        font-size: 12px;
     }}
     .metis-timer-preset:hover {{
         background-color: rgba({accent_rgb}, 0.16);
         border-color: rgba({accent_rgb}, 0.45);
     }}
     .metis-timer-stepper {{
-        padding: 6px;
+        padding: 4px;
         border-radius: {rm}px;
         background-color: rgba({text_rgb}, 0.05);
     }}
     .metis-timer-step-btn {{
-        min-width: 56px;
-        min-height: 28px;
+        min-width: 44px;
+        min-height: 26px;
         padding: 0;
         border: none;
         border-radius: {rs}px;
@@ -2264,6 +2348,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-height: 0;
         min-width: 0;
         margin-top: 4px;
+        color: {text};
     }}
     .metis-dashboard-host {{
         min-height: 0;
@@ -2277,10 +2362,30 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         margin-bottom: 4px;
         box-shadow: {dash_shadow_up};
     }}
+    .metis-dashboard-root-left {{
+        border-radius: {rl}px;
+        margin-top: 0;
+        margin-bottom: 0;
+        margin-start: 4px;
+        margin-end: 0;
+        box-shadow: {dash_shadow};
+    }}
+    .metis-dashboard-root-right {{
+        border-radius: {rl}px;
+        margin-top: 0;
+        margin-bottom: 0;
+        margin-start: 0;
+        margin-end: 4px;
+        box-shadow: {dash_shadow};
+    }}
     .metis-dashboard-header {{
         padding: 8px 14px 6px 14px;
         border-bottom: 1px solid {border};
         background-color: transparent;
+    }}
+    .metis-dashboard-root-bottom .metis-dashboard-header {{
+        border-bottom: none;
+        border-top: 1px solid {border};
     }}
     .metis-dashboard-stack {{
         min-height: 0;
@@ -2502,7 +2607,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {c_error};
     }}
     popover.metis-dash-popover {{
+        background-color: transparent;
         padding: 0;
+        border: none;
+        box-shadow: none;
+    }}
+    popover.metis-dash-popover contents {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 0;
+        color: {text};
+        box-shadow: {dash_shadow};
+    }}
+    popover.metis-dash-popover > arrow {{
+        background-color: {dash_card_bg};
+        border: 1px solid {border};
     }}
     .metis-dash-popover-title {{
         font-size: 13px;
@@ -2512,18 +2632,25 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     button.metis-dash-menu-item {{
         border-radius: 0;
         border: none;
-        background: transparent;
+        background-image: none;
+        background-color: transparent;
+        color: {text};
         padding: 8px 12px;
         min-height: 32px;
+        box-shadow: none;
     }}
     button.metis-dash-menu-item:hover {{
-        background-color: {dash_card_bg};
+        background-color: rgba({accent_rgb}, 0.12);
+        color: {text};
     }}
     button.metis-dash-menu-item label {{
         font-size: 13px;
+        color: {text};
     }}
     .metis-dash-context-menu {{
         padding: 2px 0;
+        background: transparent;
+        color: {text};
     }}
     .metis-dash-metrics {{
         margin-top: 4px;
@@ -2605,6 +2732,18 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {text};
         background-color: rgba({text_rgb}, 0.06);
         border: 1px solid {border};
+        background-image: none;
+        box-shadow: none;
+    }}
+    .metis-dash-search text,
+    .metis-dash-search > text {{
+        color: {text};
+        background: transparent;
+        caret-color: {text};
+    }}
+    .metis-dash-search text placeholder,
+    .metis-dash-search > text > placeholder {{
+        color: {muted};
     }}
     .metis-dash-search:focus-within {{
         border-color: rgba({accent_rgb}, 0.45);
@@ -2613,6 +2752,37 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-dash-filter {{
         min-width: 140px;
         color: {text};
+        background-color: rgba({text_rgb}, 0.06);
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        background-image: none;
+        box-shadow: none;
+    }}
+    .metis-dash-filter button,
+    .metis-dash-filter > button {{
+        background: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        color: {text};
+    }}
+    .metis-dash-filter label {{
+        color: {text};
+    }}
+    button.metis-dash-monitor-btn {{
+        background-image: none;
+        background-color: rgba({text_rgb}, 0.06);
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        color: {text};
+        box-shadow: none;
+    }}
+    button.metis-dash-monitor-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+        color: {text};
+    }}
+    button.metis-dash-monitor-btn label {{
+        color: inherit;
     }}
     .metis-dash-table-head label {{
         font-size: 11px;
@@ -2623,10 +2793,29 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     list.metis-dash-table {{
         background: transparent;
+        color: {text};
+        border: none;
+        box-shadow: none;
     }}
     list.metis-dash-table row.metis-dash-table-row {{
         padding: 0;
         border: none;
+        background-image: none;
+        color: {text};
+    }}
+    list.metis-dash-table row.metis-dash-table-row label {{
+        color: {text};
+    }}
+    list.metis-dash-table row.metis-dash-table-row label.metis-dash-proc-name {{
+        color: {text};
+        font-weight: 500;
+    }}
+    list.metis-dash-table row.metis-dash-table-row label.metis-dash-muted {{
+        color: {muted};
+    }}
+    list.metis-dash-table row.metis-dash-table-row label.metis-dash-process-metis {{
+        color: {accent};
+        font-weight: 600;
     }}
     list.metis-dash-table row.metis-dash-table-row:nth-child(odd) {{
         background-color: rgba({accent_rgb}, 0.04);
@@ -2637,9 +2826,75 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     list.metis-dash-table row.metis-dash-table-row:hover {{
         background-color: rgba({accent_rgb}, 0.10);
     }}
+    list.metis-dash-table row.metis-dash-table-row button.flat,
+    list.metis-dash-table row.metis-dash-table-row button {{
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+        color: {muted};
+        min-width: 28px;
+        min-height: 28px;
+        padding: 2px;
+        border-radius: {rs}px;
+    }}
+    list.metis-dash-table row.metis-dash-table-row button:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+        color: {text};
+    }}
+    list.metis-dash-table row.metis-dash-table-row button image {{
+        color: inherit;
+        -gtk-icon-filter: none;
+    }}
     .metis-dash-process-metis {{
         color: {accent};
         font-weight: 600;
+    }}
+    /* Force Control Center chrome onto Metis tokens (Adwaita prefer-dark otherwise
+       leaves light/white labels on the frosted light panel). */
+    .metis-dashboard-root label {{
+        color: {text};
+    }}
+    .metis-dashboard-root label.metis-dash-muted,
+    .metis-dashboard-root .metis-dash-muted {{
+        color: {muted};
+    }}
+    .metis-dashboard-root label.metis-dash-proc-name,
+    .metis-dashboard-root .metis-dash-proc-name {{
+        color: {text};
+        font-weight: 500;
+    }}
+    .metis-dashboard-root label.metis-dash-process-metis,
+    .metis-dashboard-root .metis-dash-process-metis {{
+        color: {accent};
+    }}
+    .metis-dashboard-root label.metis-dash-card-title,
+    .metis-dashboard-root .metis-dash-card-title,
+    .metis-dashboard-root label.metis-dash-legend-label,
+    .metis-dashboard-root .metis-dash-legend-label,
+    .metis-dashboard-root label.metis-dash-session-key,
+    .metis-dashboard-root .metis-dash-session-key,
+    .metis-dashboard-root label.metis-dash-kv-key,
+    .metis-dashboard-root .metis-dash-kv-key,
+    .metis-dashboard-root label.metis-dash-sub,
+    .metis-dashboard-root .metis-dash-sub {{
+        color: {muted};
+    }}
+    .metis-dashboard-root button.metis-dash-sort {{
+        color: {muted};
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+    }}
+    .metis-dashboard-root button.metis-dash-sort label {{
+        color: inherit;
+    }}
+    .metis-dashboard-root button.metis-dash-sort.metis-dash-sort-active {{
+        color: {accent};
+    }}
+    .metis-dashboard-root button.metis-dash-sort.metis-dash-sort-active label {{
+        color: {accent};
     }}
     label.dim-label {{
         color: {muted};
@@ -2761,12 +3016,25 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-weight: 600;
     }}
     popover.metis-screenshot-popover {{
+        background-color: transparent;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+    }}
+    popover.metis-screenshot-popover contents {{
         background-color: {surface_solid};
         border: 1px solid {border};
         border-radius: {rm}px;
-        padding: 8px;
+        padding: 0;
+        box-shadow: {dash_shadow};
+        color: {text};
     }}
-    popover.metis-screenshot-popover label {{
+    popover.metis-screenshot-popover > arrow {{
+        background-color: {surface_solid};
+        border: 1px solid {border};
+    }}
+    .metis-screenshot-options {{
+        background-color: transparent;
         color: {text};
     }}
     label.metis-screenshot-option-label {{
@@ -2776,22 +3044,329 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-screenshot-after-seg {{
         border-radius: {rs}px;
     }}
-    .metis-screenshot-after-seg button.metis-screenshot-after-btn {{
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn,
+    popover.metis-screenshot-popover button.metis-screenshot-after-btn {{
+        background: {raised};
         background-image: none;
-        background-color: transparent;
         border: 1px solid {border};
         color: {text};
         padding: 6px 10px;
         font-size: 12px;
         box-shadow: none;
+        outline: none;
     }}
-    .metis-screenshot-after-seg button.metis-screenshot-after-btn:hover {{
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn:hover,
+    popover.metis-screenshot-popover button.metis-screenshot-after-btn:hover {{
+        background: rgba({accent_rgb}, 0.12);
+        color: {text};
+    }}
+    .metis-screenshot-after-seg button.metis-screenshot-after-btn:checked,
+    popover.metis-screenshot-popover button.metis-screenshot-after-btn:checked {{
+        background: {accent};
+        color: {text_on_accent};
+        border-color: {accent};
+    }}
+    popover.metis-screenshot-popover switch,
+    .metis-screenshot-options switch {{
+        background-color: rgba({text_rgb}, 0.14);
+        background-image: none;
+        border: none;
+        border-radius: 999px;
+        min-width: 40px;
+        min-height: 22px;
+        padding: 0;
+    }}
+    popover.metis-screenshot-popover switch:checked,
+    .metis-screenshot-options switch:checked {{
+        background-color: {accent};
+        background-image: none;
+    }}
+    popover.metis-screenshot-popover switch > slider,
+    .metis-screenshot-options switch > slider {{
+        background-color: {surface_solid};
+        border-radius: 999px;
+        min-width: 18px;
+        min-height: 18px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }}
+    popover.metis-screenshot-popover spinbutton,
+    .metis-screenshot-options spinbutton {{
+        background-color: {raised};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        caret-color: {text};
+        box-shadow: none;
+    }}
+    popover.metis-screenshot-popover spinbutton text,
+    .metis-screenshot-options spinbutton text {{
+        color: {text};
+        background-color: transparent;
+    }}
+    popover.metis-screenshot-popover spinbutton button,
+    .metis-screenshot-options spinbutton button {{
+        background: transparent;
+        background-image: none;
+        color: {muted};
+        border: none;
+        box-shadow: none;
+    }}
+    popover.metis-screenshot-popover spinbutton button:hover,
+    .metis-screenshot-options spinbutton button:hover {{
+        background: rgba({accent_rgb}, 0.12);
+        color: {text};
+    }}
+
+    /* ---- Notification Center (Phase 13) ---- */
+    window.metis-nc-window {{
+        background-color: transparent;
+    }}
+    .metis-nc-revealer {{
+        background: transparent;
+    }}
+    .metis-nc-panel {{
+        background-color: {nc_panel_bg};
+        box-shadow: {dash_shadow};
+        color: {text};
+        padding: 8px 10px 10px 10px;
+        border-radius: 0;
+    }}
+    /* Right-edge panel (default / bar on left, top, or bottom). */
+    .metis-nc-panel.metis-nc-side-right {{
+        border-left: 1px solid {border};
+        border-right: none;
+    }}
+    .metis-nc-panel.metis-nc-side-right.metis-nc-attach-top {{
+        border-top-left-radius: 0;
+        border-bottom-left-radius: {rl}px;
+    }}
+    .metis-nc-panel.metis-nc-side-right.metis-nc-attach-bottom {{
+        border-top-left-radius: {rl}px;
+        border-bottom-left-radius: 0;
+    }}
+    .metis-nc-panel.metis-nc-side-right.metis-nc-attach-full {{
+        border-top-left-radius: {rl}px;
+        border-bottom-left-radius: {rl}px;
+    }}
+    /* Left-edge panel (bar on the right). */
+    .metis-nc-panel.metis-nc-side-left {{
+        border-right: 1px solid {border};
+        border-left: none;
+    }}
+    .metis-nc-panel.metis-nc-side-left.metis-nc-attach-top {{
+        border-top-right-radius: 0;
+        border-bottom-right-radius: {rl}px;
+    }}
+    .metis-nc-panel.metis-nc-side-left.metis-nc-attach-bottom {{
+        border-top-right-radius: {rl}px;
+        border-bottom-right-radius: 0;
+    }}
+    .metis-nc-panel.metis-nc-side-left.metis-nc-attach-full {{
+        border-top-right-radius: {rl}px;
+        border-bottom-right-radius: {rl}px;
+    }}
+    .metis-nc-scrolled {{
+        background: transparent;
+    }}
+    .metis-nc-scrolled scrollbar.vertical slider {{
+        background-color: rgba({text_rgb}, 0.25);
+        border-radius: 999px;
+        min-width: 6px;
+    }}
+    .metis-nc-card {{
+        background-color: {nc_card_bg};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 12px;
+        color: {text};
+    }}
+    label.metis-nc-card-title {{
+        font-size: 14px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-nc-tool-rail {{
+        background: transparent;
+    }}
+    button.metis-nc-tool-btn {{
+        background: transparent;
+        background-image: none;
+        border: 1px solid transparent;
+        border-radius: {rs}px;
+        padding: 6px;
+        color: {muted};
+        box-shadow: none;
+        outline: none;
+        min-width: 32px;
+        min-height: 32px;
+    }}
+    button.metis-nc-tool-btn:hover {{
         background-color: rgba({accent_rgb}, 0.12);
+        color: {text};
     }}
-    .metis-screenshot-after-seg button.metis-screenshot-after-btn:checked {{
+    button.metis-nc-tool-btn:checked {{
         background-color: {accent};
         color: {text_on_accent};
         border-color: {accent};
+    }}
+
+    /* Force every button inside the NC to follow Metis tokens. Adwaita's
+       prefer-dark chrome otherwise keeps charcoal fills on light panels. */
+    .metis-nc-panel button,
+    .metis-nc-card button {{
+        background: {raised};
+        background-image: none;
+        color: {text};
+        border: 1px solid {border};
+        box-shadow: none;
+        outline: none;
+    }}
+    .metis-nc-panel button.metis-cal-nav,
+    .metis-nc-panel button.metis-cal-day,
+    .metis-nc-panel button.metis-cal-event-action,
+    .metis-nc-panel button.metis-cal-today-btn,
+    .metis-nc-panel button.metis-nc-tool-btn,
+    .metis-nc-card button.metis-cal-nav,
+    .metis-nc-card button.metis-cal-day,
+    .metis-nc-card button.metis-cal-event-action,
+    .metis-nc-card button.metis-cal-today-btn,
+    .metis-nc-card button.metis-nc-tool-btn {{
+        background: transparent;
+        border-color: transparent;
+        color: {muted};
+    }}
+    .metis-nc-panel button.metis-cal-today-btn,
+    .metis-nc-card button.metis-cal-today-btn {{
+        color: {accent};
+    }}
+    .metis-nc-panel button.metis-cal-day,
+    .metis-nc-card button.metis-cal-day {{
+        color: {text};
+    }}
+    .metis-nc-panel button.metis-cal-add-btn,
+    .metis-nc-card button.metis-cal-add-btn {{
+        background: rgba({accent_rgb}, 0.14);
+        border-color: transparent;
+        color: {text};
+    }}
+    .metis-nc-panel button.metis-sw-btn-go,
+    .metis-nc-card button.metis-sw-btn-go {{
+        background: {accent};
+        border-color: {accent};
+        color: {text_on_accent};
+    }}
+    .metis-nc-panel button.metis-sw-btn-stop,
+    .metis-nc-card button.metis-sw-btn-stop {{
+        background: rgba({text_rgb}, 0.08);
+        border-color: transparent;
+        color: {text};
+    }}
+    .metis-nc-panel button.metis-alarm-day:checked,
+    .metis-nc-panel button.metis-alarm-sound-btn:checked,
+    .metis-nc-panel button.metis-nc-tool-btn:checked,
+    .metis-nc-card button.metis-alarm-day:checked,
+    .metis-nc-card button.metis-alarm-sound-btn:checked,
+    .metis-nc-card button.metis-nc-tool-btn:checked {{
+        background: {accent};
+        border-color: {accent};
+        color: {text_on_accent};
+    }}
+    .metis-nc-panel button:hover,
+    .metis-nc-card button:hover {{
+        background: rgba({accent_rgb}, 0.12);
+        color: {text};
+    }}
+    .metis-nc-panel button.metis-cal-selected,
+    .metis-nc-card button.metis-cal-selected {{
+        background: rgba({accent_rgb}, 0.10);
+        box-shadow: inset 0 0 0 1px {accent};
+        color: {text};
+    }}
+    .metis-nc-panel button.metis-sw-btn-go:hover,
+    .metis-nc-card button.metis-sw-btn-go:hover {{
+        background: {accent2};
+        color: {text_on_accent};
+    }}
+    .metis-nc-panel button.metis-nc-tool-btn:checked:hover,
+    .metis-nc-card button.metis-nc-tool-btn:checked:hover,
+    .metis-nc-panel button.metis-alarm-day:checked:hover,
+    .metis-nc-card button.metis-alarm-day:checked:hover {{
+        background: {accent};
+        color: {text_on_accent};
+    }}
+    .metis-nc-panel button image,
+    .metis-nc-card button image {{
+        color: inherit;
+    }}
+    .metis-nc-panel .metis-cal-event {{
+        background-color: rgba({text_rgb}, 0.04);
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        padding: 8px 6px;
+    }}
+    .metis-nc-panel entry,
+    .metis-nc-panel spinbutton,
+    .metis-nc-card entry,
+    .metis-nc-card spinbutton {{
+        background-color: {raised};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        caret-color: {text};
+    }}
+    .metis-nc-panel switch,
+    .metis-nc-card switch,
+    switch.metis-nc-switch {{
+        background-color: rgba({text_rgb}, 0.18);
+        border: none;
+        border-radius: 999px;
+        min-width: 36px;
+        min-height: 18px;
+        padding: 0;
+    }}
+    .metis-nc-panel switch:checked,
+    .metis-nc-card switch:checked,
+    switch.metis-nc-switch:checked {{
+        background-color: {accent};
+    }}
+    .metis-nc-panel switch > slider,
+    .metis-nc-card switch > slider,
+    switch.metis-nc-switch > slider {{
+        background-color: {surface_solid};
+        border-radius: 999px;
+        min-width: 14px;
+        min-height: 14px;
+        margin: 2px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }}
+    button.metis-nc-btn {{
+        background-image: none;
+        background-color: transparent;
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        color: {text};
+        padding: 4px 10px;
+    }}
+    button.metis-nc-btn:hover {{
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    button.metis-nc-collapse {{
+        background: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        padding: 2px;
+        min-width: 24px;
+        min-height: 24px;
+        color: {muted};
+    }}
+    button.metis-nc-collapse:hover {{
+        color: {text};
+        background-color: rgba({accent_rgb}, 0.12);
+        border-radius: {rs}px;
+    }}
+    button.metis-nc-collapse:checked {{
+        color: {text};
     }}
 "#,
         surface = surface,
@@ -2809,5 +3384,12 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         c_error = c_error,
         screenshot_toolbar_bg = screenshot_toolbar_bg,
         text_on_accent = text_on_accent,
+        nc_panel_bg = nc_panel_bg,
+        nc_card_bg = nc_card_bg,
+        toast_card_bg = toast_card_bg,
+        notif_card_bg = notif_card_bg,
+        dash_shadow = dash_shadow,
+        text_rgb = text_rgb,
+        accent_rgb = accent_rgb,
     )
 }

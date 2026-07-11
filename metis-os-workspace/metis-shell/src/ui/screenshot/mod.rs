@@ -98,7 +98,9 @@ pub fn show(mode: LaunchMode) {
     if OVERLAY.with(|o| o.borrow().is_some()) {
         return;
     }
-    crate::ui::bar::close_popovers();
+    // Close bar popovers / dashboard, but keep the Notification Center open so
+    // it can be included in the capture.
+    crate::ui::bar::close_bar_popovers();
     crate::ui::dashboard::request_close();
 
     let config = load_screenshot_config();
@@ -119,6 +121,9 @@ pub fn show(mode: LaunchMode) {
 
 fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     let _ = send_compositor(CompositorCommand::BeginScreenshotOverlay);
+    // Keep NC visible for capture, but park it on Top so this Overlay picker
+    // paints above it (otherwise the panel covers the selection UI).
+    crate::ui::notification_center::set_below_screenshot(true);
 
     let (monitor_origin, output_index) = monitor_context();
     let windows = list_windows_best_effort();
@@ -370,6 +375,7 @@ fn build_options_popover(
     popover.set_has_arrow(true);
 
     let panel = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    panel.add_css_class("metis-screenshot-options");
     panel.set_margin_start(12);
     panel.set_margin_end(12);
     panel.set_margin_top(10);
@@ -959,6 +965,7 @@ pub fn dismiss() {
         }
     });
     let _ = send_compositor(CompositorCommand::EndScreenshotOverlay);
+    crate::ui::notification_center::set_below_screenshot(false);
 }
 
 fn monitor_context() -> ((i32, i32), usize) {

@@ -42,18 +42,17 @@ use crate::focus::KeyboardFocusTarget;
 use crate::events::EventBus;
 use crate::windows::WindowRegistry;
 
-/// Thin padding kept between the edge bar's reserved (exclusive) zone and any
-/// window, so windows sit just under the bar without touching its drop shadow.
+/// Legacy default for bar-adjacent padding; live maximize/snap gaps come from
+/// [`MetisState::configured_window_gap`] / `bar.json` `window_gap_px`.
+#[allow(dead_code)]
 pub const BAR_GAP_PX: i32 = 2;
 
-/// Hyprland-style uniform gap around a maximized window so it floats inside the
-/// usable area (under the bar, inset from the screen edges) instead of butting up
-/// against them.
+/// Default Hyprland-style gap around maximized windows when `bar.json` has not
+/// set `window_gap_px` yet. Live value comes from config (0..=10).
 pub const WINDOW_GAP_PX: i32 = 8;
 
-/// Per-edge gaps for placing/snapping windows inside the usable zone. Edges that
-/// border the edge bar use `BAR_GAP_PX`; edges that border the bare screen use
-/// `WINDOW_GAP_PX`.
+/// Per-edge gaps for placing/snapping windows inside the usable zone. All edges
+/// use the configured `window_gap_px` (see [`MetisState::zone_edge_gaps`]).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ZoneGaps {
     pub(crate) top: i32,
@@ -70,6 +69,10 @@ pub const MIN_VISIBLE_PX: i32 = 64;
 /// How far *outside* a window edge the invisible resize grab band reaches (into
 /// the gap/border around the window). Corners are where two bands overlap.
 pub const RESIZE_MARGIN_PX: i32 = 12;
+/// How far *inside* the client edge the resize band reaches. Keep this thin so
+/// edge-hugging scrollbars (Chromium, etc.) stay clickable; most of the grab
+/// affordance lives in [`RESIZE_MARGIN_PX`] outside the frame.
+pub const RESIZE_INNER_PX: i32 = 3;
 
 /// Apps that open as a centered floating window by default (rather than being
 /// snapped into the tiling grid).
@@ -250,6 +253,10 @@ pub struct MetisState {
     /// Last known edge-bar position; used to reflow windows immediately when the
     /// bar layer commits after a settings change (not only on the blur poll).
     pub(crate) last_bar_position: metis_config::BarPosition,
+    /// Last applied maximize/snap gap from `bar.json` (`window_gap_px`).
+    last_window_gap_px: i32,
+    /// Throttle for re-reading `window_gap_px` (~1s, same cadence as blur).
+    last_window_gap_check: std::time::Instant,
     /// Last scroll-animation tick (16ms heartbeat).
     last_scroll_tick: Option<std::time::Instant>,
     /// Debounce grid/scroll toggle (`Mod+\`) so key-repeat cannot flip modes
@@ -853,6 +860,8 @@ impl MetisState {
             defer_client_flush: false,
             last_pointer_forward: None,
             last_bar_position: metis_config::load_bar_config().position,
+            last_window_gap_px: metis_config::bar::window_gap_px(&metis_config::load_bar_config()),
+            last_window_gap_check: std::time::Instant::now(),
             last_scroll_tick: None,
             last_layout_toggle: None,
             client_cursor_theme,
@@ -931,6 +940,7 @@ impl MetisState {
             self.last_bar_position = self.blur.position;
             self.reflow_for_bar_geometry_change();
         }
+        self.maybe_refresh_window_gap();
 
         let deco = self.decorations.maybe_refresh();
         if deco.damage {
@@ -2231,10 +2241,11 @@ impl MetisState {
         self.output_at(center)
     }
 
-    /// True when `output` carries a Metis edge bar layer surface. Overlay bars
-    /// (bottom/left/right) don't set a layer-shell exclusive zone, so window
-    /// placement reserves their strip manually — but only on the outputs that
-    /// actually show a bar (e.g. not on secondaries in "primary display only").
+    /// True when `output` carries a Metis edge bar layer surface. Side bars
+    /// (left/right) don't set a layer-shell exclusive zone, so window placement
+    /// reserves their strip manually — but only on the outputs that actually show
+    /// a bar (e.g. not on secondaries in "primary display only"). Top/bottom bars
+    /// reserve via exclusive zone.
     pub(crate) fn output_has_bar(&self, output: &smithay::output::Output) -> bool {
         layer_map_for_output(output)
             .layers()
@@ -4814,9 +4825,14 @@ impl MetisState {
         }
     }
 
-    /// Re-anchor a maximized window when a client (especially CSD Chromium) maps
-    /// flush to the monitor top after leaving video fullscreen. `apply_window_rect`
-    /// intentionally skips maximized windows, so this runs on commit instead.
+    /// Re-anchor a maximized window when a client (especially CSD Chromium/Cursor)
+    /// commits the wrong origin *or* size. `apply_window_rect` skips maximized
+    /// windows, so this runs on commit instead.
+    ///
+    /// Critical for bottom edge bars: clients often keep a full-output height
+    /// while accepting the correct `y`, which paints under the bar. We also treat
+    /// bbox overflow past the expected bottom as a mismatch (geometry size can
+    /// already look correct while the surface still covers the bar).
     pub fn reclamp_maximized_geometry(&mut self, id: u32) {
         if !self
             .windows
@@ -4838,26 +4854,16 @@ impl MetisState {
             return;
         };
         let expected_loc = Point::from((expected.x, expected.y));
-        let min_y = self
-            .clamp_below_top_bar_edge_for(
-                id,
-                PixelRect {
-                    x: loc.x,
-                    y: loc.y,
-                    width: 1,
-                    height: 1,
-                },
-            )
-            .y;
-        let under_bar = loc.y < min_y;
-        let off_target = loc != expected_loc;
-        if !under_bar && !off_target {
-            return;
-        }
-        if self.space.element_location(&record.window) == Some(expected_loc)
-            && record.window.geometry().size == expected_size
-            && self.windows.target_rect(id) == Some(expected)
-        {
+        let current_size = record.window.geometry().size;
+        let bbox = record.window.bbox();
+        let mapped_bottom = loc.y + bbox.loc.y + bbox.size.h;
+        let expected_bottom = expected.y + expected.height;
+        let overflows_bottom = mapped_bottom > expected_bottom;
+        let already_ok = loc == expected_loc
+            && current_size == expected_size
+            && !overflows_bottom
+            && self.windows.target_rect(id) == Some(expected);
+        if already_ok {
             return;
         }
         if let Some(toplevel) = record.wl_toplevel() {
@@ -4868,16 +4874,24 @@ impl MetisState {
                 state.size = Some(expected_size);
                 state.fullscreen_output = None;
             });
+        } else if let Some(x11) = record.x11() {
+            let _ = x11.set_maximized(true);
         }
         self.space.relocate_element(&record.window, expected_loc);
         self.windows.set_rect(id, expected);
         self.send_window_configure(&record, expected_loc, expected_size);
         self.schedule_redraw();
-        tracing::debug!(
+        tracing::info!(
             id,
             ?loc,
             ?expected_loc,
-            under_bar,
+            current_w = current_size.w,
+            current_h = current_size.h,
+            expected_w = expected_size.w,
+            expected_h = expected_size.h,
+            mapped_bottom,
+            expected_bottom,
+            overflows_bottom,
             "reclamped maximized geometry after client commit"
         );
     }
@@ -5014,53 +5028,51 @@ impl MetisState {
         }
     }
 
-    /// Gaps for maximize/snap/clamp: `BAR_GAP_PX` on the edge where the bar sits,
-    /// `WINDOW_GAP_PX` everywhere else.
+    /// Gaps for maximize/snap/clamp. All edges use the configured `window_gap_px`
+    /// (0 = flush). Bar reserve is applied separately via `bar_reserved_px`.
     pub(crate) fn zone_edge_gaps(&self) -> ZoneGaps {
-        let pos = metis_config::load_bar_config().position;
-        let g = WINDOW_GAP_PX;
-        let bar = BAR_GAP_PX;
+        let g = self.configured_window_gap();
         ZoneGaps {
-            top: if matches!(pos, metis_config::BarPosition::Top) {
-                bar
-            } else {
-                g
-            },
-            bottom: if matches!(pos, metis_config::BarPosition::Bottom) {
-                bar
-            } else {
-                g
-            },
-            left: if matches!(pos, metis_config::BarPosition::Left) {
-                bar
-            } else {
-                g
-            },
-            right: if matches!(pos, metis_config::BarPosition::Right) {
-                bar
-            } else {
-                g
-            },
+            top: g,
+            bottom: g,
+            left: g,
+            right: g,
         }
     }
 
-    /// Pixels an overlay bar occupies along its anchored edge for window placement:
-    /// the configured edge distance plus the visible body. This mirrors the top
-    /// bar's layer-shell exclusive zone (`margin + body`) so every edge reserves
-    /// exactly the *visible* strip. The transparent shadow pad above the pill is
-    /// intentionally not reserved — the window tucks right up to the visible pill
-    /// (it sits below the pill's top edge, so a translucent bar never shows the
-    /// client through it), with a `BAR_GAP_PX` breathing gap added separately by
-    /// `zone_edge_gaps`.
+    /// Live maximize/snap padding from `bar.json` (`window_gap_px`, 0..=10).
+    pub(crate) fn configured_window_gap(&self) -> i32 {
+        metis_config::bar::window_gap_px(&metis_config::load_bar_config())
+    }
+
+    /// Pick up Settings changes to `window_gap_px` (~1s) and reflow maximized/
+    /// snapped windows so the new padding applies without a restart.
+    fn maybe_refresh_window_gap(&mut self) {
+        if self.last_window_gap_check.elapsed() < std::time::Duration::from_secs(1) {
+            return;
+        }
+        self.last_window_gap_check = std::time::Instant::now();
+        let gap = self.configured_window_gap();
+        if gap == self.last_window_gap_px {
+            return;
+        }
+        tracing::info!(gap, "window gap changed — reflowing windows");
+        self.last_window_gap_px = gap;
+        self.reflow_for_bar_geometry_change();
+    }
+
+    /// Pixels the edge bar occupies along its anchored edge (margin + visible
+    /// body). Driven from `bar.json`, not the layer-shell exclusive map — bottom
+    /// bars historically failed to shrink `non_exclusive_zone`, which let
+    /// maximize and the Notification Center run under the pill.
     fn bar_reserved_px() -> i32 {
         let cfg = metis_config::load_bar_config();
         cfg.margin_top as i32 + cfg.height as i32
     }
 
-    /// Region for maximize, snap, and clamp. Top bar shrinks via layer-shell
-    /// exclusive zone; other edges overlay but this zone excludes the bar strip
-    /// so snapped/tiled windows sit beside/above it (floating windows may still
-    /// slide underneath).
+    /// Region for maximize, snap, and clamp. Always subtracts the configured bar
+    /// strip from the full output geometry so bottom/side bars stay correct even
+    /// when layer-shell exclusive zones do not shrink the usable map.
     pub(crate) fn window_placement_zone(&self) -> PixelRect {
         match self.primary_output() {
             Some(output) => self.window_placement_zone_for(&output),
@@ -5070,18 +5082,29 @@ impl MetisState {
 
     /// Like [`window_placement_zone`](Self::window_placement_zone) but for a
     /// specific `output`, so snap/maximize/placement target the monitor a window
-    /// (or the cursor) is on. The overlay-bar strip is only reserved on outputs
-    /// that actually show a bar.
+    /// (or the cursor) is on.
     pub(crate) fn window_placement_zone_for(
         &self,
         output: &smithay::output::Output,
     ) -> PixelRect {
-        let mut zone = self.placement_zone_for(output);
+        let mut zone = match self.output_rect(output) {
+            Some(m) => PixelRect {
+                x: m.x,
+                y: m.y,
+                width: m.width as i32,
+                height: m.height as i32,
+            },
+            None => self.placement_zone_for(output),
+        };
         if !self.output_has_bar(output) {
-            return zone;
+            return self.usable_zone_for(output).unwrap_or(zone);
         }
         let reserve = Self::bar_reserved_px();
         match metis_config::load_bar_config().position {
+            metis_config::BarPosition::Top => {
+                zone.y += reserve;
+                zone.height = (zone.height - reserve).max(1);
+            }
             metis_config::BarPosition::Bottom => {
                 zone.height = (zone.height - reserve).max(1);
             }
@@ -5092,7 +5115,6 @@ impl MetisState {
             metis_config::BarPosition::Right => {
                 zone.width = (zone.width - reserve).max(1);
             }
-            metis_config::BarPosition::Top => {}
         }
         zone
     }
@@ -5153,27 +5175,31 @@ impl MetisState {
                 }
             };
             // Layer-shell exclusive zone may not be committed yet at startup. For a
-            // top bar, reserve the visible strip so maximize/placement never tuck
-            // windows under the bar while waiting for the first bar configure.
-            if self.output_has_bar(output)
-                && matches!(
-                    metis_config::load_bar_config().position,
-                    metis_config::BarPosition::Top
-                )
-            {
+            // top/bottom bar, reserve the visible strip so maximize/placement never
+            // tucks windows under the bar while waiting for the first bar configure.
+            if self.output_has_bar(output) {
                 let reserve = Self::bar_reserved_px();
-                zone.y += reserve;
-                zone.height = (zone.height - reserve).max(1);
+                match metis_config::load_bar_config().position {
+                    metis_config::BarPosition::Top => {
+                        zone.y += reserve;
+                        zone.height = (zone.height - reserve).max(1);
+                    }
+                    metis_config::BarPosition::Bottom => {
+                        zone.height = (zone.height - reserve).max(1);
+                    }
+                    metis_config::BarPosition::Left | metis_config::BarPosition::Right => {}
+                }
             }
             zone
         };
-        self.enforce_top_bar_reserve_on_zone(output, &mut zone);
+        self.enforce_bar_reserve_on_zone(output, &mut zone);
         zone
     }
 
     /// Layer-shell exclusive zones can lag by a commit when the bar reappears
-    /// after fullscreen. Always keep the top bar strip reserved when configured.
-    fn enforce_top_bar_reserve_on_zone(
+    /// after fullscreen. Always keep the top/bottom bar strip reserved when
+    /// configured.
+    fn enforce_bar_reserve_on_zone(
         &self,
         output: &smithay::output::Output,
         zone: &mut PixelRect,
@@ -5181,22 +5207,27 @@ impl MetisState {
         if !self.output_has_bar(output) {
             return;
         }
-        if !matches!(
-            metis_config::load_bar_config().position,
-            metis_config::BarPosition::Top
-        ) {
+        let Some(output_geo) = self.space.output_geometry(output) else {
             return;
-        }
-        let origin_y = self
-            .space
-            .output_geometry(output)
-            .map(|g| g.loc.y)
-            .unwrap_or(0);
-        let min_y = origin_y + Self::bar_reserved_px();
-        if zone.y < min_y {
-            let delta = min_y - zone.y;
-            zone.y = min_y;
-            zone.height = (zone.height - delta).max(1);
+        };
+        let reserve = Self::bar_reserved_px();
+        match metis_config::load_bar_config().position {
+            metis_config::BarPosition::Top => {
+                let min_y = output_geo.loc.y + reserve;
+                if zone.y < min_y {
+                    let delta = min_y - zone.y;
+                    zone.y = min_y;
+                    zone.height = (zone.height - delta).max(1);
+                }
+            }
+            metis_config::BarPosition::Bottom => {
+                let max_bottom = output_geo.loc.y + output_geo.size.h - reserve;
+                let zone_bottom = zone.y + zone.height;
+                if zone_bottom > max_bottom {
+                    zone.height = (max_bottom - zone.y).max(1);
+                }
+            }
+            metis_config::BarPosition::Left | metis_config::BarPosition::Right => {}
         }
     }
 
@@ -5370,7 +5401,7 @@ impl MetisState {
             .output_geometry(&output)
             .map(|g| g.loc.y)
             .unwrap_or(0);
-        let min_y = origin_y + Self::bar_reserved_px() + BAR_GAP_PX;
+        let min_y = origin_y + Self::bar_reserved_px() + self.configured_window_gap();
         if rect.y < min_y {
             rect.y = min_y;
         }
@@ -5865,22 +5896,24 @@ impl MetisState {
         use crate::grabs::ResizeEdge;
 
         let (x, y) = (loc.x as i32, loc.y as i32);
-        let m = RESIZE_MARGIN_PX;
-        let corner = m + metis_grid::app_tile_border_px().max(1);
+        let outer = RESIZE_MARGIN_PX;
+        let inner = RESIZE_INNER_PX;
+        let corner = outer + metis_grid::app_tile_border_px().max(1);
 
-        // m-wide band straddling each frame edge (inside + outside the drawn border).
-        // Each side is clamped to the frame extent (+ halo) on the perpendicular axis
-        // so left/right strips do not extend infinitely above/below the window.
-        let y_lo = frame.y - m;
-        let y_hi = frame.y + frame.height + m;
-        let x_lo = frame.x - m;
-        let x_hi = frame.x + frame.width + m;
-        let on_left = x >= frame.x - m && x < frame.x + m && y >= y_lo && y < y_hi;
-        let on_right =
-            x >= frame.x + frame.width - m && x < frame.x + frame.width + m && y >= y_lo && y < y_hi;
-        let on_top = y >= frame.y - m && y < frame.y + m && x >= x_lo && x < x_hi;
-        let on_bottom = y >= frame.y + frame.height - m
-            && y < frame.y + frame.height + m
+        // Asymmetric band: mostly outside the frame (easy to grab) and only a
+        // few px inside so right/bottom scrollbars are not swallowed.
+        let y_lo = frame.y - outer;
+        let y_hi = frame.y + frame.height + outer;
+        let x_lo = frame.x - outer;
+        let x_hi = frame.x + frame.width + outer;
+        let on_left = x >= frame.x - outer && x < frame.x + inner && y >= y_lo && y < y_hi;
+        let on_right = x >= frame.x + frame.width - inner
+            && x < frame.x + frame.width + outer
+            && y >= y_lo
+            && y < y_hi;
+        let on_top = y >= frame.y - outer && y < frame.y + inner && x >= x_lo && x < x_hi;
+        let on_bottom = y >= frame.y + frame.height - inner
+            && y < frame.y + frame.height + outer
             && x >= x_lo
             && x < x_hi;
         if !on_left && !on_right && !on_top && !on_bottom {
@@ -6041,6 +6074,9 @@ impl MetisState {
         use crate::desk_input::point_in_rect;
 
         if self.metis_bar_ui_hit(loc) {
+            return None;
+        }
+        if self.screenshot_overlay_active() || self.capture_overlay_active() {
             return None;
         }
         let (x, y) = (loc.x as i32, loc.y as i32);
@@ -6588,6 +6624,9 @@ impl MetisState {
         use crate::desk_input::point_in_rect;
 
         if self.capture_overlay_active() {
+            return;
+        }
+        if self.screenshot_overlay_active() {
             return;
         }
 
@@ -8510,11 +8549,10 @@ fn anchor_axis(
     }
 }
 
-/// Apply maximize-consistent edge gaps to a raw snap region. Sides on the
-/// usable-zone boundary use `gaps` (bar-adjacent edges use `BAR_GAP_PX`, bare
-/// screen edges use `WINDOW_GAP_PX`); interior split lines get half `WINDOW_GAP_PX`.
+/// Apply maximize-consistent edge gaps to a raw snap region. Boundary sides use
+/// `gaps`; interior split lines get half the configured window gap.
 fn snap_client_rect(raw: PixelRect, zone: PixelRect, gaps: ZoneGaps) -> PixelRect {
-    let half = WINDOW_GAP_PX / 2;
+    let half = (gaps.left.max(gaps.right).max(gaps.top).max(gaps.bottom) / 2).max(0);
     let touches_left = raw.x <= zone.x;
     let touches_right = raw.x + raw.width >= zone.x + zone.width;
     let touches_top = raw.y <= zone.y;

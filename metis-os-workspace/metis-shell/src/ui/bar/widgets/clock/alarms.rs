@@ -31,10 +31,11 @@ impl AlarmsPage {
     pub fn new(store: Store) -> Self {
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(12)
+            .spacing(10)
+            .hexpand(true)
             .build();
         root.add_css_class("metis-alarm-page");
-        root.set_width_request(440);
+        root.set_width_request(-1);
 
         let header = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)

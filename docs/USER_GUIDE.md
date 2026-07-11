@@ -56,15 +56,16 @@ with `metis-cmd.sh show-onboarding`. Disable for dev with
 
 - **Edge bar** — a thin bar anchored to one screen edge (top by default). It
   holds the app launcher, a taskbar dock of running apps, workspace dots, and
-  status widgets (weather, battery, Bluetooth, network, volume, notifications, clock).
+  status widgets (weather, battery, Bluetooth, network, volume, clipboard, clock).
 - **Windows** — every app gets a compositor-drawn **titlebar** with close,
   minimize, and maximize buttons, plus a border. Windows tile into a grid by
   default — opening or closing an app re-splits the area below desk widgets among
   visible tiled windows. You can float, snap, maximize, or switch a workspace into a
   scrolling layout.
-- **Popovers** — clicking a bar widget opens an on-demand popover (calendar,
-  Wi-Fi, volume, notifications, weather forecast, app launcher). Clicking
-  elsewhere dismisses it.
+- **Popovers & panels** — clicking a bar widget opens an on-demand popover (Wi-Fi,
+  volume, weather, app launcher). The **clock** opens the right-side **Notification
+  Center** (notifications, calendar, world clocks, timer, alarms). Clicking
+  elsewhere or pressing **Esc** dismisses it.
 
 ---
 
@@ -82,8 +83,8 @@ Widgets appear in the order set by `bar.json#widgets`. The defaults:
 | **Bluetooth** | Shown when a Bluetooth adapter is present. Click for connected devices (with battery level and charging icon when reported), plus a shortcut to Bluetooth settings. |
 | **Network** | Wired/Wi-Fi status. Click for a Wi-Fi popover (scan, connect, forget). The signal icon stays stable during background rescans. |
 | **Volume** | Current output volume. Click for a slider + mute. |
-| **Notifications** | Bell with an unread badge. Click for grouped notifications; clear all with a slide-out. |
-| **Clock** | Date/time. Click for a tabbed popover: calendar, world clocks, stopwatch, timer, and alarms. |
+| **Notifications** | *(optional)* Legacy bell — opens the same Notification Center as the clock. Removed from the default bar layout in Phase 13. |
+| **Clock** | Date/time with unread badge. Click opens the **Notification Center** (right panel): notifications, calendar events, and calendar/tools (world clocks, stopwatch, timer, alarms). **Esc** closes. |
 
 **Per-output bars.** With multiple outputs you can show the bar on **all
 displays** (each is independent and live) or **the primary display only** —
@@ -91,6 +92,18 @@ configured in Settings → Appearance → Edge bar → *Show bar on*.
 
 **Live editing.** Edit `~/.config/metis/bar.json` while Metis runs; bar changes
 apply within about a second. Theme edits (`themes/*.json`) re-apply live too.
+
+### Notification Center
+
+Click the **clock** to slide open a frosted panel from the right edge:
+
+1. **Notifications** — grouped cards, Do Not Disturb, Clear all (hides when empty).
+2. **Events** — selected-day calendar events (hides when empty).
+3. **Calendar / tools** — month grid plus an icon rail for World clocks, Stopwatch,
+   Timer, and Alarms.
+
+Transient **toasts** still appear top-right (with a close button) and shift left
+while the panel is open. Press **Esc** or click the clock again to dismiss.
 
 ---
 
@@ -620,7 +633,7 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   (reorder/remove), °F/°C unit, and an IP-geolocation toggle.
 - **Network** — wired/NIC config (DHCP vs static) and Wi-Fi scan/connect/forget.
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
-  365) used by the clock popover.
+  365) used by the Notification Center calendar.
 - **Input** — mouse, touchpad, and keyboard settings (pointer speed, natural
   scroll, tap-to-click, layout, repeat rate, etc.); written to `input.json` and
   applied live by the compositor.

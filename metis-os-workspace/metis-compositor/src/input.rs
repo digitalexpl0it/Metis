@@ -661,11 +661,14 @@ impl MetisState {
                     // window resize/move chrome rendered geometrically *beneath* the
                     // popover — letting you drag a window through the open menu.
                     let on_bar_ui = self.metis_bar_ui_hit(loc);
-                    // Any press off the bar/popover dismisses open popovers — do this
-                    // FIRST so it still fires when the press is consumed by compositor
-                    // chrome (resize band or server-side titlebar) and returns early.
-                    if !pointer.is_grabbed() && !on_bar_ui {
-                        let _ = metis_protocol::write_runtime_command("close-popovers");
+                    let on_nc = self.metis_notification_center_hit(loc);
+                    // Any press outside the Notification Center dismisses it (and
+                    // bar popovers) — including presses on the edge bar. Presses
+                    // on the NC panel itself must not dismiss.
+                    if !pointer.is_grabbed() && !on_nc {
+                        if !on_bar_ui || self.notification_center_mapped() {
+                            let _ = metis_protocol::write_runtime_command("close-popovers");
+                        }
                     }
                     // Terminals (kitty, foot, …) use right/middle-click paste and
                     // context menus against the surface under the pointer — align
@@ -675,7 +678,11 @@ impl MetisState {
                         self.sync_selection_focus_from_target(&under);
                     }
                     let mut chrome_press = false;
-                    if !on_bar_ui && button == BTN_LEFT && !self.capture_overlay_active() {
+                    if !on_bar_ui
+                        && button == BTN_LEFT
+                        && !self.capture_overlay_active()
+                        && !self.screenshot_overlay_active()
+                    {
                         chrome_press = self.handle_resize_press(loc, serial, button)
                             || self.handle_decoration_press(loc, serial, button);
                         if chrome_press {

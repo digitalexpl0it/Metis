@@ -122,7 +122,7 @@ impl SelectionHandler for MetisState {
             SelectionTarget::Primary => current_primary_selection_userdata(&self.seat).is_some(),
         };
         if compositor_owned {
-            if user_data.resolve_payload().is_none() {
+            if !user_data.has_payload() {
                 // XWayland advertised Wayland mimes; bytes live on the X11 side.
                 if let Some(xwm) = self.xwm.as_mut() {
                     if let Err(err) = xwm.send_selection(ty, mime_type, fd) {

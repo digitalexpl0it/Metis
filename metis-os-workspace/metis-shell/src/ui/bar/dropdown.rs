@@ -20,12 +20,13 @@ pub fn wire_toggle(button: &gtk::Button, panel: &gtk::Box, _key: &str) {
     wire_toggle_prepare(button, panel, || {});
 }
 
-/// Run `prepare` before opening.
+/// Run `prepare` before opening. Returns the popover so callers can track map/unmap
+/// (e.g. skip heavy clipboard history rebuilds while the panel is closed).
 pub fn wire_toggle_prepare(
     button: &gtk::Button,
     panel: &gtk::Box,
     prepare: impl Fn() + 'static,
-) {
+) -> gtk::Popover {
     // NOTE: `autohide` popovers request an xdg_popup grab. Our compositor
     // intentionally ignores popup grabs (they hang GTK clients), and the bar is
     // a `KeyboardMode::None` layer surface, so an autohide popover can never
@@ -72,12 +73,14 @@ pub fn wire_toggle_prepare(
         // Single-open behavior: close any other popover before opening this one,
         // so clicking a different bar icon switches instead of stacking.
         close_all();
+        crate::ui::notification_center::dismiss();
         prepare();
         // Defer popup so we are not inside the compositor's pointer-dispatch stack.
         glib::idle_add_local_once(move || {
             popover.popup();
         });
     });
+    popover
 }
 
 /// Register an externally-managed popover (e.g. a grab-based MenuButton popover)
@@ -88,16 +91,16 @@ pub fn register(popover: &gtk::Popover) {
 }
 
 pub fn close_all() {
-    POPOVERS.with(|list| {
+    // Clone the list first — `popdown` can re-enter via closed/unmap handlers
+    // (process context menu, bar toggles) that also touch POPOVERS.
+    let popovers = POPOVERS.with(|list| {
         let mut list = list.borrow_mut();
-        // Drop transient popovers that have already been unparented (e.g. task-dock
-        // pickers whose button was rebuilt) so the registry can't grow unbounded or
-        // hold dangling references.
         list.retain(|p| p.parent().is_some());
-        for popover in list.iter() {
-            popover.popdown();
-        }
+        list.clone()
     });
+    for popover in &popovers {
+        popover.popdown();
+    }
 }
 
 pub fn is_open() -> bool {

@@ -5,6 +5,107 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-11]
+
+### Added
+
+- **Maximized window padding** — Settings → Windows slider (`window_gap_px`,
+  0–10) controls the inset around maximized and edge-snapped windows. `0` is
+  flush; default remains 8. Live-reloads within ~1s via `bar.json`.
+
+### Fixed
+
+- **Screenshot paste TTY lockup** — compositor-owned clipboard offers (region
+  PNGs after PrtSc) no longer `write_all` / `fs::read` on the compositor thread.
+  Paste always serves on a worker thread so XWayland/Electron clients cannot
+  deadlock the session. `SetClipboard` image history also reuses the capture
+  path instead of sync-reading the full PNG at offer time.
+- **Clipboard history image stall** — history PNG materialization (and durable
+  cache copy) runs off the compositor thread; event-bus writes are non-blocking;
+  the shell skips history list rebuilds while the clipboard popover is closed and
+  loads thumbnails scaled on a worker thread (no full-res `Picture::for_filename`
+  on every capture).
+- **Control Center no longer moves the edge bar** — the panel is a separate
+  layer-shell surface attached inside the pill; opening it no longer resizes the
+  bar window (which pushed a bottom bar off-screen).
+- **Edge bar distance 0 keeps stadium ends** — flush-to-edge no longer squares the
+  pill; rounded ends stay at every distance. Side inset remains for the drop
+  shadow; full-width bars no longer also apply `margin_h` (that double-counted
+  side gaps). Drop shadow faces the desktop so distance maps 1:1 to the slider.
+- **Bottom edge bar flush at distance 0** — layer surface height equals the pill
+  (no spare shadow-pad strip) so the bar sits on the screen edge with no gap.
+- **Rounded edge bar ends** — stadium ends stay at every distance (including 0);
+  distance only controls the gap from the anchored screen edge.
+- **Bottom-bar maximize underlap (Cursor/Chromium)** — `reclamp_maximized_geometry`
+  now corrects wrong size and bbox overflow past the expected bottom (not only
+  wrong `y`), and logs the reclamp at info for verification.
+- **Control Center Processes light theme** — process rows, search, filter, kill
+  buttons, and the right-click menu now force Metis text/surface tokens so
+  Adwaita prefer-dark no longer leaves unreadable light labels on the frosted
+  panel.
+- **Control Center “Copy PID” / process menu abort** — process context menu
+  closed/dismiss no longer nests `RefCell` borrows (was aborting the shell).
+  Bar popover `close_all` also releases its registry borrow before `popdown`.
+  Clipboard history refresh also invokes callbacks outside the listener `RefCell`.
+- **Edge bar distance 0** — config migration no longer treats `margin_top == 0` as
+  a legacy layout and rewrites it to 4. Flush-to-edge distance now sticks.
+
+## [2026-07-10]
+
+### Added
+
+- **Notification Center (Phase 13)** — Win11-style right-edge layer-shell panel
+  opened from the clock: notifications card, calendar events card, and calendar /
+  tools card with an icon rail (Calendar, World, Stopwatch, Timer, Alarms).
+- **Closable toasts** — top-right banners gain an explicit dismiss (X); stack
+  shifts left while the Notification Center is open.
+- **Theme-aware Notification Center CSS** — `metis-nc-*` classes use design tokens
+  for light and dark (panel, cards, tool rail, entries, switches).
+
+### Changed
+
+- **Notification Center follows edge bar position** — slides from the left when
+  the bar is on the right; full height beside left/right bars; sits above a
+  bottom bar (and under a top bar as before).
+- **Clock merges the notifications bell** — unread badge on the clock; default
+  `bar.json` no longer includes a separate notifications widget (existing configs
+  that list both are migrated).
+- **Clock popover retired** — calendar / world / timer / alarm / stopwatch UI
+  lives in the Notification Center panel instead of a tabbed `GtkPopover`.
+
+### Fixed
+
+- **Bottom edge bar maximize + Notification Center** — placement no longer
+  trusts layer-shell exclusive maps (they were not shrinking for bottom bars).
+  Maximize subtracts `margin + height` from the output; NC uses an explicit
+  bottom margin. Vertical maximize gaps stay tight so the top of the screen is
+  not left empty.
+- **Edge bar distance** — full-width pills pin to the anchored edge (no longer
+  sit in the shadow pad); exclusive zone is body-only so margin is not
+  double-counted. Distance 0/1 now matches Settings for every edge.
+- **Control Center on side bars** — panel content sizes against full bar height ×
+  pull width (was treating pull extent as height, which crushed charts).
+- **Screenshot settings popover light theme** — options panel (`contents`,
+  switch, spinbutton, after-capture buttons) follows Metis tokens instead of
+  Adwaita dark chrome.
+- **Bottom edge bar maximize** — bottom bar reserves an exclusive zone again so
+  maximized windows sit above it (no top gap / under-bar overlap).
+- **Notification Center above bottom bar** — panel bottom inset tracks the bar
+  strip so it no longer paints over a bottom edge bar.
+- **Notification Center flush under edge bar** — top inset sits 1px below the
+  bar pill so the panel no longer paints into the strip.
+- **Notification Center light-theme buttons** — calendar / tools chrome forces
+  Metis tokens so Adwaita dark fills cannot linger on light panels.
+- **Screenshot over Notification Center** — picker UI stacks above the panel
+  while the panel stays visible and capturable.
+- **Notification Center layout** — panel fills from the edge bar to the bottom;
+  calendar/tools card pinned to the bottom; notifications header always visible
+  with collapsible list; events card stays visible and collapses when empty.
+- **Notification Center open/close** — removed slow full-height slide revealer
+  (instant map/unmap) to stop stutter.
+- **Screenshot + Notification Center** — opening PrtSc no longer dismisses the
+  Notification Center, so it can be included in captures.
+
 ## [2026-07-09]
 
 ### Added

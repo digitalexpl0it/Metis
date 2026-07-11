@@ -547,7 +547,7 @@ impl XwmHandler for MetisState {
                     match serve_compositor_selection(&user_data, &mime_type, fd) {
                         Ok(()) => return,
                         Err(returned_fd) => {
-                            if user_data.resolve_payload().is_some() {
+                            if user_data.has_payload() {
                                 tracing::warn!(
                                     %mime_type,
                                     "recalled clipboard: unsupported mime for XWayland paste"
@@ -568,7 +568,7 @@ impl XwmHandler for MetisState {
                     match serve_compositor_selection(&user_data, &mime_type, fd) {
                         Ok(()) => return,
                         Err(returned_fd) => {
-                            if user_data.resolve_payload().is_some() {
+                            if user_data.has_payload() {
                                 tracing::warn!(
                                     %mime_type,
                                     "recalled primary: unsupported mime for XWayland paste"

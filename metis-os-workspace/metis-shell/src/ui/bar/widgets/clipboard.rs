@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::prelude::*;
@@ -111,13 +111,21 @@ impl ClipboardWidget {
             search: String::new(),
             page: 0,
         }));
+        // Skip heavy list rebuilds (full PNG decode per row) while the panel is
+        // closed — screenshot → ClipboardChanged previously rebuilt history on
+        // every capture and could stall the shell during paste.
+        let panel_open = Rc::new(Cell::new(false));
 
         let refresh: Rc<dyn Fn()> = {
             let list = list.clone();
             let page_label = page_label.clone();
             let private_switch = private_switch.clone();
             let ui_state = ui_state.clone();
+            let panel_open = panel_open.clone();
             Rc::new(move || {
+                if !panel_open.get() {
+                    return;
+                }
                 private_switch.set_active(private_mode());
                 let page_data = {
                     let mut state = ui_state.borrow_mut();
@@ -171,7 +179,7 @@ impl ClipboardWidget {
             let popover = settings_popover.clone();
             let items = settings_items.clone();
             let repaint = refresh.clone();
-            btn.connect_clicked(move |b| {
+            btn.connect_clicked(move |_b| {
                 set_page_size(size);
                 sync_settings_selection(&items, size);
                 popover.popdown();
@@ -240,11 +248,20 @@ impl ClipboardWidget {
         });
 
         register_clipboard_refresh(refresh.clone());
-        refresh();
 
-        {
+        let popover = {
+            let panel_open = panel_open.clone();
             let refresh = refresh.clone();
-            super::super::dropdown::wire_toggle_prepare(&root, &panel, move || refresh());
+            super::super::dropdown::wire_toggle_prepare(&root, &panel, move || {
+                panel_open.set(true);
+                refresh();
+            })
+        };
+        {
+            let panel_open = panel_open.clone();
+            popover.connect_unmap(move |_| {
+                panel_open.set(false);
+            });
         }
 
         Self { root, refresh }
@@ -272,6 +289,39 @@ fn sync_settings_selection(
             btn.remove_css_class("metis-clipboard-settings-active");
         }
     }
+}
+
+fn history_thumbnail(path: &str) -> gtk::Widget {
+    let picture = gtk::Picture::new();
+    picture.set_content_fit(gtk::ContentFit::Contain);
+    picture.set_size_request(40, 40);
+    let path = path.to_string();
+    // Read bytes off-thread (Send); decode/scale on the GTK thread (Pixbuf is !Send).
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Option<Vec<u8>>>(1);
+    std::thread::spawn(move || {
+        let _ = tx.send(std::fs::read(&path).ok());
+    });
+    let picture_poll = picture.clone();
+    glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
+        match rx.try_recv() {
+            Ok(Some(bytes)) => {
+                if let Ok(pixbuf) =
+                    gtk::gdk_pixbuf::Pixbuf::from_read(std::io::Cursor::new(bytes))
+                {
+                    let thumb = pixbuf
+                        .scale_simple(80, 80, gtk::gdk_pixbuf::InterpType::Bilinear)
+                        .unwrap_or(pixbuf);
+                    picture_poll.set_pixbuf(Some(&thumb));
+                }
+                glib::ControlFlow::Break
+            }
+            Ok(None) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                glib::ControlFlow::Break
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+        }
+    });
+    picture.upcast()
 }
 
 fn icon_button(icon_name: &str, tooltip: &str) -> gtk::Button {
@@ -341,10 +391,7 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
         .build();
 
     if let Some(path) = entry.image_path.as_deref() {
-        let picture = gtk::Picture::for_filename(path);
-        picture.set_content_fit(gtk::ContentFit::Contain);
-        picture.set_size_request(40, 40);
-        content.append(&picture);
+        content.append(&history_thumbnail(path));
     }
 
     let label_text = entry

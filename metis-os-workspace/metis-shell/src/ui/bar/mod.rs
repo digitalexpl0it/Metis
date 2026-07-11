@@ -86,6 +86,7 @@ pub fn init_and_show() {
         attach_notification_channel(spawn_notification_service());
         crate::ui::dashboard::init();
         crate::ui::screenshot::init();
+        crate::ui::notification_center::init();
         watch_bar_config();
         watch_dashboard_config();
         spawn_gaming_daemon();
@@ -187,6 +188,7 @@ fn build_bar(
             }
         }
         dropdown::request_close_all();
+        crate::ui::notification_center::dismiss();
     });
     pill.add_controller(dismiss);
 
@@ -253,54 +255,81 @@ fn mount_dash_host(
     }
 }
 
-/// Grow or shrink the bar layer surface while the control center is pulled open.
-pub(crate) fn resize_bar_for_dashboard(shell: &BarShell, extent: i32) {
-    let cfg = load_bar_config();
-    let e = extent.max(0);
-    let cross = bar_cross_thickness(&cfg);
-    let closed = bar_body_thickness(&cfg);
-    let is_side = matches!(cfg.position, BarPosition::Left | BarPosition::Right);
+/// Re-parent pill + dashboard host after an edge/position change so the control
+/// center always opens toward the desktop and the pill stays on the anchored edge.
+fn remount_bar_chrome(handle: &BarHandle, cfg: &BarConfig) {
+    if let Some(parent) = handle.pill.parent() {
+        if let Ok(box_) = parent.downcast::<gtk::Box>() {
+            box_.remove(&handle.pill);
+        }
+    }
+    if let Some(parent) = handle.dash_host.parent() {
+        if let Ok(box_) = parent.downcast::<gtk::Box>() {
+            box_.remove(&handle.dash_host);
+        }
+    }
+    while let Some(child) = handle.column.first_child() {
+        handle.column.remove(&child);
+    }
+    while let Some(child) = handle.outer.first_child() {
+        handle.outer.remove(&child);
+    }
 
-    let thickness = if e > 0 {
-        cross + e
-    } else {
-        closed
-    };
+    mount_dash_host(
+        cfg,
+        &handle.outer,
+        &handle.column,
+        &handle.pill,
+        &handle.dash_host,
+    );
+    match cfg.position {
+        BarPosition::Left => {
+            handle.outer.append(&handle.column);
+            handle.outer.append(&handle.dash_host);
+        }
+        BarPosition::Right => {
+            handle.outer.append(&handle.dash_host);
+            handle.outer.append(&handle.column);
+        }
+        BarPosition::Top | BarPosition::Bottom => {
+            handle.outer.append(&handle.column);
+        }
+    }
+}
+
+/// Keep the edge-bar layer at its closed strip size. Control Center uses a
+/// separate layer surface, so opening it must never grow/shrink this window.
+pub(crate) fn ensure_bar_strip_geometry(shell: &BarShell) {
+    let cfg = load_bar_config();
+    let closed = bar_body_thickness(&cfg);
+    let cross = bar_cross_thickness(&cfg);
 
     match cfg.position {
         BarPosition::Top | BarPosition::Bottom => {
-            shell.window.set_height_request(thickness);
-            shell.column.set_size_request(-1, thickness);
-            shell.outer.set_size_request(-1, thickness);
-            shell.host.set_size_request(-1, e);
+            shell.window.set_height_request(closed);
+            shell.column.set_size_request(-1, closed);
+            shell.outer.set_size_request(-1, closed);
+            shell.host.set_size_request(-1, 0);
+            shell.host.set_visible(false);
+            shell.host.set_vexpand(false);
+            let valign = edge_valign(cfg.position);
+            shell.outer.set_valign(valign);
+            shell.column.set_valign(valign);
+            shell.window.set_exclusive_zone(cross);
         }
         BarPosition::Left | BarPosition::Right => {
-            shell.window.set_width_request(thickness);
-            shell.outer.set_size_request(thickness, -1);
-            shell.column.set_size_request(if e > 0 { cross } else { closed }, -1);
-            shell.host.set_size_request(e, -1);
+            shell.window.set_width_request(closed);
+            shell.outer.set_size_request(closed, -1);
+            shell.column.set_size_request(closed, -1);
+            shell.host.set_size_request(0, -1);
+            shell.host.set_visible(false);
+            shell.host.set_hexpand(false);
+            let halign = edge_halign(cfg.position);
+            shell.outer.set_halign(halign);
+            shell.column.set_halign(halign);
+            shell.window.set_exclusive_zone(0);
         }
     }
-
-    if is_side {
-        shell.host.set_orientation(gtk::Orientation::Vertical);
-    } else {
-        shell.host.set_orientation(gtk::Orientation::Vertical);
-    }
-
-    shell.host.set_visible(e > 0);
-    shell.host.set_hexpand(is_side && e > 0);
-    shell.host.set_vexpand(!is_side && e > 0);
-
-    // The dashboard is an overlay: grow the layer surface for rendering, but keep
-    // the exclusive zone at the visible bar strip only so tiled windows do not
-    // reflow when the control center opens.
-    if cfg.position == BarPosition::Top {
-        shell
-            .window
-            .set_exclusive_zone(cfg.margin_top as i32 + cross);
-    }
-
     shell.window.queue_resize();
 }
 
@@ -419,10 +448,9 @@ fn layer_window_size(config: &BarConfig) -> (i32, i32) {
 /// pill's drop shadow renders fully (and follows its rounded corners) instead of
 /// being clipped square at the surface's rectangular edge. Shared with the
 /// compositor (via `metis-config`) so backdrop blur can exclude this margin.
-const BAR_SHADOW_PAD: i32 = metis_config::bar::SHADOW_PAD;
-
+/// At distance 0 this is 0 so the surface height equals the pill (true flush).
 fn bar_body_thickness(config: &BarConfig) -> i32 {
-    config.height as i32 + BAR_SHADOW_PAD
+    config.height as i32 + metis_config::bar::bar_layer_shadow_pad(config)
 }
 
 /// Visible cross-axis size of the bar pill (height when horizontal, width when
@@ -455,6 +483,7 @@ fn watch_compositor_dismiss() {
                 "close-popovers" => {
                     dropdown::request_close_all();
                     crate::ui::dashboard::request_close();
+                    crate::ui::notification_center::dismiss();
                 }
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
@@ -586,23 +615,59 @@ fn edge_valign(position: BarPosition) -> gtk::Align {
 fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
     pill.remove_css_class("metis-bar-full");
     pill.remove_css_class("metis-bar-floating");
+    pill.remove_css_class("metis-bar-edge-bottom");
+    pill.remove_css_class("metis-bar-edge-top");
+    pill.remove_css_class("metis-bar-edge-left");
+    pill.remove_css_class("metis-bar-edge-right");
+    // Legacy flush classes (squared ends) — clear if a live theme reload left them.
+    pill.remove_css_class("metis-bar-flush-bottom");
+    pill.remove_css_class("metis-bar-flush-top");
+    pill.remove_css_class("metis-bar-flush-left");
+    pill.remove_css_class("metis-bar-flush-right");
+
     let vertical = matches!(config.position, BarPosition::Left | BarPosition::Right);
-    // Inset the pill within the (larger) layer surface so the rounded drop shadow
-    // has breathing room along the bar's long edges (the pill's rounded ends).
-    let side_pad = metis_config::bar::PILL_SIDE_INSET;
-    if vertical {
-        pill.set_margin_top(side_pad);
-        pill.set_margin_bottom(side_pad);
-        pill.set_margin_start(0);
-        pill.set_margin_end(0);
-    } else {
-        pill.set_margin_start(side_pad);
-        pill.set_margin_end(side_pad);
-        pill.set_margin_top(0);
-        pill.set_margin_bottom(0);
+    // Stadium ends stay rounded at every distance. Side inset keeps the drop
+    // shadow from clipping; cross-axis shadow pad sits on the *inner* side so
+    // layer-shell `margin_top` is the true edge distance (1 ≈ 1px, not ~4–16).
+    let side_pad = metis_config::bar::bar_pill_side_inset(config);
+    let inner_pad = metis_config::bar::bar_layer_shadow_pad(config);
+    match config.position {
+        BarPosition::Bottom => {
+            pill.set_margin_start(side_pad);
+            pill.set_margin_end(side_pad);
+            pill.set_margin_top(inner_pad);
+            pill.set_margin_bottom(0);
+        }
+        BarPosition::Top => {
+            pill.set_margin_start(side_pad);
+            pill.set_margin_end(side_pad);
+            pill.set_margin_top(0);
+            pill.set_margin_bottom(inner_pad);
+        }
+        BarPosition::Left => {
+            pill.set_margin_top(side_pad);
+            pill.set_margin_bottom(side_pad);
+            pill.set_margin_start(0);
+            pill.set_margin_end(inner_pad);
+        }
+        BarPosition::Right => {
+            pill.set_margin_top(side_pad);
+            pill.set_margin_bottom(side_pad);
+            pill.set_margin_start(inner_pad);
+            pill.set_margin_end(0);
+        }
     }
+
+    let edge_class = match config.position {
+        BarPosition::Bottom => "metis-bar-edge-bottom",
+        BarPosition::Top => "metis-bar-edge-top",
+        BarPosition::Left => "metis-bar-edge-left",
+        BarPosition::Right => "metis-bar-edge-right",
+    };
+
     if config.full_width {
         pill.add_css_class("metis-bar-full");
+        pill.add_css_class(edge_class);
         if vertical {
             // Keep the pill at `height` px wide; the layer surface is wider only
             // for the inner-edge shadow pad — do not stretch the pill into it.
@@ -614,23 +679,32 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
             pill.set_hexpand(true);
             pill.set_vexpand(false);
             pill.set_halign(gtk::Align::Fill);
-            pill.set_valign(gtk::Align::Fill);
+            // Pin to the anchored screen edge. Inner shadow pad is widget margin
+            // on the opposite side, so Fill cannot recenter the pill into the gap.
+            pill.set_valign(if matches!(config.position, BarPosition::Bottom) {
+                gtk::Align::End
+            } else {
+                gtk::Align::Start
+            });
         }
     } else {
         pill.add_css_class("metis-bar-floating");
+        pill.add_css_class(edge_class);
         pill.set_hexpand(false);
         pill.set_vexpand(false);
         pill.set_halign(if matches!(config.position, BarPosition::Right) {
             gtk::Align::End
+        } else if matches!(config.position, BarPosition::Left) {
+            gtk::Align::Start
         } else {
             gtk::Align::Center
         });
-        // Flush the floating pill against the anchored edge so the shadow pad sits
-        // on the inner side (below a top bar, above a bottom bar).
         pill.set_valign(if matches!(config.position, BarPosition::Bottom) {
             gtk::Align::End
-        } else {
+        } else if matches!(config.position, BarPosition::Top) {
             gtk::Align::Start
+        } else {
+            gtk::Align::Center
         });
     }
 }
@@ -638,6 +712,11 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
 /// Live attach inset for the pull-down control center (from the anchored screen edge).
 pub fn dashboard_layer_inset() -> i32 {
     DASH_ATTACH_INSET.with(Cell::get)
+}
+
+/// Live edge-bar position (updated whenever bar geometry is applied).
+pub fn bar_position() -> BarPosition {
+    BAR_POSITION.with(Cell::get)
 }
 
 fn orientation_for(config: &BarConfig) -> gtk::Orientation {
@@ -670,22 +749,35 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     // chunk of dead space below the bar.
     let visible_thickness = bar_cross_thickness(config);
     DASH_ATTACH_INSET.set(config.margin_top as i32 + visible_thickness);
-    // Only the top bar reserves screen space (windows reflow below it). Bottom
-    // and side bars overlay the desktop; maximize/snap insets come from config.
+    // Exclusive zone is the *visible body only*. Layer-shell margins are added by
+    // the compositor (amount + margin), so including margin here double-counted
+    // and left maximize/NC a few pixels off the pill.
+    //
+    // Top/bottom reserve space; side bars stay overlay (0 = Neutral).
     let exclusive = match config.position {
-        BarPosition::Top => config.margin_top as i32 + visible_thickness,
-        BarPosition::Bottom | BarPosition::Left | BarPosition::Right => 0,
+        BarPosition::Top | BarPosition::Bottom => visible_thickness,
+        BarPosition::Left | BarPosition::Right => 0,
     };
     window.set_exclusive_zone(exclusive);
+
+    // Full-width stadium: side gap comes from the pill's side inset (shadow room),
+    // not a second layer-shell margin — stacking both made distance-0 bars look
+    // like they had ~20px ears after rounding was restored.
+    let along_edge = if config.full_width {
+        0
+    } else {
+        config.margin_h as i32
+    };
+    let from_edge = config.margin_top as i32;
 
     match config.position {
         BarPosition::Top => {
             window.set_anchor(Edge::Top, true);
             window.set_anchor(Edge::Left, true);
             window.set_anchor(Edge::Right, true);
-            window.set_margin(Edge::Top, config.margin_top as i32);
-            window.set_margin(Edge::Left, config.margin_h as i32);
-            window.set_margin(Edge::Right, config.margin_h as i32);
+            window.set_margin(Edge::Top, from_edge);
+            window.set_margin(Edge::Left, along_edge);
+            window.set_margin(Edge::Right, along_edge);
             window.set_height_request(thickness);
             window.set_width_request(-1);
         }
@@ -693,9 +785,9 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
             window.set_anchor(Edge::Bottom, true);
             window.set_anchor(Edge::Left, true);
             window.set_anchor(Edge::Right, true);
-            window.set_margin(Edge::Bottom, config.margin_top as i32);
-            window.set_margin(Edge::Left, config.margin_h as i32);
-            window.set_margin(Edge::Right, config.margin_h as i32);
+            window.set_margin(Edge::Bottom, from_edge);
+            window.set_margin(Edge::Left, along_edge);
+            window.set_margin(Edge::Right, along_edge);
             window.set_height_request(thickness);
             window.set_width_request(-1);
         }
@@ -703,9 +795,9 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
             window.set_anchor(Edge::Left, true);
             window.set_anchor(Edge::Top, true);
             window.set_anchor(Edge::Bottom, true);
-            window.set_margin(Edge::Left, config.margin_top as i32);
-            window.set_margin(Edge::Top, config.margin_h as i32);
-            window.set_margin(Edge::Bottom, config.margin_h as i32);
+            window.set_margin(Edge::Left, from_edge);
+            window.set_margin(Edge::Top, along_edge);
+            window.set_margin(Edge::Bottom, along_edge);
             window.set_width_request(thickness);
             window.set_height_request(-1);
         }
@@ -713,9 +805,9 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
             window.set_anchor(Edge::Right, true);
             window.set_anchor(Edge::Top, true);
             window.set_anchor(Edge::Bottom, true);
-            window.set_margin(Edge::Right, config.margin_top as i32);
-            window.set_margin(Edge::Top, config.margin_h as i32);
-            window.set_margin(Edge::Bottom, config.margin_h as i32);
+            window.set_margin(Edge::Right, from_edge);
+            window.set_margin(Edge::Top, along_edge);
+            window.set_margin(Edge::Bottom, along_edge);
             window.set_width_request(thickness);
             window.set_height_request(-1);
         }
@@ -753,6 +845,7 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
         let (win_w, win_h) = layer_window_size(&cfg);
         for handle in bars.iter_mut() {
             configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
+            remount_bar_chrome(handle, &cfg);
             apply_layer_geometry(&handle.window, &cfg);
             apply_bar_visibility(handle);
             handle.window.set_default_size(win_w, win_h);
@@ -1078,6 +1171,7 @@ pub fn broadcast_audio(percent: u8, muted: bool, mic_percent: u8, mic_muted: boo
 /// Close all bar dropdown popovers (e.g. before a bar surface rebuild).
 pub fn close_popovers() {
     dropdown::request_close_all();
+    crate::ui::notification_center::dismiss();
 }
 
 pub fn rebuild_from_config() {
@@ -1148,4 +1242,5 @@ fn rebuild_from_config_now() {
     let new = load_bar_config();
     apply_config_diff(config, cur_count, &old, &new);
     crate::ui::dashboard::on_bar_config_changed();
+    crate::ui::notification_center::on_bar_config_changed();
 }

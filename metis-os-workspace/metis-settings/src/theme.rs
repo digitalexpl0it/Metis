@@ -110,6 +110,7 @@ fn settings_css(t: &ThemeTokens) -> String {
     let rl = t.radius_lg;
     let rs = t.radius_sm;
     let accent2 = t.accent_secondary();
+    let text_rgb = t.text_rgb();
     format!(
         r#"
         /* The shared bar stylesheet makes every `window` transparent for the
@@ -170,6 +171,37 @@ fn settings_css(t: &ThemeTokens) -> String {
             background-image: none;
             box-shadow: none;
             border: none;
+        }}
+
+        /* Tokenized scrollbars — Adwaita prefer-dark alone leaves dark chrome
+           when Metis light mode is active. */
+        .metis-settings-scroller scrollbar,
+        .metis-settings-nav-scroll scrollbar,
+        .metis-settings-schedule-presets scrollbar,
+        scrollbar {{
+            background-color: transparent;
+            border: none;
+            box-shadow: none;
+            min-width: 10px;
+            min-height: 10px;
+        }}
+        scrollbar.vertical {{
+            min-width: 10px;
+        }}
+        scrollbar trough {{
+            background-color: transparent;
+            border: none;
+        }}
+        scrollbar slider {{
+            min-width: 7px;
+            min-height: 24px;
+            border-radius: 999px;
+            background-color: rgba({text_rgb}, 0.22);
+            border: none;
+            box-shadow: none;
+        }}
+        scrollbar slider:hover {{
+            background-color: rgba({text_rgb}, 0.36);
         }}
     .metis-settings-sidebar-title {{
         font-size: 22px;
@@ -524,12 +556,29 @@ fn settings_css(t: &ThemeTokens) -> String {
             color: {on_accent};
         }}
 
-        /* Sliders + switches readable in both themes. */
+        /* Sliders + switches — tokenized so light mode does not keep Adwaita dark chrome. */
         scale trough {{ background-color: {border}; }}
         scale highlight {{ background-color: {accent}; }}
         scale value {{ color: {muted}; }}
         scale slider {{ background-color: {text}; }}
-        switch, switch slider {{
+        switch {{
+            background-color: rgba({text_rgb}, 0.14);
+            border: none;
+            border-radius: 999px;
+            min-width: 40px;
+            min-height: 22px;
+            transition: none;
+        }}
+        switch:checked {{
+            background-color: {accent};
+            background-image: linear-gradient(135deg, {accent}, {accent2});
+        }}
+        switch > slider {{
+            background-color: {surface};
+            border-radius: 999px;
+            min-width: 18px;
+            min-height: 18px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
             transition: none;
         }}
         label.metis-settings-switch-label {{
@@ -553,21 +602,32 @@ fn settings_css(t: &ThemeTokens) -> String {
 
         /* Generic buttons (Search, Rescan, Connect, trash, …). The more specific
            headerbar/dropdown rules above keep their own styling. */
+        .metis-settings-window button,
         button {{
             background-color: {raised};
             background-image: none;
+            background: {raised};
             color: {text};
             border: 1px solid {border};
             border-radius: {rs}px;
             box-shadow: none;
             transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
         }}
-        button:hover {{ background-color: {surface}; }}
-        button:active, button:checked {{ background-color: {surface}; transform: scale(0.98); }}
+        .metis-settings-window button:hover,
+        button:hover {{ background-color: {surface}; background: {surface}; }}
+        .metis-settings-window button:active,
+        .metis-settings-window button:checked,
+        button:active, button:checked {{ background-color: {surface}; background: {surface}; transform: scale(0.98); }}
         button label {{ color: {text}; }}
         button image {{ color: {text}; }}
         button:disabled {{ color: {muted}; }}
         button:disabled label {{ color: {muted}; }}
+        button.metis-settings-secondary {{
+            background-color: {raised};
+            background: {raised};
+            border: 1px solid {border};
+            color: {text};
+        }}
         /* Primary action buttons stay accent-coloured. */
         button.suggested-action {{
             background-color: {accent};

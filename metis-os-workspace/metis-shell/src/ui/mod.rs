@@ -2,6 +2,7 @@ pub mod app;
 pub mod bar;
 pub mod dashboard;
 pub mod icons;
+pub mod notification_center;
 pub mod onboarding;
 pub mod screenshot;
 pub mod splash;

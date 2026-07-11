@@ -125,11 +125,18 @@ impl TasksWidget {
         if vertical {
             root.add_css_class("metis-bar-tasks-vertical");
         }
-        // Size the dock to its content (up to the available bar space) instead of
-        // claiming a fixed slice of the bar. Both axes must propagate or the
-        // scrolled window collapses to its 0-px minimum inside the bar strip.
-        root.set_propagate_natural_width(true);
-        root.set_propagate_natural_height(true);
+        // Size to content on the cross axis; the long axis is filled by hexpand /
+        // vexpand from the bar so the dock grows with monitor resolution and
+        // scrolls when icons overflow the allocated strip.
+        if vertical {
+            root.set_propagate_natural_width(true);
+            root.set_propagate_natural_height(false);
+            root.set_min_content_height(48);
+        } else {
+            root.set_propagate_natural_width(false);
+            root.set_propagate_natural_height(true);
+            root.set_min_content_width(48);
+        }
 
         // Per-widget dedup signature (each output's dock has different content, so a
         // shared global guard would make multiple bars thrash each other's renders).

@@ -1,6 +1,8 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 12** (Native Screenshot Tool) is **complete** (2026-07-09) —
+**Current phase:** **Phase 13** (Notification Center) is **complete** (2026-07-10) —
+Win11-style right panel from the clock, merged notifications + calendar tools,
+closable toasts. **Phase 12** (Native Screenshot Tool) is **complete** (2026-07-09) —
 PrtSc overlay, `metis-capture`, theme-aware toolbar, and compositor capture exclusion.
 **Phase 11** (Gaming Platform 2.0) is **complete** (2026-07-07) —
 `gaming.json`, Flatpak zero-config, gaming health checks, `metis-gamingd`, onboarding
@@ -26,6 +28,7 @@ access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
       0 disables); rounded gradient via layered `background-clip`, flows along the long axis
 - [x] Workspace indicator — live virtual workspaces (click a dot or `Super`+`n` to switch)
 - [x] Clock popover — tabbed: calendar, world clocks, stopwatch, timer, alarms
+      *(superseded by Phase 13 Notification Center)*
 - [x] World Clocks — inline searchable timezone picker (up to 3 zones)
 - [x] Stopwatch with scrollable lap list
 - [x] Timer — movable, always-on-top layer-shell HUD with pause/close
@@ -38,6 +41,7 @@ access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
       the signal icon does not flicker offline
 - [x] Notifications popup — badge, grouped duplicates + count badge, per-kind icons,
       clear-all with slide-out animation, scrollbar, in-bar alert routing
+      *(list UI moved into Phase 13 Notification Center; optional bell widget remains)*
 - [x] **Clipboard history widget** — edge-bar popover listing recent clipboard
       entries (text previews + image thumbnails); click a row to recall via
       compositor IPC; history persisted to `~/.local/state/metis/clipboard.json`
@@ -1008,6 +1012,34 @@ scroll/pin/recording; per-output capture index for multi-monitor polish.
 
 ---
 
+## Phase 13 — Notification Center (Win11-style)
+
+Right-edge layer-shell panel opened from the **clock** (bell merged in). Theme-aware
+frosted panel with collapsible cards and closable top-right toasts.
+
+### Core
+
+- [x] **Toast polish** — close (X) on each banner; shift right margin while the
+      panel is open; token-driven light/dark card styles.
+- [x] **Notification Center shell** — `metis-notification-center` layer-shell
+      Overlay; slide from right; Esc / `close-popovers` / clock toggle dismiss;
+      park window when closed.
+- [x] **Notifications card** — DND, Clear all, grouped list; auto-collapse when empty.
+- [x] **Events + calendar/tools cards** — events auto-collapse when empty; calendar
+      card icon rail switches Calendar / World / Stopwatch / Timer / Alarms.
+- [x] **Clock merge** — unread badge on clock; default `bar.json` drops
+      `notifications`; migrate existing configs that still list both.
+- [x] **Theme** — `metis-nc-*` CSS from design tokens; `on_theme_changed` hook;
+      themed entries/switches/buttons (no `GtkDropDown` in the panel).
+- [x] **Docs** — `USER_GUIDE.md`, `CHANGELOG.md`, `README.md`, this file.
+
+**Deferred (v1.1):** per-app notification settings; follow-bar panel side; rich
+media in toasts.
+
+**Dependencies:** Phase 1 notifications + clock pages (done); theme/CSS pipeline (done).
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
@@ -1073,11 +1105,13 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
     "workspaces",
     "tasks",
     "spacer",
+    "tray",
     "weather",
     "battery",
     "network",
+    "bluetooth",
     "volume",
-    "notifications",
+    "clipboard",
     "clock"
   ],
   "clock": {
@@ -1170,13 +1204,13 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 |--------|--------|
 | Workspaces | Metis compositor — live virtual workspaces (single output) |
 | Tasks | Running-apps dock — live compositor window state (`services/windows.rs`), per-app grouping, pin/minimize |
-| Clock | `chrono` + `GtkCalendar`, tabbed popover (world clocks, stopwatch, timer, alarms) |
+| Clock | Opens Notification Center (calendar, world clocks, stopwatch, timer, alarms) + unread badge |
 | Battery | `/sys/class/power_supply/BAT*` |
 | Bluetooth | BlueZ (`bluetoothctl`) + UPower + optional Solaar (Logitech HID++); bar popover lists connected devices |
 | Network | `nmcli` (timeouts + scan grace for stable Wi-Fi icon) |
 | Volume | `pactl` (scroll on widget to adjust) |
-| Notifications | Freedesktop D-Bus daemon → runtime in-bar store (grouped, icons) |
+| Notifications | *(optional)* Same Notification Center as clock; freedesktop D-Bus → runtime store |
 | Weather | Open-Meteo (keyless); IP-geolocation auto-detect (timezone fallback), override in Settings |
 
 > Tip: set `METIS_DEMO_NOTIFICATIONS=1` before launching to seed demo notifications
-> for testing the notification popup.
+> for testing the Notification Center list.

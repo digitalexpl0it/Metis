@@ -36,6 +36,27 @@ pub fn build() -> gtk::Widget {
     anim_hint.add_css_class("metis-settings-hint");
     win_body.append(&anim_hint);
 
+    let window_gap = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 10.0, 1.0);
+    window_gap.set_value(bar.window_gap_px.min(10) as f64);
+    window_gap.set_digits(0);
+    window_gap.set_size_request(200, -1);
+    window_gap.set_draw_value(true);
+    ui::forward_wheel_to_page_scroller(&window_gap);
+    win_body.append(&ui::row_with_icon(
+        "view-fullscreen-symbolic",
+        "Maximized window padding",
+        &window_gap,
+    ));
+
+    let gap_hint = gtk::Label::new(Some(
+        "Space around maximized and edge-snapped windows. 0 is flush to the \
+         screen and bar edges; 10 is the maximum inset. Applies within ~1s.",
+    ));
+    gap_hint.set_xalign(0.0);
+    gap_hint.set_wrap(true);
+    gap_hint.add_css_class("metis-settings-hint");
+    win_body.append(&gap_hint);
+
     let titlebar_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     titlebar_opacity.set_value(bar.titlebar_opacity as f64);
     titlebar_opacity.set_size_request(200, -1);
@@ -210,6 +231,10 @@ pub fn build() -> gtk::Widget {
     // ---- Wiring -----------------------------------------------------------
     ui::defer_switch_active_notify(&window_animations, move |active| {
         update_bar(move |c| c.window_animations = active);
+    });
+    window_gap.connect_value_changed(move |s| {
+        let v = s.value().round().clamp(0.0, 10.0) as u32;
+        update_bar(move |c| c.window_gap_px = v);
     });
     titlebar_opacity.connect_value_changed(move |s| {
         let v = s.value() as f32;

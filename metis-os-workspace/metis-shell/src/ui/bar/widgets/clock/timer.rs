@@ -219,11 +219,13 @@ impl TimerPage {
     pub fn new() -> Self {
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(18)
-            .halign(gtk::Align::Center)
+            .spacing(10)
+            .halign(gtk::Align::Fill)
+            .hexpand(true)
             .build();
         root.add_css_class("metis-timer-page");
-        root.set_width_request(440);
+        // Fit the Notification Center tools card (~356px content width).
+        root.set_width_request(-1);
 
         let label = gtk::Label::new(Some("00:00:00"));
         label.add_css_class("metis-timer-digits");
@@ -233,7 +235,7 @@ impl TimerPage {
         // ---- Setup area (quick start + steppers), hidden while running ----
         let setup = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(14)
+            .spacing(8)
             .build();
 
         let quick_title = section_title("Quick Start");
@@ -242,8 +244,8 @@ impl TimerPage {
             .selection_mode(gtk::SelectionMode::None)
             .min_children_per_line(4)
             .max_children_per_line(4)
-            .column_spacing(8)
-            .row_spacing(8)
+            .column_spacing(6)
+            .row_spacing(6)
             .homogeneous(true)
             .build();
         setup.append(&quick);
@@ -252,7 +254,7 @@ impl TimerPage {
         setup.append(&set_title);
         let steppers = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
-            .spacing(6)
+            .spacing(4)
             .halign(gtk::Align::Center)
             .build();
         let (h_col, h_lbl) = stepper();
@@ -269,7 +271,7 @@ impl TimerPage {
         // ---- Controls ----
         let controls = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
-            .spacing(16)
+            .spacing(12)
             .halign(gtk::Align::Center)
             .build();
         let primary = gtk::Button::with_label("Start");
@@ -403,9 +405,10 @@ impl Inner {
         self.reset_btn.set_sensitive(true);
         self.setup.set_visible(false);
 
-        // Starting a timer dismisses the clock popover so the floating HUD is
-        // the only thing left on screen.
+        // Starting a timer dismisses the Notification Center so the floating HUD
+        // is the only thing left on screen.
         crate::ui::bar::dropdown::close_all();
+        crate::ui::notification_center::dismiss();
 
         // Show (or update) the floating HUD under the bar.
         {

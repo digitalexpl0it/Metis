@@ -441,6 +441,9 @@ impl MetisState {
         if self.capture_overlay_active() {
             return self.capture_overlay_surface_at(pos);
         }
+        if self.screenshot_overlay_active() {
+            return self.screenshot_overlay_surface_at(pos);
+        }
         self.surface_under(pos)
             .or_else(|| self.window_surface_at(pos))
     }
@@ -511,6 +514,44 @@ impl MetisState {
         false
     }
 
+    /// True when the Notification Center layer surface is mapped with a buffer.
+    pub(crate) fn notification_center_mapped(&self) -> bool {
+        for output in self.space.outputs() {
+            let map = layer_map_for_output(output);
+            for layer in map.layers() {
+                if layer.namespace() == "metis-notification-center"
+                    && surface_has_buffer(layer.wl_surface())
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Pointer is over the Notification Center panel (not the rest of the screen).
+    pub(crate) fn metis_notification_center_hit(&self, pos: Point<f64, Logical>) -> bool {
+        let Some(output) = self.space.outputs().find(|o| {
+            self.space
+                .output_geometry(o)
+                .is_some_and(|geo| geo.contains(pos.to_i32_round()))
+        }) else {
+            return false;
+        };
+        let output_geo = self.space.output_geometry(&output).unwrap();
+        let rel = pos - output_geo.loc.to_f64();
+        let layers = layer_map_for_output(&output);
+        for layer in layers
+            .layers()
+            .filter(|layer| layer.namespace() == "metis-notification-center")
+        {
+            if layer_accepts_pointer(layer, &layers, rel) {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Configured edge-bar strip (margin + body + shadow pad) in monitor-global
     /// coordinates. Does not consult the layer map — safe while a layer lock is held.
     pub(crate) fn bar_config_strip_rect(
@@ -519,7 +560,7 @@ impl MetisState {
         let cfg = metis_config::load_bar_config();
         let margin = cfg.margin_top as i32;
         let visible = cfg.height as i32;
-        let shadow = metis_config::bar::SHADOW_PAD;
+        let shadow = metis_config::bar::bar_layer_shadow_pad(&cfg);
         let thickness = margin + visible + shadow;
         let w = output_geo.size.w;
         let h = output_geo.size.h;
@@ -568,6 +609,12 @@ impl MetisState {
     pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
         if self.capture_overlay_active() {
             return self.capture_overlay_surface_at(pos);
+        }
+        // Native screenshot UI must own the pointer everywhere (including over
+        // app bodies). Without this, AppBody passthrough below delivers events
+        // to windows and compositor resize chrome still fires.
+        if self.screenshot_overlay_active() {
+            return self.screenshot_overlay_surface_at(pos);
         }
 
         let output = self.space.outputs().find(|o| {

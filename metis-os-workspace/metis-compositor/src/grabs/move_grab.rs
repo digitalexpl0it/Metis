@@ -52,8 +52,8 @@ impl PointerGrab<MetisState> for MoveSurfaceGrab {
 
         // Clamp to the whole virtual desktop (all outputs) so a window can be
         // dragged across monitors while staying at least `keep` px on-screen. Only
-        // the top edge bar (exclusive zone) hard-limits the vertical range;
-        // bottom/left/right bars overlay the desktop and windows slide under them.
+        // the top/bottom edge bar (exclusive zone) hard-limits the vertical range;
+        // left/right bars overlay the desktop and windows slide under them.
         {
             let bounds = data.desktop_bounds();
             let zone = metis_grid::PixelRect {

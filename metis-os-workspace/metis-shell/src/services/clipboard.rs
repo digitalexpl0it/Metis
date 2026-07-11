@@ -64,16 +64,14 @@ pub fn register_refresh(f: Rc<dyn Fn()>) {
 
 fn notify_refresh() {
     glib::idle_add_local_once(|| {
-        REFRESH.with(|cell| {
-            cell.borrow_mut().retain(|weak| {
-                if let Some(f) = weak.upgrade() {
-                    f();
-                    true
-                } else {
-                    false
-                }
-            });
+        let callbacks: Vec<Rc<dyn Fn()>> = REFRESH.with(|cell| {
+            let mut slot = cell.borrow_mut();
+            slot.retain(|weak| weak.upgrade().is_some());
+            slot.iter().filter_map(|weak| weak.upgrade()).collect()
         });
+        for f in callbacks {
+            f();
+        }
     });
 }
 

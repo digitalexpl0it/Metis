@@ -37,6 +37,7 @@ struct Callbacks {
     on_dismiss: Option<EventAction>,
     on_delete: Option<EventAction>,
     on_refresh: Option<Box<dyn Fn()>>,
+    on_selection_change: Option<Box<dyn Fn(bool)>>,
 }
 
 struct Inner {
@@ -54,7 +55,11 @@ struct Inner {
 }
 
 pub struct CalendarPage {
+    /// Month grid + navigation (calendar tools page body).
     pub widget: gtk::Widget,
+    /// Selected-day events list + add form (events card body).
+    pub events_widget: gtk::Widget,
+    events_scroll: gtk::ScrolledWindow,
     inner: Rc<Inner>,
 }
 
@@ -63,18 +68,14 @@ impl CalendarPage {
         let today = Local::now().date_naive();
         let first_of_month = today.with_day(1).unwrap_or(today);
 
-        let columns = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .spacing(18)
-            .build();
-        columns.add_css_class("metis-cal-columns");
-
-        // ---- Left column: header + month grid ----
+        // ---- Calendar column: header + month grid ----
         let left = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(8)
             .build();
-        left.set_width_request(258);
+        left.add_css_class("metis-cal-columns");
+        left.set_width_request(-1);
+        left.set_hexpand(true);
 
         let header_weekday = gtk::Label::builder()
             .halign(gtk::Align::Start)
@@ -114,11 +115,12 @@ impl CalendarPage {
         grid.add_css_class("metis-cal-grid");
         left.append(&grid);
 
-        // ---- Right column: events for the selected day ----
+        // ---- Events column: events for the selected day ----
         let right = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(8)
             .build();
+        right.add_css_class("metis-cal-events-pane");
         right.set_width_request(240);
         right.set_hexpand(true);
 
@@ -141,9 +143,19 @@ impl CalendarPage {
         let events_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(6)
-            .vexpand(true)
             .build();
-        right.append(&events_box);
+        let events_scroll = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .propagate_natural_height(true)
+            .overlay_scrolling(false)
+            .min_content_height(80)
+            .max_content_height(180)
+            .child(&events_box)
+            .build();
+        events_scroll.add_css_class("metis-nc-scrolled");
+        events_scroll.add_css_class("metis-cal-events-scroll");
+        right.append(&events_scroll);
 
         let add_btn = gtk::Button::builder().label("+ Add event").build();
         add_btn.add_css_class("metis-cal-add-btn");
@@ -185,6 +197,7 @@ impl CalendarPage {
         let save_btn = gtk::Button::with_label("Save");
         save_btn.add_css_class("metis-cal-add-btn");
         let cancel_btn = gtk::Button::with_label("Cancel");
+        cancel_btn.add_css_class("metis-clock-btn");
         form_actions.append(&cancel_btn);
         form_actions.append(&save_btn);
         form.append(&form_actions);
@@ -202,10 +215,11 @@ impl CalendarPage {
             });
         }
 
-        columns.append(&left);
-        let sep = gtk::Separator::new(gtk::Orientation::Vertical);
-        columns.append(&sep);
-        columns.append(&right);
+        // Panel layout: calendar grid and events are separate widgets so the
+        // Notification Center can place them in different cards.
+        left.set_hexpand(true);
+        right.set_hexpand(true);
+        right.set_width_request(-1);
 
         let inner = Rc::new(Inner {
             shown: RefCell::new(first_of_month),
@@ -224,6 +238,7 @@ impl CalendarPage {
                 on_dismiss: None,
                 on_delete: None,
                 on_refresh: None,
+                on_selection_change: None,
             }),
         });
 
@@ -300,9 +315,43 @@ impl CalendarPage {
         inner.rebuild();
 
         Self {
-            widget: columns.upcast(),
+            widget: left.upcast(),
+            events_widget: right.upcast(),
+            events_scroll,
             inner,
         }
+    }
+
+    /// Cap the events list height so long days scroll instead of blowing the panel.
+    pub fn set_events_list_max_height(&self, max_h: i32) {
+        self.events_scroll.set_max_content_height(max_h.max(80));
+    }
+    /// Combined two-column widget for legacy popover layouts.
+    pub fn combined_widget(&self) -> gtk::Widget {
+        let columns = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(18)
+            .build();
+        columns.add_css_class("metis-cal-columns");
+        columns.append(&self.widget);
+        let sep = gtk::Separator::new(gtk::Orientation::Vertical);
+        columns.append(&sep);
+        columns.append(&self.events_widget);
+        columns.upcast()
+    }
+
+    /// True when the selected day has at least one event.
+    pub fn selected_day_has_events(&self) -> bool {
+        let sel = *self.inner.selected.borrow();
+        self.inner
+            .events
+            .borrow()
+            .iter()
+            .any(|e| sel >= e.date && sel <= e.end_date)
+    }
+
+    pub fn set_on_selection_change(&self, f: impl Fn(bool) + 'static) {
+        self.inner.cb.borrow_mut().on_selection_change = Some(Box::new(f));
     }
 
     /// Called once after construction so the parent can request the first range.
@@ -501,11 +550,19 @@ impl Inner {
                 .build();
             empty.add_css_class("metis-cal-empty");
             self.events_box.append(&empty);
+            self.notify_selection_change(false);
             return;
         }
 
         for ev in day_events {
             self.events_box.append(&self.build_event_row(ev));
+        }
+        self.notify_selection_change(true);
+    }
+
+    fn notify_selection_change(&self, has_events: bool) {
+        if let Some(cb) = self.cb.borrow().on_selection_change.as_ref() {
+            cb(has_events);
         }
     }
 

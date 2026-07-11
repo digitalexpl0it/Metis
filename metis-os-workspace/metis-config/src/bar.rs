@@ -129,11 +129,37 @@ pub enum TrayIconMode {
 pub const SHADOW_PAD: i32 = 16;
 pub const PILL_SIDE_INSET: i32 = SHADOW_PAD - 4;
 
+/// Inner-edge shadow pad baked into the layer surface.
+///
+/// Zero only when distance is 0 so the bar can sit truly flush to the anchored
+/// screen edge. At distance > 0 the pad sits on the *inner* side (toward the
+/// desktop) and must not be mistaken for edge distance — distance is solely
+/// `margin_top` on the layer-shell margin.
+pub fn bar_layer_shadow_pad(cfg: &BarConfig) -> i32 {
+    if cfg.margin_top == 0 {
+        0
+    } else {
+        SHADOW_PAD
+    }
+}
+
+/// Side inset for the pill within the layer so stadium/rounded ends and their
+/// drop shadow are not clipped. Always applied (including distance 0) — distance
+/// 0 only flushes the anchored edge, not the rounded ends.
+pub fn bar_pill_side_inset(_cfg: &BarConfig) -> i32 {
+    PILL_SIDE_INSET
+}
+
 /// Layer-shell margin from the anchored screen edge to the inner side of the bar
 /// pill (not including shadow pad). Used to attach the control center flush below
 /// the visible bar strip.
 pub fn bar_pill_inset(cfg: &BarConfig) -> i32 {
     cfg.margin_top as i32 + cfg.height as i32
+}
+
+/// Maximized / snapped window edge padding from `bar.json`, clamped to 0..=10.
+pub fn window_gap_px(cfg: &BarConfig) -> i32 {
+    cfg.window_gap_px.min(10) as i32
 }
 
 /// Control-center attach inset: tuck slightly under the bar pill so no desktop
@@ -142,6 +168,14 @@ pub fn dashboard_attach_inset(cfg: &BarConfig) -> i32 {
     // Overlap a few px into the bar pill bottom edge for a seamless pull-down.
     const FLUSH_OVERLAP: i32 = 4;
     bar_pill_inset(cfg).saturating_sub(FLUSH_OVERLAP)
+}
+
+/// Notification Center attach inset: distance from the output top edge to the
+/// panel top. Requires the NC layer to use exclusive_zone(-1) (Don'tCare) so
+/// this margin is not stacked on top of the bar's exclusive zone.
+pub fn notification_center_attach_inset(cfg: &BarConfig) -> i32 {
+    // 1px below the pill bottom so the panel does not paint into the bar edge.
+    bar_pill_inset(cfg).saturating_add(1)
 }
 
 /// How the compositor strokes an accent border (title pill or window frame).
@@ -341,6 +375,10 @@ pub struct BarConfig {
     /// titlebar slide) run instantly.
     #[serde(default = "default_true")]
     pub window_animations: bool,
+    /// Padding (logical px) around maximized / edge-snapped windows inside the
+    /// usable area. `0` is flush to the screen/bar edges; max is 10.
+    #[serde(default = "default_window_gap_px")]
+    pub window_gap_px: u32,
     /// How StatusNotifier tray icons are shown on the edge bar.
     #[serde(default)]
     pub tray_icon_mode: TrayIconMode,
@@ -403,6 +441,10 @@ fn default_blur_radius() -> f32 {
     18.0
 }
 
+fn default_window_gap_px() -> u32 {
+    8
+}
+
 fn default_true() -> bool {
     true
 }
@@ -419,7 +461,6 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
         BarWidgetId::Clipboard,
-        BarWidgetId::Notifications,
         BarWidgetId::Clock,
     ]
 }
@@ -443,6 +484,7 @@ impl Default for BarConfig {
             blur: default_true(),
             blur_radius: default_blur_radius(),
             window_animations: default_true(),
+            window_gap_px: default_window_gap_px(),
             tray_icon_mode: TrayIconMode::default(),
             widgets: default_widgets(),
             clock: ClockConfig::default(),
@@ -502,10 +544,12 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
         BarWidgetId::Volume,
         BarWidgetId::Clock,
     ];
+    // Do not treat `margin_top == 0` as legacy — Settings "distance" 0 is valid
+    // (flush to the screen edge). Resetting it to the default made bottom bars
+    // look permanently inset and undid maximize reserve math.
     let needs_layout_refresh = cfg.widgets == legacy
         || cfg.widgets == center_notif
         || cfg.margin_h >= 48
-        || cfg.margin_top == 0
         || cfg.height < 36;
     if needs_layout_refresh {
         cfg.widgets = default_widgets();
@@ -616,6 +660,19 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                     let _ = std::fs::write(bar_config_path(), json);
                 }
             }
+        }
+    }
+
+    // Phase 13: Notification Center merges the bell into the clock. Strip the
+    // standalone notifications widget when the clock is present so upgrades get
+    // the Win11-style single affordance.
+    if cfg.widgets.contains(&BarWidgetId::Clock)
+        && cfg.widgets.contains(&BarWidgetId::Notifications)
+    {
+        cfg.widgets
+            .retain(|w| !matches!(w, BarWidgetId::Notifications));
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
         }
     }
 }

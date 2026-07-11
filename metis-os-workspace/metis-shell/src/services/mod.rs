@@ -31,9 +31,10 @@ pub use dashboard::{
     ProcessClass, ProcessRow,
 };
 pub use notifications::{
-    clear_notifications, close_notification, dismiss_notification, invoke_action,
-    notification_count, play_notification_sound, push_notification, register_refresh,
-    runtime_notifications, set_action_sender, BarNotification, NotificationEntry, NotificationKind,
+    clear_notifications, close_notification, dismiss_notification, do_not_disturb,
+    invoke_action, notification_count, notify_store_changed, play_notification_sound,
+    push_notification, register_refresh, runtime_notifications, set_action_sender,
+    set_do_not_disturb, BarNotification, NotificationEntry, NotificationKind,
 };
 pub use notify_dbus::{spawn_notification_service, NotifyChannels};
 pub use poll::{
