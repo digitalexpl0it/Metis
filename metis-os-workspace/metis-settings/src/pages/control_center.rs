@@ -1,6 +1,7 @@
 //! Control Center: enable the pull-down system monitor, panel height, refresh
-//! interval, process-kill confirmation, and which overview widgets are active.
-//! Persists to `dashboard.json`; the shell picks up changes via its file watcher.
+//! interval, process-kill confirmation, process monitor app, and which overview
+//! widgets are active. Persists to `dashboard.json`; the shell picks up changes
+//! via its file watcher.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -8,6 +9,7 @@ use std::rc::Rc;
 use gtk::prelude::*;
 use metis_config::{
     load_dashboard_config, save_dashboard_config, DashboardConfig, DashboardWidgetId,
+    KNOWN_PROCESS_MONITORS,
 };
 
 use crate::ui;
@@ -67,9 +69,20 @@ pub fn build() -> gtk::Widget {
         &confirm_kill,
     ));
 
+    panel_body.append(&ui::launcher_picker(
+        "utilities-system-monitor-symbolic",
+        "Process monitor",
+        KNOWN_PROCESS_MONITORS,
+        cfg.process_monitor.clone(),
+        |val| {
+            persist(|cfg| cfg.process_monitor = val);
+        },
+    ));
+
     let panel_hint = gtk::Label::new(Some(
         "Open Control Center from the grid icon beside workspace dots, or pull down \
-         on the edge bar. Changes apply within about a second.",
+         on the edge bar. Process monitor Auto-detect prefers btop/htop (in your \
+         terminal) then GUI monitors. Changes apply within about a second.",
     ));
     panel_hint.set_xalign(0.0);
     panel_hint.set_wrap(true);

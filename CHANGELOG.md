@@ -9,12 +9,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Control Center process monitor picker** — Settings → Control Center chooses
+  Auto-detect, an installed monitor (`btop`/`htop`/GUI), or a custom path.
+  TUI tools launch inside the Menu terminal; persisted as `process_monitor` in
+  `dashboard.json`.
 - **Maximized window padding** — Settings → Windows slider (`window_gap_px`,
   0–10) controls the inset around maximized and edge-snapped windows. `0` is
   flush; default remains 8. Live-reloads within ~1s via `bar.json`.
 
 ### Fixed
 
+- **Control Center search types into app behind** — Top-layer shell panels
+  (`metis-dashboard`) now win pointer and keyboard focus over desk AppBody
+  passthrough, so Processes search no longer sends keys to the window underneath.
+- **Control Center process list scrollbar light theme** — scrollbars use Metis
+  text-token tints instead of Adwaita prefer-dark charcoal.
+- **Control Center process search** — panel keyboard mode is Exclusive while open
+  so the Processes filter SearchEntry receives typing (OnDemand never focused).
+- **Control Center process context menu** — right-click menu dismisses on primary
+  click elsewhere in the panel (Escape too); it no longer sticks open because
+  shell UI clicks never sent compositor `close-popovers`.
+- **Control Center DropDown light theme** — filter/list popovers use Metis surface
+  tokens instead of Adwaita prefer-dark charcoal menus.
+- **Control Center “Open monitor”** — no longer `exec btop` without a TTY; launches
+  via terminal or a GUI monitor from auto-detect / Settings.
 - **Screenshot paste TTY lockup** — compositor-owned clipboard offers (region
   PNGs after PrtSc) no longer `write_all` / `fs::read` on the compositor thread.
   Paste always serves on a worker thread so XWayland/Electron clients cannot
@@ -25,9 +43,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   the shell skips history list rebuilds while the clipboard popover is closed and
   loads thumbnails scaled on a worker thread (no full-res `Picture::for_filename`
   on every capture).
+- **Control Center Processes click closes panel** — the CC layer namespace is
+  `metis-dashboard` again so compositor hit-tests count presses as shell UI
+  (not bare desktop `close-popovers`). Header dismiss-drag ignores tab/close
+  buttons.
+- **Control Center Overview/Processes light theme** — tab chip CSS now targets
+  `stackswitcher.metis-dash-tabs > button` (the class is on the switcher itself),
+  so Metis tokens win over Adwaita prefer-dark charcoal chips.
 - **Control Center no longer moves the edge bar** — the panel is a separate
   layer-shell surface attached inside the pill; opening it no longer resizes the
-  bar window (which pushed a bottom bar off-screen).
+  bar window.
 - **Edge bar distance 0 keeps stadium ends** — flush-to-edge no longer squares the
   pill; rounded ends stay at every distance. Side inset remains for the drop
   shadow; full-width bars no longer also apply `margin_h` (that double-counted

@@ -196,8 +196,9 @@ pub use lock::{
     load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
 };
 pub use dashboard::{
-    dashboard_config_path, load_dashboard_config, save_dashboard_config,
-    save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
+    dashboard_config_path, load_dashboard_config, process_monitor_needs_terminal,
+    save_dashboard_config, save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
+    KNOWN_PROCESS_MONITORS,
 };
 pub use game_rules::{
     game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,

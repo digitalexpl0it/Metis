@@ -338,10 +338,13 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         .decorated(false)
         .build();
     window.add_css_class("metis-dashboard-window");
+    window.set_can_focus(true);
     window.init_layer_shell();
-    window.set_namespace("metis-control-center");
+    window.set_namespace("metis-dashboard");
     window.set_layer(Layer::Top);
-    window.set_keyboard_mode(KeyboardMode::OnDemand);
+    // Exclusive so SearchEntry / filters receive keys while the panel is open
+    // (OnDemand never focuses the layer surface under Metis hit-testing).
+    window.set_keyboard_mode(KeyboardMode::Exclusive);
     window.set_exclusive_zone(-1);
     if let Some(monitor) = shell.window.monitor() {
         window.set_monitor(&monitor);
@@ -470,12 +473,42 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     let key = gtk::EventControllerKey::new();
     key.connect_key_pressed(|_, key, _, _| {
         if key == gtk::gdk::Key::Escape {
+            if process_context_menu_open() {
+                dismiss_process_context_menu();
+                return glib::Propagation::Stop;
+            }
             request_close();
             return glib::Propagation::Stop;
         }
         glib::Propagation::Proceed
     });
     dash.root.add_controller(key);
+
+    // Process context menus use autohide(false) (same grab issues as bar popovers).
+    // Clicks inside the CC surface must dismiss them — compositor close-popovers
+    // only fires for presses outside shell UI. Skip targets inside the popover so
+    // menu actions still receive the click.
+    let dismiss_ctx = gtk::GestureClick::builder()
+        .button(gdk::BUTTON_PRIMARY)
+        .propagation_phase(gtk::PropagationPhase::Capture)
+        .build();
+    dismiss_ctx.connect_pressed(move |gesture, _, x, y| {
+        if !process_context_menu_open() {
+            return;
+        }
+        let host = gesture.widget();
+        if let Some(target) = host.pick(x, y, gtk::PickFlags::DEFAULT) {
+            let mut node = Some(target);
+            while let Some(w) = node {
+                if w.is::<gtk::Popover>() || w.has_css_class("metis-dash-context-menu") {
+                    return;
+                }
+                node = w.parent();
+            }
+        }
+        dismiss_process_context_menu();
+    });
+    dash.root.add_controller(dismiss_ctx);
 
     let root_alloc = dash.root.clone();
     let slf_weak = dash.root.downgrade();
@@ -542,6 +575,27 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
 
     let header_drag = gtk::GestureDrag::new();
     header_drag.set_button(0);
+    {
+        let header = dash.header.clone();
+        header_drag.connect_drag_begin(move |gesture, start_x, start_y| {
+            // Tab switcher / close must keep the click — don't treat them as a
+            // dismiss-drag on the header chrome.
+            if let Some(target) = header.pick(start_x, start_y, gtk::PickFlags::DEFAULT) {
+                let mut node = Some(target);
+                while let Some(w) = node {
+                    if w.has_css_class("metis-dash-tabs")
+                        || w.has_css_class("metis-dashboard-close")
+                        || w.type_().name() == "GtkStackSwitcher"
+                        || w.is::<gtk::Button>()
+                    {
+                        gesture.set_state(gtk::EventSequenceState::Denied);
+                        return;
+                    }
+                    node = w.parent();
+                }
+            }
+        });
+    }
     header_drag.connect_drag_update(|gesture, offset_x, offset_y| {
         let position = load_bar_config().position;
         if close_delta(position, offset_x, offset_y) > OPEN_THRESHOLD {
@@ -831,6 +885,7 @@ impl Dashboard {
                     slf.open.set(true);
                     slf.root.set_sensitive(true);
                     slf.root.set_opacity(1.0);
+                    let _ = slf.window.grab_focus();
                 }
                 return glib::ControlFlow::Break;
             }
@@ -1520,16 +1575,56 @@ fn class_label(class: ProcessClass) -> &'static str {
 }
 
 fn launch_process_monitor() {
-    let cfg = metis_config::load_menu_config();
-    let term = cfg.terminal.as_deref();
-    let snippet = format!(
-        "if command -v btop >/dev/null 2>&1; then exec btop; fi; \
-         if command -v htop >/dev/null 2>&1; then exec htop; fi; \
-         {}",
-        terminal_with_command_snippet(term, "htop")
-    );
+    let dash = metis_config::load_dashboard_config();
+    let menu = metis_config::load_menu_config();
+    let term = menu.terminal.as_deref();
+    let snippet = match dash
+        .process_monitor
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(chosen) => {
+            let try_one = process_monitor_try_snippet(chosen, term);
+            format!(
+                "{try_one}; command -v notify-send >/dev/null 2>&1 && \
+                 notify-send -a Metis 'Process monitor' 'Could not launch {chosen}'"
+            )
+        }
+        None => auto_process_monitor_snippet(term),
+    };
     if let Err(err) = crate::compositor::launch_program(&snippet) {
         tracing::warn!(%err, "failed to launch process monitor");
+    }
+}
+
+fn auto_process_monitor_snippet(term: Option<&str>) -> String {
+    let mut parts = Vec::new();
+    for (bin, _) in metis_config::KNOWN_PROCESS_MONITORS {
+        parts.push(process_monitor_try_snippet(bin, term));
+    }
+    parts.push(
+        "command -v notify-send >/dev/null 2>&1 && \
+         notify-send -a Metis 'No process monitor found' \
+         'Install btop, htop, or a system monitor — or set one in Settings → Control Center.'"
+            .to_string(),
+    );
+    parts.join("; ")
+}
+
+fn process_monitor_try_snippet(bin: &str, term: Option<&str>) -> String {
+    let bin = bin.trim();
+    let q = shell_dquote(bin);
+    let exists = if bin.starts_with('/') {
+        format!("[ -x \"{q}\" ]")
+    } else {
+        format!("command -v \"{q}\" >/dev/null 2>&1")
+    };
+    if metis_config::process_monitor_needs_terminal(bin) {
+        let run = terminal_exec_program_snippet(term, bin);
+        format!("if {exists}; then {run}; fi")
+    } else {
+        format!("if {exists}; then exec \"{q}\"; fi")
     }
 }
 
@@ -1540,14 +1635,22 @@ fn shell_dquote(s: &str) -> String {
         .replace('`', "\\`")
 }
 
-fn terminal_with_command_snippet(chosen: Option<&str>, command: &str) -> String {
-    let cmd = shell_dquote(command);
+/// Launch `program` inside a terminal (`$term -e program`), preferring the Menu
+/// terminal setting then `$TERMINAL` / known terminals.
+fn terminal_exec_program_snippet(chosen: Option<&str>, program: &str) -> String {
+    let prog = shell_dquote(program);
     let mut snippet = String::new();
     if let Some(chosen) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
         let c = shell_dquote(chosen);
-        snippet.push_str(&format!(
-            "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\" -e {cmd}; fi; "
-        ));
+        if chosen.starts_with('/') {
+            snippet.push_str(&format!(
+                "if [ -x \"{c}\" ]; then exec \"{c}\" -e \"{prog}\"; fi; "
+            ));
+        } else {
+            snippet.push_str(&format!(
+                "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\" -e \"{prog}\"; fi; "
+            ));
+        }
     }
     snippet.push_str("for x in \"$TERMINAL\"");
     for (bin, _) in metis_config::KNOWN_TERMINALS {
@@ -1555,7 +1658,7 @@ fn terminal_with_command_snippet(chosen: Option<&str>, command: &str) -> String 
         snippet.push_str(bin);
     }
     snippet.push_str(&format!(
-        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\" -e {cmd}; done"
+        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\" -e \"{prog}\"; done"
     ));
     snippet
 }

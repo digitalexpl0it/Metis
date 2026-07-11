@@ -2414,11 +2414,19 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     button.metis-dashboard-close:active {{
         background-color: rgba({text_rgb}, 0.16);
     }}
-    .metis-dash-tabs stackswitcher {{
+    .metis-dash-tabs,
+    stackswitcher.metis-dash-tabs {{
         padding: 2px;
         background-color: transparent;
+        background-image: none;
+        box-shadow: none;
+        border: none;
     }}
-    .metis-dash-tabs stackswitcher button {{
+    /* Class lives on the StackSwitcher itself — nest selectors never matched,
+       so Adwaita prefer-dark kept charcoal Overview/Processes chips in light mode. */
+    stackswitcher.metis-dash-tabs > button,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button,
+    .metis-dashboard-root stackswitcher > button {{
         padding: 5px 14px;
         min-height: 0;
         border-radius: 999px;
@@ -2429,25 +2437,41 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: rgba({text_rgb}, 0.06);
         box-shadow: none;
         border: 1px solid transparent;
+        outline: none;
         -gtk-icon-filter: none;
     }}
-    .metis-dash-tabs stackswitcher button label {{
+    stackswitcher.metis-dash-tabs > button label,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button label,
+    .metis-dashboard-root stackswitcher > button label {{
         color: {muted};
     }}
-    .metis-dash-tabs stackswitcher button:hover {{
+    stackswitcher.metis-dash-tabs > button:hover,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button:hover,
+    .metis-dashboard-root stackswitcher > button:hover {{
         color: {text};
         background-color: rgba({text_rgb}, 0.10);
     }}
-    .metis-dash-tabs stackswitcher button:checked {{
+    stackswitcher.metis-dash-tabs > button:hover label,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button:hover label,
+    .metis-dashboard-root stackswitcher > button:hover label {{
+        color: {text};
+    }}
+    stackswitcher.metis-dash-tabs > button:checked,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button:checked,
+    .metis-dashboard-root stackswitcher > button:checked {{
         color: {text};
         background-color: rgba({accent_rgb}, 0.20);
         border-color: rgba({accent_rgb}, 0.50);
     }}
-    .metis-dash-tabs stackswitcher button:checked label {{
+    stackswitcher.metis-dash-tabs > button:checked label,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button:checked label,
+    .metis-dashboard-root stackswitcher > button:checked label {{
         color: {text};
         font-weight: 600;
     }}
-    .metis-dash-tabs stackswitcher button:checked:hover {{
+    stackswitcher.metis-dash-tabs > button:checked:hover,
+    .metis-dashboard-root stackswitcher.metis-dash-tabs > button:checked:hover,
+    .metis-dashboard-root stackswitcher > button:checked:hover {{
         background-color: rgba({accent_rgb}, 0.26);
     }}
     .metis-dashboard-proc-header label {{
@@ -2548,6 +2572,35 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border: 1px solid {border};
         border-radius: {rm}px;
         min-height: 0;
+    }}
+    .metis-dashboard-scroll scrollbar,
+    .metis-dashboard-scroll scrollbar.vertical,
+    .metis-dashboard-scroll scrollbar.horizontal {{
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+        background-image: none;
+    }}
+    .metis-dashboard-scroll scrollbar trough {{
+        background-color: transparent;
+        border: none;
+        box-shadow: none;
+        background-image: none;
+    }}
+    .metis-dashboard-scroll scrollbar slider {{
+        min-width: 8px;
+        min-height: 8px;
+        border-radius: 999px;
+        background-color: rgba({text_rgb}, 0.22);
+        background-image: none;
+        border: none;
+        box-shadow: none;
+    }}
+    .metis-dashboard-scroll scrollbar slider:hover {{
+        background-color: rgba({text_rgb}, 0.34);
+    }}
+    .metis-dashboard-scroll scrollbar slider:active {{
+        background-color: rgba({accent_rgb}, 0.45);
     }}
     .metis-dash-disk-grid {{
         margin-top: 4px;
@@ -2759,14 +2812,69 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         box-shadow: none;
     }}
     .metis-dash-filter button,
-    .metis-dash-filter > button {{
+    .metis-dash-filter > button,
+    dropdown.metis-dash-filter > button {{
         background: transparent;
         background-image: none;
         border: none;
         box-shadow: none;
         color: {text};
     }}
-    .metis-dash-filter label {{
+    .metis-dash-filter label,
+    dropdown.metis-dash-filter label {{
+        color: {text};
+    }}
+    .metis-dash-filter arrow,
+    dropdown.metis-dash-filter arrow {{
+        color: {muted};
+        -gtk-icon-filter: none;
+    }}
+    /* DropDown list popover is often a transient popup (not nested under
+       .metis-dashboard-root in the CSS path) — pin Metis tokens so Adwaita
+       prefer-dark does not leave a charcoal menu in light themes. */
+    window.metis-dashboard-window popover.menu contents,
+    window.metis-dashboard-window popover contents,
+    .metis-dashboard-root popover.menu contents,
+    .metis-dashboard-root popover contents,
+    popover.menu contents {{
+        background-color: {dash_card_bg};
+        color: {text};
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        box-shadow: {dash_shadow};
+        padding: 4px;
+    }}
+    window.metis-dashboard-window popover.menu listview,
+    window.metis-dashboard-window popover listview,
+    window.metis-dashboard-window popover.menu listview row,
+    window.metis-dashboard-window popover listview row,
+    .metis-dashboard-root popover listview,
+    .metis-dashboard-root popover listview row,
+    popover.menu listview,
+    popover.menu listview row {{
+        background-color: transparent;
+        background-image: none;
+        color: {text};
+        border-radius: {rs}px;
+        padding: 4px 8px;
+        box-shadow: none;
+    }}
+    window.metis-dashboard-window popover.menu listview row:hover,
+    window.metis-dashboard-window popover listview row:hover,
+    window.metis-dashboard-window popover.menu listview row:selected,
+    window.metis-dashboard-window popover listview row:selected,
+    .metis-dashboard-root popover listview row:hover,
+    .metis-dashboard-root popover listview row:selected,
+    popover.menu listview row:hover,
+    popover.menu listview row:selected {{
+        background-color: rgba({accent_rgb}, 0.14);
+        color: {text};
+    }}
+    window.metis-dashboard-window popover.menu label,
+    window.metis-dashboard-window popover label,
+    .metis-dashboard-root popover.menu label,
+    .metis-dashboard-root popover label,
+    popover.menu label {{
         color: {text};
     }}
     button.metis-dash-monitor-btn {{

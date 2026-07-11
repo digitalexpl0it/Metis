@@ -385,7 +385,7 @@ pub fn build_processes() -> ProcessPage {
     filter.add_css_class("metis-dash-filter");
     let monitor_btn = gtk::Button::builder()
         .label("Open monitor")
-        .tooltip_text("Open btop or htop in a terminal")
+        .tooltip_text("Open the configured process monitor (Settings → Control Center)")
         .build();
     monitor_btn.add_css_class("metis-dash-monitor-btn");
     toolbar.append(&search);

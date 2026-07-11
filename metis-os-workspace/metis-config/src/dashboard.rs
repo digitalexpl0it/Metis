@@ -50,6 +50,32 @@ pub struct DashboardConfig {
     /// Enabled widgets in display order.
     #[serde(default = "default_widgets")]
     pub widgets: Vec<DashboardWidgetId>,
+    /// Process monitor app: binary name or absolute path. `None` = auto-detect
+    /// from [`KNOWN_PROCESS_MONITORS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process_monitor: Option<String>,
+}
+
+/// Known system/process monitors in auto-detect preference order: `(binary, label)`.
+/// TUI tools (`btop`, `htop`) are launched inside the configured terminal.
+pub const KNOWN_PROCESS_MONITORS: &[(&str, &str)] = &[
+    ("btop", "btop"),
+    ("htop", "htop"),
+    ("gnome-system-monitor", "GNOME System Monitor"),
+    ("plasma-systemmonitor", "Plasma System Monitor"),
+    ("mate-system-monitor", "MATE System Monitor"),
+    ("xfce4-taskmanager", "XFCE Task Manager"),
+    ("ksysguard", "KSysGuard"),
+];
+
+/// True when `bin` is a TUI monitor that needs a terminal (`-e` / equivalent).
+pub fn process_monitor_needs_terminal(bin: &str) -> bool {
+    let name = std::path::Path::new(bin.trim())
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(bin)
+        .to_ascii_lowercase();
+    matches!(name.as_str(), "btop" | "htop" | "top" | "atop" | "glances")
 }
 
 fn default_true() -> bool {
@@ -76,6 +102,7 @@ impl Default for DashboardConfig {
             refresh_interval_ms: default_refresh_ms(),
             confirm_before_kill: default_true(),
             widgets: default_widgets(),
+            process_monitor: None,
         }
     }
 }
@@ -116,6 +143,14 @@ fn sanitize(mut cfg: DashboardConfig) -> DashboardConfig {
     cfg.refresh_interval_ms = cfg.refresh_interval_ms.clamp(500, 5000);
     if cfg.widgets.is_empty() {
         cfg.widgets = default_widgets();
+    }
+    if let Some(mon) = cfg.process_monitor.as_mut() {
+        let trimmed = mon.trim().to_string();
+        if trimmed.is_empty() {
+            cfg.process_monitor = None;
+        } else {
+            *mon = trimmed;
+        }
     }
     cfg
 }

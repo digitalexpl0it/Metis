@@ -504,7 +504,9 @@ impl MetisState {
             .layers()
             .filter(|layer| {
                 let ns = layer.namespace();
-                ns.starts_with("metis-bar") || ns == "metis-dashboard"
+                ns.starts_with("metis-bar")
+                    || ns == "metis-dashboard"
+                    || ns == "metis-control-center"
             })
         {
             if layer_accepts_pointer(layer, &layers, rel) {
@@ -686,24 +688,26 @@ impl MetisState {
             return None;
         }
 
-        if let DeskHit::AppBody { window_id } = desk_hit {
-            if self.window_id_at(pos) == Some(window_id) {
-                if let Some(hit) = self.window_surface_at(pos) {
-                    return Some(hit);
-                }
-            }
-        }
-
+        // Shell panels on Top/Overlay (Control Center, toasts, etc.) must win over
+        // desk AppBody passthrough — otherwise clicks/keys go to the window behind
+        // the panel. The bar already has its own priority pass above; skip it here.
         for layer_kind in [WlrLayer::Overlay, WlrLayer::Top] {
             if let Some(layer) = layers.layer_under(layer_kind, rel) {
                 if !surface_has_buffer(layer.wl_surface()) {
                     continue;
                 }
                 if layer.namespace().starts_with("metis-bar") {
-                    // Handled by the priority pass above.
                     continue;
                 }
                 if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
+                    return Some(hit);
+                }
+            }
+        }
+
+        if let DeskHit::AppBody { window_id } = desk_hit {
+            if self.window_id_at(pos) == Some(window_id) {
+                if let Some(hit) = self.window_surface_at(pos) {
                     return Some(hit);
                 }
             }
@@ -787,6 +791,26 @@ impl MetisState {
         {
             if layer_accepts_pointer(layer, &layers, rel) {
                 return Some(layer.clone().into());
+            }
+        }
+
+        // Control Center and other Top Exclusive panels must beat AppBody
+        // passthrough — otherwise typing in the Processes search goes to the
+        // window underneath the panel.
+        for layer_kind in [WlrLayer::Top] {
+            if let Some(layer) = layers.layer_under(layer_kind, rel) {
+                if layer.namespace().starts_with("metis-bar") {
+                    continue;
+                }
+                if layer.can_receive_keyboard_focus() {
+                    let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+                    if layer
+                        .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
+                        .is_some()
+                    {
+                        return Some(layer.clone().into());
+                    }
+                }
             }
         }
 
