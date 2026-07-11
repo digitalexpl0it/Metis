@@ -8,6 +8,7 @@ mod views;
 mod widgets;
 
 use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
 
@@ -17,7 +18,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_config::{load_bar_config, load_dashboard_config, BarPosition, DashboardWidgetId};
 
 use crate::services::{
-    format_bytes, format_rate, format_uptime, kill_process, short_kernel_version,
+    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree, short_kernel_version,
     DashboardSnapshot, GpuTempReading, ProcessClass, ProcessRow,
 };
 use crate::ui::bar::{ensure_bar_strip_geometry, BarShell};
@@ -89,6 +90,8 @@ struct Dashboard {
     class_filter: RefCell<ProcessClassFilter>,
     sort_column: RefCell<ProcessSortColumn>,
     sort_direction: RefCell<SortDirection>,
+    /// PIDs whose children are shown in the Processes tree.
+    expanded_processes: RefCell<HashSet<u32>>,
     last_legend_cores: Cell<usize>,
     last_disk_sig: RefCell<String>,
     last_relayout_key: Cell<(i32, i32)>,
@@ -460,6 +463,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         class_filter: RefCell::new(ProcessClassFilter::All),
         sort_column: RefCell::new(ProcessSortColumn::Cpu),
         sort_direction: RefCell::new(SortDirection::Desc),
+        expanded_processes: RefCell::new(HashSet::new()),
         last_legend_cores: Cell::new(0),
         last_disk_sig: RefCell::new(String::new()),
         last_relayout_key: Cell::new((0, 0)),
@@ -1120,33 +1124,88 @@ impl Dashboard {
         let class_filter = *self.class_filter.borrow();
         let sort_col = *self.sort_column.borrow();
         let sort_dir = *self.sort_direction.borrow();
-        let processes: Vec<ProcessRow> = {
-            let snapshot = self.snapshot.borrow();
-            let mut rows: Vec<ProcessRow> = snapshot
-                .processes
-                .iter()
-                .filter(|proc| {
-                    if !text_filter.is_empty()
-                        && !proc.name.to_lowercase().contains(&text_filter)
-                        && !proc.user.to_lowercase().contains(&text_filter)
-                        && !proc.pid.to_string().contains(&text_filter)
-                    {
-                        return false;
-                    }
-                    matches_class_filter(class_filter, proc.class)
-                })
-                .cloned()
-                .collect();
-            sort_process_rows(&mut rows, sort_col, sort_dir);
-            rows
-        };
-        let mut shown = 0usize;
-        for proc in &processes {
-            list.append(&process_row(proc));
-            shown += 1;
-            if shown >= 300 {
-                break;
+
+        let snapshot = self.snapshot.borrow();
+        let all = &snapshot.processes;
+        let by_pid: HashMap<u32, &ProcessRow> = all.iter().map(|p| (p.pid, p)).collect();
+
+        let mut matched: HashSet<u32> = HashSet::new();
+        for proc in all {
+            let text_ok = text_filter.is_empty()
+                || proc.name.to_lowercase().contains(&text_filter)
+                || proc.user.to_lowercase().contains(&text_filter)
+                || proc.pid.to_string().contains(&text_filter);
+            if text_ok && matches_class_filter(class_filter, proc.class) {
+                matched.insert(proc.pid);
             }
+        }
+
+        // Keep ancestors of matches so filtered children stay under their tree.
+        let mut visible: HashSet<u32> = matched.clone();
+        for &pid in &matched {
+            let mut walk = by_pid.get(&pid).and_then(|p| p.parent_pid);
+            while let Some(ppid) = walk {
+                if !visible.insert(ppid) {
+                    break;
+                }
+                walk = by_pid.get(&ppid).and_then(|p| p.parent_pid);
+            }
+        }
+
+        // Auto-expand ancestors when searching so matches are reachable.
+        if !text_filter.is_empty() {
+            let mut expand = self.expanded_processes.borrow_mut();
+            for &pid in &matched {
+                let mut walk = by_pid.get(&pid).and_then(|p| p.parent_pid);
+                while let Some(ppid) = walk {
+                    expand.insert(ppid);
+                    walk = by_pid.get(&ppid).and_then(|p| p.parent_pid);
+                }
+            }
+        }
+
+        let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+        let mut roots: Vec<u32> = Vec::new();
+        for proc in all.iter().filter(|p| visible.contains(&p.pid)) {
+            let parent_in_view = proc
+                .parent_pid
+                .is_some_and(|ppid| visible.contains(&ppid));
+            if parent_in_view {
+                if let Some(ppid) = proc.parent_pid {
+                    children.entry(ppid).or_default().push(proc.pid);
+                }
+            } else {
+                roots.push(proc.pid);
+            }
+        }
+
+        let sort_pids = |pids: &mut [u32]| {
+            pids.sort_by(|a, b| {
+                let Some(pa) = by_pid.get(a) else {
+                    return std::cmp::Ordering::Equal;
+                };
+                let Some(pb) = by_pid.get(b) else {
+                    return std::cmp::Ordering::Equal;
+                };
+                compare_process_rows(pa, pb, sort_col, sort_dir)
+            });
+        };
+        sort_pids(&mut roots);
+        for kids in children.values_mut() {
+            sort_pids(kids);
+        }
+
+        let expanded = self.expanded_processes.borrow().clone();
+        let mut flat: Vec<ProcessTreeEntry> = Vec::new();
+        for root in roots {
+            flatten_process_tree(root, 0, &children, &by_pid, &expanded, &mut flat);
+        }
+
+        let mut shown = 0usize;
+        let truncated = flat.len() > 300;
+        for entry in flat.into_iter().take(300) {
+            list.append(&process_row(&entry));
+            shown += 1;
         }
         if shown == 0 {
             let empty = gtk::Label::new(Some("No matching processes"));
@@ -1157,7 +1216,71 @@ impl Dashboard {
             let row = gtk::ListBoxRow::new();
             row.set_child(Some(&empty));
             list.append(&row);
+        } else if truncated {
+            let more = gtk::Label::new(Some("Showing first 300 visible rows — refine the filter"));
+            more.add_css_class("metis-dash-muted");
+            more.set_margin_top(8);
+            more.set_margin_start(16);
+            more.set_halign(gtk::Align::Start);
+            let row = gtk::ListBoxRow::new();
+            row.set_sensitive(false);
+            row.set_child(Some(&more));
+            list.append(&row);
         }
+    }
+}
+
+struct ProcessTreeEntry {
+    proc: ProcessRow,
+    depth: usize,
+    child_count: usize,
+}
+
+fn flatten_process_tree(
+    pid: u32,
+    depth: usize,
+    children: &HashMap<u32, Vec<u32>>,
+    by_pid: &HashMap<u32, &ProcessRow>,
+    expanded: &HashSet<u32>,
+    out: &mut Vec<ProcessTreeEntry>,
+) {
+    let Some(proc) = by_pid.get(&pid) else {
+        return;
+    };
+    let kids = children.get(&pid).map(|v| v.as_slice()).unwrap_or(&[]);
+    out.push(ProcessTreeEntry {
+        proc: (*proc).clone(),
+        depth,
+        child_count: kids.len(),
+    });
+    if kids.is_empty() || !expanded.contains(&pid) {
+        return;
+    }
+    for child in kids {
+        flatten_process_tree(*child, depth + 1, children, by_pid, expanded, out);
+    }
+}
+
+fn compare_process_rows(
+    a: &ProcessRow,
+    b: &ProcessRow,
+    col: ProcessSortColumn,
+    dir: SortDirection,
+) -> std::cmp::Ordering {
+    let ord = match col {
+        ProcessSortColumn::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+        ProcessSortColumn::Pid => a.pid.cmp(&b.pid),
+        ProcessSortColumn::User => a.user.to_lowercase().cmp(&b.user.to_lowercase()),
+        ProcessSortColumn::Kind => class_order(a.class).cmp(&class_order(b.class)),
+        ProcessSortColumn::Cpu => a
+            .cpu_percent
+            .partial_cmp(&b.cpu_percent)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        ProcessSortColumn::Memory => a.memory_bytes.cmp(&b.memory_bytes),
+    };
+    match dir {
+        SortDirection::Asc => ord,
+        SortDirection::Desc => ord.reverse(),
     }
 }
 
@@ -1200,26 +1323,6 @@ fn default_sort_direction(col: ProcessSortColumn) -> SortDirection {
             SortDirection::Desc
         }
     }
-}
-
-fn sort_process_rows(rows: &mut [ProcessRow], col: ProcessSortColumn, dir: SortDirection) {
-    rows.sort_by(|a, b| {
-        let ord = match col {
-            ProcessSortColumn::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-            ProcessSortColumn::Pid => a.pid.cmp(&b.pid),
-            ProcessSortColumn::User => a.user.to_lowercase().cmp(&b.user.to_lowercase()),
-            ProcessSortColumn::Kind => class_order(a.class).cmp(&class_order(b.class)),
-            ProcessSortColumn::Cpu => a
-                .cpu_percent
-                .partial_cmp(&b.cpu_percent)
-                .unwrap_or(std::cmp::Ordering::Equal),
-            ProcessSortColumn::Memory => a.memory_bytes.cmp(&b.memory_bytes),
-        };
-        match dir {
-            SortDirection::Asc => ord,
-            SortDirection::Desc => ord.reverse(),
-        }
-    });
 }
 
 fn class_order(class: ProcessClass) -> u8 {
@@ -1274,7 +1377,8 @@ fn matches_class_filter(filter: ProcessClassFilter, class: ProcessClass) -> bool
     }
 }
 
-fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
+fn process_row(entry: &ProcessTreeEntry) -> gtk::ListBoxRow {
+    let proc = &entry.proc;
     let row = gtk::ListBoxRow::new();
     row.add_css_class("metis-dash-table-row");
     let grid = gtk::Grid::builder()
@@ -1284,15 +1388,63 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
         .build();
     grid.add_css_class("metis-dash-proc-cols");
 
+    let name_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+    name_box.set_hexpand(true);
+    name_box.set_halign(gtk::Align::Fill);
+    name_box.set_margin_start((entry.depth as i32) * 14);
+
+    if entry.child_count > 0 {
+        let expanded = DASHBOARD.with(|d| {
+            d.borrow()
+                .as_ref()
+                .is_some_and(|dash| dash.expanded_processes.borrow().contains(&proc.pid))
+        });
+        let toggle = gtk::Button::from_icon_name(if expanded {
+            "pan-down-symbolic"
+        } else {
+            "pan-end-symbolic"
+        });
+        toggle.add_css_class("flat");
+        toggle.add_css_class("metis-dash-proc-expand");
+        toggle.set_tooltip_text(Some(if expanded {
+            "Collapse child processes"
+        } else {
+            "Expand child processes"
+        }));
+        let pid_toggle = proc.pid;
+        toggle.connect_clicked(move |_| {
+            DASHBOARD.with(|d| {
+                let holder = d.borrow();
+                let Some(dash) = holder.as_ref() else {
+                    return;
+                };
+                {
+                    let mut expanded = dash.expanded_processes.borrow_mut();
+                    if !expanded.remove(&pid_toggle) {
+                        expanded.insert(pid_toggle);
+                    }
+                }
+                dash.rebuild_process_list(&dash.processes.list);
+            });
+        });
+        name_box.append(&toggle);
+    } else {
+        let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        spacer.set_size_request(24, -1);
+        name_box.append(&spacer);
+    }
+
     let name = gtk::Label::new(Some(&proc.name));
     name.set_halign(gtk::Align::Start);
     name.set_xalign(0.0);
+    name.set_hexpand(true);
     name.set_ellipsize(gtk::pango::EllipsizeMode::End);
     match proc.class {
         ProcessClass::Metis => name.add_css_class("metis-dash-process-metis"),
         ProcessClass::System => name.add_css_class("metis-dash-muted"),
         ProcessClass::UserApp => name.add_css_class("metis-dash-proc-name"),
     }
+    name_box.append(&name);
 
     let pid = gtk::Label::new(Some(&proc.pid.to_string()));
     pid.add_css_class("metis-dash-muted");
@@ -1317,13 +1469,12 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
     mem.set_halign(gtk::Align::End);
     mem.set_xalign(1.0);
 
-    name.set_hexpand(true);
     pid.set_width_request(64);
     user.set_width_request(88);
     kind.set_width_request(64);
     cpu.set_width_request(64);
     mem.set_width_request(80);
-    grid.attach(&name, 0, 0, 1, 1);
+    grid.attach(&name_box, 0, 0, 1, 1);
     grid.attach(&pid, 1, 0, 1, 1);
     grid.attach(&user, 2, 0, 1, 1);
     grid.attach(&kind, 3, 0, 1, 1);
@@ -1342,7 +1493,7 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
     kill.connect_clicked(move |btn| {
         let cfg = load_dashboard_config();
         if cfg.confirm_before_kill {
-            confirm_kill_process(btn, pid_val, false);
+            confirm_kill_process(btn, pid_val, false, false);
         } else if let Err(err) = kill_process(pid_val, false) {
             tracing::warn!(%err, pid = pid_val, "end task failed");
         }
@@ -1351,7 +1502,7 @@ fn process_row(proc: &ProcessRow) -> gtk::ListBoxRow {
     grid.attach(&kill, 6, 0, 1, 1);
 
     if proc.killable {
-        attach_process_context_menu(&row, proc.pid, &proc.name);
+        attach_process_context_menu(&row, proc.pid, &proc.name, entry.child_count > 0);
     }
 
     row.set_child(Some(&grid));
@@ -1380,19 +1531,26 @@ fn dismiss_process_context_menu() {
     }
 }
 
-fn attach_process_context_menu(row: &gtk::ListBoxRow, pid: u32, name: &str) {
+fn attach_process_context_menu(row: &gtk::ListBoxRow, pid: u32, name: &str, has_children: bool) {
     let gesture = gtk::GestureClick::builder()
         .button(gdk::BUTTON_SECONDARY)
         .build();
     let row_widget: gtk::Widget = row.clone().upcast();
     let name = name.to_string();
     gesture.connect_pressed(move |_, _n, x, y| {
-        show_process_context_menu(&row_widget, pid, &name, x, y);
+        show_process_context_menu(&row_widget, pid, &name, has_children, x, y);
     });
     row.add_controller(gesture);
 }
 
-fn show_process_context_menu(anchor: &gtk::Widget, pid: u32, name: &str, x: f64, y: f64) {
+fn show_process_context_menu(
+    anchor: &gtk::Widget,
+    pid: u32,
+    name: &str,
+    has_children: bool,
+    x: f64,
+    y: f64,
+) {
     dismiss_process_context_menu();
     crate::ui::bar::close_bar_popovers();
 
@@ -1402,7 +1560,7 @@ fn show_process_context_menu(anchor: &gtk::Widget, pid: u32, name: &str, x: f64,
     panel.set_margin_bottom(6);
     panel.set_margin_start(4);
     panel.set_margin_end(4);
-    panel.set_width_request(210);
+    panel.set_width_request(220);
 
     let header = gtk::Label::new(Some(name));
     header.set_xalign(0.0);
@@ -1417,16 +1575,32 @@ fn show_process_context_menu(anchor: &gtk::Widget, pid: u32, name: &str, x: f64,
         let anchor = anchor.clone();
         move || {
             dismiss_process_context_menu();
-            confirm_kill_process(&anchor, pid, false);
+            confirm_kill_process(&anchor, pid, false, false);
         }
     });
     append_process_menu_item(&panel, "Force quit", {
         let anchor = anchor.clone();
         move || {
             dismiss_process_context_menu();
-            confirm_kill_process(&anchor, pid, true);
+            confirm_kill_process(&anchor, pid, true, false);
         }
     });
+    if has_children {
+        append_process_menu_item(&panel, "End process tree", {
+            let anchor = anchor.clone();
+            move || {
+                dismiss_process_context_menu();
+                confirm_kill_process(&anchor, pid, false, true);
+            }
+        });
+        append_process_menu_item(&panel, "Force quit tree", {
+            let anchor = anchor.clone();
+            move || {
+                dismiss_process_context_menu();
+                confirm_kill_process(&anchor, pid, true, true);
+            }
+        });
+    }
     append_process_menu_item(&panel, &format!("Copy PID ({pid})"), move || {
         copy_text_to_clipboard(&pid.to_string());
         dismiss_process_context_menu();
@@ -1490,23 +1664,27 @@ where
     panel.append(&item);
 }
 
-fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool) {
+fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool, tree: bool) {
     let panel = gtk::Box::new(gtk::Orientation::Vertical, 10);
     panel.set_margin_top(10);
     panel.set_margin_bottom(10);
     panel.set_margin_start(12);
     panel.set_margin_end(12);
-    panel.set_width_request(240);
+    panel.set_width_request(260);
 
-    let title = if force {
-        "Force quit?"
-    } else {
-        "End task?"
+    let title = match (force, tree) {
+        (true, true) => "Force quit process tree?",
+        (true, false) => "Force quit?",
+        (false, true) => "End process tree?",
+        (false, false) => "End task?",
     };
-    let body = if force {
-        format!("Send SIGKILL to process {pid}? This cannot be undone.")
-    } else {
-        format!("Send SIGTERM to process {pid}?")
+    let body = match (force, tree) {
+        (true, true) => format!(
+            "Send SIGKILL to process {pid} and its child processes? This cannot be undone."
+        ),
+        (true, false) => format!("Send SIGKILL to process {pid}? This cannot be undone."),
+        (false, true) => format!("Send SIGTERM to process {pid} and its child processes?"),
+        (false, false) => format!("Send SIGTERM to process {pid}?"),
     };
 
     let t = gtk::Label::new(Some(title));
@@ -1523,7 +1701,12 @@ fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool) {
     actions.set_halign(gtk::Align::End);
     actions.set_margin_top(4);
     let cancel = gtk::Button::with_label("Cancel");
-    let ok_label = if force { "Force quit" } else { "End task" };
+    let ok_label = match (force, tree) {
+        (true, true) => "Force quit tree",
+        (true, false) => "Force quit",
+        (false, true) => "End tree",
+        (false, false) => "End task",
+    };
     let ok = gtk::Button::with_label(ok_label);
     if force {
         ok.add_css_class("destructive-action");
@@ -1546,8 +1729,20 @@ fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool) {
     cancel.connect_clicked(move |_| pop_cancel.popdown());
     let pop_ok = popover.clone();
     ok.connect_clicked(move |_| {
-        if let Err(err) = kill_process(pid, force) {
-            tracing::warn!(%err, pid, force, "kill failed");
+        let result = if tree {
+            DASHBOARD.with(|d| {
+                let holder = d.borrow();
+                let procs = holder
+                    .as_ref()
+                    .map(|dash| dash.snapshot.borrow().processes.clone())
+                    .unwrap_or_default();
+                kill_process_tree(pid, &procs, force)
+            })
+        } else {
+            kill_process(pid, force)
+        };
+        if let Err(err) = result {
+            tracing::warn!(%err, pid, force, tree, "kill failed");
         }
         pop_ok.popdown();
     });

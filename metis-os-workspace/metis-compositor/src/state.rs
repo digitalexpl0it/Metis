@@ -241,6 +241,7 @@ pub struct MetisState {
     pub blur: crate::blur::BlurRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
+    pub keybinds: crate::keybinds::KeybindRuntime,
     pub output_runtime: crate::output_prefs::OutputRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
@@ -854,6 +855,7 @@ impl MetisState {
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
             input_runtime: crate::device_input::InputRuntime::new(),
+            keybinds: crate::keybinds::KeybindRuntime::load(),
             output_runtime: crate::output_prefs::OutputRuntime::new(),
             redraw_trigger: None,
             damaged: true,
@@ -959,6 +961,7 @@ impl MetisState {
         if let Some(cfg) = self.input_runtime.maybe_refresh() {
             crate::device_input::apply_keyboard(self, &cfg);
         }
+        self.keybinds.maybe_refresh();
 
         if let Some((before, cfg)) = self.output_runtime.maybe_refresh() {
             if before.primary_output != cfg.primary_output {
@@ -7733,6 +7736,14 @@ impl MetisState {
             CompositorCommand::ReloadInput => {
                 let cfg = self.input_runtime.reload_from_disk();
                 crate::device_input::apply_keyboard(self, &cfg);
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadKeybinds => {
+                self.keybinds.reload();
+                CompositorEvent::Pong
+            }
+            CompositorCommand::SetKeybindCapture { active } => {
+                crate::keybinds::set_capture_active(active);
                 CompositorEvent::Pong
             }
             CompositorCommand::ReloadOutputs => {

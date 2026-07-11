@@ -9,6 +9,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Configurable desktop shortcuts** — Settings → Keyboard → Shortcuts lists
+  Metis actions with Change / capture / Save / Reset. Bindings live in
+  `keybinds.json`; compositor reloads live (`ReloadKeybinds`). Ctrl+Alt+F1–F12
+  and Ctrl+Alt+Backspace stay visible as locked system binds. Capture mode
+  suppresses global shortcuts via `SetKeybindCapture`.
+- **Control Center process tree** — Processes tab nests children under their
+  parent PID with expand/collapse. Search keeps ancestor paths; right-click adds
+  End / Force quit process tree (descendants then root).
 - **Control Center process monitor picker** — Settings → Control Center chooses
   Auto-detect, an installed monitor (`btop`/`htop`/GUI), or a custom path.
   TUI tools launch inside the Menu terminal; persisted as `process_monitor` in

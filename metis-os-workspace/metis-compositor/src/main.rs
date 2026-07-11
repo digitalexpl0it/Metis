@@ -230,7 +230,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!(
         socket = ?state.socket_name,
-        keybind_mod = crate::keybinds::keybind_mod_label(),
+        keybind_mod = crate::keybinds::keybind_mod_label(&state.keybinds),
         "Metis compositor running — apps, layer-shell overlays, and notifications supported"
     );
 

@@ -133,6 +133,7 @@ pub enum ProcessClass {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessRow {
     pub pid: u32,
+    pub parent_pid: Option<u32>,
     pub name: String,
     pub cpu_percent: f32,
     pub memory_bytes: u64,
@@ -550,8 +551,10 @@ fn collect_processes(sys: &System) -> Vec<ProcessRow> {
                 ProcessClass::System
             };
             let killable = uid == my_uid && pid.as_u32() != own_pid;
+            let parent_pid = proc_.parent().map(|p| p.as_u32());
             ProcessRow {
                 pid: pid.as_u32(),
+                parent_pid,
                 name,
                 cpu_percent: normalize_process_cpu(proc_.cpu_usage(), cpu_count),
                 memory_bytes: proc_.memory(),
@@ -1087,6 +1090,64 @@ pub fn kill_process(pid: u32, force: bool) -> Result<(), String> {
         Signal::SIGTERM
     };
     kill(NixPid::from_raw(pid as i32), sig).map_err(|err| format!("kill: {err}"))
+}
+
+/// Signal `root` and every descendant listed in `all` (children first), skipping
+/// non-killable PIDs and the shell itself. Best-effort: collects the first error
+/// after attempting the rest.
+pub fn kill_process_tree(root: u32, all: &[ProcessRow], force: bool) -> Result<(), String> {
+    let by_parent = process_children_index(all);
+    let mut order = Vec::new();
+    collect_descendants_postorder(root, &by_parent, &mut order);
+    order.push(root);
+
+    let own = std::process::id();
+    let killable: std::collections::HashMap<u32, bool> =
+        all.iter().map(|p| (p.pid, p.killable)).collect();
+    let mut first_err: Option<String> = None;
+    for pid in order {
+        if pid == own {
+            continue;
+        }
+        if !killable.get(&pid).copied().unwrap_or(false) {
+            continue;
+        }
+        if let Err(err) = kill_process(pid, force) {
+            if first_err.is_none() {
+                first_err = Some(err);
+            }
+        }
+    }
+    match first_err {
+        Some(err) => Err(err),
+        None => Ok(()),
+    }
+}
+
+fn process_children_index(all: &[ProcessRow]) -> std::collections::HashMap<u32, Vec<u32>> {
+    let pids: std::collections::HashSet<u32> = all.iter().map(|p| p.pid).collect();
+    let mut map: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
+    for proc in all {
+        if let Some(ppid) = proc.parent_pid {
+            if pids.contains(&ppid) {
+                map.entry(ppid).or_default().push(proc.pid);
+            }
+        }
+    }
+    map
+}
+
+fn collect_descendants_postorder(
+    pid: u32,
+    by_parent: &std::collections::HashMap<u32, Vec<u32>>,
+    out: &mut Vec<u32>,
+) {
+    if let Some(children) = by_parent.get(&pid) {
+        for child in children {
+            collect_descendants_postorder(*child, by_parent, out);
+            out.push(*child);
+        }
+    }
 }
 
 pub fn format_bytes(bytes: u64) -> String {

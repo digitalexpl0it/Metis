@@ -815,13 +815,26 @@ fn build_finish() -> gtk::Widget {
     summary.set_wrap(true);
     col.append(&summary);
 
+    let cfg = metis_config::load_keybinds_config();
+    let mod_label = cfg.mod_key.as_str();
+    let close = cfg.chord_for(metis_config::KeybindAction::CloseWindow).display();
+    let layout_free = cfg.chord_for(metis_config::KeybindAction::LayoutFree).display();
+    let ws1 = cfg.chord_for(metis_config::KeybindAction::Workspace1).display();
     let keybinds = [
-        ("Click the brand icon", "Open the app launcher"),
-        ("Super + \\", "Cycle workspace layout (free / grid / scroll)"),
-        ("Super + Q", "Close the focused window"),
-        ("Super + 1 … 9", "Switch workspace"),
+        ("Click the brand icon".to_string(), "Open the app launcher"),
+        (
+            layout_free,
+            "Disable tiling / return to free desktop",
+        ),
+        (close, "Close the focused window"),
+        (
+            format!("{mod_label} + 1 … 9"),
+            "Switch workspace",
+        ),
     ];
-    for (key, desc) in keybinds {
+    // Keep a note that defaults use the configured Metis modifier.
+    let _ = ws1;
+    for (key, desc) in &keybinds {
         col.append(&keybind_row(key, desc));
     }
 

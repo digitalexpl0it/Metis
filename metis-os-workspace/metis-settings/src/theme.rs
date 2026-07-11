@@ -467,6 +467,21 @@ fn settings_css(t: &ThemeTokens) -> String {
             font-size: 12px;
             padding: 0 16px 12px;
         }}
+        .metis-keybind-chord {{
+            font-family: monospace;
+            font-size: 12px;
+            color: {text};
+            background-color: {raised};
+            border: 1px solid {border};
+            border-radius: {rs}px;
+            padding: 4px 8px;
+        }}
+        .metis-keybind-reserved {{
+            opacity: 0.85;
+        }}
+        .metis-keybind-editable {{
+            padding: 0 8px 8px;
+        }}
         .metis-settings-display-chip {{
             padding: 8px 12px;
             border-radius: {rs}px;

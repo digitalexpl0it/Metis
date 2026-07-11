@@ -11,6 +11,7 @@ pub mod game_rules;
 pub mod gaming;
 pub mod gpu_offload;
 pub mod input;
+pub mod keybinds;
 pub mod lock;
 pub mod menu;
 pub mod outputs;
@@ -216,6 +217,11 @@ pub use gpu_offload::{
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
     ComposeKey, InputConfig, KeyboardConfig, MouseConfig, TouchpadConfig,
+};
+pub use keybinds::{
+    default_chord, keybinds_config_path, load_keybinds_config, reserved_chords,
+    reserved_system_rows, save_default_keybinds_config, save_keybinds_config, Chord, KeybindAction,
+    KeybindGroup, KeybindsConfig, ModKey,
 };
 pub use bar::{
     bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarBorder,

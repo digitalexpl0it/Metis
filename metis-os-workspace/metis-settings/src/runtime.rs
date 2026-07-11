@@ -48,6 +48,28 @@ pub fn reload_input() {
     }
 }
 
+/// Re-read `keybinds.json` and apply desktop shortcuts live.
+pub fn reload_keybinds() {
+    if let Err(err) = send_command(CompositorCommand::ReloadKeybinds) {
+        tracing::warn!(%err, "failed to reload keybinds via compositor IPC");
+    }
+}
+
+pub fn reload_keybinds_async() {
+    std::thread::spawn(reload_keybinds);
+}
+
+/// Suppress / resume global shortcut dispatch while Settings captures a chord.
+pub fn set_keybind_capture(active: bool) {
+    if let Err(err) = send_command(CompositorCommand::SetKeybindCapture { active }) {
+        tracing::debug!(%err, active, "failed to set keybind capture via compositor IPC");
+    }
+}
+
+pub fn set_keybind_capture_async(active: bool) {
+    std::thread::spawn(move || set_keybind_capture(active));
+}
+
 /// Re-read `outputs.json` and apply per-output scale immediately. Best-effort.
 pub fn reload_outputs() {
     if let Err(err) = send_command(CompositorCommand::ReloadOutputs) {

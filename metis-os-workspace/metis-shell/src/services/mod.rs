@@ -25,10 +25,9 @@ pub use clipboard::{
     active_entry_id, ClipboardEntry, ClipboardPage,
 };
 pub use dashboard::{
-    format_bytes, format_rate, format_uptime, kill_process, polling_active, set_polling_active,
-    short_kernel_version, spawn_dashboard_pollers, DashboardSnapshot, DiskMount, GpuTempReading,
-    HealthLevel,
-    ProcessClass, ProcessRow,
+    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree, polling_active,
+    set_polling_active, short_kernel_version, spawn_dashboard_pollers, DashboardSnapshot, DiskMount,
+    GpuTempReading, HealthLevel, ProcessClass, ProcessRow,
 };
 pub use notifications::{
     clear_notifications, close_notification, dismiss_notification, do_not_disturb,

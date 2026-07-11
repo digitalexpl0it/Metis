@@ -575,23 +575,36 @@ scrolling mode; in grid mode they're inert.
 
 ## 8. Keyboard shortcuts reference
 
+Defaults are listed below. Change them anytime in **Settings → Keyboard →
+Shortcuts** (saved to `~/.config/metis/keybinds.json`, live-reloaded). Ctrl+Alt+F1–F12
+and Ctrl+Alt+Backspace are system-only and cannot be rebound.
+
 | Shortcut | Action |
 |----------|--------|
 | `Super`+`1`..`9` | Switch to workspace 1–9 (monitor under the pointer) |
 | `Super`+`Shift`+`1`..`9` | Move the focused window to workspace 1–9 |
 | `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
-| `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor |
+| `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor; (scroll) move column/window |
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move the active workspace to the adjacent monitor (independent mode) |
 | `Super`+`F` | Toggle maximize for the focused window (fills the area below the edge bar) |
+| `Super`+`Shift`+`F` | Toggle true fullscreen |
 | `Super`+`Q` | Close the focused window |
-| `Escape` | Exit fullscreen / immersive |
-| `Super`+`\` | Toggle the active workspace between grid and scrolling |
+| `Super`+`M` | Minimize the focused window |
+| `Super`+`L` | Lock the session |
+| `Super`+`Esc` | Exit fullscreen / maximize / tile |
+| `Super`+`/` | Enable grid tiling |
+| `Super`+`\` | Disable tiling (free desktop) |
+| `Print` / `Shift`+`Print` / `Ctrl`+`Print` | Screenshot interactive / full / window |
 | `Super`+`←` `→` `↑` `↓` | (scrolling) Move focus between/within columns |
-| `Super`+`Shift`+arrows | (scrolling) Move the column / window |
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
 
-**Nested in GNOME?** `./run-metis.sh --session` sets `METIS_MOD=alt` — read **Super** as **Alt** in the table above **except** `Super`+`Alt`+`←`/`→`, which always uses the logo/Windows key plus **Alt**. Click the Metis window first so it has keyboard focus. On a real Metis session, **Super** is the logo / Windows key.
+**Nested in GNOME?** `./run-metis.sh --session` may set `METIS_MOD=alt` for first-run
+defaults — read **Super** as **Alt** in the table above **except** workspace cycle
+(`Super`+`Alt`+`←`/`→`), which always uses the logo key plus **Alt**. Prefer changing
+the Metis modifier and individual chords in Settings → Keyboard. Click the Metis
+window first so it has keyboard focus. On a real Metis session, **Super** is the
+logo / Windows key by default.
 
 ---
 
@@ -634,9 +647,9 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
 - **Network** — wired/NIC config (DHCP vs static) and Wi-Fi scan/connect/forget.
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
   365) used by the Notification Center calendar.
-- **Input** — mouse, touchpad, and keyboard settings (pointer speed, natural
-  scroll, tap-to-click, layout, repeat rate, etc.); written to `input.json` and
-  applied live by the compositor.
+- **Input** — mouse, touchpad, and keyboard layout/repeat settings (`input.json`),
+  plus **Keyboard → Shortcuts** for desktop keybinds (`keybinds.json`, live
+  reload). System VT/quit chords are listed but not editable.
 - **Bluetooth** — adapter on/off, scan for devices (toggle stop, auto-stops after
   30s), pair / connect / trust / remove. Battery percentage and charging state
   appear when the device or driver reports them.
@@ -645,8 +658,9 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   toggles, health checklist with Fix buttons, **Optimize now**, and **Run gaming
   setup** wizard; writes `gaming.json` and applies Flatpak overrides when installed.
 - **Control Center** — enable/disable the pull-down system monitor, max panel
-  height %, refresh interval, confirm-before-kill, and which overview widgets
-  appear; writes `dashboard.json` for live shell reload.
+  height %, refresh interval, confirm-before-kill, overview widgets, and which
+  process monitor **Open monitor** launches (auto-detect / installed / custom);
+  writes `dashboard.json` for live shell reload.
 - **Power** — power profile (power-saver / balanced / performance via
   `power-profiles-daemon`), laptop battery details, idle blank/suspend timeouts,
   lid-close action, and a **Connected devices** list for Bluetooth peripherals
@@ -766,11 +780,15 @@ CPU and discrete-GPU temperature gauges use a 0–150 °C semicircle. On hybrid
 laptops (Intel + NVIDIA), the Intel iGPU is not shown; NVIDIA temps are read from
 sysfs when available, otherwise from `nvidia-smi`.
 
-**Processes** tab — searchable, sortable table (Name, PID, User, Type, CPU, Memory).
-Right-click a killable row for **End task**, **Force quit** (SIGKILL), or **Copy PID**.
-End-task confirmation is optional (`dashboard.json` → `confirm_before_kill`). Use
-**Open monitor** to launch `btop` or `htop` (or your configured terminal as fallback).
-The process list pauses refresh while a context menu is open so actions stay usable.
+**Processes** tab — searchable, sortable PPID tree (Name, PID, User, Type, CPU,
+Memory). Expand a parent to see child processes. Search keeps ancestor paths so
+matches stay visible under their tree. Right-click a killable row for **End task**,
+**Force quit** (SIGKILL), **End process tree** / **Force quit tree** (when it has
+children), or **Copy PID**. End-task confirmation is optional
+(`dashboard.json` → `confirm_before_kill`). Use **Open monitor** to launch your
+configured process monitor (Settings → Control Center: auto-detect prefers
+btop/htop in a terminal, then GUI monitors). The process list pauses refresh while
+a context menu is open so actions stay usable.
 
 Dismiss with **Esc**, the close button, **drag back toward the bar** on the
 header, or by clicking the desktop. Configure in Settings → **Control Center** or
@@ -789,14 +807,14 @@ When Metis runs inside another desktop (the default `./run-metis.sh --session`
 winit window), the **host grabs Super** for its own shortcuts. Metis shortcuts
 won't fire with Super unless you reconfigure the host.
 
-**Default:** nested sessions set `METIS_MOD=alt`, so every shortcut below that
-says **Super** means **Alt** instead — e.g. **Alt+1** switches workspace,
-**Alt+Shift+←** moves a window to the adjacent monitor. **`Super`+`Alt`+←/→`**
-(workspace cycle) always uses the logo/Windows key plus **Alt**, not `METIS_MOD`.
-**Click the Metis session window first** so it has keyboard focus.
+**Default:** nested sessions may set `METIS_MOD=alt` so first-run defaults use Alt
+instead of Super — e.g. **Alt+1** switches workspace. Prefer **Settings → Keyboard
+→ Shortcuts** to set the Metis modifier and individual chords (`keybinds.json`).
+**`Super`+`Alt`+←/→`** (workspace cycle) defaults to the logo/Windows key plus
+**Alt**. **Click the Metis session window first** so it has keyboard focus.
 
-Override with `METIS_MOD=super` or `METIS_MOD=ctrl` if you prefer. On a real
-Metis session (future DRM backend), the default is Super.
+Override with `METIS_MOD=super` or `METIS_MOD=ctrl` only when no `keybinds.json`
+mod preference is set yet. On a real Metis session, the default modifier is Super.
 
 | File | Purpose |
 |------|---------|
@@ -811,10 +829,11 @@ Metis session (future DRM backend), the default is Super.
 | `desk.json` | Compositor window-grid layout (widget tiles) |
 | `dismissed.json` | Dismissed calendar reminder IDs |
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
-| `input.json` | Mouse, touchpad, and keyboard settings (compositor live-reload) |
+| `input.json` | Mouse, touchpad, and keyboard layout/repeat (compositor live-reload) |
+| `keybinds.json` | Desktop shortcuts (chords → actions); Settings → Keyboard → Shortcuts |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery preference (dim not wired yet) |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
-| `dashboard.json` | System dashboard: enabled, widget order, max height %, refresh interval, confirm-before-kill |
+| `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |
 | `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | Record of applied Flatpak gaming overrides (managed by `metis-gaming`) |
 | `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |

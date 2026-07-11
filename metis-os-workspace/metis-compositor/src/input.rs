@@ -16,8 +16,9 @@ use smithay::{
 };
 
 use crate::focus::KeyboardFocusTarget;
-use crate::keybinds::mod_active;
+use crate::keybinds::{capture_active, keysym_to_token, mod_active};
 use crate::state::MetisState;
+use metis_config::KeybindAction;
 
 /// Map a Ctrl+Alt+F<n> press to a 1-based virtual terminal number. Matches both
 /// the dedicated `XF86Switch_VT_n` keysyms (when xkb is configured for them) and
@@ -33,19 +34,189 @@ fn vt_from_keysym(sym: u32) -> Option<i32> {
     None
 }
 
-/// Map a number-row keysym (1..9) to a 1-based workspace id, for Mod+<n> bindings.
-fn workspace_from_keysym(sym: u32) -> Option<u32> {
-    match sym {
-        keysyms::KEY_1 => Some(1),
-        keysyms::KEY_2 => Some(2),
-        keysyms::KEY_3 => Some(3),
-        keysyms::KEY_4 => Some(4),
-        keysyms::KEY_5 => Some(5),
-        keysyms::KEY_6 => Some(6),
-        keysyms::KEY_7 => Some(7),
-        keysyms::KEY_8 => Some(8),
-        keysyms::KEY_9 => Some(9),
-        _ => None,
+/// Run a configured desktop shortcut. Returns `true` when the event should be
+/// intercepted (even if the action was a no-op for the current layout).
+fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
+    if state.lock.locked {
+        return false;
+    }
+
+    match action {
+        KeybindAction::Screenshot => {
+            let _ = metis_protocol::write_runtime_command("screenshot");
+            true
+        }
+        KeybindAction::ScreenshotFull => {
+            let _ = metis_protocol::write_runtime_command("screenshot instant-full");
+            true
+        }
+        KeybindAction::ScreenshotWindow => {
+            let _ = metis_protocol::write_runtime_command("screenshot window");
+            true
+        }
+        KeybindAction::CycleWorkspacePrev => {
+            let key = state
+                .output_under_pointer()
+                .map(|o| o.name())
+                .unwrap_or_else(|| state.primary_key());
+            state.cycle_workspace_routed(&key, -1);
+            true
+        }
+        KeybindAction::CycleWorkspaceNext => {
+            let key = state
+                .output_under_pointer()
+                .map(|o| o.name())
+                .unwrap_or_else(|| state.primary_key());
+            state.cycle_workspace_routed(&key, 1);
+            true
+        }
+        KeybindAction::Workspace1
+        | KeybindAction::Workspace2
+        | KeybindAction::Workspace3
+        | KeybindAction::Workspace4
+        | KeybindAction::Workspace5
+        | KeybindAction::Workspace6
+        | KeybindAction::Workspace7
+        | KeybindAction::Workspace8
+        | KeybindAction::Workspace9 => {
+            if let Some(ws) = action.workspace_number() {
+                let key = state
+                    .output_under_pointer()
+                    .map(|o| o.name())
+                    .unwrap_or_else(|| state.primary_key());
+                state.switch_workspace_routed(&key, ws);
+            }
+            true
+        }
+        KeybindAction::MoveToWorkspace1
+        | KeybindAction::MoveToWorkspace2
+        | KeybindAction::MoveToWorkspace3
+        | KeybindAction::MoveToWorkspace4
+        | KeybindAction::MoveToWorkspace5
+        | KeybindAction::MoveToWorkspace6
+        | KeybindAction::MoveToWorkspace7
+        | KeybindAction::MoveToWorkspace8
+        | KeybindAction::MoveToWorkspace9 => {
+            if let (Some(ws), Some(id)) = (action.workspace_number(), state.focused_window_id()) {
+                state.move_window_to_workspace(id, ws);
+            }
+            true
+        }
+        KeybindAction::ScrollFocusLeft => state.scroll_focus_left(),
+        KeybindAction::ScrollFocusRight => state.scroll_focus_right(),
+        KeybindAction::ScrollFocusUp => state.scroll_focus_up(),
+        KeybindAction::ScrollFocusDown => state.scroll_focus_down(),
+        KeybindAction::ScrollMoveLeft => {
+            if state.scroll_move_left() {
+                true
+            } else if !state.scroll_navigation_active() {
+                if let Some(id) = state.focused_window_id() {
+                    state.move_window_to_adjacent_output(id, -1);
+                }
+                true
+            } else {
+                false
+            }
+        }
+        KeybindAction::ScrollMoveRight => {
+            if state.scroll_move_right() {
+                true
+            } else if !state.scroll_navigation_active() {
+                if let Some(id) = state.focused_window_id() {
+                    state.move_window_to_adjacent_output(id, 1);
+                }
+                true
+            } else {
+                false
+            }
+        }
+        KeybindAction::ScrollMoveUp => state.scroll_move_up(),
+        KeybindAction::ScrollMoveDown => state.scroll_move_down(),
+        KeybindAction::ScrollConsume => state.scroll_consume(),
+        KeybindAction::ScrollExpel => state.scroll_expel(),
+        KeybindAction::ScrollCycleWidth => state.scroll_cycle_width(),
+        KeybindAction::MoveWorkspaceOutputLeft => {
+            if state.workspace_mode() == metis_config::WorkspaceMode::Separate {
+                let key = state
+                    .output_under_pointer()
+                    .map(|o| o.name())
+                    .unwrap_or_else(|| state.primary_key());
+                state.move_active_workspace_to_adjacent_output(&key, -1);
+                true
+            } else {
+                false
+            }
+        }
+        KeybindAction::MoveWorkspaceOutputRight => {
+            if state.workspace_mode() == metis_config::WorkspaceMode::Separate {
+                let key = state
+                    .output_under_pointer()
+                    .map(|o| o.name())
+                    .unwrap_or_else(|| state.primary_key());
+                state.move_active_workspace_to_adjacent_output(&key, 1);
+                true
+            } else {
+                false
+            }
+        }
+        KeybindAction::LayoutGrid => {
+            let key = state
+                .output_under_pointer()
+                .map(|o| o.name())
+                .unwrap_or_else(|| state.primary_key());
+            state.enable_grid_tiling(&key);
+            true
+        }
+        KeybindAction::LayoutFree => {
+            let key = state
+                .output_under_pointer()
+                .map(|o| o.name())
+                .unwrap_or_else(|| state.primary_key());
+            state.disable_grid_tiling(&key);
+            true
+        }
+        KeybindAction::CloseWindow => {
+            if let Some(id) = state.focused_window_id() {
+                state.close_window(id);
+            }
+            true
+        }
+        KeybindAction::Fullscreen => {
+            if let Some(id) = state.focused_window_id() {
+                let fs = state.windows.get(id).map(|w| w.fullscreen).unwrap_or(false);
+                state.set_fullscreen(id, !fs, None);
+            }
+            true
+        }
+        KeybindAction::Maximize => {
+            if let Some(id) = state.focused_window_id() {
+                let maxed = state.windows.get(id).map(|w| w.maximized).unwrap_or(false);
+                state.set_maximized(id, !maxed);
+            }
+            true
+        }
+        KeybindAction::Minimize => {
+            if let Some(id) = state.focused_window_id() {
+                state.minimize_by_id(id);
+            }
+            true
+        }
+        KeybindAction::Lock => {
+            state.lock_session();
+            true
+        }
+        KeybindAction::ExitFullscreenStack => {
+            if let Some(id) = state.focused_window_id() {
+                if state.windows.get(id).is_some_and(|w| w.fullscreen) {
+                    state.set_fullscreen(id, false, None);
+                } else if state.windows.get(id).is_some_and(|w| w.maximized) {
+                    state.set_maximized(id, false);
+                } else if let Some(tile_id) = state.tile_id_for_window(id) {
+                    state.set_tile_mode(&tile_id, metis_protocol::TileMode::Grid);
+                }
+            }
+            true
+        }
     }
 }
 
@@ -157,7 +328,7 @@ impl MetisState {
                             let sym = u32::from(keysym.modified_sym());
                             if state.screenshot_overlay_active()
                                 && sym == keysyms::KEY_Escape
-                                && !mod_active(modifiers)
+                                && !mod_active(&state.keybinds, modifiers)
                             {
                                 let _ = metis_protocol::write_runtime_command("dismiss-screenshot");
                                 return FilterResult::Intercept(());
@@ -170,7 +341,7 @@ impl MetisState {
                                 .unwrap_or(sym);
                             // Standalone-session escape hatches (DRM backend only):
                             // Ctrl+Alt+F<n> switches VT, Ctrl+Alt+Backspace quits
-                            // back to the greeter. Checked first so they always win.
+                            // back to the greeter. Always reserved — not user-rebindable.
                             if state.is_drm_backend() && modifiers.ctrl && modifiers.alt {
                                 if sym == keysyms::KEY_BackSpace {
                                     state.drm_quit();
@@ -185,253 +356,20 @@ impl MetisState {
                                     return FilterResult::Intercept(());
                                 }
                             }
-                            if (sym == keysyms::KEY_Print || sym == keysyms::KEY_Sys_Req)
-                                && !state.lock.locked
-                            {
-                                let cmd = if modifiers.shift {
-                                    "screenshot instant-full"
-                                } else if modifiers.ctrl {
-                                    "screenshot window"
-                                } else {
-                                    "screenshot"
-                                };
-                                let _ = metis_protocol::write_runtime_command(cmd);
-                                return FilterResult::Intercept(());
+                            // Settings shortcut capture: do not fire global actions.
+                            if capture_active() {
+                                return FilterResult::Forward;
                             }
-                            // Super+Alt+←/→ cycles workspaces in order (wraps at
-                            // 1..=count). Always Super+Alt regardless of METIS_MOD.
-                            if modifiers.logo
-                                && modifiers.alt
-                                && !modifiers.shift
-                                && !modifiers.ctrl
-                            {
-                                let key = state
-                                    .output_under_pointer()
-                                    .map(|o| o.name())
-                                    .unwrap_or_else(|| state.primary_key());
-                                let cycled = match sym {
-                                    keysyms::KEY_Left => {
-                                        state.cycle_workspace_routed(&key, -1);
-                                        true
-                                    }
-                                    keysyms::KEY_Right => {
-                                        state.cycle_workspace_routed(&key, 1);
-                                        true
-                                    }
-                                    _ => false,
-                                };
-                                if cycled {
-                                    return FilterResult::Intercept(());
-                                }
-                            }
-                            if mod_active(modifiers) {
-                                if let Some(ws) = workspace_from_keysym(digit_sym) {
-                                    if modifiers.shift {
-                                        if let Some(id) = state.focused_window_id() {
-                                            state.move_window_to_workspace(id, ws);
-                                        }
-                                    } else {
-                                        // Target the output under the pointer; in
-                                        // linked mode this switches every output to
-                                        // the same workspace at once.
-                                        let key = state
-                                            .output_under_pointer()
-                                            .map(|o| o.name())
-                                            .unwrap_or_else(|| state.primary_key());
-                                        state.switch_workspace_routed(&key, ws);
-                                    }
-                                    return FilterResult::Intercept(());
-                                }
-                                // Scrolling-layout navigation. Each helper only acts
-                                // (and reports `true`) when the workspace under the
-                                // pointer is in scroll mode, so these keys still
-                                // forward to apps on grid workspaces.
-                                let handled = match sym {
-                                    keysyms::KEY_Left if modifiers.shift && !modifiers.ctrl => {
-                                        state.scroll_move_left()
-                                    }
-                                    keysyms::KEY_Right if modifiers.shift && !modifiers.ctrl => {
-                                        state.scroll_move_right()
-                                    }
-                                    keysyms::KEY_Up if modifiers.shift && !modifiers.ctrl => {
-                                        state.scroll_move_up()
-                                    }
-                                    keysyms::KEY_Down if modifiers.shift && !modifiers.ctrl => {
-                                        state.scroll_move_down()
-                                    }
-                                    keysyms::KEY_Left => state.scroll_focus_left(),
-                                    keysyms::KEY_Right => state.scroll_focus_right(),
-                                    keysyms::KEY_Up => state.scroll_focus_up(),
-                                    keysyms::KEY_Down => state.scroll_focus_down(),
-                                    keysyms::KEY_comma => state.scroll_consume(),
-                                    keysyms::KEY_period => state.scroll_expel(),
-                                    keysyms::KEY_minus | keysyms::KEY_equal => {
-                                        state.scroll_cycle_width()
-                                    }
-                                    _ => false,
-                                };
-                                if handled {
-                                    return FilterResult::Intercept(());
-                                }
-                                // Cross-output move on grid workspaces (scroll mode
-                                // reserves Super+Shift+arrows for column/window moves).
-                                if modifiers.shift
-                                    && !modifiers.ctrl
-                                    && !state.scroll_navigation_active()
-                                {
-                                    let cross = match sym {
-                                        keysyms::KEY_Left => state
-                                            .focused_window_id()
-                                            .map(|id| {
-                                                state.move_window_to_adjacent_output(id, -1);
-                                            }),
-                                        keysyms::KEY_Right => state
-                                            .focused_window_id()
-                                            .map(|id| {
-                                                state.move_window_to_adjacent_output(id, 1);
-                                            }),
-                                        _ => None,
-                                    };
-                                    if cross.is_some() {
+                            if let Some(token) = keysym_to_token(sym, digit_sym) {
+                                if let Some(action) = state.keybinds.lookup(modifiers, &token) {
+                                    if dispatch_keybind(state, action) {
                                         return FilterResult::Intercept(());
                                     }
                                 }
-                                // Move the active workspace to an adjacent output
-                                // (independent per-output mode only).
-                                if modifiers.ctrl
-                                    && modifiers.shift
-                                    && state.workspace_mode()
-                                        == metis_config::WorkspaceMode::Separate
-                                {
-                                    let key = state
-                                        .output_under_pointer()
-                                        .map(|o| o.name())
-                                        .unwrap_or_else(|| state.primary_key());
-                                    let moved = matches!(
-                                        sym,
-                                        keysyms::KEY_Left | keysyms::KEY_Right
-                                    ) && {
-                                        match sym {
-                                            keysyms::KEY_Left => {
-                                                state.move_active_workspace_to_adjacent_output(
-                                                    &key, -1,
-                                                );
-                                                true
-                                            }
-                                            keysyms::KEY_Right => {
-                                                state.move_active_workspace_to_adjacent_output(
-                                                    &key, 1,
-                                                );
-                                                true
-                                            }
-                                            _ => false,
-                                        }
-                                    };
-                                    if moved {
-                                        return FilterResult::Intercept(());
-                                    }
-                                }
-                                // Alt+/ turns grid tiling on; Alt+\ returns to free desktop.
-                                if mod_active(modifiers) && sym == keysyms::KEY_slash {
-                                    let key = state
-                                        .output_under_pointer()
-                                        .map(|o| o.name())
-                                        .unwrap_or_else(|| state.primary_key());
-                                    state.enable_grid_tiling(&key);
-                                    return FilterResult::Intercept(());
-                                }
-                                if mod_active(modifiers) && sym == keysyms::KEY_backslash {
-                                    let key = state
-                                        .output_under_pointer()
-                                        .map(|o| o.name())
-                                        .unwrap_or_else(|| state.primary_key());
-                                    state.disable_grid_tiling(&key);
-                                    return FilterResult::Intercept(());
-                                }
-                            }
-                            if mod_active(modifiers) && sym == keysyms::KEY_q {
-                                if let Some(id) = state.focused_window_id() {
-                                    state.close_window(id);
-                                }
-                                return FilterResult::Intercept(());
-                            }
-                            // Super+Shift+F force-toggles *true fullscreen* on the
-                            // focused window regardless of whether the client asked
-                            // for it — a reliable rescue for games that only offer
-                            // "windowed" (e.g. Hytale) or that never issue a
-                            // fullscreen request. Checked before the plain Super+F
-                            // maximize bind so Shift disambiguates.
-                            if mod_active(modifiers)
-                                && modifiers.shift
-                                && sym == keysyms::KEY_f
-                            {
-                                if let Some(id) = state.focused_window_id() {
-                                    let fs = state
-                                        .windows
-                                        .get(id)
-                                        .map(|w| w.fullscreen)
-                                        .unwrap_or(false);
-                                    state.set_fullscreen(id, !fs, None);
-                                }
-                                return FilterResult::Intercept(());
-                            }
-                            if mod_active(modifiers)
-                                && !modifiers.shift
-                                && sym == keysyms::KEY_f
-                            {
-                                if let Some(id) = state.focused_window_id() {
-                                    let maxed = state
-                                        .windows
-                                        .get(id)
-                                        .map(|w| w.maximized)
-                                        .unwrap_or(false);
-                                    state.set_maximized(id, !maxed);
-                                }
-                                return FilterResult::Intercept(());
-                            }
-                            if mod_active(modifiers) && sym == keysyms::KEY_m {
-                                if let Some(id) = state.focused_window_id() {
-                                    state.minimize_by_id(id);
-                                }
-                                return FilterResult::Intercept(());
-                            }
-                            if mod_active(modifiers) && sym == keysyms::KEY_l {
-                                state.lock_session();
-                                return FilterResult::Intercept(());
-                            }
-                            // Escape hatch out of fullscreen / maximize / tiling is
-                            // bound to *Super+Esc*. Bare `Esc` MUST fall through to
-                            // the focused client: games open their in-game menu with
-                            // it, and apps use it for cancel/close — a compositor that
-                            // swallows bare Esc breaks both.
-                            if mod_active(modifiers) && sym == keysyms::KEY_Escape {
-                                if let Some(id) = state.focused_window_id() {
-                                    if state
-                                        .windows
-                                        .get(id)
-                                        .is_some_and(|w| w.fullscreen)
-                                    {
-                                        state.set_fullscreen(id, false, None);
-                                    } else if state
-                                        .windows
-                                        .get(id)
-                                        .is_some_and(|w| w.maximized)
-                                    {
-                                        state.set_maximized(id, false);
-                                    } else if let Some(tile_id) =
-                                        state.tile_id_for_window(id)
-                                    {
-                                        state.set_tile_mode(
-                                            &tile_id,
-                                            metis_protocol::TileMode::Grid,
-                                        );
-                                    }
-                                }
-                                return FilterResult::Intercept(());
                             }
                             // Trace bare Esc forwarded to a game (usually opens pause menu).
                             if sym == keysyms::KEY_Escape
-                                && !mod_active(modifiers)
+                                && !mod_active(&state.keybinds, modifiers)
                                 && !state.lock.locked
                             {
                                 if let Some(id) = state.focused_window_id() {

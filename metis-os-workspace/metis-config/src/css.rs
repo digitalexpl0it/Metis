@@ -2564,6 +2564,24 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {muted};
         min-width: 96px;
     }}
+    button.metis-dash-proc-expand {{
+        min-width: 24px;
+        min-height: 24px;
+        padding: 0;
+        background: transparent;
+        background-image: none;
+        border: none;
+        box-shadow: none;
+        color: {muted};
+    }}
+    button.metis-dash-proc-expand:hover {{
+        color: {text};
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    button.metis-dash-proc-expand image {{
+        color: inherit;
+        -gtk-icon-filter: none;
+    }}
     .metis-dash-process-page {{
         min-height: 0;
     }}

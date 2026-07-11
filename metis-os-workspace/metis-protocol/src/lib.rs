@@ -79,6 +79,11 @@ pub enum CompositorCommand {
     ApplyBackground,
     /// Re-read `input.json` and apply mouse/touchpad/keyboard settings live.
     ReloadInput,
+    /// Re-read `keybinds.json` and apply desktop shortcut bindings live.
+    ReloadKeybinds,
+    /// While Settings is capturing a new shortcut, suppress global keybind dispatch
+    /// so Super+L etc. do not fire mid-edit.
+    SetKeybindCapture { active: bool },
     /// Re-read `outputs.json` and apply per-output scale (and related prefs) live.
     ReloadOutputs,
     /// Re-read `power.json` and apply idle preferences live (currently the screen

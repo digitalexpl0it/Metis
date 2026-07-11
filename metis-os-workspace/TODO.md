@@ -11,7 +11,8 @@ gaming step, and hybrid PRIME / scanout polish. **Phase 3** is complete except d
 **Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
 access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
-2026-07-04), and **Phase 10** (Control Center — v2 shipped 2026-07-07) are done.
+2026-07-04), and **Phase 10** (Control Center — v2 shipped 2026-07-07; process tree
++ configurable keybinds 2026-07-11) are done.
 
 ---
 
@@ -851,7 +852,8 @@ never destroy mid-session.
       of tiled windows without pushing or reflowing them (2026-07-05).
 - [x] **Dismiss & focus** — pointer-outside via compositor `close-popovers`
       (dashboard included in bar UI hit test), Esc, drag-up on header, close
-      button; `KeyboardMode::OnDemand` (2026-07-05).
+      button; `KeyboardMode::Exclusive` while open so Processes search receives
+      keys (2026-07-05; Exclusive 2026-07-11).
 
 ### B. Core widgets (v1)
 
@@ -859,8 +861,9 @@ never destroy mid-session.
 - [x] **Memory** — RAM + swap used/total with level bar + history chart.
 - [x] **Disk** — per-mount used/free (sysinfo disks).
 - [x] **Network** — aggregate RX/TX rates from `/proc/net/dev` + throughput charts.
-- [x] **Processes** — all processes; search filter; All/User/System filter; end task
-      (SIGTERM) with optional confirmation; Metis PIDs highlighted; zebra rows.
+- [x] **Processes** — PPID tree with expand/collapse; search keeps ancestor paths;
+      All/User/System filter; end task (SIGTERM) / force quit; End process tree
+      actions; Metis PIDs highlighted; zebra rows (tree nesting 2026-07-11).
 - [x] **System health** — CPU/memory/storage health badges (semantic colors).
 - [x] **Firewall** — ufw / firewalld status card on Network tab (2026-07-05).
 - [x] **Hardware** — hostname, CPU model, cores, kernel on System tab (2026-07-05).
@@ -871,13 +874,15 @@ never destroy mid-session.
       (2026-07-05).
 - [x] **Shared snapshot type** — `DashboardSnapshot` in `metis-shell` services
       (2026-07-05).
-- [x] **Process actions** — `kill_process()` via `nix` (own uid only; v1).
+- [x] **Process actions** — `kill_process()` / `kill_process_tree()` via `nix`
+      (own uid only; tree walks descendants then root) (2026-07-11).
 
 ### D. Extensibility (v2+)
 
 - [x] **`dashboard.json`** — enabled flag, widget order, max height %, refresh
-      interval, confirm-before-kill; default written on first run (2026-07-05).
-      **Live reload** via file monitor (2026-07-07).
+      interval, confirm-before-kill, optional `process_monitor` launcher
+      (2026-07-05; process monitor picker 2026-07-11). **Live reload** via file
+      monitor (2026-07-07).
 - [x] **Overview v2 layout** — CPU | Memory, Network | Disk I/O, Session | Storage,
       System row with temp gauges; embedded in bar window (no gap) (2026-07-06).
 - [x] **Control Center button** — workspace-dot grid icon toggles panel with
@@ -891,19 +896,23 @@ never destroy mid-session.
       device paths; `nvidia-smi` fallback on hybrid laptops without NVIDIA
       `hwmon`; Intel iGPU skipped (2026-07-06).
 - [x] **Optional additions** — GPU load % on discrete GPU gauges (`gpu_busy_percent`
-      / `nvidia-smi`); quick link to open `btop`/`htop` from the Processes tab
-      (2026-07-07).
-- [x] **Process context menu** — right-click End task / Force quit / Copy PID;
-      cursor-anchored popover, list refresh paused while open (2026-07-07).
+      / `nvidia-smi`); Open monitor auto-detects TUI/GUI monitors (terminal for
+      btop/htop) from Settings → Control Center (2026-07-11).
+- [x] **Process context menu** — right-click End task / Force quit / End process
+      tree / Force quit tree / Copy PID; cursor-anchored popover, list refresh
+      paused while open (2026-07-07; tree actions 2026-07-11).
 - [ ] **Optional additions** — battery history graph, log tail snippet.
 
 ### E. Settings & docs
 
 - [x] **Settings → Control Center** — enable/disable dashboard, max height,
-      refresh interval, confirm-before-kill toggle, overview widget checkboxes
-      (`dashboard.json`) (2026-07-07).
+      refresh interval, confirm-before-kill toggle, overview widget checkboxes,
+      process monitor picker (`dashboard.json`) (2026-07-07; monitor 2026-07-11).
+- [x] **Settings → Keyboard → Shortcuts** — capture/edit desktop shortcuts;
+      `keybinds.json` + compositor `ReloadKeybinds` / `SetKeybindCapture`;
+      reserved DRM VT/quit binds locked (2026-07-11).
 - [x] **USER_GUIDE** — gesture, overview layout, temp gauges, discrete GPU
-      behaviour, kill semantics (2026-07-06).
+      behaviour, kill semantics (2026-07-06; process tree + keybinds 2026-07-11).
 - [x] **Metis Settings icon** — transparent `metis-settings.png` for Settings app
   only; edge-bar menu launcher unchanged (`metis_icon.png`) (2026-07-06).
 
@@ -1060,7 +1069,8 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
-| `dashboard.json` | *(Phase 10)* Pull-down system dashboard: widget order, height, refresh interval |
+| `dashboard.json` | *(Phase 10)* Control Center: widget order, height, refresh, confirm-before-kill, process monitor |
+| `keybinds.json` | Desktop shortcuts (chord → action); Mod key for defaults; live `ReloadKeybinds` |
 | `gaming.json` | *(Phase 11)* Graphics mode, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | *(Phase 11)* Record of applied Flatpak gaming overrides |
 | `screenshot.json` | *(Phase 12)* Native screenshot defaults: mode, pointer, delay, after-capture, save dir |

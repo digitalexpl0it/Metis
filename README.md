@@ -241,10 +241,12 @@ reference.
   integration, GPU steering + dGPU game offload, Proton verified on hardware,
   Background + PowerProfileMonitor portal stubs, `wl_touch`, Settings → Gaming page,
   and full permission/override docs.
-- **Phase 10 — Control Center:** **complete** (2026-07-07) — pull-down system monitor
-  embedded in the edge bar; Overview charts (CPU, memory, network, disk I/O, temps),
-  searchable/sortable Processes tab with right-click actions, Settings → Control Center
-  page, and `dashboard.json` live reload.
+- **Phase 10 — Control Center:** **complete** (2026-07-07; process tree + monitor
+  picker 2026-07-11) — pull-down system monitor; Overview charts; Processes tab
+  with PPID tree, search, and End task / End process tree; Settings → Control
+  Center (including process monitor picker); `dashboard.json` live reload.
+- **Configurable shortcuts:** Settings → Keyboard → Shortcuts + `keybinds.json`
+  (2026-07-11) — capture/edit compositor binds; reserved DRM VT/quit chords locked.
 - **Phase 11 — Gaming Platform 2.0:** **complete** (2026-07-07) — `gaming.json` +
   `metis-gaming` crate, Flatpak zero-config optimizer, health checklist + setup wizard,
   `metis-gamingd` (auto performance profile / GameMode), hybrid PRIME scanout polish,
