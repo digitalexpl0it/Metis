@@ -39,17 +39,19 @@ and system configuration.
 ```
 .
 ├── metis-os-workspace/          # Cargo workspace
-│   ├── metis-compositor/        # Smithay Wayland compositor (winit nested backend for dev)
-│   ├── metis-shell/             # Metis shell — GTK4 layer-shell edge bar + popovers
-│   ├── metis-settings/          # GTK4 control center (appearance, devices, system)
-│   ├── metis-portal/            # xdg-desktop-portal backend (Settings, Screenshot, ScreenCast)
-│   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
-│   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
-│   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
+│   ├── assets/                  # Wallpapers, portal registration, session launcher
 │   ├── metis-capture/           # Shared Wayland ext-image-copy-capture client (shell + portal)
+│   ├── metis-compositor/        # Smithay Wayland compositor (winit nested backend for dev)
+│   ├── metis-config/            # Shared config + theme-token types (serde, no GTK)
 │   ├── metis-gaming/            # Flatpak optimizer, health checks, metis-gamingd daemon
+│   ├── metis-grid/              # Window grid / tiling + scrolling layout engine (pure logic)
+│   ├── metis-portal/            # xdg-desktop-portal backend (Settings, Screenshot, ScreenCast)
+│   ├── metis-protocol/          # Shared JSON IPC contracts between compositor and shell
+│   ├── metis-remote/            # Desktop sharing orchestrator (gnome-remote-desktop RDP)
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
-│   └── assets/                  # Wallpapers, portal registration, session launcher
+│   ├── metis-settings/          # GTK4 control center (appearance, devices, system)
+│   ├── metis-shell/             # Metis shell — GTK4 layer-shell edge bar + popovers
+│   └── scripts/                 # Dev / packaging helper scripts
 ├── Screenshots/                 # README showcase images
 └── docs/                        # User guide + development setup
 ```
