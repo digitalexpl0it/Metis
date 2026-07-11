@@ -1,0 +1,124 @@
+name: Release deb
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (without leading v). Empty = use short SHA."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  GTK4_LAYER_SHELL_TAG: "v1.3.0"
+
+jobs:
+  deb-ubuntu-24-04:
+    name: Build metis .deb (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            libgtk-4-dev libadwaita-1-dev \
+            libudev-dev libinput-dev libseat-dev \
+            libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libpipewire-0.3-dev \
+            libwayland-dev wayland-protocols \
+            libgirepository1.0-dev gobject-introspection \
+            meson ninja-build valac \
+            dpkg-dev fakeroot curl git
+
+      - name: Build and install gtk4-layer-shell (not in Ubuntu 24.04)
+        run: |
+          # Ubuntu 24.04 only ships GTK3 layer-shell. Metis needs gtk4-layer-shell;
+          # build from upstream and install under /usr/local (also bundled into .deb).
+          git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
+            https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+          cd /tmp/gtk4-layer-shell
+          meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
+          echo "/usr/local/lib/x86_64-linux-gnu" | sudo tee /etc/ld.so.conf.d/gtk4-layer-shell.conf
+          sudo ldconfig
+          export PKG_CONFIG_PATH="/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          pkg-config --modversion gtk4-layer-shell-0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: metis-os-workspace -> target
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            V="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0+${GITHUB_SHA::7}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved VERSION=$V"
+
+      - name: Build release binaries + package .deb
+        working-directory: metis-os-workspace
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          UBUNTU_SUITE: "24.04"
+          CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+          METIS_CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+          PKG_CONFIG_PATH: /usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig
+        run: |
+          ./scripts/package-deb.sh
+          ls -lh dist/*.deb
+          dpkg-deb -c dist/*.deb | grep -E 'layer-shell|usr/bin/metis'
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metis-deb-ubuntu24.04
+          path: metis-os-workspace/dist/*.deb
+          if-no-files-found: error
+
+      - name: Publish GitHub Release (tag)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: metis-os-workspace/dist/*.deb
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Publish GitHub prerelease (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test-${{ github.sha }}
+          name: Test build ${{ github.sha }}
+          prerelease: true
+          files: metis-os-workspace/dist/*.deb
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          body: |
+            Manual workflow_dispatch build for Ubuntu 24.04.
+
+            ```bash
+            sudo apt install ./metis_${{ steps.ver.outputs.version }}-1_amd64.ubuntu24.04.deb
+            ```
+            Then log out and pick **Metis** at the greeter.

@@ -1825,6 +1825,24 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 13px;
         color: {text};
     }}
+    .metis-onboarding-optional-list {{
+        margin-top: 2px;
+    }}
+    .metis-onboarding-optional-row {{
+        padding: 4px 0;
+        min-height: 36px;
+    }}
+    .metis-onboarding-optional-title {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-onboarding-optional-installed {{
+        opacity: 0.55;
+    }}
+    .metis-onboarding-optional-installed .metis-onboarding-optional-title {{
+        color: {muted};
+    }}
     .metis-onboarding-nav button {{
         min-width: 96px;
     }}

@@ -9,6 +9,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Ubuntu `.deb` packaging** — `metis-os-workspace/scripts/package-deb.sh` stages
+  the session under `/usr` and builds `metis_*_amd64.ubuntu24.04.deb` (bundles
+  `libgtk4-layer-shell`, which Ubuntu 24.04 does not package). GitHub Actions
+  (`.github/workflows/release-deb.yml`) publishes on `v*` tags and manual
+  `workflow_dispatch` prereleases. See `docs/PACKAGING.md`.
+- **Onboarding optional software** — after Gaming, a step detects Remote desktop,
+  Flatpak, GameMode, Bluetooth, printers (and keyring if missing). Installed
+  rows are greyed out; toggles + **Install selected** run one
+  `pkexec apt-get install` for the chosen packages.
 - **Configurable desktop shortcuts** — Settings → Keyboard → Shortcuts lists
   Metis actions with Change / capture / Save / Reset. Bindings live in
   `keybinds.json`; compositor reloads live (`ReloadKeybinds`). Ctrl+Alt+F1–F12

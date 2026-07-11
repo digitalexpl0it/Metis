@@ -807,6 +807,10 @@ Settings → Appearance ("Run setup again") or `metis-cmd.sh show-onboarding`.
 - [x] **Clock** — 12h / 24h format (`bar.json`).
 - [x] **Edge bar** — position, show on all/primary, opacity, blur.
 - [x] **Weather** — auto-detect on; optional city search (Open-Meteo geocoding).
+- [x] **Gaming** — hybrid/Steam summary + auto GPU / Flatpak optimize prefs.
+- [x] **Optional software** — detect Remote / Flatpak / GameMode / Bluetooth /
+      printers / keyring; grey out installed; toggles + `pkexec apt-get install`
+      for selected packages (deb `Suggests:` alignment).
 - [ ] **(Later) Language & region** — once Phase 8 lands, offer locale selection
       here as the very first step.
 - [x] **Finish** — keybind cheatsheet + pointer to Settings → Display for monitors.

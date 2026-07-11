@@ -51,7 +51,7 @@ and system configuration.
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
 │   ├── metis-settings/          # GTK4 control center (appearance, devices, system)
 │   ├── metis-shell/             # Metis shell — GTK4 layer-shell edge bar + popovers
-│   └── scripts/                 # Dev / packaging helper scripts
+│   └── scripts/                 # package-deb.sh + packaging / smoke helpers
 ├── Screenshots/                 # README showcase images
 └── docs/                        # User guide + development setup
 ```
@@ -65,6 +65,20 @@ and system configuration.
 - **Configuration:** JSON under `~/.config/metis/`.
 
 ## Quick start
+
+### Install from a `.deb` (Ubuntu 24.04)
+
+Download the latest `metis_*_amd64.ubuntu24.04.deb` from
+[GitHub Releases](https://github.com/digitalexpl0it/Metis/releases), then:
+
+```bash
+sudo apt install ./metis_VERSION-1_amd64.ubuntu24.04.deb
+```
+
+Log out and pick **Metis** at the greeter. See [`docs/PACKAGING.md`](docs/PACKAGING.md)
+for Depends/Suggests, local packaging, and CI release tags.
+
+### Build from source (dev)
 
 See [`docs/UBUNTU_DEV.md`](docs/UBUNTU_DEV.md) for full system-package setup (Ubuntu 24.04+).
 
