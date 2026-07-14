@@ -240,6 +240,7 @@ pub struct MetisState {
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
+    pub decoration_overrides: crate::decoration_overrides::DecorationsRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
     pub keybinds: crate::keybinds::KeybindRuntime,
     pub output_runtime: crate::output_prefs::OutputRuntime,
@@ -854,6 +855,7 @@ impl MetisState {
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
+            decoration_overrides: crate::decoration_overrides::DecorationsRuntime::load(),
             input_runtime: crate::device_input::InputRuntime::new(),
             keybinds: crate::keybinds::KeybindRuntime::load(),
             output_runtime: crate::output_prefs::OutputRuntime::new(),
@@ -962,6 +964,9 @@ impl MetisState {
             crate::device_input::apply_keyboard(self, &cfg);
         }
         self.keybinds.maybe_refresh();
+        if self.decoration_overrides.maybe_refresh() {
+            self.refresh_all_window_decoration_modes();
+        }
 
         if let Some((before, cfg)) = self.output_runtime.maybe_refresh() {
             if before.primary_output != cfg.primary_output {
@@ -1358,12 +1363,21 @@ impl MetisState {
         };
         let was_draw = self.should_draw_metis_ssd(id);
         let negotiated_mode = self.window_decoration_mode(&record);
+        // User overrides apply to both Wayland and XWayland. (Fullscreen still
+        // preserves the pre-fullscreen decision and ignores overrides.)
+        let user_override = if record.fullscreen {
+            None
+        } else {
+            self.decoration_overrides
+                .user_override(record.app_id.as_deref())
+        };
         // XWayland windows have no xdg-decoration protocol, but self-decorated X11
         // clients advertise "no server decorations" via `_MOTIF_WM_HINTS`
         // (`is_decorated()` == true). Steam, many game launchers, and Chromium's
         // X11 frame draw their own chrome — stacking a Metis titlebar on top gives
-        // the tell-tale double titlebar. Honor the hint; clients with no motif
-        // hints (the common case) keep Metis SSD.
+        // the tell-tale double titlebar. Honor the hint when Auto; known CSD
+        // classes and user overrides still win (Thunar prefs dialog is X11 and
+        // Motif-advertises SSD while drawing its own chrome).
         let mut uses_ssd = if record.fullscreen {
             // While fullscreen we grant the client server-side decorations to
             // strip its own CSD frame. That committed ServerSide mode must NOT
@@ -1371,16 +1385,28 @@ impl MetisState {
             // fullscreen would leave a Metis titlebar on a client that draws its
             // own chrome. Preserve the pre-fullscreen (windowed) decision.
             record.uses_ssd
+        } else if let Some(force_ssd) = user_override {
+            force_ssd
         } else if record.is_x11 {
-            record.x11().map(|x11| !x11.is_decorated()).unwrap_or(true)
+            let app_id = record.app_id.as_deref();
+            if app_id.is_some_and(crate::decoration_policy::id_looks_ssd) {
+                true
+            } else if app_id.is_some_and(crate::decoration_policy::id_looks_csd) {
+                false
+            } else {
+                record.x11().map(|x11| !x11.is_decorated()).unwrap_or(true)
+            }
         } else {
             crate::decoration_policy::resolve_uses_ssd(
                 record.app_id.as_deref(),
                 negotiated_mode,
                 record.decoration_bound,
+                None,
             )
         };
-        if !record.fullscreen
+        // User Force CSD must not be undone by the frameless-Electron heuristic.
+        if user_override.is_none()
+            && !record.fullscreen
             && !uses_ssd
             && self.chromium_window_needs_ssd(id, record.app_id.as_deref())
         {
@@ -1417,6 +1443,14 @@ impl MetisState {
         if mode_changed || was_draw != now_draw {
             self.apply_window_rect(id);
             self.schedule_redraw();
+        }
+    }
+
+    /// Re-apply decoration policy to every tracked window (after overrides reload).
+    pub(crate) fn refresh_all_window_decoration_modes(&mut self) {
+        let ids = self.windows.ids();
+        for id in ids {
+            self.refresh_window_decoration_mode(id);
         }
     }
 
@@ -6203,7 +6237,7 @@ impl MetisState {
 
         if self.titlebar_reveal_window == Some(id) {
             let chrome = overlay_chrome_rect(frame, self.titlebar_reveal_progress, compact);
-            return point_in_rect(
+            let in_chrome = point_in_rect(
                 x,
                 y,
                 PixelRect {
@@ -6213,6 +6247,29 @@ impl MetisState {
                     height: chrome.height + STICKY_PAD_PX + 4,
                 },
             );
+            if in_chrome {
+                return true;
+            }
+            // While the strip is sliding, keep the original trigger band sticky
+            // so the pointer does not leave the animated chrome and thrash
+            // reveal/hide. Include the maximized bar-overhang strip too.
+            if self.windows.get(id).is_some_and(|r| r.maximized) {
+                if let Some(output) = self.output_for_window(id) {
+                    if let Some(output_geo) = self.space.output_geometry(&output) {
+                        let strip = Self::bar_config_strip_rect(&output_geo);
+                        if point_in_rect(x, y, strip) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            if compact {
+                let strip_w = metis_grid::OVERLAY_CONTROLS_WIDTH_PX.min(geo.size.w.max(1));
+                return y >= geo.loc.y
+                    && y < geo.loc.y + header + STICKY_PAD_PX
+                    && x >= geo.loc.x + geo.size.w - strip_w;
+            }
+            return y >= geo.loc.y && y < geo.loc.y + header + STICKY_PAD_PX;
         }
 
         if compact {
@@ -7774,6 +7831,11 @@ impl MetisState {
                     graphics_mode = ?self.gaming_config.graphics_mode,
                     "reloaded gaming config"
                 );
+                CompositorEvent::Pong
+            }
+            CompositorCommand::ReloadDecorations => {
+                self.decoration_overrides.reload();
+                self.refresh_all_window_decoration_modes();
                 CompositorEvent::Pong
             }
             CompositorCommand::SetClipboard {

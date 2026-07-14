@@ -97,6 +97,8 @@ pub enum CompositorCommand {
     ReloadLock,
     /// Re-read `gaming.json` and apply graphics/offload preferences live.
     ReloadGaming,
+    /// Re-read `decorations.json` and re-apply per-app SSD/CSD overrides live.
+    ReloadDecorations,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {

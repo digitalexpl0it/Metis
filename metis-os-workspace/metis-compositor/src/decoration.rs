@@ -1332,12 +1332,13 @@ fn pill_depth(px: f32, py: f32, w: f32, h: f32, r: f32) -> f32 {
 /// (the bottom edge stays square where it meets the client) plus an opaque border
 /// ring along the top / left / right edges, so the window's border visually wraps
 /// around and continues *under* the titlebar instead of stopping at it. The
-/// auto-hide reveal `overlay` is a plain square strip — no corners and no border —
-/// since it floats over the client rather than framing it. `color` is the straight
-/// titlebar RGB dimmed by `alpha`; `border` is the (opaque) frame stroke, sampled as
-/// a top→bottom gradient over the full `frame_height` (one stop = flat) so the ring
-/// lines up with the side/bottom border gradient. Pixels outside the rounded corners
-/// are fully transparent. Returns premultiplied RGBA at `TITLEBAR_SS`× scale.
+/// auto-hide reveal `overlay` uses the same top-corner rounding (no border ring)
+/// so maximized/snap chrome matches windowed SSD, still floating over the client.
+/// `color` is the straight titlebar RGB dimmed by `alpha`; `border` is the
+/// (opaque) frame stroke, sampled as a top→bottom gradient over the full
+/// `frame_height` (one stop = flat) so the ring lines up with the side/bottom
+/// border gradient. Pixels outside the rounded corners are fully transparent.
+/// Returns premultiplied RGBA at `TITLEBAR_SS`× scale.
 #[allow(clippy::too_many_arguments)]
 fn rasterize_titlebar(
     color: [f32; 3],
@@ -1357,25 +1358,28 @@ fn rasterize_titlebar(
     }
     let mut pixels = vec![0u8; (w * h * 4) as usize];
 
-    // Overlay: a flat, square, borderless strip filled uniformly at `alpha`.
+    let r = (CORNER_RADIUS_PX * ss) as f32;
+    let a = alpha.clamp(0.0, 1.0);
+
+    // Overlay: rounded top corners, flat fill, no border ring.
     if overlay {
-        let a = alpha.clamp(0.0, 1.0);
-        let (pr, pg, pb, pa) = (
-            (color[0] * a * 255.0) as u8,
-            (color[1] * a * 255.0) as u8,
-            (color[2] * a * 255.0) as u8,
-            (a * 255.0) as u8,
-        );
-        for px in pixels.chunks_exact_mut(4) {
-            px[0] = pr;
-            px[1] = pg;
-            px[2] = pb;
-            px[3] = pa;
+        for y in 0..h {
+            for x in 0..w {
+                let outer = aa(edge_dist(x as f32 + 0.5, y as f32 + 0.5, w as f32, r));
+                if outer <= 0.0 {
+                    continue;
+                }
+                let pa = a * outer;
+                let idx = ((y * w + x) * 4) as usize;
+                pixels[idx] = (color[0] * pa * 255.0) as u8;
+                pixels[idx + 1] = (color[1] * pa * 255.0) as u8;
+                pixels[idx + 2] = (color[2] * pa * 255.0) as u8;
+                pixels[idx + 3] = (pa * 255.0) as u8;
+            }
         }
         return Some((pixels, w, h));
     }
 
-    let r = (CORNER_RADIUS_PX * ss) as f32;
     let bw = (border_px.max(0) * ss) as f32;
     let denom = (frame_height.max(1) * ss) as f32;
     for y in 0..h {

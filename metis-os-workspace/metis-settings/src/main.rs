@@ -16,6 +16,7 @@ mod runtime;
 mod sound;
 mod theme;
 mod ui;
+mod apps;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -105,6 +106,7 @@ fn build_ui(app: &gtk::Application, page: Option<String>) {
     stack.add_titled(&pages::background::build(), Some("background"), "Background");
     stack.add_titled(&pages::edgebar::build(), Some("edgebar"), "Edge bar");
     stack.add_titled(&pages::windows::build(), Some("windows"), "Windows");
+    stack.add_titled(&pages::titlebars::build(), Some("titlebars"), "App titlebars");
     stack.add_titled(&pages::menu::build(), Some("menu"), "Metis Menu");
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
     stack.add_titled(&pages::network::build(), Some("network"), "Network");

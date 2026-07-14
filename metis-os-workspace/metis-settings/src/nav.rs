@@ -90,6 +90,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Animations, titlebar opacity, and window borders"),
     },
     NavItem {
+        page_id: Some("titlebars"),
+        title: "App titlebars",
+        icon: Some("window-new-symbolic"),
+        hue: Some(NavHue::Blue),
+        subtitle: Some("Override Metis vs app titlebars per application"),
+    },
+    NavItem {
         page_id: Some("menu"),
         title: "Metis Menu",
         icon: Some("view-app-grid-symbolic"),

@@ -629,7 +629,15 @@ fn settings_css(t: &ThemeTokens) -> String {
             transition: background-color 140ms ease, border-color 140ms ease, transform 100ms ease;
         }}
         .metis-settings-window button:hover,
-        button:hover {{ background-color: {surface}; background: {surface}; }}
+        button:hover {{
+            background-color: color-mix(in srgb, {raised} 82%, {text} 18%);
+            background: color-mix(in srgb, {raised} 82%, {text} 18%);
+            color: {text};
+        }}
+        .metis-settings-window button:hover label,
+        button:hover label {{
+            color: {text};
+        }}
         .metis-settings-window button:active,
         .metis-settings-window button:checked,
         button:active, button:checked {{ background-color: {surface}; background: {surface}; transform: scale(0.98); }}
@@ -643,16 +651,27 @@ fn settings_css(t: &ThemeTokens) -> String {
             border: 1px solid {border};
             color: {text};
         }}
-        /* Primary action buttons stay accent-coloured. */
+        /* Primary action buttons stay accent-coloured (beat generic button:hover). */
+        .metis-settings-window button.suggested-action,
         button.suggested-action {{
             background-color: {accent};
+            background: {accent};
             border-color: {accent};
+            color: {on_accent};
             box-shadow: 0 2px 8px color-mix(in srgb, {accent} 35%, transparent);
         }}
+        .metis-settings-window button.suggested-action:hover,
         button.suggested-action:hover {{
-            background-color: color-mix(in srgb, {accent} 88%, white);
+            background-color: color-mix(in srgb, {accent} 82%, white);
+            background: color-mix(in srgb, {accent} 82%, white);
+            color: {on_accent};
         }}
-        button.suggested-action label {{ color: {on_accent}; }}
+        .metis-settings-window button.suggested-action label,
+        .metis-settings-window button.suggested-action:hover label,
+        button.suggested-action label,
+        button.suggested-action:hover label {{
+            color: {on_accent};
+        }}
         button.destructive-action image {{ color: {error}; }}
         /* Flat buttons (Add Picture…) have no chrome until hovered. */
         button.flat {{ background-color: transparent; border-color: transparent; }}

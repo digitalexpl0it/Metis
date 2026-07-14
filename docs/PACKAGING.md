@@ -30,6 +30,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | `/usr/share/wayland-sessions/metis.desktop` | Session entry |
 | `/usr/share/xdg-desktop-portal/…` | Portal backend registration |
 | `/usr/share/applications/metis-settings.desktop` + hicolor icons | Settings launcher |
+| `/usr/share/metis/wallpapers/` | Bundled wallpapers (onboarding / Appearance) |
 | `/etc/pam.d/metis` | Lock-screen PAM service |
 
 ### Dependency policy

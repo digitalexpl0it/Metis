@@ -6,6 +6,7 @@ mod screenshot_overlay;
 mod clipboard;
 mod cursor;
 mod decoration;
+mod decoration_overrides;
 mod decoration_policy;
 mod desk_input;
 mod device_input;

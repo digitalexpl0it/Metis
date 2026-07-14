@@ -15,7 +15,10 @@ use crate::ui;
 /// Background thread → GTK main thread (widgets are not `Send`).
 enum GamingUiEvent {
     HealthCheck(HealthCheck),
-    OptimizeDone,
+    /// Optimizer finished; `summary` is shown in the status banner.
+    OptimizeDone { summary: String },
+    /// Per-row Fix finished; refresh health + show `summary`.
+    FixDone { summary: String },
 }
 
 thread_local! {
@@ -102,7 +105,7 @@ pub fn build() -> gtk::Widget {
     optimize_btn.add_css_class("suggested-action");
     optimize_btn.set_halign(gtk::Align::Start);
     optimize_btn.set_tooltip_text(Some(
-        "Apply Flatpak overrides and GPU env vars for Steam, Lutris, and Heroic",
+        "Apply Flatpak gaming overrides and add you to the input group if needed",
     ));
     actions.append(&optimize_btn);
 
@@ -233,10 +236,8 @@ pub fn build() -> gtk::Widget {
             btn.set_label("Optimizing…");
             let ui_tx = ui_tx.clone();
             std::thread::spawn(move || {
-                let _ = metis_gaming::optimize_flatpak_gaming(&[]);
-                let _ = metis_gaming::ensure_steam_launcher();
-                metis_gaming::session::request_optimize();
-                let _ = ui_tx.send(GamingUiEvent::OptimizeDone);
+                let summary = run_optimize_pass();
+                let _ = ui_tx.send(GamingUiEvent::OptimizeDone { summary });
             });
         });
     }
@@ -278,9 +279,14 @@ pub fn build() -> gtk::Widget {
                     GamingUiEvent::HealthCheck(check) => {
                         apply_health_check(&sections, &check, ui_tx_poll.clone());
                     }
-                    GamingUiEvent::OptimizeDone => {
+                    GamingUiEvent::OptimizeDone { summary } => {
                         sections.optimize_btn.set_sensitive(true);
                         sections.optimize_btn.set_label("Optimize now");
+                        sections.status_text.set_text(&summary);
+                        spawn_health_check(ui_tx_poll.clone());
+                    }
+                    GamingUiEvent::FixDone { summary } => {
+                        sections.status_text.set_text(&summary);
                         spawn_health_check(ui_tx_poll.clone());
                     }
                 }
@@ -306,6 +312,42 @@ fn spawn_health_check(tx: mpsc::Sender<GamingUiEvent>) {
         let check = run_health_check();
         let _ = tx.send(GamingUiEvent::HealthCheck(check));
     });
+}
+
+/// Flatpak overrides + input-group membership + compositor optimize hook.
+fn run_optimize_pass() -> String {
+    let mut notes = Vec::new();
+
+    match metis_gaming::optimize_flatpak_gaming(&[]) {
+        Ok(results) if results.is_empty() => {
+            notes.push("No Flatpak Steam/Lutris/Heroic installs to optimize".into());
+        }
+        Ok(results) => {
+            notes.push(format!("Optimized {} Flatpak app(s)", results.len()));
+        }
+        Err(err) => notes.push(format!("Flatpak optimize failed: {err}")),
+    }
+
+    match metis_gaming::ensure_steam_launcher() {
+        Ok(path) => notes.push(format!("Steam launcher ready ({})", path.display())),
+        Err(err) => tracing::debug!(%err, "ensure_steam_launcher"),
+    }
+
+    match auto_fix_item("input_group") {
+        Ok(msg) => {
+            if !msg.contains("Already in") {
+                notes.push(msg);
+            }
+        }
+        Err(err) => notes.push(err),
+    }
+
+    metis_gaming::session::request_optimize();
+    if notes.is_empty() {
+        "Optimize finished.".into()
+    } else {
+        notes.join(" · ")
+    }
 }
 
 fn show_gaming_setup_dialog(
@@ -541,21 +583,39 @@ fn apply_health_check(
         text.append(&title);
         text.append(&detail);
         row.append(&text);
+        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        actions.set_valign(gtk::Align::Center);
         if item.auto_fixable {
             let fix = gtk::Button::with_label("Fix");
+            fix.set_tooltip_text(Some("Install or apply this fix (may ask for your password)"));
             let fix_id = item.id.to_string();
             let ui_tx = ui_tx.clone();
-            fix.connect_clicked(move |_| {
+            fix.connect_clicked(move |btn| {
+                btn.set_sensitive(false);
                 let ui_tx = ui_tx.clone();
                 let fix_id = fix_id.clone();
                 std::thread::spawn(move || {
-                    if let Ok(msg) = auto_fix_item(&fix_id) {
-                        tracing::info!(%msg, "gaming health fix");
-                    }
-                    spawn_health_check(ui_tx);
+                    let summary = match auto_fix_item(&fix_id) {
+                        Ok(msg) => msg,
+                        Err(err) => err,
+                    };
+                    let _ = ui_tx.send(GamingUiEvent::FixDone { summary });
                 });
             });
-            row.append(&fix);
+            actions.append(&fix);
+        }
+        if let Some(hint) = item.fix_hint.as_ref() {
+            let copy = gtk::Button::with_label("Copy command");
+            let hint = hint.clone();
+            copy.set_tooltip_text(Some(hint.as_str()));
+            copy.connect_clicked(move |btn| {
+                btn.clipboard().set_text(&hint);
+                btn.set_label("Copied");
+            });
+            actions.append(&copy);
+        }
+        if actions.first_child().is_some() {
+            row.append(&actions);
         }
         sections.health_list.append(&row);
     }
@@ -594,12 +654,21 @@ fn update_health_summary(sections: &Rc<Sections>, check: &HealthCheck) {
         ));
         sections.status_box.add_css_class("metis-settings-gaming-status-warn");
     } else {
+        let auto = check.items.iter().any(|i| {
+            i.auto_fixable && matches!(i.severity, HealthSeverity::Warn | HealthSeverity::Error)
+        });
         sections
             .status_icon
             .set_from_icon_name(Some("dialog-warning-symbolic"));
-        sections.status_text.set_text(&format!(
-            "{issues} issue(s) found — use Optimize now or Fix on each row."
-        ));
+        if auto {
+            sections.status_text.set_text(&format!(
+                "{issues} issue(s) found — use Fix to install, or Copy command to run it yourself."
+            ));
+        } else {
+            sections.status_text.set_text(&format!(
+                "{issues} issue(s) found — use Copy command on each row (these need a manual step)."
+            ));
+        }
         sections.status_box.add_css_class("metis-settings-gaming-status-warn");
     }
 }

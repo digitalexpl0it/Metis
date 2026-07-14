@@ -134,6 +134,7 @@ stage_tree() {
         "$STAGE/usr/share/applications" \
         "$STAGE/usr/share/icons/hicolor/48x48/apps" \
         "$STAGE/usr/share/icons/hicolor/256x256/apps" \
+        "$STAGE/usr/share/metis/wallpapers" \
         "$STAGE/etc/pam.d"
 
     local rel="$CARGO_TARGET_DIR/release"
@@ -150,6 +151,15 @@ stage_tree() {
     install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$STAGE/usr/share/icons/hicolor/48x48/apps/metis-settings.png"
     install -Dm644 "$ASSETS_DIR/metis-settings.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/metis-settings.png"
     install -Dm644 "$ASSETS_DIR/pam-metis" "$STAGE/etc/pam.d/metis"
+
+    log "Staging bundled wallpapers…"
+    local wp
+    shopt -s nullglob
+    for wp in "$ASSETS_DIR/wallpapers"/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG,WEBP}; do
+        [[ -f "$wp" ]] || continue
+        install -Dm644 "$wp" "$STAGE/usr/share/metis/wallpapers/$(basename "$wp")"
+    done
+    shopt -u nullglob
 }
 
 # Runtime Depends for Ubuntu 24.04 (noble). Validated against typical ldd

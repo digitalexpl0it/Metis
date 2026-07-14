@@ -130,7 +130,7 @@ pub fn bundled_wallpaper_dir() -> PathBuf {
 }
 
 /// Candidate directories holding bundled wallpapers (compile-time bundle plus
-/// exe-relative fallbacks for installed layouts).
+/// installed FHS paths and exe-relative fallbacks).
 pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut push = |p: PathBuf| {
@@ -138,6 +138,9 @@ pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
             dirs.push(p);
         }
     };
+    // Packaged installs (`.deb` / `--install-session`).
+    push(PathBuf::from("/usr/share/metis/wallpapers"));
+    push(PathBuf::from("/usr/local/share/metis/wallpapers"));
     push(bundled_wallpaper_dir());
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
@@ -146,6 +149,8 @@ pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
                 "../assets/wallpapers",
                 "../../assets/wallpapers",
                 "../../../assets/wallpapers",
+                "../share/metis/wallpapers",
+                "../../share/metis/wallpapers",
             ] {
                 push(parent.join(rel));
             }

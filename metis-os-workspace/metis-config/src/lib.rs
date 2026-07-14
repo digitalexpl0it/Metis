@@ -7,6 +7,7 @@ pub mod calendars;
 pub mod clocks;
 pub mod css;
 pub mod dashboard;
+pub mod decorations;
 pub mod game_rules;
 pub mod gaming;
 pub mod gpu_offload;
@@ -200,6 +201,10 @@ pub use dashboard::{
     dashboard_config_path, load_dashboard_config, process_monitor_needs_terminal,
     save_dashboard_config, save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
     KNOWN_PROCESS_MONITORS,
+};
+pub use decorations::{
+    decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,
+    DecorationsOverride,
 };
 pub use game_rules::{
     game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,

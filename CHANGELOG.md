@@ -5,6 +5,37 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-13]
+
+### Added
+
+- **Settings → App titlebars** — searchable list of installed apps with
+  Auto / Metis titlebar / App titlebar overrides. Persists to
+  `~/.config/metis/decorations.json` (exact `app_id` keys) and reloads live via
+  `ReloadDecorations` (plus mtime poll). Built-in decoration heuristics remain
+  the Auto defaults; use overrides when an app double-chromes or lacks Metis
+  Auto / Metis / App linked toggles. Search filters existing rows (debounced)
+  instead of rebuilding the whole list per keystroke; debounce no longer
+  `remove()`s an already-fired timer (that aborted Settings). Candidate keys skip
+  themed-icon junk. Opening the page prunes Auto-covered / noise overrides from
+  `decorations.json`. Expanded built-in CSD heuristics cover Transmission,
+  Videos/Totem, Remmina, Thunderbird, and other common GTK apps. Opening App
+  titlebars no longer strips intentional `"client"` overrides (that made
+  Transmission look like Settings never stuck).
+
+### Fixed
+
+- **Double titlebar on App Center / Help / LibreOffice / Mousepad** — known
+  client-decorated apps (and `org.gnome.*` / `org.xfce.*` / LibreOffice /
+  snap-store ids) now keep native chrome even when they request
+  `xdg-decoration` ServerSide. Frameless Electron shells still get Metis SSD via
+  the chromium executable check.
+- **Maximized titlebar reveal thrash** — sticky hit zone for the auto-hide
+  strip includes the original trigger band and the edge-bar overhang, so the
+  strip no longer oscillates while sliding down.
+- **Auto-hide titlebar corners** — maximized/snap overlay chrome uses the same
+  rounded top corners as windowed Metis titlebars.
+
 ## [2026-07-11]
 
 ### Added
@@ -36,6 +67,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Settings → Gaming Optimize now** — was a silent Flatpak-only no-op when the
+  reported issue was “not in input group”. Optimize now also offers to add you
+  via `pkexec usermod`, shows a status summary afterward, and health rows offer
+  both **Fix** (one-click: GameMode, i386 Vulkan, audio, Steam, input group,
+  Flatpak overrides) and **Copy command** for a manual terminal install.
+  NVIDIA drivers stay copy-only (`ubuntu-drivers` is interactive).
+- **Settings button hover contrast** — hover no longer snaps to a near-black
+  surface that hides labels; accent (**Optimize now**) keeps readable on-accent
+  text on hover.
+- **Onboarding blank wallpapers on `.deb` installs** — bundled images now install
+  to `/usr/share/metis/wallpapers` (deb + `--install-session`) and the shell looks
+  there at runtime (compile-time workspace paths alone were empty after install).
+- **Onboarding Optional software card growth** — feature list scrolls inside a
+  fixed-height region so the content-sized overlay no longer expands on that step.
+- **Onboarding light theme** — splash/onboarding cards no longer use a hardcoded
+  dark charcoal background; they follow theme surface tokens so Light (the fresh
+  install default) keeps readable title/subtitle contrast. Theme picker preview
+  tiles also get their CSS in the shell stylesheet (previously Settings-only).
 - **CI `.deb` build** — install `libdisplay-info-dev` and `libpam0g-dev` on the
   Ubuntu 24.04 runner so `libdisplay-info-sys` / compositor PAM link successfully.
 - **Control Center search types into app behind** — Top-layer shell panels

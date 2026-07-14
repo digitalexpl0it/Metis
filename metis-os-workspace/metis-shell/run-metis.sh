@@ -372,6 +372,18 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
         $SUDO gtk-update-icon-cache -f -t "$ICONS_DST" >/dev/null 2>&1 || true
     fi
 
+    # Bundled wallpapers for onboarding / Appearance (looked up under
+    # /usr/share/metis/wallpapers and /usr/local/share/metis/wallpapers).
+    WALLPAPERS_DST="${METIS_WALLPAPERS_DIR:-/usr/share/metis/wallpapers}"
+    echo "Installing bundled wallpapers to $WALLPAPERS_DST …"
+    $SUDO mkdir -p "$WALLPAPERS_DST"
+    shopt -s nullglob
+    for wp in "$ASSETS_DIR/wallpapers"/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG,WEBP}; do
+        [[ -f "$wp" ]] || continue
+        $SUDO install -Dm644 "$wp" "$WALLPAPERS_DST/$(basename "$wp")"
+    done
+    shopt -u nullglob
+
     # PAM service for the compositor lock screen. Without it the compositor
     # falls back to the system "login" stack; installing the dedicated service
     # keeps unlocking working consistently across distros.

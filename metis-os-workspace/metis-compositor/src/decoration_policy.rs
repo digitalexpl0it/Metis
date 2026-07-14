@@ -53,8 +53,8 @@ const SSD_APP_IDS: &[&str] = &[
     "github desktop",
 ];
 
-/// Built-in headerbar — never draw Metis SSD on top (non-GNOME entries only;
-/// shipped GNOME apps are covered by [`id_looks_csd`] prefix rules).
+/// Built-in headerbar — never draw Metis SSD on top (non-GNOME / non-prefix
+/// entries only; GNOME/XFCE/LibreOffice/… are covered by [`id_looks_csd`] rules).
 const CSD_APP_IDS: &[&str] = &[
     "dev.zed.Zed",
     "com.obsproject.Studio",
@@ -73,6 +73,72 @@ const CSD_APP_IDS: &[&str] = &[
     "firefox_firefox",
     "org.gnome.Cheese",
     "cheese",
+    // Ubuntu App Center / snap-store (Flutter + GTK variants).
+    "io.snapcraft.Store",
+    "snap-store",
+    "snap_store",
+    "ubuntu-software",
+    // GNOME Help — bare id when desktop file is not reverse-DNS.
+    "yelp",
+    // Mousepad / Thunar (GTK3 CSD or client chrome). Bare WM-class ids are what
+    // XWayland and many XFCE builds report at runtime.
+    "mousepad",
+    "org.xfce.mousepad",
+    "thunar",
+    "org.xfce.thunar",
+    "thunar-settings",
+    "org.xfce.thunar-settings",
+    // Common GNOME apps that report bare Exec basenames as Wayland/X11 class.
+    "seahorse",
+    "rhythmbox",
+    "shotwell",
+    "totem",
+    "gnome-power-statistics",
+    "gnome-control-center",
+    "gnome-language-selector",
+    "gnome-session-properties",
+    "protontricks",
+    // Common third-party / Ubuntu GTK apps (bare WM class).
+    "transmission",
+    "transmission-gtk",
+    "remmina",
+    "pavucontrol",
+    "filezilla",
+    "thunderbird",
+    "thunderbird_thunderbird",
+    "solaar",
+    "qalculate-gtk",
+    "qalculate",
+    "xarchiver",
+    "guvcview",
+    "gdebi-gtk",
+    "gdebi",
+    "nvidia-settings",
+    "usb-creator-gtk",
+    "system-config-printer",
+    "dbeaver",
+    "dbeaver-ce",
+    "zoom",
+    "flatseal",
+    "missioncenter",
+    "io.missioncenter.missioncenter",
+    "com.github.tchx84.flatseal",
+    "com.github.matoking.protontricks",
+    "yad",
+    "yad-icon-browser",
+    "hytalelauncher",
+    "com.hypixel.hytalelauncher",
+    // LibreOffice module WM classes.
+    "libreoffice",
+    "libreoffice-startcenter",
+    "libreoffice-writer",
+    "libreoffice-calc",
+    "libreoffice-impress",
+    "libreoffice-draw",
+    "libreoffice-math",
+    "libreoffice-base",
+    "soffice",
+    "org.libreoffice.libreoffice",
 ];
 
 fn norm_app_id(app_id: &str) -> String {
@@ -144,11 +210,45 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     if id_looks_chromium_family(app_id) || id_looks_firefox(app_id) {
         return true;
     }
+    // Thunderbird (snap `thunderbird_thunderbird`, deb `thunderbird`, …).
+    if norm_app_id(app_id).contains("thunderbird") {
+        return true;
+    }
+    // Transmission reports `Transmission` / `transmission-gtk` depending on
+    // toolkit / session — accept any id containing the project name.
+    if norm_app_id(app_id).contains("transmission") {
+        return true;
+    }
     let id = norm_app_id(app_id);
     if id_matches_list(app_id, CSD_APP_IDS) {
         return true;
     }
     if id.starts_with("org.gnome.") {
+        return true;
+    }
+    // XFCE apps (Mousepad, Thunar, …) ship client chrome / menubars that fight
+    // Metis SSD. Bare WM-class ids (`thunar`, `mousepad`) are covered by the
+    // explicit CSD list; reverse-DNS still needs the prefix.
+    if id.starts_with("org.xfce.") {
+        return true;
+    }
+    if id.starts_with("org.remmina.") {
+        return true;
+    }
+    // Wine / Proton helper windows usually draw their own frame.
+    if id.ends_with(".exe") || id.starts_with("wine-") {
+        return true;
+    }
+    // LibreOffice modules: reverse-DNS or `libreoffice-*` / `soffice` WM class.
+    if id.starts_with("org.libreoffice.")
+        || id.starts_with("libreoffice-")
+        || id == "libreoffice"
+        || id == "soffice"
+    {
+        return true;
+    }
+    // Ubuntu App Center / Software.
+    if id.starts_with("io.snapcraft.") || id.contains("snap-store") || id.contains("snap_store") {
         return true;
     }
     if id.starts_with("io.github.")
@@ -164,20 +264,24 @@ pub fn id_looks_csd(app_id: &str) -> bool {
 }
 
 /// Whether Metis should own window chrome for this client.
+///
+/// `user_override`: `Some(true)` force SSD, `Some(false)` force CSD, `None` Auto.
 pub fn resolve_uses_ssd(
     app_id: Option<&str>,
     negotiated_mode: Option<DecorationMode>,
     decoration_bound: bool,
+    user_override: Option<bool>,
 ) -> bool {
-    // An explicit server-side request always wins — including over the CSD
-    // heuristics below. Frameless Electron shells report the generic `chromium`
-    // app_id but launch with Ozone `WaylandWindowDecorations` + no custom
-    // titlebar, so they ask the compositor to decorate and draw nothing
-    // themselves (e.g. Claude Desktop). Real Chromium/Firefox browsers request
-    // client-side instead, so this never forces SSD on them.
-    if matches!(negotiated_mode, Some(DecorationMode::ServerSide)) {
-        return true;
+    // Settings / decorations.json always wins for windowed clients.
+    if let Some(force_ssd) = user_override {
+        return force_ssd;
     }
+    // Known app classes win over xdg-decoration mode. Many GTK/headerbar clients
+    // still request ServerSide while drawing their own chrome (App Center, Yelp,
+    // LibreOffice, Mousepad) — honoring ServerSide first caused double titlebars.
+    // Frameless Electron shells that report `chromium` + ServerSide are restored
+    // to Metis SSD in `MetisState::refresh_window_decoration_mode` via
+    // `chromium_class_needs_ssd` (exe disambiguation).
     if let Some(app_id) = app_id.filter(|id| !id.is_empty()) {
         if id_looks_ssd(app_id) {
             return true;
@@ -245,53 +349,108 @@ mod tests {
 
     #[test]
     fn firefox_uses_native_csd() {
-        assert!(!resolve_uses_ssd(Some("firefox_firefox"), None, false));
-        assert!(!resolve_uses_ssd(Some("org.mozilla.firefox"), None, false));
+        assert!(!resolve_uses_ssd(Some("firefox_firefox"), None, false, None));
+        assert!(!resolve_uses_ssd(Some("org.mozilla.firefox"), None, false, None));
         assert!(id_looks_csd("firefox_firefox"));
     }
 
     #[test]
     fn text_editor_uses_ssd() {
-        assert!(resolve_uses_ssd(Some("org.gnome.TextEditor"), None, false));
+        assert!(resolve_uses_ssd(
+            Some("org.gnome.TextEditor"),
+            None,
+            false,
+            None
+        ));
     }
 
     #[test]
     fn chromium_uses_client_side_only() {
-        assert!(!resolve_uses_ssd(Some("org.chromium.Chromium"), None, false));
-        assert!(!resolve_uses_ssd(Some("com.google.Chrome"), None, false));
-        assert!(!resolve_uses_ssd(Some("chromium"), None, false));
+        assert!(!resolve_uses_ssd(
+            Some("org.chromium.Chromium"),
+            None,
+            false,
+            None
+        ));
+        assert!(!resolve_uses_ssd(Some("com.google.Chrome"), None, false, None));
+        assert!(!resolve_uses_ssd(Some("chromium"), None, false, None));
         assert!(id_looks_csd("chromium"));
     }
 
-    /// A chromium-class client that explicitly requests server-side decorations
-    /// (a frameless Electron shell like Claude Desktop, built with Ozone
-    /// `WaylandWindowDecorations`) must get Metis SSD — the request overrides the
-    /// "chromium ⇒ CSD browser" heuristic. Real browsers request client-side.
+    /// Chromium-class apps are classified CSD by resolve; frameless Electron is
+    /// forced to Metis SSD later via `chromium_class_needs_ssd` (exe check).
     #[test]
-    fn chromium_server_side_request_gets_ssd() {
-        assert!(resolve_uses_ssd(
+    fn chromium_stays_csd_in_resolve_even_with_server_side() {
+        assert!(!resolve_uses_ssd(
             Some("chromium"),
             Some(DecorationMode::ServerSide),
             true,
+            None,
         ));
         assert!(!resolve_uses_ssd(
             Some("chromium"),
             Some(DecorationMode::ClientSide),
             true,
+            None,
+        ));
+    }
+
+    #[test]
+    fn headerbar_apps_keep_csd_even_if_they_request_server_side() {
+        for id in [
+            "org.gnome.Yelp",
+            "yelp",
+            "io.snapcraft.Store",
+            "snap-store",
+            "mousepad",
+            "org.xfce.mousepad",
+            "thunar",
+            "org.xfce.thunar",
+            "libreoffice-writer",
+            "org.libreoffice.LibreOffice",
+            "soffice",
+        ] {
+            assert!(
+                !resolve_uses_ssd(Some(id), Some(DecorationMode::ServerSide), true, None),
+                "{id} must not get Metis SSD over its own chrome"
+            );
+        }
+    }
+
+    #[test]
+    fn user_override_beats_heuristics_and_protocol() {
+        // Force Metis SSD on a known CSD app.
+        assert!(resolve_uses_ssd(
+            Some("org.gnome.Cheese"),
+            Some(DecorationMode::ClientSide),
+            true,
+            Some(true),
+        ));
+        // Force native CSD on a terminal.
+        assert!(!resolve_uses_ssd(
+            Some("kitty"),
+            Some(DecorationMode::ServerSide),
+            true,
+            Some(false),
         ));
     }
 
     #[test]
     fn gnome_apps_keep_client_headerbar() {
-        assert!(!resolve_uses_ssd(Some("org.gnome.Cheese"), None, false));
-        assert!(!resolve_uses_ssd(Some("org.gnome.Calculator"), None, false));
-        assert!(!resolve_uses_ssd(Some("cheese"), None, false));
+        assert!(!resolve_uses_ssd(Some("org.gnome.Cheese"), None, false, None));
+        assert!(!resolve_uses_ssd(
+            Some("org.gnome.Calculator"),
+            None,
+            false,
+            None
+        ));
+        assert!(!resolve_uses_ssd(Some("cheese"), None, false, None));
     }
 
     #[test]
     fn metis_and_terminals_use_ssd() {
-        assert!(resolve_uses_ssd(Some("org.kitty"), None, false));
-        assert!(resolve_uses_ssd(Some("com.metis.Settings"), None, false));
+        assert!(resolve_uses_ssd(Some("org.kitty"), None, false, None));
+        assert!(resolve_uses_ssd(Some("com.metis.Settings"), None, false, None));
     }
 
     /// Terminals report bare WM-class app_ids at runtime, and they bind
@@ -310,12 +469,12 @@ mod tests {
             "wezterm",
         ] {
             assert!(
-                resolve_uses_ssd(Some(id), None, false),
+                resolve_uses_ssd(Some(id), None, false, None),
                 "{id} should use Metis SSD"
             );
             // Even after binding xdg-decoration without an explicit mode.
             assert!(
-                resolve_uses_ssd(Some(id), None, true),
+                resolve_uses_ssd(Some(id), None, true, None),
                 "{id} should use Metis SSD even when decoration is bound"
             );
         }
@@ -323,28 +482,44 @@ mod tests {
 
     #[test]
     fn unclassified_client_side_honored() {
-        assert!(!resolve_uses_ssd(None, Some(DecorationMode::ClientSide), false));
-        assert!(resolve_uses_ssd(None, Some(DecorationMode::ServerSide), false));
+        assert!(!resolve_uses_ssd(
+            None,
+            Some(DecorationMode::ClientSide),
+            false,
+            None
+        ));
+        assert!(resolve_uses_ssd(
+            None,
+            Some(DecorationMode::ServerSide),
+            false,
+            None
+        ));
         assert!(!resolve_uses_ssd(
             Some("org.gnome.Cheese"),
             Some(DecorationMode::ClientSide),
             false,
+            None,
         ));
     }
 
     #[test]
     fn unknown_defaults_to_ssd() {
-        assert!(resolve_uses_ssd(None, None, false));
+        assert!(resolve_uses_ssd(None, None, false, None));
     }
 
     #[test]
     fn unknown_decoration_bound_defaults_to_csd() {
-        assert!(!resolve_uses_ssd(None, None, true));
+        assert!(!resolve_uses_ssd(None, None, true, None));
     }
 
     #[test]
     fn unknown_server_side_request_stays_ssd() {
-        assert!(resolve_uses_ssd(None, Some(DecorationMode::ServerSide), true));
+        assert!(resolve_uses_ssd(
+            None,
+            Some(DecorationMode::ServerSide),
+            true,
+            None
+        ));
     }
 
     #[test]
@@ -353,6 +528,7 @@ mod tests {
             Some("org.gnome.Cheese"),
             Some(DecorationMode::ClientSide),
             false,
+            None,
         ));
     }
 
@@ -375,13 +551,10 @@ mod tests {
             "GitHub Desktop",
         ] {
             assert!(
-                resolve_uses_ssd(Some(id), None, false),
+                resolve_uses_ssd(Some(id), None, false, None),
                 "{id} should use Metis SSD"
             );
-            assert!(
-                !id_looks_csd(id),
-                "{id} must not be treated as native CSD"
-            );
+            assert!(!id_looks_csd(id), "{id} must not be treated as native CSD");
         }
     }
 
@@ -427,7 +600,7 @@ mod tests {
 
     #[test]
     fn decoration_bound_does_not_disable_ssd_in_resolve() {
-        assert!(resolve_uses_ssd(None, None, false));
-        assert!(!resolve_uses_ssd(None, None, true));
+        assert!(resolve_uses_ssd(None, None, false, None));
+        assert!(!resolve_uses_ssd(None, None, true, None));
     }
 }

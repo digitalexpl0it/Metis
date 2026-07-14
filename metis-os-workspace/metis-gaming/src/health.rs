@@ -44,10 +44,11 @@ pub fn run_health_check() -> HealthCheck {
             severity: HealthSeverity::Info,
             detail: "Not detected".into(),
             fix_hint: Some(
-                "apt install steam-installer  OR  flatpak install flathub com.valvesoftware.Steam"
+                "flatpak install -y flathub com.valvesoftware.Steam   # or: sudo apt install steam-installer"
                     .into(),
             ),
-            auto_fixable: false,
+            // Prefer Flatpak when available; otherwise apt steam-installer.
+            auto_fixable: true,
         }),
     }
 
@@ -57,7 +58,9 @@ pub fn run_health_check() -> HealthCheck {
             label: "Flatpak Steam overrides".into(),
             severity: HealthSeverity::Warn,
             detail: "Gaming overrides not applied".into(),
-            fix_hint: Some("Click Optimize below".into()),
+            fix_hint: Some(
+                "metis-cmd optimize-gaming   # or Settings → Gaming → Optimize now".into(),
+            ),
             auto_fixable: true,
         });
     } else if flatpak_has_app("com.valvesoftware.Steam") {
@@ -74,8 +77,8 @@ pub fn run_health_check() -> HealthCheck {
             label: "32-bit Vulkan".into(),
             severity: HealthSeverity::Error,
             detail: "Proton may fail without i386 Vulkan drivers".into(),
-            fix_hint: Some("sudo apt install mesa-vulkan-drivers:i386".into()),
-            auto_fixable: false,
+            fix_hint: Some("sudo apt install -y mesa-vulkan-drivers:i386".into()),
+            auto_fixable: true,
         });
     } else {
         items.push(ok("vulkan_i386", "32-bit Vulkan", "OK"));
@@ -87,8 +90,8 @@ pub fn run_health_check() -> HealthCheck {
             label: "GameMode".into(),
             severity: HealthSeverity::Info,
             detail: "auto_gamemode on but gamemoderun missing".into(),
-            fix_hint: Some("sudo apt install gamemode".into()),
-            auto_fixable: false,
+            fix_hint: Some("sudo apt install -y gamemode".into()),
+            auto_fixable: true,
         });
     } else if gamemode_installed() {
         items.push(ok("gamemode", "GameMode", "Available"));
@@ -100,8 +103,8 @@ pub fn run_health_check() -> HealthCheck {
             label: "Input group".into(),
             severity: HealthSeverity::Warn,
             detail: "User not in input group".into(),
-            fix_hint: Some("sudo usermod -aG input $USER".into()),
-            auto_fixable: false,
+            fix_hint: Some("sudo usermod -aG input $USER  (then log out and back in)".into()),
+            auto_fixable: true,
         });
     } else {
         items.push(ok("input_group", "Input group", "OK"));
@@ -114,6 +117,7 @@ pub fn run_health_check() -> HealthCheck {
                 label: "NVIDIA driver".into(),
                 severity: HealthSeverity::Error,
                 detail: "NVIDIA GPU without proprietary driver".into(),
+                // Interactive / reboot-heavy — copy only, no blind Fix.
                 fix_hint: Some("sudo ubuntu-drivers install".into()),
                 auto_fixable: false,
             });
@@ -130,8 +134,8 @@ pub fn run_health_check() -> HealthCheck {
             label: "Audio".into(),
             severity: HealthSeverity::Warn,
             detail: "No PipeWire/Pulse on PATH".into(),
-            fix_hint: Some("sudo apt install pipewire-audio".into()),
-            auto_fixable: false,
+            fix_hint: Some("sudo apt install -y pipewire-audio".into()),
+            auto_fixable: true,
         });
     } else {
         items.push(ok("audio", "Audio", "OK"));
@@ -150,7 +154,95 @@ pub fn auto_fix_item(id: &str) -> Result<String, String> {
                 .collect::<Vec<_>>()
                 .join("; "))
         }
+        "input_group" => add_user_to_input_group(),
+        "gamemode" => pkexec_apt_install(&["gamemode"], "GameMode"),
+        "vulkan_i386" => {
+            pkexec_apt_install(&["mesa-vulkan-drivers:i386"], "32-bit Vulkan drivers")
+        }
+        "audio" => pkexec_apt_install(&["pipewire-audio"], "PipeWire audio"),
+        "steam" => install_steam(),
         other => Err(format!("no auto-fix for {other}")),
+    }
+}
+
+fn install_steam() -> Result<String, String> {
+    match detect_steam() {
+        SteamInstall::Native | SteamInstall::Flatpak => {
+            return Ok("Steam is already installed".into());
+        }
+        SteamInstall::None => {}
+    }
+    if crate::detect::binary_in_path("flatpak") {
+        let status = std::process::Command::new("flatpak")
+            .args([
+                "install",
+                "-y",
+                "flathub",
+                "com.valvesoftware.Steam",
+            ])
+            .status()
+            .map_err(|e| format!("failed to start flatpak: {e}"))?;
+        if status.success() {
+            let _ = optimize_flatpak_gaming(&[]);
+            return Ok("Installed Flatpak Steam (overrides applied when needed)".into());
+        }
+        // Fall through to apt if Flatpak remotes aren't set up.
+    }
+    pkexec_apt_install(&["steam-installer"], "Steam")
+}
+
+fn pkexec_apt_install(packages: &[&str], label: &str) -> Result<String, String> {
+    if packages.is_empty() {
+        return Ok(format!("{label}: nothing to install"));
+    }
+    if !crate::detect::binary_in_path("pkexec") {
+        return Err(format!(
+            "pkexec not found — run: sudo apt install -y {}",
+            packages.join(" ")
+        ));
+    }
+    let status = std::process::Command::new("pkexec")
+        .args(["apt-get", "install", "-y", "--"])
+        .args(packages)
+        .env("DEBIAN_FRONTEND", "noninteractive")
+        .status()
+        .map_err(|e| format!("failed to start pkexec: {e}"))?;
+    if status.success() {
+        Ok(format!("Installed {label}"))
+    } else {
+        Err(format!(
+            "Could not install {label} (auth cancelled?). Run: sudo apt install -y {}",
+            packages.join(" ")
+        ))
+    }
+}
+
+fn add_user_to_input_group() -> Result<String, String> {
+    let user = std::env::var("USER").map_err(|_| "USER is not set".to_string())?;
+    if user.is_empty() || user.contains(['/', ' ', '\0']) {
+        return Err("refusing to modify an invalid USER".into());
+    }
+    if user_in_input_group() {
+        return Ok("Already in the input group".into());
+    }
+    if !crate::detect::binary_in_path("pkexec") {
+        return Err(
+            "pkexec not found — run: sudo usermod -aG input $USER  (then log out)".into(),
+        );
+    }
+    let status = std::process::Command::new("pkexec")
+        .args(["usermod", "-aG", "input", &user])
+        .status()
+        .map_err(|e| format!("failed to start pkexec: {e}"))?;
+    if status.success() {
+        Ok(format!(
+            "Added {user} to the input group — log out and back in for it to apply"
+        ))
+    } else {
+        Err(
+            "Could not add you to the input group (auth cancelled?). Run: sudo usermod -aG input $USER"
+                .into(),
+        )
     }
 }
 

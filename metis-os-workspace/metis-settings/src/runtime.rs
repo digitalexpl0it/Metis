@@ -59,6 +59,15 @@ pub fn reload_keybinds_async() {
     std::thread::spawn(reload_keybinds);
 }
 
+/// Re-read `decorations.json` and re-apply per-app titlebar overrides live.
+pub fn reload_decorations_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::ReloadDecorations) {
+            tracing::warn!(%err, "failed to reload decorations via compositor IPC");
+        }
+    });
+}
+
 /// Suppress / resume global shortcut dispatch while Settings captures a chord.
 pub fn set_keybind_capture(active: bool) {
     if let Err(err) = send_command(CompositorCommand::SetKeybindCapture { active }) {

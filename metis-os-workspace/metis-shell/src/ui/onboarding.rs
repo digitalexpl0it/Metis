@@ -464,6 +464,20 @@ fn build_wallpaper() -> gtk::Widget {
     hint.set_xalign(0.0);
     col.append(&hint);
 
+    let wallpapers = metis_config::list_bundled_wallpapers();
+    if wallpapers.is_empty() {
+        let empty = gtk::Label::new(Some(
+            "No bundled wallpapers found. Reinstall Metis (wallpapers ship under \
+             /usr/share/metis/wallpapers), or add images in Settings → Appearance.",
+        ));
+        empty.add_css_class("metis-onboarding-hint");
+        empty.set_wrap(true);
+        empty.set_xalign(0.0);
+        empty.set_margin_top(12);
+        col.append(&empty);
+        return col.upcast();
+    }
+
     let grid = gtk::Grid::new();
     grid.set_column_spacing(10);
     grid.set_row_spacing(10);
@@ -472,7 +486,6 @@ fn build_wallpaper() -> gtk::Widget {
     grid.set_width_request(WALL_W * 2 + 10);
     grid.add_css_class("metis-onboarding-wall-grid");
 
-    let wallpapers = metis_config::list_bundled_wallpapers();
     let current = current_wallpaper_path();
 
     for (i, path) in wallpapers.into_iter().enumerate() {
@@ -521,9 +534,11 @@ fn build_wallpaper() -> gtk::Widget {
         .vscrollbar_policy(gtk::PolicyType::Automatic)
         .child(&grid)
         .build();
+    scroll.set_propagate_natural_height(false);
     scroll.set_width_request(BODY_INNER_WIDTH);
     scroll.set_hexpand(false);
-    scroll.set_vexpand(true);
+    scroll.set_vexpand(false);
+    scroll.set_size_request(BODY_INNER_WIDTH, BODY_HEIGHT - 40);
     scroll.set_overflow(gtk::Overflow::Hidden);
     col.append(&scroll);
 
@@ -921,11 +936,10 @@ fn run_pkexec_apt_install(packages: &[String]) -> Result<(), String> {
 
 fn build_optional_software() -> gtk::Widget {
     let col = step_shell();
-    col.set_spacing(8);
+    col.set_spacing(6);
 
     let hint = gtk::Label::new(Some(
-        "Turn on extras you want, then Install selected. Already installed \
-         items are greyed out. You can skip and install later with apt.",
+        "Turn on extras, then Install selected. Installed items are greyed out.",
     ));
     hint.add_css_class("metis-onboarding-subtitle");
     hint.set_xalign(0.0);
@@ -933,15 +947,32 @@ fn build_optional_software() -> gtk::Widget {
     hint.set_width_request(BODY_INNER_WIDTH);
     col.append(&hint);
 
-    let list = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    // Fixed-height scroll so this step cannot grow the content-sized overlay.
+    const LIST_HEIGHT: i32 = 168;
+    let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
     list.add_css_class("metis-onboarding-optional-list");
-    col.append(&list);
+    let scroll = gtk::ScrolledWindow::builder()
+        .min_content_height(LIST_HEIGHT)
+        .max_content_height(LIST_HEIGHT)
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .child(&list)
+        .build();
+    scroll.set_propagate_natural_height(false);
+    scroll.set_size_request(BODY_INNER_WIDTH, LIST_HEIGHT);
+    scroll.set_hexpand(false);
+    scroll.set_vexpand(false);
+    scroll.set_overflow(gtk::Overflow::Hidden);
+    col.append(&scroll);
 
     let status = gtk::Label::new(None);
     status.add_css_class("metis-onboarding-hint");
     status.set_xalign(0.0);
     status.set_wrap(true);
+    status.set_lines(2);
+    status.set_ellipsize(gtk::pango::EllipsizeMode::End);
     status.set_selectable(true);
+    status.set_height_request(28);
     col.append(&status);
 
     let install_btn = gtk::Button::with_label("Install selected");

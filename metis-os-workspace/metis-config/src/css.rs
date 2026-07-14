@@ -55,6 +55,19 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     } else {
         format!("rgba({raised_rgb}, 0.90)")
     };
+    // Splash / onboarding overlays: never hardcode dark charcoal — `{text}` /
+    // `{muted}` follow the active theme, so a fixed dark card is unreadable in
+    // light mode (fresh-install default).
+    let overlay_card_bg = if is_light {
+        format!("rgba({raised_rgb}, 0.96)")
+    } else {
+        format!("rgba({surface_rgb}, 0.92)")
+    };
+    let overlay_dot = if is_light {
+        format!("rgba({text_rgb}, 0.22)")
+    } else {
+        "rgba(255, 255, 255, 0.18)".to_string()
+    };
     let dash_shadow = if is_light {
         format!("0 12px 40px {shadow}")
     } else {
@@ -1696,10 +1709,10 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-splash-card {{
         padding: 40px 56px 34px 56px;
         border-radius: 28px;
-        background-color: rgba(12, 16, 24, 0.82);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: {overlay_card_bg};
+        border: 1px solid {border};
         box-shadow: {shadow},
-                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                    inset 0 1px 0 rgba({text_rgb}, 0.05);
     }}
     .metis-splash-label {{
         font-size: 12px;
@@ -1712,7 +1725,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-splash-progress trough {{
         min-height: 6px;
         border-radius: 999px;
-        background-color: rgba(255, 255, 255, 0.10);
+        background-color: rgba({text_rgb}, 0.12);
         border: none;
     }}
     .metis-splash-progress progress {{
@@ -1730,16 +1743,18 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-onboarding-card {{
         padding: 28px 36px 24px 36px;
         border-radius: 24px;
-        background-color: rgba(12, 16, 24, 0.92);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background-color: {overlay_card_bg};
+        border: 1px solid {border};
         box-shadow: {shadow},
-                    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+                    inset 0 1px 0 rgba({text_rgb}, 0.05);
         min-width: 520px;
         max-width: 520px;
     }}
     .metis-onboarding-body {{
         min-width: 448px;
         max-width: 448px;
+        min-height: 300px;
+        max-height: 300px;
     }}
     .metis-onboarding-step-content {{
         min-width: 448px;
@@ -1769,7 +1784,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         min-width: 10px;
         min-height: 10px;
         border-radius: 999px;
-        background-color: rgba(255, 255, 255, 0.18);
+        background-color: {overlay_dot};
         margin: 0 5px;
     }}
     .metis-onboarding-dot-active {{
@@ -1791,6 +1806,29 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-onboarding-preview-tile:checked {{
         border-color: {accent};
+    }}
+    /* Theme picker previews (also used by Settings → Appearance). */
+    .metis-style-fallback-light {{
+        background-color: #f2f2f4;
+    }}
+    .metis-style-fallback-dark {{
+        background-color: #1c1c20;
+    }}
+    .metis-style-mock-light {{
+        background-color: #ffffff;
+        border-radius: 7px;
+        border-top: 9px solid #e6e6e9;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.20);
+    }}
+    .metis-style-mock-dark {{
+        background-color: #2b2b30;
+        border-radius: 7px;
+        border-top: 9px solid #3a3a40;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+    }}
+    .metis-style-caption {{
+        color: {text};
+        font-weight: 600;
     }}
     .metis-onboarding-wall-grid {{
         margin-top: 4px;
@@ -3535,5 +3573,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         dash_shadow = dash_shadow,
         text_rgb = text_rgb,
         accent_rgb = accent_rgb,
+        overlay_card_bg = overlay_card_bg,
+        overlay_dot = overlay_dot,
+        accent2 = accent2,
     )
 }
