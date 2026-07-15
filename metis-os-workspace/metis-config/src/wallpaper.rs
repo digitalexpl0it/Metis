@@ -131,28 +131,40 @@ pub fn bundled_wallpaper_dir() -> PathBuf {
 
 /// Candidate directories holding bundled wallpapers (compile-time bundle plus
 /// installed FHS paths and exe-relative fallbacks).
+///
+/// Prefer packaged FHS dirs. The Cargo `assets/` tree is only consulted when no
+/// system wallpaper dir exists — otherwise installed installs that still have
+/// the source checkout list every wallpaper twice.
 pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    let mut push = |p: PathBuf| {
+    let push = |p: PathBuf, dirs: &mut Vec<PathBuf>| {
         if p.is_dir() && !dirs.iter().any(|d| d == &p) {
             dirs.push(p);
         }
     };
     // Packaged installs (`.deb` / `--install-session`).
-    push(PathBuf::from("/usr/share/metis/wallpapers"));
-    push(PathBuf::from("/usr/local/share/metis/wallpapers"));
-    push(bundled_wallpaper_dir());
+    push(PathBuf::from("/usr/share/metis/wallpapers"), &mut dirs);
+    push(PathBuf::from("/usr/local/share/metis/wallpapers"), &mut dirs);
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
-            for rel in [
-                "assets/wallpapers",
-                "../assets/wallpapers",
-                "../../assets/wallpapers",
-                "../../../assets/wallpapers",
-                "../share/metis/wallpapers",
-                "../../share/metis/wallpapers",
-            ] {
-                push(parent.join(rel));
+            for rel in ["../share/metis/wallpapers", "../../share/metis/wallpapers"] {
+                push(parent.join(rel), &mut dirs);
+            }
+        }
+    }
+    // Dev / uninstalled: workspace assets + exe-relative asset trees.
+    if dirs.is_empty() {
+        push(bundled_wallpaper_dir(), &mut dirs);
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                for rel in [
+                    "assets/wallpapers",
+                    "../assets/wallpapers",
+                    "../../assets/wallpapers",
+                    "../../../assets/wallpapers",
+                ] {
+                    push(parent.join(rel), &mut dirs);
+                }
             }
         }
     }
@@ -166,21 +178,45 @@ fn is_wallpaper_image(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Collect image files from `dir` into `out`, skipping paths already in `seen`.
+/// Collect image files from `dir` into `out`, skipping paths already in `seen`
+/// (by canonical path **or** lowercase basename so FHS + build-tree copies of
+/// `default.png` are not both listed).
 pub fn collect_wallpaper_images(dir: &Path, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     let mut found = Vec::new();
+    let mut seen_names: HashSet<String> = seen
+        .iter()
+        .filter_map(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.to_ascii_lowercase())
+        })
+        .collect();
+    // Also remember basenames already queued in `out` (same run, prior dirs).
+    for p in out.iter() {
+        if let Some(n) = p.file_name().and_then(|n| n.to_str()) {
+            seen_names.insert(n.to_ascii_lowercase());
+        }
+    }
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_file() || !is_wallpaper_image(&path) {
             continue;
         }
-        let canon = path.canonicalize().unwrap_or(path.clone());
-        if seen.insert(canon) {
-            found.push(path);
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let name_key = name.to_ascii_lowercase();
+        if !seen_names.insert(name_key) {
+            continue;
         }
+        let canon = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if !seen.insert(canon) {
+            continue;
+        }
+        found.push(path);
     }
     found.sort();
     out.extend(found);
@@ -210,4 +246,42 @@ pub fn parse_hex_rgb(hex: &str) -> [u8; 3] {
         }
     }
     [0, 0, 0]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collect_skips_same_basename_from_later_dirs() {
+        let root = std::env::temp_dir().join(format!(
+            "metis-wallpaper-dedupe-{}",
+            std::process::id()
+        ));
+        let a = root.join("a");
+        let b = root.join("b");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join("default.png"), b"a").unwrap();
+        std::fs::write(b.join("default.png"), b"b").unwrap();
+        std::fs::write(b.join("extra.png"), b"c").unwrap();
+
+        let mut out = Vec::new();
+        let mut seen = HashSet::new();
+        collect_wallpaper_images(&a, &mut out, &mut seen);
+        collect_wallpaper_images(&b, &mut out, &mut seen);
+
+        let names: Vec<_> = out
+            .iter()
+            .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(str::to_string))
+            .collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.iter().any(|n| n == "default.png"));
+        assert!(names.iter().any(|n| n == "extra.png"));
+        // First dir wins for the duplicate name.
+        assert_eq!(out[0].parent().unwrap(), a.as_path());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

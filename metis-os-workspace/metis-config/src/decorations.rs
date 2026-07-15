@@ -122,7 +122,29 @@ fn keys_related(a: &str, b: &str) -> bool {
     if b.len() >= MIN && a.contains(b) {
         return true;
     }
-    false
+    // Wine WM_CLASS vs desktop StartupWMClass: `cheatengine-x86_64-sse4-avx2.exe`
+    // ↔ `cheat engine.exe` (spaces / arch / SSE tags differ; alphanumeric stem matches).
+    wine_stems_related(a, b)
+}
+
+/// Strip `.exe` / punctuation so Wine class and desktop WM_CLASS can match.
+fn wine_alnum_stem(id: &str) -> String {
+    let lower = id.trim().to_ascii_lowercase();
+    let bare = lower.strip_suffix(".exe").unwrap_or(&lower);
+    bare.chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
+fn wine_stems_related(a: &str, b: &str) -> bool {
+    let aa = wine_alnum_stem(a);
+    let bb = wine_alnum_stem(b);
+    // Require a real product stem so short noise keys don't collide.
+    const MIN: usize = 6;
+    if aa.len() < MIN || bb.len() < MIN {
+        return false;
+    }
+    aa.starts_with(&bb) || bb.starts_with(&aa) || aa.contains(&bb) || bb.contains(&aa)
 }
 
 fn norm_key(app_id: &str) -> String {
@@ -216,5 +238,21 @@ mod tests {
         assert_eq!(back.lookup("firefox"), Some(DecorationsOverride::Client));
         assert!(json.contains("\"server\""));
         assert!(json.contains("\"client\""));
+    }
+
+    #[test]
+    fn wine_exe_matches_desktop_wm_class_with_spaces() {
+        let mut cfg = DecorationsConfig::default();
+        cfg.set_override("cheat engine.exe", Some(DecorationsOverride::Server));
+        assert_eq!(
+            cfg.lookup("cheatengine-x86_64-sse4-avx2.exe"),
+            Some(DecorationsOverride::Server)
+        );
+        assert_eq!(
+            cfg.lookup("cheatengine-x86_64.exe"),
+            Some(DecorationsOverride::Server)
+        );
+        // Unrelated .exe must not collide.
+        assert!(cfg.lookup("notepad.exe").is_none());
     }
 }

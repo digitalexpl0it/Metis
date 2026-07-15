@@ -418,6 +418,10 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-actions button {{
             align-self: start;
         }}
+        .metis-settings-actions > .metis-settings-hint,
+        .metis-settings-actions > label.metis-settings-hint {{
+            padding: 4px 0 0;
+        }}
         .metis-settings-gaming-status {{
             margin: 0 16px 12px;
             padding: 12px 14px;
@@ -544,6 +548,109 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-list row,
         .metis-settings-list label {{ color: {text}; }}
         .metis-settings-list row:hover {{ background-color: {surface}; }}
+
+        /* App titlebars — virtualized ListView; only visible rows exist. */
+        .metis-settings-app-scroll {{
+            background-color: transparent;
+            border: none;
+        }}
+        listview.metis-settings-app-list {{
+            background-color: transparent;
+            background-image: none;
+            border: none;
+            box-shadow: none;
+            padding: 0 0 8px;
+            color: {text};
+        }}
+        listview.metis-settings-app-list > row {{
+            background-color: transparent;
+            background-image: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+            min-height: 0;
+        }}
+        listview.metis-settings-app-list > row:hover {{
+            background-color: color-mix(in srgb, {accent} 14%, {raised});
+        }}
+        listview.metis-settings-app-list .metis-settings-app-row-odd {{
+            background-color: color-mix(in srgb, {raised} 72%, transparent);
+        }}
+        listview.metis-settings-app-list > row .metis-settings-row {{
+            border-top: none;
+            background-color: transparent;
+            padding: 8px 16px;
+        }}
+        listview.metis-settings-app-list > row .metis-settings-row:hover {{
+            background-color: transparent;
+        }}
+        listview.metis-settings-app-list label {{
+            color: {text};
+        }}
+        listview.metis-settings-app-list .metis-settings-app-badge {{
+            color: {muted};
+            font-size: 12px;
+            padding: 0;
+        }}
+        listview.metis-settings-app-list dropdown,
+        listview.metis-settings-app-list dropdown > button {{
+            background-color: {raised};
+            color: {text};
+            border: 1px solid {border};
+        }}
+
+        /* Legacy ListBox selectors kept for any leftover lists. */
+        list.metis-settings-app-list {{
+            background-color: transparent;
+            background-image: none;
+            border: none;
+            box-shadow: none;
+            padding: 0 0 8px;
+            color: {text};
+        }}
+        list.metis-settings-app-list > row {{
+            background-color: transparent;
+            background-image: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 0;
+            margin: 0;
+            min-height: 0;
+        }}
+        list.metis-settings-app-list > row:nth-child(odd) {{
+            background-color: color-mix(in srgb, {raised} 72%, transparent);
+        }}
+        list.metis-settings-app-list > row:nth-child(even) {{
+            background-color: transparent;
+        }}
+        list.metis-settings-app-list > row:hover {{
+            background-color: color-mix(in srgb, {accent} 14%, {raised});
+        }}
+        list.metis-settings-app-list > row .metis-settings-row {{
+            border-top: none;
+            background-color: transparent;
+            padding: 8px 16px;
+        }}
+        list.metis-settings-app-list > row .metis-settings-row:hover {{
+            background-color: transparent;
+        }}
+        list.metis-settings-app-list label {{
+            color: {text};
+        }}
+        list.metis-settings-app-list .metis-settings-app-badge {{
+            color: {muted};
+            font-size: 12px;
+            padding: 0;
+        }}
+        list.metis-settings-app-list dropdown,
+        list.metis-settings-app-list dropdown > button {{
+            background-color: {raised};
+            color: {text};
+            border: 1px solid {border};
+        }}
 
         /* Dropdowns (e.g. the Mode selector) + their popups. */
         dropdown, dropdown > button {{

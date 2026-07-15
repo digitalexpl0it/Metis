@@ -3105,21 +3105,30 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         padding: 2px;
     }}
     button.metis-screenshot-mode-btn {{
-        background: transparent;
+        background-color: transparent;
         background-image: none;
         border: none;
         border-radius: 999px;
-        padding: 8px;
+        min-width: 36px;
+        min-height: 36px;
+        padding: 0;
         color: {text};
         box-shadow: none;
         outline: none;
     }}
     button.metis-screenshot-mode-btn:hover {{
         background-color: rgba({accent_rgb}, 0.12);
+        background-image: none;
     }}
     button.metis-screenshot-mode-btn:checked {{
         background-color: {accent};
+        background-image: none;
         color: {text_on_accent};
+        border-radius: 999px;
+    }}
+    button.metis-screenshot-mode-btn image {{
+        color: {text};
+        -gtk-icon-style: symbolic;
     }}
     button.metis-screenshot-mode-btn:checked image {{
         -gtk-icon-filter: none;
@@ -3147,19 +3156,48 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-screenshot-mode stackswitcher button:checked label {{
         color: {text_on_accent};
     }}
+    /* Options gear is a MenuButton — style the menubutton and its inner button
+       (Adwaita leaves a fixed grey chip otherwise that ignores Metis theme). */
+    menubutton.metis-screenshot-icon,
+    menubutton.metis-screenshot-icon > button,
     button.metis-screenshot-icon {{
-        background: transparent;
+        background-color: transparent;
+        background-image: none;
         border: none;
         border-radius: 999px;
         padding: 6px;
         color: {text};
         box-shadow: none;
+        outline: none;
     }}
+    menubutton.metis-screenshot-icon > button > .arrow {{
+        min-width: 0;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
+        opacity: 0;
+    }}
+    menubutton.metis-screenshot-icon:hover > button,
+    menubutton.metis-screenshot-icon > button:hover,
     button.metis-screenshot-icon:hover {{
         background-color: rgba({accent_rgb}, 0.12);
+        background-image: none;
     }}
+    menubutton.metis-screenshot-icon:checked > button,
+    menubutton.metis-screenshot-icon > button:checked,
     button.metis-screenshot-icon:checked {{
         background-color: rgba({accent_rgb}, 0.22);
+        background-image: none;
+        color: {accent};
+    }}
+    menubutton.metis-screenshot-icon image,
+    menubutton.metis-screenshot-icon > button image,
+    button.metis-screenshot-icon image {{
+        color: {text};
+        -gtk-icon-style: symbolic;
+    }}
+    menubutton.metis-screenshot-icon:checked image,
+    menubutton.metis-screenshot-icon:checked > button image {{
         color: {accent};
     }}
     button.metis-screenshot-capture {{

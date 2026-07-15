@@ -10,6 +10,14 @@ use crate::config::TrayIconMode;
 use crate::services::{self, send_command, TrayCommand, TrayItem, TrayMenu, TrayMenuItem, MenuType, TraySnapshot};
 
 const TRAY_ICON_SIZE: i32 = 18;
+/// Overlay grid: grow with icon count up to this many columns × rows, then scroll.
+const TRAY_PANEL_COLS: u32 = 5;
+const TRAY_PANEL_ROWS_MAX: u32 = 3;
+/// Button `size_request` (icon+8) plus CSS padding on `.metis-bar-tray-item`.
+const TRAY_CELL: i32 = TRAY_ICON_SIZE + 12;
+const TRAY_GAP: i32 = 8;
+/// Empty-state width so the "No background apps" hint isn't tiny.
+const TRAY_EMPTY_WIDTH: i32 = 168;
 
 thread_local! {
     /// Nested context menu opened from a tray icon while the tray popover stays up.
@@ -33,8 +41,6 @@ struct TrayTooltipCtx {
 
 pub struct TrayWidget {
     root: gtk::Box,
-    pinned_row: gtk::Box,
-    panel_flow: gtk::FlowBox,
     mode: Rc<RefCell<TrayIconMode>>,
     refresh: Rc<dyn Fn()>,
 }
@@ -67,18 +73,21 @@ impl TrayWidget {
         panel.append(&panel_title);
         let panel_flow = gtk::FlowBox::new();
         panel_flow.set_selection_mode(gtk::SelectionMode::None);
-        panel_flow.set_max_children_per_line(6);
-        panel_flow.set_column_spacing(8);
-        panel_flow.set_row_spacing(8);
+        panel_flow.set_homogeneous(true);
+        panel_flow.set_min_children_per_line(1);
+        panel_flow.set_max_children_per_line(TRAY_PANEL_COLS);
+        panel_flow.set_column_spacing(TRAY_GAP as u32);
+        panel_flow.set_row_spacing(TRAY_GAP as u32);
         panel_flow.add_css_class("metis-bar-tray-flow");
         let panel_scroll = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .vscrollbar_policy(gtk::PolicyType::Automatic)
-            .min_content_height(48)
-            .max_content_height(240)
             .propagate_natural_width(true)
+            .propagate_natural_height(true)
             .child(&panel_flow)
             .build();
+        // Initial size for an empty / single-icon panel; rebuild adjusts to count.
+        size_tray_panel_scroll(&panel_scroll, 0);
         panel.append(&panel_scroll);
 
         let tip = gtk::Label::new(None);
@@ -101,12 +110,14 @@ impl TrayWidget {
         let rebuild: Rc<dyn Fn()> = {
             let pinned_row = pinned_row.clone();
             let panel_flow = panel_flow.clone();
+            let panel_scroll = panel_scroll.clone();
             let mode = mode.clone();
             let tooltip_ctx = tooltip_ctx.clone();
             Rc::new(move || {
                 rebuild_tray(
                     &pinned_row,
                     &panel_flow,
+                    &panel_scroll,
                     *mode.borrow(),
                     &services::tray_snapshot(),
                     Some(tooltip_ctx.as_ref()),
@@ -130,8 +141,6 @@ impl TrayWidget {
 
         Self {
             root,
-            pinned_row,
-            panel_flow,
             mode,
             refresh: rebuild,
         }
@@ -154,6 +163,7 @@ impl TrayWidget {
 fn rebuild_tray(
     pinned_row: &gtk::Box,
     panel_flow: &gtk::FlowBox,
+    panel_scroll: &gtk::ScrolledWindow,
     mode: TrayIconMode,
     snap: &TraySnapshot,
     panel_tooltip: Option<&TrayTooltipCtx>,
@@ -184,6 +194,45 @@ fn rebuild_tray(
         hint.add_css_class("dim-label");
         panel_flow.append(&hint);
     }
+
+    size_tray_panel_scroll(panel_scroll, snap.items.len());
+}
+
+/// Size the tray popover to the icon grid: 1 cell when empty/small, grow to 5×3,
+/// then keep that viewport and scroll anything beyond.
+fn size_tray_panel_scroll(scroll: &gtk::ScrolledWindow, count: usize) {
+    let (width, height) = tray_panel_content_size(count);
+    let (max_w, max_h) = tray_panel_content_size(TRAY_PANEL_COLS as usize * TRAY_PANEL_ROWS_MAX as usize);
+    scroll.set_min_content_width(width);
+    scroll.set_max_content_width(max_w);
+    scroll.set_min_content_height(height);
+    scroll.set_max_content_height(max_h);
+    scroll.set_propagate_natural_width(true);
+    scroll.set_propagate_natural_height(true);
+    // Hide the scrollbar until the 5×3 grid is full — avoids a tiny gutter when
+    // the panel simply needs to grow a row.
+    let needs_scroll = count > (TRAY_PANEL_COLS as usize * TRAY_PANEL_ROWS_MAX as usize);
+    scroll.set_policy(
+        gtk::PolicyType::Never,
+        if needs_scroll {
+            gtk::PolicyType::Automatic
+        } else {
+            gtk::PolicyType::Never
+        },
+    );
+}
+
+fn tray_panel_content_size(count: usize) -> (i32, i32) {
+    if count == 0 {
+        return (TRAY_EMPTY_WIDTH, TRAY_CELL);
+    }
+    let cols = count.min(TRAY_PANEL_COLS as usize);
+    let rows = count
+        .div_ceil(TRAY_PANEL_COLS as usize)
+        .min(TRAY_PANEL_ROWS_MAX as usize);
+    let width = (cols as i32) * TRAY_CELL + (cols.saturating_sub(1) as i32) * TRAY_GAP;
+    let height = (rows as i32) * TRAY_CELL + (rows.saturating_sub(1) as i32) * TRAY_GAP;
+    (width, height)
 }
 
 fn build_tray_button(

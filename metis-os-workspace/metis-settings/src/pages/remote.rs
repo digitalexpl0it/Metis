@@ -104,14 +104,10 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     let change_pw_btn = gtk::Button::with_label("Change password…");
     change_pw_btn.set_halign(gtk::Align::Start);
-    change_pw_btn.set_margin_top(8);
     change_pw_btn.set_visible(false);
-    status_body.append(&change_pw_btn);
 
     let copy_btn = gtk::Button::with_label("Copy connection address");
     copy_btn.set_halign(gtk::Align::Start);
-    copy_btn.set_margin_top(8);
-    status_body.append(&copy_btn);
 
     let clients_hint = gtk::Label::new(Some(
         "Connect with Microsoft Remote Desktop, Remmina, or FreeRDP. \
@@ -120,8 +116,13 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     clients_hint.set_xalign(0.0);
     clients_hint.set_wrap(true);
     clients_hint.add_css_class("metis-settings-hint");
-    clients_hint.set_margin_top(8);
-    status_body.append(&clients_hint);
+
+    let actions = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    actions.add_css_class("metis-settings-actions");
+    actions.append(&change_pw_btn);
+    actions.append(&copy_btn);
+    actions.append(&clients_hint);
+    status_body.append(&actions);
     content.append(&status_card);
 
     let (sec_card, sec_body) = ui::section("Security");

@@ -1,26 +1,38 @@
 //! Per-app Metis titlebar overrides — Auto / Metis titlebar / App titlebar.
 //! Persists to `decorations.json` and reloads the compositor live.
+//!
+//! Search uses a virtualized `ListView` + `FilterListModel` so typing never
+//! rebuilds or remeasures hundreds of DropDown rows (that is what stalled the
+//! older ListBox filter path).
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
+use gio::prelude::*;
 use gtk::glib;
 use gtk::prelude::*;
-use metis_config::{DecorationsConfig, DecorationsOverride};
+use metis_config::DecorationsOverride;
 
 use crate::apps::{self, AppEntry};
 use crate::{runtime, ui};
 
-struct RowEntry {
-    widget: gtk::Widget,
-    /// Lowercase haystack for filtering (name + desktop id).
+#[derive(Clone)]
+struct AppMeta {
+    entry: AppEntry,
     search_text: String,
+    candidates: Vec<String>,
+    mode: Option<DecorationsOverride>,
 }
 
 pub fn build() -> gtk::Widget {
     apps::watch_app_index();
 
     let (scroller, content) = ui::page_for("titlebars");
+    // Header/search stay fixed; only the applications ListView scrolls — avoids
+    // the double scrollbar from nesting page + list ScrolledWindows.
+    scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Never);
+    content.set_vexpand(true);
+    content.set_margin_bottom(16);
 
     let hint = gtk::Label::new(Some(
         "Auto uses Metis defaults. Override only when an app shows a double \
@@ -36,80 +48,209 @@ pub fn build() -> gtk::Widget {
     search.set_hexpand(true);
     content.append(&search);
 
-    let (list_card, list_body) =
+    {
+        let search_key = search.clone();
+        let key = gtk::EventControllerKey::new();
+        key.connect_key_pressed(move |_, keyval, _, _| {
+            if keyval == gtk::gdk::Key::BackSpace && search_key.text().is_empty() {
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
+        });
+        search.add_controller(key);
+    }
+
+    let (list_card, list_outer) =
         ui::section_with_icon("Applications", "application-x-executable-symbolic");
-    list_body.set_spacing(4);
-    content.append(&list_card);
+    list_card.set_vexpand(true);
+    list_outer.set_vexpand(true);
 
-    let bottom_pad = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    bottom_pad.set_size_request(-1, 48);
-    content.append(&bottom_pad);
+    let store = gio::ListStore::new::<glib::BoxedAnyObject>();
+    let query: Rc<RefCell<String>> = Rc::new(RefCell::new(String::new()));
+    let filter = gtk::CustomFilter::new({
+        let query = query.clone();
+        move |obj| {
+            let Some(boxed) = obj.downcast_ref::<glib::BoxedAnyObject>() else {
+                return false;
+            };
+            let meta: Ref<AppMeta> = boxed.borrow();
+            let q = query.borrow();
+            q.is_empty() || meta.search_text.contains(q.as_str())
+        }
+    });
+    let filtered = gtk::FilterListModel::new(Some(store.clone()), Some(filter.clone()));
+    let selection = gtk::NoSelection::new(Some(filtered.clone()));
 
-    let list_body = Rc::new(list_body);
-    let rows: Rc<RefCell<Vec<RowEntry>>> = Rc::new(RefCell::new(Vec::new()));
+    let bind_block = Rc::new(RefCell::new(false));
+    let factory = gtk::SignalListItemFactory::new();
+    factory.connect_setup({
+        let bind_block = bind_block.clone();
+        move |_, obj| {
+            let list_item = obj
+                .downcast_ref::<gtk::ListItem>()
+                .expect("ListItemFactory setup argument");
+            let row = build_row_shell();
+            let dd = row_dropdown(&row);
+            dd.connect_selected_notify({
+                let list_item = list_item.clone();
+                let bind_block = bind_block.clone();
+                let badge = row_badge(&row);
+                move |dd| {
+                    if *bind_block.borrow() {
+                        return;
+                    }
+                    let Some(boxed) = list_item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                        return;
+                    };
+                    let mode = index_to_mode(dd.selected());
+                    {
+                        let mut meta: RefMut<AppMeta> = boxed.borrow_mut();
+                        meta.mode = mode;
+                        let mut cfg = metis_config::load_decorations_config();
+                        cfg.set_for_candidates(&meta.candidates, mode);
+                        if let Err(err) = metis_config::save_decorations_config(&cfg) {
+                            tracing::warn!(%err, "failed to save decorations.json");
+                            return;
+                        }
+                    }
+                    badge.set_visible(mode.is_some());
+                    runtime::reload_decorations_async();
+                }
+            });
+            list_item.set_child(Some(&row));
+        }
+    });
+    factory.connect_bind({
+        let bind_block = bind_block.clone();
+        move |_, obj| {
+            let list_item = obj
+                .downcast_ref::<gtk::ListItem>()
+                .expect("ListItemFactory bind argument");
+            let Some(boxed) = list_item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                return;
+            };
+            let Some(row) = list_item.child().and_downcast::<gtk::Box>() else {
+                return;
+            };
+            let meta: Ref<AppMeta> = boxed.borrow();
+            let (image, name, badge, dd) = row_parts(&row);
+
+            if let Some(icon) = &meta.entry.icon {
+                image.set_from_gicon(icon);
+            } else {
+                image.set_icon_name(Some("application-x-executable-symbolic"));
+            }
+            name.set_label(&meta.entry.name);
+            badge.set_visible(meta.mode.is_some());
+
+            *bind_block.borrow_mut() = true;
+            dd.set_selected(mode_to_index(meta.mode));
+            *bind_block.borrow_mut() = false;
+
+            if list_item.position() % 2 == 0 {
+                row.add_css_class("metis-settings-app-row-odd");
+            } else {
+                row.remove_css_class("metis-settings-app-row-odd");
+            }
+        }
+    });
+
+    let list_view = gtk::ListView::new(Some(selection), Some(factory));
+    list_view.add_css_class("metis-settings-app-list");
+    list_view.set_single_click_activate(false);
+    // Viewport fills remaining page height so ListView virtualizes without a
+    // second outer page scrollbar.
+    let list_scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .vexpand(true)
+        .hexpand(true)
+        .overlay_scrolling(false)
+        .child(&list_view)
+        .build();
+    list_scroll.set_kinetic_scrolling(false);
+    list_scroll.add_css_class("metis-settings-app-scroll");
+    ui::wire_vertical_scroll(&list_scroll);
+    list_outer.append(&list_scroll);
+
     let empty_label = gtk::Label::new(Some("No matching applications"));
     empty_label.add_css_class("metis-settings-hint");
     empty_label.set_xalign(0.0);
     empty_label.set_visible(false);
+    list_outer.append(&empty_label);
+    content.append(&list_card);
+
     let empty_label = Rc::new(empty_label);
-
-    let rebuild_block = Rc::new(RefCell::new(false));
-    let search_q = Rc::new(RefCell::new(String::new()));
-    // Match other Settings pages: clear the slot inside the timeout body so we
-    // never `SourceId::remove()` a timer that has already fired (that aborts).
+    let filtered = Rc::new(filtered);
+    let filter = Rc::new(filter);
+    let store = Rc::new(store);
     let debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+    let gen: Rc<RefCell<u64>> = Rc::new(RefCell::new(0));
 
-    // Drop Auto-covered / icon-noise keys left from earlier expand passes.
     prune_redundant_overrides();
+    refill_store(&store);
+    update_empty_state(&filtered, &empty_label, &query.borrow());
 
-    let rebuild_all: Rc<dyn Fn()> = {
-        let list_body = list_body.clone();
-        let rows = rows.clone();
+    {
+        let store = store.clone();
+        let filter = filter.clone();
+        let filtered = filtered.clone();
         let empty_label = empty_label.clone();
-        let rebuild_block = rebuild_block.clone();
-        let search_q = search_q.clone();
-        let debounce = debounce.clone();
-        Rc::new(move || {
-            // Cancel pending filter — it would `borrow` rows while we rebuild.
-            if let Some(id) = debounce.borrow_mut().take() {
+        let query = query.clone();
+        let install_debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+        apps::register_refresh(Rc::new(move || {
+            let mut slot = install_debounce.borrow_mut();
+            if let Some(id) = slot.take() {
                 id.remove();
             }
-            rebuild_list(
-                &list_body,
-                &rows,
-                &empty_label,
-                &rebuild_block,
-                &search_q.borrow(),
-            );
-        })
-    };
-
-    rebuild_all();
-    apps::register_refresh(rebuild_all.clone());
+            let store = store.clone();
+            let filter = filter.clone();
+            let filtered = filtered.clone();
+            let empty_label = empty_label.clone();
+            let query = query.clone();
+            let install_debounce = install_debounce.clone();
+            let id = glib::timeout_add_local(std::time::Duration::from_millis(750), move || {
+                *install_debounce.borrow_mut() = None;
+                refill_store(&store);
+                filter.changed(gtk::FilterChange::Different);
+                update_empty_state(&filtered, &empty_label, &query.borrow());
+                glib::ControlFlow::Break
+            });
+            *slot = Some(id);
+        }));
+    }
 
     search.connect_search_changed({
-        let search_q = search_q.clone();
-        let rows = rows.clone();
+        let filter = filter.clone();
+        let filtered = filtered.clone();
         let empty_label = empty_label.clone();
+        let query = query.clone();
         let debounce = debounce.clone();
+        let gen = gen.clone();
         move |entry| {
-            let new_q = entry.text().to_string();
-            if *search_q.borrow() == new_q {
-                return;
-            }
-            *search_q.borrow_mut() = new_q.clone();
+            let new_q = entry.text().trim().to_ascii_lowercase();
+            *gen.borrow_mut() += 1;
+            let my_gen = *gen.borrow();
 
             let mut slot = debounce.borrow_mut();
             if let Some(id) = slot.take() {
                 id.remove();
             }
-            let rows = rows.clone();
+            let filter = filter.clone();
+            let filtered = filtered.clone();
             let empty_label = empty_label.clone();
+            let query = query.clone();
             let debounce = debounce.clone();
-            let gen = new_q;
-            let id = glib::timeout_add_local(std::time::Duration::from_millis(80), move || {
+            let gen = gen.clone();
+            // Tiny debounce coalesces paste/bursts; filter itself is cheap.
+            let id = glib::timeout_add_local(std::time::Duration::from_millis(40), move || {
                 *debounce.borrow_mut() = None;
-                apply_filter(&rows, &empty_label, &gen);
+                if *gen.borrow() != my_gen {
+                    return glib::ControlFlow::Break;
+                }
+                *query.borrow_mut() = new_q.clone();
+                filter.changed(gtk::FilterChange::Different);
+                update_empty_state(&filtered, &empty_label, &new_q);
                 glib::ControlFlow::Break
             });
             *slot = Some(id);
@@ -119,8 +260,51 @@ pub fn build() -> gtk::Widget {
     scroller.upcast()
 }
 
-/// Remove noise keys and Auto-covered `"client"` overrides so decorations.json
-/// stays a small escape hatch (e.g. keep `mpv: server` only).
+fn update_empty_state(
+    filtered: &gtk::FilterListModel,
+    empty_label: &gtk::Label,
+    query: &str,
+) {
+    let none = filtered.n_items() == 0;
+    empty_label.set_visible(none && !query.is_empty());
+}
+
+fn refill_store(store: &gio::ListStore) {
+    store.remove_all();
+    for meta in load_metas() {
+        store.append(&glib::BoxedAnyObject::new(meta));
+    }
+}
+
+fn load_metas() -> Vec<AppMeta> {
+    let cfg = metis_config::load_decorations_config();
+    let mut apps = apps::list_apps();
+    let mut built: Vec<AppMeta> = apps
+        .drain(..)
+        .map(|entry| {
+            let candidates = entry.decoration_candidates();
+            let mode = cfg.mode_for_candidates(&candidates);
+            let search_text = format!("{} {}", entry.name, entry.id).to_lowercase();
+            AppMeta {
+                entry,
+                search_text,
+                candidates,
+                mode,
+            }
+        })
+        .collect();
+    built.sort_by(|a, b| match (a.mode.is_some(), b.mode.is_some()) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a
+            .entry
+            .name
+            .to_lowercase()
+            .cmp(&b.entry.name.to_lowercase()),
+    });
+    built
+}
+
 fn prune_redundant_overrides() {
     let mut cfg = metis_config::load_decorations_config();
     let before = cfg.overrides.len();
@@ -128,11 +312,6 @@ fn prune_redundant_overrides() {
         if is_noise_override_key(key) {
             return false;
         }
-        // Text Editor + Metis Settings are intentionally Metis SSD — drop
-        // accidental "App titlebar" forces from the bulk pass. Do NOT strip
-        // ordinary "client" overrides for apps Auto supposedly covers: Auto can
-        // still miss (app_id mismatch), and pruning made Settings toggles look
-        // like they never stick (Transmission).
         if matches!(
             key.as_str(),
             "org.gnome.texteditor"
@@ -168,7 +347,6 @@ fn is_noise_override_key(key: &str) -> bool {
         return true;
     }
     if k.contains('_') && k.chars().any(|c| c.is_ascii_hexdigit()) && k.contains('.') {
-        // Wine installer desktop-id noise: `87f4_notepad.0`
         if k.split('_').next().is_some_and(|p| p.len() <= 6) {
             return true;
         }
@@ -196,145 +374,66 @@ fn is_noise_override_key(key: &str) -> bool {
         || k.ends_with(".chm")
 }
 
-fn rebuild_list(
-    list_body: &gtk::Box,
-    rows: &Rc<RefCell<Vec<RowEntry>>>,
-    empty_label: &gtk::Label,
-    rebuild_block: &Rc<RefCell<bool>>,
-    query: &str,
-) {
-    while let Some(child) = list_body.first_child() {
-        list_body.remove(&child);
-    }
-    rows.borrow_mut().clear();
-
-    let cfg = metis_config::load_decorations_config();
-    let mut apps = apps::list_apps();
-    apps.sort_by(|a, b| {
-        let a_custom = cfg.mode_for_candidates(&a.decoration_candidates()).is_some();
-        let b_custom = cfg.mode_for_candidates(&b.decoration_candidates()).is_some();
-        match (a_custom, b_custom) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-        }
-    });
-
-    *rebuild_block.borrow_mut() = true;
-    let mut built = Vec::with_capacity(apps.len());
-    for entry in apps {
-        let search_text = format!("{} {}", entry.name, entry.id).to_lowercase();
-        let row = app_row(&entry, &cfg, rebuild_block);
-        list_body.append(&row);
-        built.push(RowEntry {
-            widget: row,
-            search_text,
-        });
-    }
-    list_body.append(empty_label);
-    *rebuild_block.borrow_mut() = false;
-    *rows.borrow_mut() = built;
-    apply_filter(rows, empty_label, query);
-}
-
-fn apply_filter(rows: &Rc<RefCell<Vec<RowEntry>>>, empty_label: &gtk::Label, query: &str) {
-    let Ok(rows) = rows.try_borrow() else {
-        // Rebuild in progress — skip this frame.
-        return;
-    };
-    let q = query.trim().to_lowercase();
-    let mut visible = 0usize;
-    for row in rows.iter() {
-        let show = q.is_empty() || row.search_text.contains(&q);
-        row.widget.set_visible(show);
-        if show {
-            visible += 1;
-        }
-    }
-    empty_label.set_visible(visible == 0);
-}
-
-fn app_row(
-    entry: &AppEntry,
-    cfg: &DecorationsConfig,
-    rebuild_block: &Rc<RefCell<bool>>,
-) -> gtk::Widget {
+fn build_row_shell() -> gtk::Box {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     row.set_hexpand(true);
     row.add_css_class("metis-settings-row");
 
     let image = gtk::Image::new();
     image.set_pixel_size(28);
-    if let Some(icon) = &entry.icon {
-        image.set_from_gicon(icon);
-    } else {
-        image.set_icon_name(Some("application-x-executable-symbolic"));
-    }
     row.append(&image);
 
     let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
     labels.set_hexpand(true);
     labels.set_valign(gtk::Align::Center);
-    let name = gtk::Label::new(Some(&entry.name));
+    let name = gtk::Label::new(None);
     name.set_xalign(0.0);
     name.set_ellipsize(gtk::pango::EllipsizeMode::End);
     labels.append(&name);
-    if cfg
-        .mode_for_candidates(&entry.decoration_candidates())
-        .is_some()
-    {
-        let badge = gtk::Label::new(Some("Customized"));
-        badge.set_xalign(0.0);
-        badge.add_css_class("metis-settings-hint");
-        labels.append(&badge);
-    }
+    let badge = gtk::Label::new(Some("Customized"));
+    badge.set_xalign(0.0);
+    badge.add_css_class("metis-settings-app-badge");
+    badge.set_visible(false);
+    labels.append(&badge);
     row.append(&labels);
 
-    let mode_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    mode_box.add_css_class("linked");
-    mode_box.set_halign(gtk::Align::End);
-    mode_box.set_valign(gtk::Align::Center);
+    let dd = gtk::DropDown::from_strings(&["Auto", "Metis titlebar", "App titlebar"]);
+    dd.set_valign(gtk::Align::Center);
+    dd.set_halign(gtk::Align::End);
+    row.append(&dd);
+    row
+}
 
-    let current = mode_to_index(cfg.mode_for_candidates(&entry.decoration_candidates()));
-    let candidates = Rc::new(entry.decoration_candidates());
-    let buttons: Rc<RefCell<Vec<gtk::ToggleButton>>> = Rc::new(RefCell::new(Vec::new()));
+fn row_parts(row: &gtk::Box) -> (gtk::Image, gtk::Label, gtk::Label, gtk::DropDown) {
+    let image = row
+        .first_child()
+        .and_downcast::<gtk::Image>()
+        .expect("titlebar row icon");
+    let labels = image
+        .next_sibling()
+        .and_downcast::<gtk::Box>()
+        .expect("titlebar row labels");
+    let name = labels
+        .first_child()
+        .and_downcast::<gtk::Label>()
+        .expect("titlebar row name");
+    let badge = name
+        .next_sibling()
+        .and_downcast::<gtk::Label>()
+        .expect("titlebar row badge");
+    let dd = labels
+        .next_sibling()
+        .and_downcast::<gtk::DropDown>()
+        .expect("titlebar row dropdown");
+    (image, name, badge, dd)
+}
 
-    for (idx, label) in ["Auto", "Metis", "App"].iter().enumerate() {
-        let btn = gtk::ToggleButton::with_label(label);
-        btn.set_active(idx as u32 == current);
-        if idx > 0 {
-            if let Some(first) = buttons.borrow().first() {
-                btn.set_group(Some(first));
-            }
-        }
-        buttons.borrow_mut().push(btn.clone());
+fn row_dropdown(row: &gtk::Box) -> gtk::DropDown {
+    row_parts(row).3
+}
 
-        let rebuild_block = rebuild_block.clone();
-        let candidates = candidates.clone();
-        let buttons_ref = buttons.clone();
-        btn.connect_toggled(move |btn| {
-            if *rebuild_block.borrow() || !btn.is_active() {
-                return;
-            }
-            let selected = buttons_ref
-                .borrow()
-                .iter()
-                .position(|b| b.is_active())
-                .unwrap_or(0) as u32;
-            let mode = index_to_mode(selected);
-            let mut cfg = metis_config::load_decorations_config();
-            cfg.set_for_candidates(&candidates, mode);
-            if let Err(err) = metis_config::save_decorations_config(&cfg) {
-                tracing::warn!(%err, "failed to save decorations.json");
-                return;
-            }
-            runtime::reload_decorations_async();
-        });
-        mode_box.append(&btn);
-    }
-
-    row.append(&mode_box);
-    row.upcast()
+fn row_badge(row: &gtk::Box) -> gtk::Label {
+    row_parts(row).2
 }
 
 fn mode_to_index(mode: Option<DecorationsOverride>) -> u32 {

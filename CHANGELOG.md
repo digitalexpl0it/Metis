@@ -10,21 +10,56 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 ### Added
 
 - **Settings → App titlebars** — searchable list of installed apps with
-  Auto / Metis titlebar / App titlebar overrides. Persists to
-  `~/.config/metis/decorations.json` (exact `app_id` keys) and reloads live via
-  `ReloadDecorations` (plus mtime poll). Built-in decoration heuristics remain
-  the Auto defaults; use overrides when an app double-chromes or lacks Metis
-  Auto / Metis / App linked toggles. Search filters existing rows (debounced)
-  instead of rebuilding the whole list per keystroke; debounce no longer
-  `remove()`s an already-fired timer (that aborted Settings). Candidate keys skip
-  themed-icon junk. Opening the page prunes Auto-covered / noise overrides from
-  `decorations.json`. Expanded built-in CSD heuristics cover Transmission,
-  Videos/Totem, Remmina, Thunderbird, and other common GTK apps. Opening App
-  titlebars no longer strips intentional `"client"` overrides (that made
-  Transmission look like Settings never stuck).
+  Auto / Metis / App DropDown overrides. Persists to
+  `~/.config/metis/decorations.json` and reloads live via `ReloadDecorations`
+  (plus mtime poll). Built-in heuristics remain Auto defaults. Search hides the
+  prebuilt browse list as one widget and paints only matching rows (per-row
+  show/hide of 100+ heavy rows stalled 10–20s per keystroke). Debounced ~120ms.
+
+### Changed
+
+- **Decoration Auto defaults from titlebar audit** — bare WM classes that needed
+  Force App/Metis titlebar (EOG, Evince, Blueman, update-manager, firmware-updater,
+  Extension Manager, Qt5/6ct, gnome-terminal, …) plus Claude/mpv SSD are now
+  built-in heuristics. `decorations.json` stays for personal overrides only.
+- **Settings page fade** — sidebar navigation crossfades between pages (~200ms;
+  skipped when GTK animations are disabled).
 
 ### Fixed
 
+- **Remote access button padding** — Connection actions sat flush on the card
+  edge; they now use the shared section actions inset.
+- **Background wallpapers listed twice** — Settings scanned both
+  `/usr/share/metis/wallpapers` and the build-tree `assets/wallpapers`, so each
+  bundled image appeared twice. Prefer packaged dirs and skip duplicate basenames.
+- **App titlebars double scrollbar** — page + list both scrolled; the page is
+  fixed and only the applications `ListView` scrolls.
+- **App titlebars search lag** — replaced the `ListBox` filter (still remeasured
+  every DropDown row) with a virtualized `ListView` + `FilterListModel` so typing
+  only changes the filter; widgets exist only for on-screen rows.
+- **Screenshot Selection icon / mode pills** — `select-rect-symbolic` is missing
+  on Yaru/Adwaita (blank icon); switched to `edit-select-symbolic`. Mode toggles
+  are fixed square hit-targets so the checked highlight is circular, not stretched.
+- **Screenshot options gear theme** — the Capture toolbar settings control is a
+  `MenuButton`; CSS only targeted `button`, so Adwaita’s grey chip stuck in both
+  light and dark. It now follows Metis toolbar tokens.
+- **App titlebars list theme** — the applications `ListBox` was using raw
+  Adwaita chrome (wrong dark grey; stayed dark in light mode). It now follows
+  Metis surface tokens with zebra-striped rows and readable labels.
+- **Tray overlay early scrollbar** — the Background apps popover grew a
+  scrollbar after ~2 icons because it was capped near one row. It now sizes to
+  content: 1 icon is compact, expands to a **5×3** grid (15 icons), then scrolls.
+- **Claude / bare Electron chromeless** — Claude Desktop reports Wayland
+  `app_id` `electron` and disables its custom titlebar; Auto now gives Metis SSD
+  instead of treating bare `electron` as CSD.
+- **Wine / Cheat Engine no titlebar** — Auto no longer classifies every `*.exe`
+  as CSD. Wine classes default to Metis SSD; Settings overrides also match
+  `cheat engine.exe` ↔ `cheatengine-x86_64-*.exe` (alphanumeric stem).
+- **LibreOffice opens tiny** — splash-sized saved geometry (e.g. `soffice`
+  ~580×180) is ignored on restore; usable save floor is 480×320.
+- **Splash screens tiled** — X11 Splash / `*splash*` / `frmCE*` windows keep
+  their natural size instead of stretching into the app's saved main geometry
+  (LibreOffice / Cheat Engine / DBeaver boot images no longer tile).
 - **Double titlebar on App Center / Help / LibreOffice / Mousepad** — known
   client-decorated apps (and `org.gnome.*` / `org.xfce.*` / LibreOffice /
   snap-store ids) now keep native chrome even when they request

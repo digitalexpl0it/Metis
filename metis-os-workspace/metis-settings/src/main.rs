@@ -80,7 +80,15 @@ fn build_ui(app: &gtk::Application, page: Option<String>) {
 
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
-    stack.set_transition_duration(0);
+    // Soft fade between sidebar pages. Skip when the user has animations off.
+    let fade_ms = if gtk::Settings::default()
+        .is_some_and(|s| s.is_gtk_enable_animations())
+    {
+        200
+    } else {
+        0
+    };
+    stack.set_transition_duration(fade_ms);
     stack.set_hexpand(true);
     stack.set_vexpand(true);
 

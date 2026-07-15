@@ -238,9 +238,9 @@ fn build_toolbar(
     let mode_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     mode_box.add_css_class("metis-screenshot-mode");
 
-    let selection_btn = mode_button("select-rect-symbolic", "Selection");
+    let selection_btn = mode_button("edit-select-symbolic", "Selection");
     let screen_btn = mode_button("view-fullscreen-symbolic", "Full screen");
-    let window_btn = mode_button("window-symbolic", "Window");
+    let window_btn = mode_button("window-new-symbolic", "Window");
     mode_box.append(&selection_btn);
     mode_box.append(&screen_btn);
     mode_box.append(&window_btn);
@@ -323,9 +323,15 @@ fn build_toolbar(
 
 fn mode_button(icon_name: &str, tooltip: &str) -> gtk::ToggleButton {
     let btn = gtk::ToggleButton::new();
-    btn.set_child(Some(&crate::ui::icons::image(icon_name)));
+    let image = crate::ui::icons::image(icon_name);
+    image.set_pixel_size(18);
+    btn.set_child(Some(&image));
     btn.set_tooltip_text(Some(tooltip));
     btn.add_css_class("metis-screenshot-mode-btn");
+    // Square hit target so border-radius: 999px reads as a circle, not a stretched pill.
+    btn.set_size_request(36, 36);
+    btn.set_halign(gtk::Align::Center);
+    btn.set_valign(gtk::Align::Center);
     btn
 }
 

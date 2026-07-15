@@ -51,6 +51,14 @@ const SSD_APP_IDS: &[&str] = &[
     "io.github.shiftkey.GitHubDesktop",
     "com.github.GitHubDesktop",
     "github desktop",
+    // Generic Electron shells (Claude Desktop, …) often report bare `electron`
+    // and bind xdg-decoration before drawing any chrome.
+    "electron",
+    // Claude Desktop StartupWMClass / desktop basename (when not reporting `electron`).
+    "claude",
+    "claude-desktop",
+    // Media players with no native Wayland chrome.
+    "mpv",
 ];
 
 /// Built-in headerbar — never draw Metis SSD on top (non-GNOME / non-prefix
@@ -88,16 +96,38 @@ const CSD_APP_IDS: &[&str] = &[
     "org.xfce.thunar",
     "thunar-settings",
     "org.xfce.thunar-settings",
+    "thunar-volman-settings",
     // Common GNOME apps that report bare Exec basenames as Wayland/X11 class.
     "seahorse",
     "rhythmbox",
     "shotwell",
     "totem",
+    "eog",
+    "evince",
+    "simple-scan",
+    "gnome-disks",
+    "gnome-terminal",
     "gnome-power-statistics",
     "gnome-control-center",
     "gnome-language-selector",
     "gnome-session-properties",
     "protontricks",
+    // Ubuntu / GNOME settings helpers (bare Exec / StartupWMClass).
+    "blueman",
+    "blueman-manager",
+    "nm-connection-editor",
+    "update-manager",
+    "system-software-update",
+    "software-properties-gtk",
+    "software-properties-drivers",
+    "jockey",
+    "firmware-updater",
+    "firmware-updater_firmware-updater",
+    "extension-manager",
+    "com.mattjakeman.extensionmanager",
+    // Qt config tools draw their own frame.
+    "qt5ct",
+    "qt6ct",
     // Common third-party / Ubuntu GTK apps (bare WM class).
     "transmission",
     "transmission-gtk",
@@ -235,10 +265,10 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     if id.starts_with("org.remmina.") {
         return true;
     }
-    // Wine / Proton helper windows usually draw their own frame.
-    if id.ends_with(".exe") || id.starts_with("wine-") {
-        return true;
-    }
+    // Wine / Proton `.exe` classes are intentionally NOT marked CSD. Many Win32
+    // apps (Cheat Engine, …) set Motif "no decorations" and draw no Linux chrome,
+    // so Auto leaves them frameless — Metis SSD is the right default. Users who
+    // hit double-chrome on a self-decorating Wine title can Force App titlebar.
     // LibreOffice modules: reverse-DNS or `libreoffice-*` / `soffice` WM class.
     if id.starts_with("org.libreoffice.")
         || id.starts_with("libreoffice-")
@@ -257,10 +287,24 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     {
         return true;
     }
+    // Bare `electron` / `Electron` is what Claude Desktop (and other frameless
+    // Electron shells) often report as Wayland app_id — they draw no titlebar
+    // (`--disable-features=CustomTitlebar` / `ELECTRON_USE_SYSTEM_TITLE_BAR`).
+    // Only treat ids that embed "electron" as part of a larger name (or Cursor /
+    // VS Code) as native-CSD candidates.
+    if id == "electron" {
+        return false;
+    }
     id.contains("electron")
         || id.contains("cursor")
         || id.ends_with(".code")
         || id == "code"
+}
+
+/// Wine / Proton X11 class (`*.exe`, `wine-*`).
+pub fn id_looks_wine(app_id: &str) -> bool {
+    let id = norm_app_id(app_id);
+    id.ends_with(".exe") || id.starts_with("wine-")
 }
 
 /// Whether Metis should own window chrome for this client.
@@ -393,6 +437,40 @@ mod tests {
             true,
             None,
         ));
+    }
+
+    #[test]
+    fn ubuntu_settings_stragglers_keep_csd() {
+        for id in [
+            "eog",
+            "evince",
+            "blueman",
+            "blueman-manager",
+            "nm-connection-editor",
+            "update-manager",
+            "software-properties-gtk",
+            "firmware-updater",
+            "extension-manager",
+            "com.mattjakeman.extensionmanager",
+            "qt5ct",
+            "gnome-terminal",
+            "simple-scan",
+            "thunar-volman-settings",
+        ] {
+            assert!(
+                !resolve_uses_ssd(Some(id), Some(DecorationMode::ServerSide), true, None),
+                "{id} should keep client chrome under Auto"
+            );
+        }
+    }
+
+    #[test]
+    fn claude_and_mpv_use_metis_ssd() {
+        assert!(resolve_uses_ssd(Some("claude"), None, true, None));
+        assert!(resolve_uses_ssd(Some("claude-desktop"), None, true, None));
+        assert!(resolve_uses_ssd(Some("mpv"), None, false, None));
+        assert!(!id_looks_csd("claude"));
+        assert!(!id_looks_csd("mpv"));
     }
 
     #[test]
@@ -556,6 +634,27 @@ mod tests {
             );
             assert!(!id_looks_csd(id), "{id} must not be treated as native CSD");
         }
+    }
+
+    #[test]
+    fn bare_electron_uses_metis_ssd() {
+        assert!(resolve_uses_ssd(Some("electron"), None, true, None));
+        assert!(resolve_uses_ssd(
+            Some("electron"),
+            Some(DecorationMode::ServerSide),
+            true,
+            None
+        ));
+        assert!(!id_looks_csd("electron"));
+        assert!(id_looks_ssd("electron"));
+    }
+
+    #[test]
+    fn wine_exe_is_not_auto_csd() {
+        assert!(!id_looks_csd("cheatengine-x86_64-sse4-avx2.exe"));
+        assert!(id_looks_wine("cheatengine-x86_64-sse4-avx2.exe"));
+        assert!(id_looks_wine("notepad.exe"));
+        assert!(!id_looks_wine("kitty"));
     }
 
     #[test]

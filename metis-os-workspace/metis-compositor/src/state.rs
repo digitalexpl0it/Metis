@@ -85,10 +85,19 @@ const CENTERED_FLOAT_TITLES: &[&str] = &["Metis Settings"];
 /// Default size for a centered floating app when nothing is saved yet.
 const DEFAULT_FLOAT_W: i32 = 900;
 const DEFAULT_FLOAT_H: i32 = 660;
-/// Smallest width/height (logical px) considered a valid persisted window size.
-/// Guards against stale degenerate entries (e.g. a 1x1 saved by a window torn
-/// down before it ever got a buffer) reopening as an unusable sliver.
-const MIN_SAVED_WINDOW_PX: i32 = 120;
+/// Splash / dialog floors: ignore saved geometry shorter than this so LibreOffice
+/// `soffice` splash (~580×180) does not reopen Calc/Writer as a tiny strip.
+const MIN_USABLE_SAVED_W: i32 = 480;
+const MIN_USABLE_SAVED_H: i32 = 320;
+
+fn saved_size_is_usable(width: i32, height: i32) -> bool {
+    width >= MIN_USABLE_SAVED_W && height >= MIN_USABLE_SAVED_H
+}
+
+fn title_looks_like_splash(title: &str) -> bool {
+    let t = title.trim().to_ascii_lowercase();
+    t.contains("splash") || t.starts_with("frmce")
+}
 
 /// Per-output desktop state. Each output (monitor) owns an independent set of
 /// virtual workspaces: its visible grid (`layout`), which workspace is showing
@@ -1393,6 +1402,10 @@ impl MetisState {
                 true
             } else if app_id.is_some_and(crate::decoration_policy::id_looks_csd) {
                 false
+            } else if app_id.is_some_and(crate::decoration_policy::id_looks_wine) {
+                // Win32-on-Wine: Motif "no decorations" usually means "no Linux
+                // frame" rather than "I draw GTK chrome" — default to Metis SSD.
+                true
             } else {
                 record.x11().map(|x11| !x11.is_decorated()).unwrap_or(true)
             }
@@ -5590,7 +5603,7 @@ impl MetisState {
             let rect = app_id
                 .and_then(|a| self.window_state.get(a))
                 .map(|saved| saved.to_rect())
-                .filter(|r| r.width >= MIN_SAVED_WINDOW_PX && r.height >= MIN_SAVED_WINDOW_PX)
+                .filter(|r| saved_size_is_usable(r.width, r.height))
                 .map(|saved| self.restore_body_for_window(id, saved))
                 .unwrap_or_else(|| {
                     self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H)
@@ -5618,15 +5631,14 @@ impl MetisState {
             if let Some(app_id) = app_id {
                 if let Some(saved) = self.window_state.get(app_id) {
                     let saved_rect = saved.to_rect();
-                    if saved_rect.width >= MIN_SAVED_WINDOW_PX
-                        && saved_rect.height >= MIN_SAVED_WINDOW_PX
-                    {
+                    if saved_size_is_usable(saved_rect.width, saved_rect.height) {
                         let rect = self.restore_body_for_window(id, saved_rect);
                         self.windows.set_target_rect(id, rect);
                         self.windows.set_placement_chosen(id, true);
                         tracing::info!(id, ?rect, "place_new_window: restored saved geometry");
                         return true;
                     }
+                    // Drop splash-sized / unusable saves so the next open uses default.
                     self.window_state.remove(app_id);
                 }
                 // app_id known but nothing saved: first launch, center and lock.
@@ -5678,6 +5690,19 @@ impl MetisState {
         let Some(app_id) = record.app_id.clone() else {
             return;
         };
+        // Splash / boot screens share the main app's WM_CLASS — never let their
+        // tiny (or temporarily enlarged) footprint overwrite the real save.
+        if title_looks_like_splash(&record.title) {
+            return;
+        }
+        if record.is_x11 {
+            if let Some(x11) = record.x11() {
+                use smithay::xwayland::xwm::WmWindowType;
+                if matches!(x11.window_type(), Some(WmWindowType::Splash)) {
+                    return;
+                }
+            }
+        }
         // Prefer the live mapped geometry (captures user resizes); for a maximized
         // or snapped window save its pre-snap rect so it reopens at a sane float size.
         let rect = if record.maximized || record.snapped {
@@ -5693,10 +5718,9 @@ impl MetisState {
         } else {
             record.target_rect
         };
-        // Never persist a degenerate size (e.g. a window torn down before it ever
-        // got a real buffer would save 1x1, which then reopens as an unusable
-        // sliver). Keep the previous good value instead.
-        if rect.width < MIN_SAVED_WINDOW_PX || rect.height < MIN_SAVED_WINDOW_PX {
+        // Never persist a degenerate or splash-sized footprint (LibreOffice
+        // `soffice` splash was ~580×180 and reopened Calc as a strip).
+        if !saved_size_is_usable(rect.width, rect.height) {
             return;
         }
         self.window_state
@@ -8066,7 +8090,20 @@ impl MetisState {
         // X11 windows are floating; never reserve a grid tile for them.
         self.floating.insert(id);
         self.refresh_window_decoration_mode(id);
-        self.place_x11_window(id, window.geometry().size, app_id.as_deref());
+        let is_splash = {
+            use smithay::xwayland::xwm::WmWindowType;
+            matches!(window.window_type(), Some(WmWindowType::Splash))
+                || title_looks_like_splash(&title)
+        };
+        // Splash screens share the main app's WM_CLASS — force natural size so we
+        // don't stretch/tile a small bitmap into the saved main-window geometry.
+        if is_splash {
+            // Prefer no Metis chrome on boot splash; keep Motif/heuristic unless the
+            // user forced SSD (already applied above). Splash bitmaps often look wrong
+            // under a titlebar inset.
+            tracing::info!(id, %title, "x11: splash window — natural size placement");
+        }
+        self.place_x11_window(id, window.geometry().size, app_id.as_deref(), is_splash);
         self.apply_window_rect(id);
         self.windows.set_ready(id, true);
         let _ = window.set_activated(true);
@@ -8093,21 +8130,44 @@ impl MetisState {
 
     /// Floating placement for a freshly mapped X11 window: restore saved geometry
     /// when the app has been seen before, otherwise center the client's natural
-    /// size under the bar. Placement is locked in afterward.
-    fn place_x11_window(&mut self, id: u32, natural: Size<i32, Logical>, app_id: Option<&str>) {
+    /// size under the bar. Splash windows always keep their natural size.
+    fn place_x11_window(
+        &mut self,
+        id: u32,
+        natural: Size<i32, Logical>,
+        app_id: Option<&str>,
+        is_splash: bool,
+    ) {
+        if is_splash {
+            let w = if natural.w > 0 {
+                natural.w
+            } else {
+                DEFAULT_FLOAT_W / 2
+            };
+            let h = if natural.h > 0 {
+                natural.h
+            } else {
+                DEFAULT_FLOAT_H / 3
+            };
+            let rect = self.centered_body_for_window(id, w, h);
+            self.windows.set_target_rect(id, rect);
+            self.windows.set_placement_chosen(id, true);
+            return;
+        }
         if let Some(app_id) = app_id {
             if let Some(saved) = self.window_state.get(app_id) {
                 let saved_rect = saved.to_rect();
-                if saved_rect.width >= MIN_SAVED_WINDOW_PX
-                    && saved_rect.height >= MIN_SAVED_WINDOW_PX
-                {
+                if saved_size_is_usable(saved_rect.width, saved_rect.height) {
                     let rect = self.restore_body_for_window(id, saved_rect);
                     self.windows.set_target_rect(id, rect);
                     self.windows.set_placement_chosen(id, true);
                     return;
                 }
+                self.window_state.remove(app_id);
             }
         }
+        // Honor the client's requested size when available — enlarging a splash /
+        // dialog to DEFAULT_FLOAT makes toolbar bitmaps tile across a huge window.
         let w = if natural.w > 0 {
             natural.w
         } else {
