@@ -486,6 +486,14 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-keybind-editable {{
             padding: 0 8px 8px;
         }}
+        .metis-keybind-capture {{
+            padding: 4px 8px 0;
+        }}
+        .metis-keybind-capture-entry {{
+            font-family: monospace;
+            font-size: 12px;
+            min-width: 140px;
+        }}
         .metis-settings-display-chip {{
             padding: 8px 12px;
             border-radius: {rs}px;

@@ -3,8 +3,12 @@
 use metis_grid::PixelRect;
 use smithay::utils::{Logical, Point};
 
-/// Whether compositor window animations are enabled (`bar.json`).
+/// Whether compositor window animations are enabled (`bar.json`), suppressed in
+/// VM compatibility graphics mode.
 pub fn animations_enabled() -> bool {
+    if metis_config::session_graphics_compatibility() {
+        return false;
+    }
     metis_config::load_bar_config().window_animations
 }
 

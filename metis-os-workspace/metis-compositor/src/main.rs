@@ -305,18 +305,30 @@ fn update_standalone_activation_env(display: &str) {
         std::env::set_var("NO_AT_BRIDGE", "1");
     }
     let gsk_renderer = std::env::var("GSK_RENDERER").unwrap_or_else(|_| "cairo".into());
-    push_activation_environment(&[
-        &format!("WAYLAND_DISPLAY={display}"),
-        "GTK_A11Y=none",
-        "NO_AT_BRIDGE=1",
-        "GDK_BACKEND=wayland",
-        // Do not push GSK_RENDERER into the activation environment — it forced
-        // Cairo (software) rendering on every D-Bus-launched GTK app. The shell
-        // alone opts into Cairo via apply_spawned_client_env when spawned.
-        &format!("METIS_SHELL_GSK_RENDERER={gsk_renderer}"),
-        "XDG_CURRENT_DESKTOP=Metis:GNOME",
-        "XDG_SESSION_DESKTOP=metis",
-    ]);
+    let profile = metis_config::load_graphics_profile();
+    let compat = metis_config::effective_graphics_compatibility(profile);
+    let profile_label = metis_config::effective_graphics_profile_label(profile);
+    let theme_mode = metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
+    let mut vars = vec![
+        format!("WAYLAND_DISPLAY={display}"),
+        "GTK_A11Y=none".into(),
+        "NO_AT_BRIDGE=1".into(),
+        "GDK_BACKEND=wayland".into(),
+        format!("METIS_SHELL_GSK_RENDERER={gsk_renderer}"),
+        format!("METIS_GRAPHICS_PROFILE={profile_label}"),
+        "XDG_CURRENT_DESKTOP=Metis:GNOME".into(),
+        "XDG_SESSION_DESKTOP=metis".into(),
+    ];
+    // Compatibility: push Cairo for D-Bus-activated GTK apps. Normal mode leaves
+    // GSK unset so apps can use GL.
+    if compat {
+        vars.push("GSK_RENDERER=cairo".into());
+    }
+    if let Some(gtk_theme) = metis_config::appearance_gtk_theme_env(theme_mode) {
+        vars.push(format!("GTK_THEME={gtk_theme}"));
+    }
+    let refs: Vec<&str> = vars.iter().map(String::as_str).collect();
+    push_activation_environment(&refs);
 }
 
 /// Start the Metis Settings portal backend, then the xdp front-end.

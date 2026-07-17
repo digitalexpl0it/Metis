@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use ashpd::{
     PortalError,
@@ -24,9 +25,13 @@ const KEY_GTK_THEME: &str = "gtk-theme";
 /// leave a partial headerbar visible alongside Metis SSD on misclassified apps.
 const GNOME_CSD_BUTTON_LAYOUT: &str = "icon:minimize,maximize,close";
 
+static SETTINGS_EMITTER: OnceLock<Mutex<Option<Arc<dyn SettingsSignalEmitter>>>> = OnceLock::new();
+static THEME_WATCH_STARTED: OnceLock<()> = OnceLock::new();
+
 struct Snapshot {
     color_scheme: ColorScheme,
     gtk_theme: String,
+    mode: ThemeMode,
 }
 
 impl Snapshot {
@@ -35,6 +40,7 @@ impl Snapshot {
         Self {
             color_scheme: color_scheme_for(&mode),
             gtk_theme: gtk_theme_for(&mode),
+            mode,
         }
     }
 }
@@ -48,9 +54,9 @@ fn color_scheme_for(mode: &ThemeMode) -> ColorScheme {
 }
 
 fn gtk_theme_for(mode: &ThemeMode) -> String {
+    // Libadwaita uses color-scheme for dark/light; `Adwaita-dark` is obsolete.
     match mode {
-        ThemeMode::Light => "Adwaita".into(),
-        ThemeMode::Dark | ThemeMode::System => "Adwaita-dark".into(),
+        ThemeMode::Dark | ThemeMode::Light | ThemeMode::System => "Adwaita".into(),
     }
 }
 
@@ -107,6 +113,65 @@ fn read_key(snapshot: &Snapshot, namespace: &str, key: &str) -> Result<OwnedValu
     }
 }
 
+fn emitter_slot() -> &'static Mutex<Option<Arc<dyn SettingsSignalEmitter>>> {
+    SETTINGS_EMITTER.get_or_init(|| Mutex::new(None))
+}
+
+async fn emit_appearance(snapshot: &Snapshot) {
+    let emitter = {
+        let guard = match emitter_slot().lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.clone()
+    };
+    let Some(emitter) = emitter else {
+        return;
+    };
+    if let Err(err) = emitter
+        .emit_color_scheme_changed(snapshot.color_scheme)
+        .await
+    {
+        tracing::warn!(%err, "portal: emit color-scheme failed");
+    }
+    if let Err(err) = emitter
+        .emit_changed(NS_INTERFACE, KEY_GTK_THEME, Value::from(snapshot.gtk_theme.as_str()))
+        .await
+    {
+        tracing::warn!(%err, "portal: emit gtk-theme failed");
+    }
+}
+
+fn ensure_theme_watch() {
+    if THEME_WATCH_STARTED.set(()).is_err() {
+        return;
+    }
+    tokio::spawn(async {
+        // Session start: push gsettings so early GTK apps see Metis dark/light.
+        metis_config::sync_session_appearance_from_config();
+        let mut last = load_theme_preference()
+            .unwrap_or(ThemeMode::Dark)
+            .clone();
+        // Emit once so portal clients that subscribe after connect get a baseline.
+        emit_appearance(&Snapshot::from_config()).await;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            interval.tick().await;
+            let mode = load_theme_preference().unwrap_or(ThemeMode::Dark);
+            if mode == last {
+                continue;
+            }
+            last = mode.clone();
+            let snapshot = Snapshot::from_config();
+            metis_config::apply_session_appearance_gsettings(snapshot.mode.clone());
+            emit_appearance(&snapshot).await;
+            tracing::info!(?mode, "portal: appearance updated from config");
+        }
+    });
+}
+
+#[derive(Default)]
 pub struct MetisSettings;
 
 #[async_trait]
@@ -140,5 +205,10 @@ impl SettingsImpl for MetisSettings {
         read_key(&snapshot, namespace, key)
     }
 
-    fn set_signal_emitter(&mut self, _signal_emitter: std::sync::Arc<dyn SettingsSignalEmitter>) {}
+    fn set_signal_emitter(&mut self, signal_emitter: std::sync::Arc<dyn SettingsSignalEmitter>) {
+        if let Ok(mut slot) = emitter_slot().lock() {
+            *slot = Some(signal_emitter);
+        }
+        ensure_theme_watch();
+    }
 }

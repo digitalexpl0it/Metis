@@ -25,13 +25,15 @@ pub struct MenuConfig {
 }
 
 /// Known terminal emulators in auto-detect preference order: `(binary, label)`.
+/// Kitty is first — Metis ships it as a package dependency and prefers it when
+/// Settings → Menu terminal is left on auto-detect.
 pub const KNOWN_TERMINALS: &[(&str, &str)] = &[
+    ("kitty", "kitty"),
     ("kgx", "GNOME Console"),
     ("gnome-terminal", "GNOME Terminal"),
     ("konsole", "Konsole"),
     ("foot", "foot"),
     ("alacritty", "Alacritty"),
-    ("kitty", "kitty"),
     ("wezterm", "WezTerm"),
     ("xterm", "xterm"),
 ];

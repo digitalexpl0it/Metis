@@ -106,6 +106,8 @@ pub enum BarWidgetId {
     /// Clipboard history (text + image previews).
     Clipboard,
     Weather,
+    /// Removable USB / SD / optical / ISO volumes (Gio VolumeMonitor).
+    RemovableVolumes,
     /// System tray (StatusNotifierItem) host.
     Tray,
 }
@@ -454,6 +456,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Workspaces,
         BarWidgetId::Tasks,
         BarWidgetId::Spacer,
+        BarWidgetId::RemovableVolumes,
         BarWidgetId::Tray,
         BarWidgetId::Weather,
         BarWidgetId::Battery,
@@ -659,6 +662,44 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                 if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
                     let _ = std::fs::write(bar_config_path(), json);
                 }
+            }
+        }
+    }
+
+    // Removable volumes sit immediately left of the tray.
+    if !cfg.widgets.contains(&BarWidgetId::RemovableVolumes) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Tray))
+            .unwrap_or_else(|| {
+                cfg.widgets
+                    .iter()
+                    .position(|w| matches!(w, BarWidgetId::Weather))
+                    .unwrap_or(cfg.widgets.len())
+            });
+        cfg.widgets.insert(pos, BarWidgetId::RemovableVolumes);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    } else if let (Some(tray_pos), Some(vol_pos)) = (
+        cfg.widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Tray)),
+        cfg.widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::RemovableVolumes)),
+    ) {
+        if vol_pos != tray_pos.saturating_sub(1) {
+            cfg.widgets.remove(vol_pos);
+            let insert_at = cfg
+                .widgets
+                .iter()
+                .position(|w| matches!(w, BarWidgetId::Tray))
+                .unwrap_or(cfg.widgets.len());
+            cfg.widgets.insert(insert_at, BarWidgetId::RemovableVolumes);
+            if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+                let _ = std::fs::write(bar_config_path(), json);
             }
         }
     }

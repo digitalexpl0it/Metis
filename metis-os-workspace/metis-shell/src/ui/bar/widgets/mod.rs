@@ -6,6 +6,7 @@ mod clipboard;
 pub mod sys;
 mod tasks;
 mod tray;
+mod volumes;
 mod weather;
 pub mod workspaces;
 
@@ -27,6 +28,7 @@ pub(crate) use notifications::build_action_row;
 use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
 use tasks::TasksWidget;
 use tray::TrayWidget;
+use volumes::VolumesWidget;
 use weather::WeatherWidget;
 use workspaces::WorkspacesWidget;
 
@@ -42,6 +44,7 @@ pub struct WidgetRefs {
     clipboard: RefCell<Option<ClipboardWidget>>,
     weather: RefCell<Option<WeatherWidget>>,
     tray: RefCell<Option<TrayWidget>>,
+    removable_volumes: RefCell<Option<VolumesWidget>>,
 }
 
 impl WidgetRefs {
@@ -140,6 +143,7 @@ pub fn build(
         clipboard: RefCell::new(None),
         weather: RefCell::new(None),
         tray: RefCell::new(None),
+        removable_volumes: RefCell::new(None),
     };
 
     let cfg = config.borrow().clone();
@@ -196,6 +200,11 @@ pub fn build(
                 let w = TrayWidget::new(cfg.tray_icon_mode);
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.tray.borrow_mut() = Some(w);
+            }
+            BarWidgetId::RemovableVolumes => {
+                let w = VolumesWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.removable_volumes.borrow_mut() = Some(w);
             }
             BarWidgetId::Clock => {
                 let w = ClockWidget::new(&cfg.clock, compact);

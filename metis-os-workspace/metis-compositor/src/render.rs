@@ -363,6 +363,17 @@ impl MetisState {
         render_elements.extend(blur_elements.into_iter().map(OutputStack::Blur));
         if let Some(wallpaper) = wallpaper_owned {
             render_elements.push(OutputStack::Wallpaper(wallpaper));
+        } else if !skip_underlay {
+            // Clean boot / slow wallpaper decode: keep a dark fill so the splash
+            // logo never sits on an empty/white framebuffer.
+            let size = target.size;
+            render_elements.push(OutputStack::Overlay(SolidColorRenderElement::new(
+                self.desktop_underlay_id.clone(),
+                Rectangle::from_size(size),
+                self.desktop_underlay_commit,
+                Color32F::from([0.04, 0.05, 0.07, 1.0]),
+                Kind::Unspecified,
+            )));
         }
 
         // Night light is the topmost scene layer (cursor is drawn after the stack).

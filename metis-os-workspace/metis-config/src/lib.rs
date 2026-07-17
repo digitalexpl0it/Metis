@@ -11,8 +11,10 @@ pub mod decorations;
 pub mod game_rules;
 pub mod gaming;
 pub mod gpu_offload;
+pub mod graphics;
 pub mod input;
 pub mod keybinds;
+pub mod kitty;
 pub mod lock;
 pub mod menu;
 pub mod outputs;
@@ -38,10 +40,14 @@ pub struct AppConfig {
     pub gaming_setup_complete: bool,
     #[serde(default = "default_show_briefing")]
     pub show_briefing_on_login: bool,
+    /// Session UI graphics profile (Auto / Compatibility / Normal). Independent of
+    /// Gaming's PRIME `graphics_mode`.
+    #[serde(default)]
+    pub graphics_profile: graphics::GraphicsProfile,
 }
 
 fn default_theme() -> String {
-    "light".into()
+    "dark".into()
 }
 
 fn default_show_briefing() -> bool {
@@ -55,6 +61,7 @@ impl Default for AppConfig {
             onboarding_complete: false,
             gaming_setup_complete: false,
             show_briefing_on_login: default_show_briefing(),
+            graphics_profile: graphics::GraphicsProfile::default(),
         }
     }
 }
@@ -139,6 +146,66 @@ pub fn save_theme_preference(mode: ThemeMode) -> std::io::Result<()> {
     save_app_config(&cfg)
 }
 
+pub fn load_graphics_profile() -> graphics::GraphicsProfile {
+    load_app_config().graphics_profile
+}
+
+pub fn save_graphics_profile(profile: graphics::GraphicsProfile) -> std::io::Result<()> {
+    let mut cfg = load_app_config();
+    cfg.graphics_profile = profile;
+    save_app_config(&cfg)
+}
+
+/// `color-scheme` / `gtk-theme` values for `org.gnome.desktop.interface`.
+///
+/// Libadwaita apps (Nautilus, GNOME apps) ignore the obsolete `Adwaita-dark`
+/// theme name and follow `color-scheme` instead — keep `gtk-theme` as `Adwaita`
+/// and drive dark via `prefer-dark`.
+pub fn appearance_gsettings_values(mode: ThemeMode) -> (&'static str, &'static str) {
+    match mode {
+        ThemeMode::Dark => ("prefer-dark", "Adwaita"),
+        ThemeMode::Light => ("prefer-light", "Adwaita"),
+        ThemeMode::System => ("default", "Adwaita"),
+    }
+}
+
+/// `GTK_THEME` for spawned clients (`Adwaita:dark` / `Adwaita`). Helps GTK4 apps
+/// that do not yet read the Settings portal.
+pub fn appearance_gtk_theme_env(mode: ThemeMode) -> Option<&'static str> {
+    match mode {
+        ThemeMode::Dark => Some("Adwaita:dark"),
+        ThemeMode::Light => Some("Adwaita"),
+        ThemeMode::System => None,
+    }
+}
+
+/// Best-effort sync so non-Metis GTK apps follow Metis light/dark.
+pub fn apply_session_appearance_gsettings(mode: ThemeMode) {
+    let (scheme, gtk_theme) = appearance_gsettings_values(mode);
+    let _ = std::process::Command::new("gsettings")
+        .args([
+            "set",
+            "org.gnome.desktop.interface",
+            "color-scheme",
+            scheme,
+        ])
+        .status();
+    let _ = std::process::Command::new("gsettings")
+        .args([
+            "set",
+            "org.gnome.desktop.interface",
+            "gtk-theme",
+            gtk_theme,
+        ])
+        .status();
+}
+
+/// Apply gsettings from the persisted theme preference (session start / portal).
+pub fn sync_session_appearance_from_config() {
+    let mode = load_theme_preference().unwrap_or(ThemeMode::Dark);
+    apply_session_appearance_gsettings(mode);
+}
+
 pub fn mark_onboarding_complete() -> std::io::Result<()> {
     let mut cfg = load_app_config();
     cfg.onboarding_complete = true;
@@ -219,6 +286,10 @@ pub use gaming::{
 pub use gpu_offload::{
     detect_hybrid_gpu, display_gpu_pci, offload_env_vars, GpuOffloadKind, HybridGpuInfo,
 };
+pub use graphics::{
+    effective_graphics_compatibility, effective_graphics_profile_label, is_virtual_machine,
+    session_graphics_compatibility, GraphicsProfile,
+};
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
     ComposeKey, InputConfig, KeyboardConfig, MouseConfig, TouchpadConfig,
@@ -228,6 +299,7 @@ pub use keybinds::{
     reserved_system_rows, save_default_keybinds_config, save_keybinds_config, Chord, KeybindAction,
     KeybindGroup, KeybindsConfig, ModKey,
 };
+pub use kitty::{ensure_kitty_defaults, kitty_config_path, KITTY_DEFAULT_CONF};
 pub use bar::{
     bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarBorder,
     BarConfig, BarDisplays, BarPosition, BarWidgetId, BorderMode, ClockConfig, DefaultLayout,

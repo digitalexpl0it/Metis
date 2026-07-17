@@ -98,9 +98,16 @@ pub fn show_if_needed() {
         .is_some()
     {
         tracing::info!("onboarding skipped (METIS_NO_ONBOARDING)");
+        if let Err(err) = metis_config::ensure_kitty_defaults() {
+            tracing::warn!(%err, "failed to seed kitty.conf defaults");
+        }
         return;
     }
     if crate::config::load_app_config().onboarding_complete {
+        // Existing sessions: still seed kitty defaults if the user never had a conf.
+        if let Err(err) = metis_config::ensure_kitty_defaults() {
+            tracing::warn!(%err, "failed to seed kitty.conf defaults");
+        }
         return;
     }
     show();
@@ -329,6 +336,9 @@ fn park_off_screen(window: &gtk::Window) {
 
 fn dismiss(ob: Rc<RefCell<Onboarding>>) {
     apply_onboarding_gaming_prefs();
+    if let Err(err) = metis_config::ensure_kitty_defaults() {
+        tracing::warn!(%err, "failed to seed kitty.conf defaults");
+    }
     if let Err(err) = crate::config::mark_onboarding_complete() {
         tracing::warn!(%err, "failed to mark onboarding complete");
     }
@@ -1275,6 +1285,7 @@ fn apply_theme(mode: ThemeMode) {
     if let Err(err) = crate::config::save_theme_preference(mode) {
         tracing::warn!(%err, "failed to save theme preference");
     }
+    metis_config::apply_session_appearance_gsettings(mode);
     let _ = crate::ui::theme::init_theme();
 }
 

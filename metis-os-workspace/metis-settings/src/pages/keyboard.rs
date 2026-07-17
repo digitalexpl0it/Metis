@@ -1,7 +1,7 @@
 //! Keyboard layout, repeat, modifier remaps (`input.json`), and desktop
 //! shortcuts (`keybinds.json`) with capture UI.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::gdk;
@@ -206,8 +206,9 @@ fn build_shortcuts_section() -> gtk::Box {
     }
 
     body.append(&input_common::hint(
-        "Click Change, press a shortcut, then Save. Ctrl+Alt+F1–F12 and \
-         Ctrl+Alt+Backspace are system-only and cannot be changed.",
+        "Click Change, then press a shortcut in the field that appears, then Save. \
+         Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are system-only and \
+         cannot be changed.",
     ));
     body.append(&status);
 
@@ -319,10 +320,16 @@ fn editable_row(
     row.append(&top);
 
     let capture = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    capture.add_css_class("metis-keybind-capture");
     capture.set_visible(false);
-    let listen = gtk::Label::new(Some("Press a shortcut…"));
+    // Focusable entry so key events land here after Change (a Label never
+    // receives shortcuts reliably).
+    let listen = gtk::Entry::new();
+    listen.set_placeholder_text(Some("Press a shortcut…"));
+    listen.set_editable(false);
+    listen.set_can_focus(true);
     listen.set_hexpand(true);
-    listen.set_xalign(0.0);
+    listen.add_css_class("metis-keybind-capture-entry");
     let save = gtk::Button::with_label("Save");
     save.set_sensitive(false);
     let cancel = gtk::Button::with_label("Cancel");
@@ -332,6 +339,25 @@ fn editable_row(
     row.append(&capture);
 
     let candidate: Rc<RefCell<Option<Chord>>> = Rc::new(RefCell::new(None));
+    let capturing: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+
+    let end_capture = {
+        let capture = capture.clone();
+        let change_btn = change.clone();
+        let reset_btn = reset.clone();
+        let candidate = candidate.clone();
+        let capturing = capturing.clone();
+        let listen = listen.clone();
+        Rc::new(move || {
+            capturing.set(false);
+            capture.set_visible(false);
+            change_btn.set_sensitive(true);
+            reset_btn.set_sensitive(true);
+            listen.set_text("");
+            *candidate.borrow_mut() = None;
+            runtime::set_keybind_capture_async(false);
+        })
+    };
 
     {
         let capture = capture.clone();
@@ -340,30 +366,30 @@ fn editable_row(
         let listen = listen.clone();
         let save = save.clone();
         let candidate = candidate.clone();
+        let capturing = capturing.clone();
         let status = status.clone();
         change.connect_clicked(move |_| {
             status.set_visible(false);
+            capturing.set(true);
             capture.set_visible(true);
             change_btn.set_sensitive(false);
             reset_btn.set_sensitive(false);
-            listen.set_text("Press a shortcut…");
+            listen.set_text("");
+            listen.set_placeholder_text(Some("Press a shortcut…"));
             save.set_sensitive(false);
             *candidate.borrow_mut() = None;
             runtime::set_keybind_capture_async(true);
+            let listen = listen.clone();
+            glib::idle_add_local_once(move || {
+                let _ = listen.grab_focus();
+            });
         });
     }
 
     {
-        let capture = capture.clone();
-        let change_btn = change.clone();
-        let reset_btn = reset.clone();
-        let candidate = candidate.clone();
+        let end_capture = end_capture.clone();
         cancel.connect_clicked(move |_| {
-            capture.set_visible(false);
-            change_btn.set_sensitive(true);
-            reset_btn.set_sensitive(true);
-            *candidate.borrow_mut() = None;
-            runtime::set_keybind_capture_async(false);
+            end_capture();
         });
     }
 
@@ -384,11 +410,9 @@ fn editable_row(
     {
         let cfg = cfg.clone();
         let chord_lbl = chord_lbl.clone();
-        let capture = capture.clone();
-        let change_btn = change.clone();
-        let reset_btn = reset.clone();
         let candidate = candidate.clone();
         let status = status.clone();
+        let end_capture = end_capture.clone();
         save.connect_clicked(move |_| {
             let Some(chord) = candidate.borrow().clone() else {
                 return;
@@ -413,28 +437,27 @@ fn editable_row(
                 c.set_binding(action, chord);
             }
             chord_lbl.set_text(&cfg.borrow().chord_for(action).display());
-            capture.set_visible(false);
-            change_btn.set_sensitive(true);
-            reset_btn.set_sensitive(true);
-            *candidate.borrow_mut() = None;
-            runtime::set_keybind_capture_async(false);
+            end_capture();
             persist_keybinds(&cfg.borrow(), &status);
         });
     }
 
     let key = gtk::EventControllerKey::new();
+    key.set_propagation_phase(gtk::PropagationPhase::Capture);
     {
-        let capture = capture.clone();
         let listen = listen.clone();
         let save = save.clone();
         let candidate = candidate.clone();
         let status = status.clone();
+        let capturing = capturing.clone();
+        let end_capture = end_capture.clone();
         key.connect_key_pressed(move |_, keyval, _keycode, mods| {
-            if !capture.is_visible() {
+            if !capturing.get() {
                 return glib::Propagation::Proceed;
             }
             if keyval == gdk::Key::Escape {
-                return glib::Propagation::Proceed;
+                end_capture();
+                return glib::Propagation::Stop;
             }
             // Ignore pure modifier presses.
             if matches!(
@@ -449,6 +472,8 @@ fn editable_row(
                     | gdk::Key::Meta_R
                     | gdk::Key::Super_L
                     | gdk::Key::Super_R
+                    | gdk::Key::ISO_Level3_Shift
+                    | gdk::Key::Mode_switch
             ) {
                 return glib::Propagation::Stop;
             }
@@ -460,7 +485,8 @@ fn editable_row(
                     status.set_visible(false);
                 }
                 Err(err) => {
-                    listen.set_text(&err);
+                    listen.set_text("");
+                    listen.set_placeholder_text(Some(err.as_str()));
                     save.set_sensitive(false);
                     *candidate.borrow_mut() = None;
                 }
@@ -468,7 +494,7 @@ fn editable_row(
             glib::Propagation::Stop
         });
     }
-    row.add_controller(key);
+    listen.add_controller(key);
 
     row
 }

@@ -12,6 +12,7 @@ mod tray_watcher;
 pub mod secrets;
 pub mod weather;
 pub mod windows;
+mod volumes;
 mod workspaces;
 
 pub use applications::{watch_app_index, AppEntry};
@@ -46,6 +47,11 @@ pub use tray::{
     apply_event, register_context_menu_ready, register_refresh as register_tray_refresh,
     send_command, set_command_sender, snapshot as tray_snapshot, spawn_tray_service, sync_tray,
     IconPixmap, TrayCommand, TrayEvent, TrayItem, TraySnapshot,
+};
+pub use volumes::{
+    activate as volumes_activate, eject as volumes_eject, icon_name as volumes_icon_name,
+    mount_volume as volumes_mount, open_in_file_manager, register_refresh as register_volumes_refresh,
+    snapshot as volumes_snapshot, unmount as volumes_unmount, VolumeEntry, VolumeKind,
 };
 pub use weather::{last_weather_snapshot, spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
 pub use windows::refresh_taskbars;

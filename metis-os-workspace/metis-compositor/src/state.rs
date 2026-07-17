@@ -291,6 +291,9 @@ pub struct MetisState {
     /// the damage tracker treats it as one stable element across frames.
     pub(crate) snap_overlay_id: smithay::backend::renderer::element::Id,
     pub(crate) snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter,
+    /// Solid desktop fill when wallpaper texture is not ready yet (splash / boot).
+    pub(crate) desktop_underlay_id: smithay::backend::renderer::element::Id,
+    pub(crate) desktop_underlay_commit: smithay::backend::renderer::utils::CommitCounter,
     pub(crate) night_light_id: smithay::backend::renderer::element::Id,
     pub(crate) night_light_commit: smithay::backend::renderer::utils::CommitCounter,
     /// Last computed night-light effective state when schedule gating is on.
@@ -665,14 +668,32 @@ fn apply_spawned_client_env(
         }
     }
     cmd.env("GDK_BACKEND", "wayland");
-    // Only force the Cairo GSK backend for our own shell — it avoids GL hangs on
-    // some drivers during layer-shell setup. Other GTK apps should pick GL so they
-    // stay responsive; do not inherit the session-wide GSK_RENDERER default.
+    let profile = metis_config::load_graphics_profile();
+    let compat = metis_config::effective_graphics_compatibility(profile);
+    cmd.env(
+        "METIS_GRAPHICS_PROFILE",
+        metis_config::effective_graphics_profile_label(profile),
+    );
+    // Drive GTK4 / libadwaita clients to Metis light/dark even when the Settings
+    // portal is slow or unavailable (Nautilus, etc.).
+    let theme_mode = metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
+    match metis_config::appearance_gtk_theme_env(theme_mode) {
+        Some(gtk_theme) => {
+            cmd.env("GTK_THEME", gtk_theme);
+        }
+        None => {
+            cmd.env_remove("GTK_THEME");
+        }
+    }
+    // Shell always prefers Cairo for layer-shell stability unless overridden.
+    // Compatibility mode also forces Cairo for every other GTK client (VMs).
     if program.contains("metis-shell") {
         let renderer = std::env::var("METIS_SHELL_GSK_RENDERER")
             .or_else(|_| std::env::var("GSK_RENDERER"))
             .unwrap_or_else(|_| "cairo".into());
         cmd.env("GSK_RENDERER", renderer);
+    } else if compat {
+        cmd.env("GSK_RENDERER", "cairo");
     } else {
         cmd.env_remove("GSK_RENDERER");
     }
@@ -884,6 +905,8 @@ impl MetisState {
             clock: smithay::utils::Clock::new(),
             snap_overlay_id: smithay::backend::renderer::element::Id::new(),
             snap_overlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
+            desktop_underlay_id: smithay::backend::renderer::element::Id::new(),
+            desktop_underlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
             night_light_id: smithay::backend::renderer::element::Id::new(),
             night_light_commit: smithay::backend::renderer::utils::CommitCounter::default(),
             night_light_schedule_effective: None,

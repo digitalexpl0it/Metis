@@ -498,6 +498,11 @@ fn watch_compositor_dismiss() {
                 "reload-theme" => {
                     let _ = crate::ui::theme::init_theme();
                 }
+                "reload-graphics-profile" => {
+                    // Compositor re-reads AppConfig on client spawn / animation
+                    // checks; acknowledge so Settings does not leave a stale file.
+                    tracing::debug!("graphics profile reload acknowledged");
+                }
                 "reload-weather" => {
                     if !crate::ui::onboarding::is_active() {
                         crate::services::weather::weather_refresh();

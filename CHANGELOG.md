@@ -5,6 +5,43 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-16]
+
+### Added
+
+- **Graphics profile** — Settings → Windows dropdown (Auto / Compatibility /
+  Normal). Auto detects VMs (VirtualBox, VMware, KVM, …) and forces Cairo GSK
+  plus disables window animations so GTK apps stay usable on broken guest GL.
+  Normal overrides autodetection when hardware rendering works.
+- **Removable volumes on the edge bar** — USB / SD / optical / ISO icons appear
+  left of the system tray. Left-click opens in the configured file manager
+  (mounts/unlocks LUKS first when needed); right-click offers Open, Mount/Unlock,
+  Unmount, and Eject. Driven by Gio VolumeMonitor; recommends `udisks2` / `gvfs`.
+
+### Changed
+
+- **Fresh-install theme default** — new sessions default to Dark instead of Light
+  so the splash logo and Metis chrome match branding out of the box.
+- **Default terminal is kitty** — auto-detect prefers kitty first (Settings → Menu
+  picker unchanged). The `.deb` now `Depends: kitty` so it installs with Metis.
+- **Kitty transparency defaults** — onboarding finish/skip (and later sessions if
+  missing) seeds `~/.config/kitty/kitty.conf` with `background_opacity 0.75` and
+  `dynamic_background_opacity yes`. Existing kitty configs are never overwritten.
+
+### Fixed
+
+- **Settings shortcut capture** — Change never focused a key target, so presses
+  were ignored and Save stayed hidden/disabled. Capture now uses a focusable
+  field, grabs focus after Change, and Esc cancels.
+- **Splash / boot white flash** — compositor draws a solid dark underlay when the
+  wallpaper texture is not ready yet, so the splash never sits on an empty frame.
+- **GTK apps ignore Metis dark mode** — `metis-portal` now emits Settings
+  `SettingChanged` for color-scheme / gtk-theme, and Metis syncs
+  `org.gnome.desktop.interface` gsettings on theme change and portal start so
+  non-Metis GTK apps follow light/dark. Dark mode keeps `gtk-theme=Adwaita`
+  (not obsolete `Adwaita-dark`) and sets `GTK_THEME=Adwaita:dark` for spawned
+  clients so libadwaita apps like Nautilus pick up PreferDark reliably.
+
 ## [2026-07-14]
 
 ### Fixed

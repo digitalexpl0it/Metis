@@ -206,6 +206,7 @@ pub fn build() -> gtk::Widget {
             if let Err(err) = metis_config::save_theme_preference(mode.clone()) {
                 tracing::warn!(%err, "failed to save theme preference");
             }
+            metis_config::apply_session_appearance_gsettings(mode.clone());
             let name = effective_name(&mode);
             let tokens = metis_config::load_theme_tokens(&name);
             refresh_buttons(&buttons, &tokens, &suppress);

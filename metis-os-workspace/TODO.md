@@ -52,6 +52,8 @@ access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
       cached snapshot re-applied after bar rebuilds (no empty flash)
 - [x] System tray — collapsed popover vs pinned-on-bar modes; readable tooltips
       (SNI title / bus-name fallback); light-mode pixmap/symbolic icon rendering
+- [x] Removable volumes — USB / SD / optical / ISO icons left of tray; open in
+      file manager; Mount / Unlock (LUKS) / Unmount / Eject via Gio VolumeMonitor
 - [x] Light-mode bar popover styling — theme-token entries, buttons, and icon
       actions in dropdown panels (clock calendar, clipboard, network, notifications)
 - [x] Bundled default wallpapers (`default.png` … `default9.png`) listed in

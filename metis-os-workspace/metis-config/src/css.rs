@@ -57,7 +57,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     };
     // Splash / onboarding overlays: never hardcode dark charcoal — `{text}` /
     // `{muted}` follow the active theme, so a fixed dark card is unreadable in
-    // light mode (fresh-install default).
+    // light mode.
     let overlay_card_bg = if is_light {
         format!("rgba({raised_rgb}, 0.96)")
     } else {
@@ -620,6 +620,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-bar-tray-item image.metis-bar-tray-pixmap {{
         {tray_pixmap_filter}
+    }}
+
+    .metis-bar-volumes {{
+        spacing: 2px;
+    }}
+    button.metis-bar-volume-item {{
+        min-width: 28px;
+        min-height: 28px;
+        padding: 2px;
+    }}
+    .metis-bar-volumes-menu-item {{
+        padding: 6px 10px;
+        border-radius: {rs}px;
+    }}
+    .metis-bar-volumes-menu-item:hover {{
+        background-color: rgba({text_rgb}, 0.08);
     }}
 
     .metis-bar-task-pick.focused {{

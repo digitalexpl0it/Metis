@@ -85,6 +85,10 @@ async fn run_portal() -> ashpd::Result<()> {
         "starting Metis portal backend (Settings, Screenshot, ScreenCast, Background, PowerProfile)"
     );
 
+    // Push gsettings before any client queries Settings — Nautilus / libadwaita
+    // fall back to color-scheme when the portal answer is late.
+    metis_config::sync_session_appearance_from_config();
+
     let pipewire = Arc::new(pipewire::PipeWireHub::start()?);
     let capture = Arc::new(capture::CaptureHub::new(Arc::clone(&pipewire)));
 

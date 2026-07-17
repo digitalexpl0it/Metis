@@ -177,8 +177,8 @@ Architecture: ${ARCH}
 Installed-Size: ${installed_size}
 Maintainer: Metis Developers <metis@localhost>
 Homepage: https://github.com/digitalexpl0it/Metis
-Depends: libgtk-4-1, libadwaita-1-0, libglib2.0-0t64 | libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libssl3t64 | libssl3, libpam0g, libdisplay-info1, libeis1, xdg-desktop-portal
-Recommends: gnome-keyring, xdg-desktop-portal-gtk
+Depends: libgtk-4-1, libadwaita-1-0, libglib2.0-0t64 | libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libssl3t64 | libssl3, libpam0g, libdisplay-info1, libeis1, xdg-desktop-portal, kitty
+Recommends: gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse
 Suggests: gnome-remote-desktop, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer
 Description: Metis Wayland desktop environment
  Metis is a Wayland desktop environment built in Rust: a Smithay compositor,

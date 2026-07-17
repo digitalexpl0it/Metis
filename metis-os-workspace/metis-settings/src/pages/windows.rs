@@ -29,12 +29,40 @@ pub fn build() -> gtk::Widget {
 
     let anim_hint = gtk::Label::new(Some(
         "Minimize genie, maximize wobble, and titlebar slide effects. \
-         Turn off for instant window transitions.",
+         Turn off for instant window transitions. Compatibility graphics \
+         mode also disables animations in VMs.",
     ));
     anim_hint.set_xalign(0.0);
     anim_hint.set_wrap(true);
     anim_hint.add_css_class("metis-settings-hint");
     win_body.append(&anim_hint);
+
+    let graphics_profile = gtk::DropDown::from_strings(&[
+        "Auto (recommended)",
+        "Compatibility",
+        "Normal",
+    ]);
+    graphics_profile.set_selected(match metis_config::load_graphics_profile() {
+        metis_config::GraphicsProfile::Auto => 0,
+        metis_config::GraphicsProfile::Compatibility => 1,
+        metis_config::GraphicsProfile::Normal => 2,
+    });
+    win_body.append(&ui::row_with_icon(
+        "computer-symbolic",
+        "Graphics profile",
+        &graphics_profile,
+    ));
+
+    let gfx_hint = gtk::Label::new(Some(
+        "Auto uses software GTK painting in virtual machines (VirtualBox, etc.) \
+         so Settings and other GTK apps stay readable. Compatibility always \
+         forces that soft path; Normal forces hardware/GL. Already-running apps \
+         keep their renderer until relaunched.",
+    ));
+    gfx_hint.set_xalign(0.0);
+    gfx_hint.set_wrap(true);
+    gfx_hint.add_css_class("metis-settings-hint");
+    win_body.append(&gfx_hint);
 
     let window_gap = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 10.0, 1.0);
     window_gap.set_value(bar.window_gap_px.min(10) as f64);
@@ -231,6 +259,19 @@ pub fn build() -> gtk::Widget {
     // ---- Wiring -----------------------------------------------------------
     ui::defer_switch_active_notify(&window_animations, move |active| {
         update_bar(move |c| c.window_animations = active);
+    });
+    graphics_profile.connect_selected_notify(move |dd| {
+        let profile = match dd.selected() {
+            1 => metis_config::GraphicsProfile::Compatibility,
+            2 => metis_config::GraphicsProfile::Normal,
+            _ => metis_config::GraphicsProfile::Auto,
+        };
+        if let Err(err) = metis_config::save_graphics_profile(profile) {
+            tracing::warn!(%err, "failed to save graphics profile");
+        }
+        // Compositor re-reads config on spawn / animation checks; nudge shell
+        // so any listeners can refresh.
+        crate::runtime::send("reload-graphics-profile");
     });
     window_gap.connect_value_changed(move |s| {
         let v = s.value().round().clamp(0.0, 10.0) as u32;

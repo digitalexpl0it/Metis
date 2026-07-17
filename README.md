@@ -127,8 +127,9 @@ Or test it directly from a free VT with `./run-metis.sh --session --drm`. See
 Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 
 - **Edge bar** — app launcher, taskbar dock, workspaces, weather, battery,
-  Bluetooth (when an adapter is present), network, volume, notifications, and a
-  tabbed clock. Right-click dock icons to pin/close.
+  Bluetooth (when an adapter is present), network, volume, system tray, removable
+  volumes (USB / SD / optical / ISO — open, mount/unlock, eject), notifications,
+  and a tabbed clock. Right-click dock icons to pin/close.
 - **Control Center** — pull the edge bar toward the desktop (or click the grid
   icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
   charts, temperature gauges, and a searchable process list with right-click
@@ -136,7 +137,9 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 - **Windows** — every app gets a server-side titlebar with close / minimize /
   maximize. Drag the titlebar to move; drag to a screen edge to snap
   (half / quarter / maximize); drag a border to resize. On the default desktop
-  layout, windows reopen at the position and size you last left them.
+  layout, windows reopen at the position and size you last left them. Settings →
+  Windows includes a **Graphics profile** (Auto / Compatibility / Normal) for
+  VM-safe GTK rendering.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
   focused window, `Super`+`Alt`+`←`/`→` cycle workspaces (wraps). Each monitor
   has its own workspaces (configurable).
@@ -147,8 +150,10 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   strip with `Super`+`\`; navigate with `Super`+arrows.
 - **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
   sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
-  include Display, Appearance, Metis Menu, Weather, Network, Calendars,
-  Input, Bluetooth, Printers, Power, Sound, **Gaming**, and **Control Center**.
+  include Display, Appearance (dark by default; session GTK apps follow light/dark),
+  Metis Menu (**kitty** is the preferred default terminal when auto-detecting),
+  Weather, Network, Calendars, Input, Bluetooth, Printers, Power, Sound,
+  **Gaming**, and **Control Center**.
 - **Gaming** — hybrid-GPU routing (`gaming.json`), Flatpak Steam/Lutris/Heroic
   overrides, health checklist, and `metis-gamingd` for auto performance profile
   + GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
@@ -196,8 +201,8 @@ Other files are created on demand:
 
 | File | Created when | Purpose |
 |------|--------------|---------|
-| `config.json` | You change a preference | Active theme, onboarding state, briefing-on-login |
-| `menu.json` | You set launcher defaults / pins | App launcher: terminal + file-manager choices, pinned apps |
+| `config.json` | You change a preference | Active theme (defaults to dark), graphics profile, onboarding state, briefing-on-login |
+| `menu.json` | You set launcher defaults / pins | App launcher: terminal + file-manager choices (kitty preferred on auto-detect), pinned apps |
 | `wallpaper.json` | You pick a background | Wallpaper picture / colour / gradient (+ per-output overrides) |
 | `weather.json` | You configure weather | Bar weather: unit, auto-detect / IP-geolocation, saved locations |
 | `desk.json` | The compositor persists its layout | Compositor window-grid layout (widget tiles) |
@@ -221,14 +226,16 @@ reference.
 ## Status
 
 - **Phase 1 — Edge bar:** complete. App launcher, tabbed clock, grouped
-  notifications (freedesktop D-Bus daemon), Wi-Fi/volume popovers, weather, and
-  fully token-driven theming with live reload, transparency, and backdrop blur.
+  notifications (freedesktop D-Bus daemon), Wi-Fi/volume popovers, weather,
+  system tray, removable volumes, and fully token-driven theming with live
+  reload, transparency, and backdrop blur.
 - **Phase 2 — Settings app + window decorations:** complete. A standalone
   `metis-settings` app (Appearance, Metis Menu, Weather, Network, Calendars),
   compositor-drawn server-side titlebars/borders, edge snapping, auto-hide
   titlebars, and first-class XWayland windows (Metis titlebar, placement,
   move/resize/snap, dock/IPC). Electron/Chromium apps are steered onto native
-  Wayland for stability.
+  Wayland for stability. Appearance light/dark syncs session GTK apps via
+  portal + gsettings; Windows → Graphics profile softens GTK rendering in VMs.
 - **Phase 3 — Multi-monitor, workspaces & tiling:** largely complete. Per-output
   edge bars, wallpaper, and usable areas; independent or linked per-output
   workspaces; a taskbar dock that follows the output + workspace; and an optional
@@ -262,7 +269,8 @@ reference.
   with PPID tree, search, and End task / End process tree; Settings → Control
   Center (including process monitor picker); `dashboard.json` live reload.
 - **Configurable shortcuts:** Settings → Keyboard → Shortcuts + `keybinds.json`
-  (2026-07-11) — capture/edit compositor binds; reserved DRM VT/quit chords locked.
+  (2026-07-11; capture focus fix 2026-07-16) — Change → press chord → Save;
+  reserved DRM VT/quit chords locked.
 - **Phase 11 — Gaming Platform 2.0:** **complete** (2026-07-07) — `gaming.json` +
   `metis-gaming` crate, Flatpak zero-config optimizer, health checklist + setup wizard,
   `metis-gamingd` (auto performance profile / GameMode), hybrid PRIME scanout polish,
