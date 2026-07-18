@@ -1,12 +1,15 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 13** (Notification Center) is **complete** (2026-07-10) —
-Win11-style right panel from the clock, merged notifications + calendar tools,
-closable toasts. **Phase 12** (Native Screenshot Tool) is **complete** (2026-07-09) —
-PrtSc overlay, `metis-capture`, theme-aware toolbar, and compositor capture exclusion.
-**Phase 11** (Gaming Platform 2.0) is **complete** (2026-07-07) —
-`gaming.json`, Flatpak zero-config, gaming health checks, `metis-gamingd`, onboarding
-gaming step, and hybrid PRIME / scanout polish. **Phase 3** is complete except deferred **full multi-GPU** compositing and
+**Current phase:** **Phase 14** (Desktop Widgets) is **in progress** — platform
+host + Settings stub + Placeholder move/resize shipped; Folders / Apps / Clock /
+System / Weather content next. **Phase 13** (Notification Center) is
+**complete** (2026-07-10) — Win11-style right panel from the clock, merged
+notifications + calendar tools, closable toasts. **Phase 12** (Native Screenshot
+Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-aware
+toolbar, and compositor capture exclusion. **Phase 11** (Gaming Platform 2.0) is
+**complete** (2026-07-07) — `gaming.json`, Flatpak zero-config, gaming health
+checks, `metis-gamingd`, onboarding gaming step, and hybrid PRIME / scanout
+polish. **Phase 3** is complete except deferred **full multi-GPU** compositing and
 **ScreenCast dmabuf zero-copy**. **Phase 4** (settings-app expansion) is complete.
 **Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
@@ -1055,13 +1058,112 @@ media in toasts.
 
 ---
 
+## Phase 14 — Desktop Widgets
+
+Optional **free-floating wallpaper widgets** instead of classic desktop icons.
+Users who want a glanceable desktop get Folders / Apps / Clock / System / Weather
+panels they can place, resize, and lock; everyone else leaves the feature off.
+Wallpaper stays the hero; widgets sit above it and below normal windows.
+
+**Non-goals (v1):** classic desktop icons; reviving compositor `desk.json`
+`TileKind::Widget` grid tiles (already stripped on load — keep `desk.json` for
+app-grid persistence only); one Wayland surface per widget instance.
+
+**Host model:** GTK4 + `gtk4-layer-shell` in `metis-shell`, Background (or Bottom)
+layer, `exclusive_zone(0)`, **one surface per output** hosting many widget
+instances. Config: `~/.config/metis/desktop-widgets.json` (master switch default
+**off**). Edit mode = move/resize; locked = content clicks only. Empty chrome
+aims for click-through where layer-shell allows (imperfect pass-through OK in v1).
+
+### A. Platform
+
+- [x] **Layer host** — per-output Bottom layer-shell surface; theme tokens; tear
+      down when master switch is off (session-lock parking still open)
+- [x] **Widget registry** — kind id → factory (build GTK content + settings);
+      iterate `instances` from config (not hardcoded layout)
+- [x] **Edit / lock** — global edit mode + per-instance `locked`; move/resize
+      only when unlocked; persist geometry (`x`, `y`, `w`, `h`, `output`)
+- [x] **Multi-monitor** — instances bound to an output name; recreate on hotplug
+- [ ] **Hit-testing notes** — document v1 click-through limits; avoid stealing
+      clicks on empty panel chrome where possible
+- [x] **Live reload** — Gio monitor on `desktop-widgets.json` (same pattern as
+      `bar.json` / `dashboard.json`)
+
+### B. Folders + Apps (v1 differentiators)
+
+- [ ] **Folders widget** — path default `~/Desktop` or custom; directories first,
+      then files, A–Z; Gio `FileMonitor`; open via configured file manager /
+      launch; faint transparent panel; cap/virtualize huge folders
+- [ ] **Apps widget** — dedicated widget pin list (not a silent dump of start-menu
+      pins); “Import start-menu pins” action; launch via `applications::launch_id`
+      (handles `OnlyShowIn=GNOME` desktop files)
+
+### C. Clock / System / Weather
+
+- [ ] **Clock** — large time + date; Metis light/dark tokens
+- [ ] **System** — CPU / RAM / disk glance; reuse Control Center / dashboard
+      sampling patterns (not a second process killer)
+- [ ] **Weather** — reuse shell weather service (same data as the edge-bar widget)
+
+### D. Settings + config
+
+- [x] **`desktop-widgets.json`** in `metis-config` — `enabled`, `edit_mode`,
+      `instances[]` (`id`, `kind`, `output`, geometry, `locked`, kind-specific
+      `path` / `pins`); sanitize + defaults; write on demand
+- [x] **Settings → Desktop → Desktop widgets** — master enable, edit mode,
+      add/remove instances, per-instance lock (folder path / app pins UI later)
+- [ ] **Docs** — User Guide + CHANGELOG + README when the feature ships
+
+Config sketch:
+
+```json
+{
+  "enabled": false,
+  "edit_mode": false,
+  "instances": [
+    {
+      "id": "uuid",
+      "kind": "folders",
+      "output": "DP-1",
+      "x": 80,
+      "y": 80,
+      "w": 360,
+      "h": 280,
+      "locked": false,
+      "settings": { "path": "~/Desktop" }
+    }
+  ]
+}
+```
+
+### E. Extension API (later)
+
+Builtins-only until the host is solid. Then:
+
+- [ ] **Manifest** — widget id, name, version, size hints, settings schema
+- [ ] **Host API** — theme tokens, open URI / launch app, weather + sysinfo
+      subscriptions
+- [ ] **Script / JSON widgets** (or a thin plugin ABI) — sandboxed; no Electron-style
+      plugins in v1
+
+**Implementation order:** (1) config + Settings stub + empty host when enabled,
+(2) edit/lock + placeholder instance, (3) Folders + Apps, (4) Clock / System /
+Weather, (5) docs + changelog.
+
+**Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
+dashboard sampling (done); Phase 2 weather service (done); app launch /
+`launch_id` (done).
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
 `clock.json`, `calendars.json`, `themes/dark.json`, `themes/light.json`. Created
 on demand: `config.json` (on preference change), `menu.json` (launcher defaults /
 pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
-`dismissed.json`, `desk.json` (compositor), `briefing.json` (optional, user-created).
+`dismissed.json`, `desk.json` (compositor app-grid), `briefing.json` (optional,
+user-created), `desktop-widgets.json` *(Phase 14)*.
 
 | File | Purpose |
 |------|---------|
@@ -1071,7 +1173,8 @@ pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 | `config.json` | Active theme, onboarding state, briefing-on-login |
 | `menu.json` | App launcher: terminal + file-manager defaults, pinned apps |
 | `wallpaper.json` | Wallpaper picture / colour / gradient (+ per-output overrides) |
-| `desk.json` | Compositor window-grid layout (widget tiles) |
+| `desk.json` | Compositor window-grid layout (app tiles; not desktop widgets) |
+| `desktop-widgets.json` | *(Phase 14)* Free-floating wallpaper widgets: enable, edit mode, instances |
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |

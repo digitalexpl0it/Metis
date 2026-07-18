@@ -320,23 +320,41 @@ fn rebuild(
 
     // Pinned entries first, in saved order (even when not currently running).
     for id in pinned {
-        let key = id.to_lowercase();
+        // Prefer the visible app index, then a direct .desktop lookup so
+        // OnlyShowIn=GNOME apps (Terminal, …) still get a real Exec line.
+        let entry = apps
+            .iter()
+            .find(|e| matches_app_id(e, &id.to_lowercase()))
+            .cloned()
+            .or_else(|| applications::resolve_entry_for_id(id));
+        // Index by the resolved desktop id when possible so running windows
+        // (whose key is also the desktop id) merge into this pin.
+        let key = entry
+            .as_ref()
+            .map(|e| e.id.to_lowercase())
+            .unwrap_or_else(|| id.to_lowercase());
         if index.contains_key(&key) {
             continue;
         }
-        let entry = apps.iter().find(|e| matches_app_id(e, &key));
-        let (name, icon, exec, resolved) = match entry {
+        let (name, icon, exec, resolved, pin_id) = match entry {
             Some(e) => (
                 e.name.clone(),
-                icon_or_fallback(e),
+                icon_or_fallback(&e),
                 Some(e.exec.clone()),
                 true,
+                Some(e.id.clone()),
             ),
-            None => (prettify_app_id(id), fallback_icon(), None, false),
+            None => (
+                prettify_app_id(id),
+                fallback_icon(),
+                None,
+                false,
+                Some(id.clone()),
+            ),
         };
         index.insert(key, groups.len());
         groups.push(Group {
-            pin_id: Some(id.clone()),
+            pin_id,
             name,
             icon,
             exec,
@@ -398,13 +416,37 @@ fn rebuild(
 
         if let Some(&i) = index.get(&key) {
             // A pinned group created from an unresolved app_id shows a placeholder
-            // name; once its window is live, adopt the real window title (and a
-            // title-resolved icon) so the tooltip reads the app, not the raw id.
+            // name; once its window is live, adopt the real window title / desktop
+            // entry so the tooltip and Exec line are usable.
             if !groups[i].resolved {
                 groups[i].name = window_label(w);
-                if let Some(e) = resolve_by_title(&w.title) {
+                let resolved = w
+                    .app_id
+                    .as_deref()
+                    .and_then(|id| resolve(id))
+                    .or_else(|| resolve_by_title(&w.title));
+                if let Some(e) = resolved {
                     groups[i].icon = icon_or_fallback(e);
+                    groups[i].exec = Some(e.exec.clone());
+                    groups[i].pin_id = Some(e.id.clone());
                     groups[i].resolved = true;
+                }
+            } else if groups[i].exec.is_none() {
+                // Pinned with icon/name but missing Exec (e.g. OnlyShowIn hide) —
+                // fill in a launch command once we can resolve the desktop entry.
+                let resolved = w
+                    .app_id
+                    .as_deref()
+                    .and_then(|id| resolve(id))
+                    .or_else(|| {
+                        groups[i].pin_id.as_deref().and_then(|id| {
+                            apps.iter()
+                                .find(|e| matches_app_id(e, &id.to_lowercase()))
+                        })
+                    });
+                if let Some(e) = resolved {
+                    groups[i].exec = Some(e.exec.clone());
+                    groups[i].pin_id = Some(e.id.clone());
                 }
             }
             groups[i].windows.push(w.clone());
@@ -484,14 +526,21 @@ fn task_button(group: &Group, focused: Option<u32>) -> gtk::Button {
     {
         let windows = group.windows.clone();
         let exec = group.exec.clone();
+        let pin_id = group.pin_id.clone();
         let name = group.name.clone();
         let btn_weak = btn.downgrade();
         btn.connect_clicked(move |_| match windows.len() {
             0 => {
-                if let Some(exec) = &exec {
+                // Prefer desktop-id launch so OnlyShowIn=GNOME pins (Terminal, …)
+                // still start even when Exec was missing at pin time.
+                if let Some(id) = &pin_id {
+                    applications::launch_id(id);
+                } else if let Some(exec) = &exec {
                     if let Err(err) = crate::compositor::launch_program(exec) {
                         tracing::warn!(%err, "failed to launch pinned app");
                     }
+                } else {
+                    tracing::warn!(%name, "pinned app has no launch command");
                 }
             }
             1 => toggle_window(&windows[0], focused),
@@ -677,14 +726,20 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
         let popover = transient_popover(&btn, &panel);
 
         // Launch another instance. Only offered when we know how to start the app
-        // (a resolved `.desktop` exec); unresolved windows have no exec to run.
-        if let Some(exec) = exec.clone() {
+        // (a resolved `.desktop` exec or pin id).
+        if exec.is_some() || pin_id.is_some() {
             let item = menu_item("New window");
             let popover_c = popover.clone();
+            let exec = exec.clone();
+            let pin_id = pin_id.clone();
             item.connect_clicked(move |_| {
                 popover_c.popdown();
-                if let Err(err) = crate::compositor::launch_program(&exec) {
-                    tracing::warn!(%err, "failed to launch new app window");
+                if let Some(id) = &pin_id {
+                    applications::launch_id(id);
+                } else if let Some(exec) = &exec {
+                    if let Err(err) = crate::compositor::launch_program(exec) {
+                        tracing::warn!(%err, "failed to launch new app window");
+                    }
                 }
             });
             panel.append(&item);
@@ -800,5 +855,9 @@ fn toggle_taskbar_pin(id: &str) {
     }
     if let Err(err) = save_bar_config(&cfg) {
         tracing::warn!(%err, "failed to persist bar.json after taskbar pin toggle");
+        return;
     }
+    // Don't wait for the bar.json file monitor / 5s window reconcile — unpin
+    // used to sit on the dock for several seconds until the next refresh.
+    crate::services::windows::refresh_taskbars();
 }

@@ -87,6 +87,7 @@ pub fn init_and_show() {
         crate::ui::dashboard::init();
         crate::ui::screenshot::init();
         crate::ui::notification_center::init();
+        crate::ui::desktop_widgets::init();
         watch_bar_config();
         watch_dashboard_config();
         spawn_gaming_daemon();
@@ -488,6 +489,7 @@ fn watch_compositor_dismiss() {
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
                 "reload-dashboard" => crate::ui::dashboard::on_dashboard_config_changed(),
+                "reload-desktop-widgets" => crate::ui::desktop_widgets::reload(),
                 "screenshot" => crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Interactive),
                 "screenshot instant-full" => {
                     crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::InstantFull);

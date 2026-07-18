@@ -83,6 +83,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Position, opacity, blur, workspaces, and the bar border"),
     },
     NavItem {
+        page_id: Some("desktop_widgets"),
+        title: "Desktop widgets",
+        icon: Some("view-grid-symbolic"),
+        hue: Some(NavHue::Purple),
+        subtitle: Some("Optional wallpaper widgets: folders, apps, clock, and more"),
+    },
+    NavItem {
         page_id: Some("windows"),
         title: "Windows",
         icon: Some("window-new-symbolic"),

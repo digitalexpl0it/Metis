@@ -8,6 +8,7 @@ pub mod clocks;
 pub mod css;
 pub mod dashboard;
 pub mod decorations;
+pub mod desktop_widgets;
 pub mod game_rules;
 pub mod gaming;
 pub mod gpu_offload;
@@ -297,6 +298,10 @@ pub use dashboard::{
     dashboard_config_path, load_dashboard_config, process_monitor_needs_terminal,
     save_dashboard_config, save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
     KNOWN_PROCESS_MONITORS,
+};
+pub use desktop_widgets::{
+    desktop_widgets_config_path, load_desktop_widgets_config, save_desktop_widgets_config,
+    DesktopWidgetInstance, DesktopWidgetKind, DesktopWidgetsConfig,
 };
 pub use decorations::{
     decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,

@@ -9,6 +9,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Desktop widgets (Phase 14 foundation)** — optional free-floating wallpaper
+  widgets (off by default). Settings → Desktop widgets toggles the layer and
+  edit mode; add a Placeholder to try move/resize. Config:
+  `~/.config/metis/desktop-widgets.json`. Folders / Apps / Clock / System /
+  Weather content comes next.
+
 - **Num Lock on login** — Settings → Keyboard. Default **Auto** turns Num Lock
   on when libinput reports a numeric keypad (`KEY_KP0`), so the numpad types
   digits without pressing NumLk first. Always on / Off overrides available.
@@ -34,6 +40,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Network → Known Wi-Fi networks** — no longer lists ethernet / loopback NM
   profiles under Wireless (Ethernet-only machines looked broken). Wired and
   Proxy Apply buttons use the shared actions inset for padding.
+- **Taskbar pin/unpin** — unpinning waited on the bar.json file monitor / window
+  reconcile (felt like ~5–10s). The dock now refreshes immediately after the
+  pin toggle. Pinned launches also resolve `.desktop` entries directly so
+  `OnlyShowIn=GNOME` apps (e.g. GNOME Terminal) get a working Exec line.
 
 ## [2026-07-16]
 

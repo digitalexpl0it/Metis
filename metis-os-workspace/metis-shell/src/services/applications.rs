@@ -347,29 +347,10 @@ fn paint_file_icon(image: &gtk::Image, path: Option<std::path::PathBuf>) -> bool
 /// Resolve a running window's Wayland `app_id` to its launcher entry. The
 /// Wayland `app_id` is usually reverse-DNS (e.g. `org.gnome.Calculator`), which
 /// matches a desktop file basename, but some apps report their `StartupWMClass`
-/// instead — both are matched case-insensitively.
+/// instead — both are matched case-insensitively. Falls back to a direct
+/// `.desktop` lookup so `OnlyShowIn=GNOME` apps still resolve under Metis.
 pub fn resolve_entry_for_app_id(app_id: &str) -> Option<AppEntry> {
-    let needle = app_id.trim().to_lowercase();
-    if needle.is_empty() {
-        return None;
-    }
-    list_apps().into_iter().find(|e| {
-        let base = e
-            .id
-            .strip_suffix(".desktop")
-            .unwrap_or(&e.id)
-            .to_lowercase();
-        base == needle
-            || e.id.to_lowercase() == needle
-            || e
-                .wm_class
-                .as_deref()
-                .is_some_and(|w| w.to_lowercase() == needle)
-            || e
-                .flatpak_id
-                .as_deref()
-                .is_some_and(|f| f.to_lowercase() == needle)
-    })
+    resolve_entry_for_id(app_id)
 }
 
 /// Resolve a window's `app_id` to a displayable icon, falling back to a generic
@@ -410,6 +391,77 @@ fn metis_settings_icon_path() -> Option<std::path::PathBuf> {
         "/usr/local/share/icons/hicolor/256x256/apps/metis-settings.png",
     ));
     candidates.into_iter().find(|path| path.is_file())
+}
+
+fn matches_app_id(entry: &AppEntry, needle: &str) -> bool {
+    let base = entry
+        .id
+        .strip_suffix(".desktop")
+        .unwrap_or(&entry.id)
+        .to_lowercase();
+    base == needle
+        || entry.id.to_lowercase() == needle
+        || entry
+            .wm_class
+            .as_deref()
+            .is_some_and(|w| w.to_lowercase() == needle)
+        || entry
+            .flatpak_id
+            .as_deref()
+            .is_some_and(|f| f.to_lowercase() == needle)
+}
+
+/// Desktop-file id variants to try with `DesktopAppInfo::new`.
+fn desktop_id_candidates(id: &str) -> Vec<String> {
+    let raw = id.trim();
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    let mut out = vec![raw.to_string()];
+    if !raw.ends_with(".desktop") {
+        out.push(format!("{raw}.desktop"));
+    }
+    let base = raw.strip_suffix(".desktop").unwrap_or(raw);
+    if base != raw {
+        out.push(base.to_string());
+    }
+    out
+}
+
+/// Resolve a pin / Wayland app id to a launchable entry.
+///
+/// Tries the visible app index first, then `DesktopAppInfo::new` so apps that
+/// declare `OnlyShowIn=GNOME` (e.g. GNOME Terminal) still resolve under Metis
+/// even when `AppInfo::all().should_show()` hides them from the menu.
+pub fn resolve_entry_for_id(id: &str) -> Option<AppEntry> {
+    let needle = id.trim().to_lowercase();
+    if needle.is_empty() {
+        return None;
+    }
+    if let Some(entry) = list_apps()
+        .into_iter()
+        .find(|e| matches_app_id(e, &needle))
+    {
+        return Some(entry);
+    }
+    for candidate in desktop_id_candidates(id) {
+        let Some(info) = gio::DesktopAppInfo::new(&candidate) else {
+            continue;
+        };
+        if let Some(entry) = entry_from_info(info.upcast()) {
+            return Some(entry);
+        }
+    }
+    None
+}
+
+/// Launch by desktop / pin id (resolves Exec even for OnlyShowIn=GNOME apps).
+pub fn launch_id(id: &str) {
+    let Some(entry) = resolve_entry_for_id(id) else {
+        tracing::warn!(id, "no desktop entry to launch for pin/app id");
+        return;
+    };
+    launch(&entry);
 }
 
 /// Record a launch (bumping its frequency) and spawn the app via the compositor.

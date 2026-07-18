@@ -82,6 +82,12 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let nc_panel_bg = dash_panel_bg.clone();
     let nc_card_bg = dash_card_bg.clone();
     let toast_card_bg = dash_card_bg.clone();
+    // Desktop widgets: fainter than dash cards so wallpaper stays visible.
+    let dw_card_bg = if is_light {
+        format!("rgba({raised_rgb}, 0.42)")
+    } else {
+        format!("rgba({surface_rgb}, 0.38)")
+    };
     // Notification rows inside the NC / legacy popover — follow raised surface,
     // never a hardcoded dark charcoal (that looked like dark-mode in light theme).
     let notif_card_bg = dash_card_bg.clone();
@@ -3604,6 +3610,65 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     button.metis-nc-collapse:checked {{
         color: {text};
     }}
+
+    /* ---- Desktop widgets (Phase 14 wallpaper layer) ---- */
+    window.metis-desktop-widgets-window {{
+        background-color: transparent;
+    }}
+    .metis-desktop-widgets-canvas {{
+        background-color: transparent;
+    }}
+    .metis-dw-card {{
+        background-color: {dw_card_bg};
+        border: 1px solid rgba({text_rgb}, 0.12);
+        border-radius: {rm}px;
+        color: {text};
+        padding: 8px 10px 6px 10px;
+    }}
+    .metis-dw-card.metis-dw-edit {{
+        border: 1px dashed rgba({accent_rgb}, 0.65);
+        box-shadow: 0 0 0 1px rgba({accent_rgb}, 0.18);
+    }}
+    .metis-dw-card.metis-dw-locked {{
+        opacity: 0.92;
+    }}
+    .metis-dw-header {{
+        margin-bottom: 4px;
+    }}
+    .metis-dw-title {{
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: {text};
+    }}
+    .metis-dw-badge {{
+        font-size: 0.72rem;
+        color: {muted};
+        padding: 1px 6px;
+        border-radius: 999px;
+        background-color: rgba({text_rgb}, 0.08);
+    }}
+    .metis-dw-body {{
+        min-height: 40px;
+    }}
+    .metis-dw-hint {{
+        color: {muted};
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }}
+    button.metis-dw-resize {{
+        background-image: none;
+        background-color: rgba({accent_rgb}, 0.18);
+        border: 1px solid rgba({accent_rgb}, 0.45);
+        border-radius: 4px;
+        color: {text};
+        padding: 0;
+        min-width: 18px;
+        min-height: 18px;
+        font-size: 0.7rem;
+    }}
+    button.metis-dw-resize:hover {{
+        background-color: rgba({accent_rgb}, 0.32);
+    }}
 "#,
         surface = surface,
         border = theme.border,
@@ -3630,5 +3695,6 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         overlay_card_bg = overlay_card_bg,
         overlay_dot = overlay_dot,
         accent2 = accent2,
+        dw_card_bg = dw_card_bg,
     )
 }

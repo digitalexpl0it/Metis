@@ -1,6 +1,7 @@
 pub mod app;
 pub mod bar;
 pub mod dashboard;
+pub mod desktop_widgets;
 pub mod icons;
 pub mod notification_center;
 pub mod onboarding;
