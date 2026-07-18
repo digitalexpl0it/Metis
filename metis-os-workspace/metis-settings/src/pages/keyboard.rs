@@ -10,6 +10,7 @@ use gtk::prelude::*;
 use metis_config::{
     load_keybinds_config, reserved_system_rows, save_keybinds_config, CapsLockBehavior, Chord,
     ComposeKey, KeybindAction, KeybindGroup, KeybindsConfig, KeyboardConfig, ModKey,
+    NumLockStartup,
 };
 
 use super::input_common::{self, persist};
@@ -88,79 +89,117 @@ pub fn build() -> gtk::Widget {
     });
     typing_body.append(&crate::ui::row("Compose key", &compose));
 
+    let num_lock = gtk::DropDown::from_strings(&[
+        "Auto (numpad detected)",
+        "Always on",
+        "Off",
+    ]);
+    num_lock.set_selected(match cfg.keyboard.num_lock {
+        NumLockStartup::Auto => 0,
+        NumLockStartup::On => 1,
+        NumLockStartup::Off => 2,
+    });
+    typing_body.append(&crate::ui::row("Num Lock on login", &num_lock));
+
     typing_body.append(&input_common::hint(
-        "Keyboard settings apply live in the Metis session within ~1s.",
+        "Auto turns Num Lock on when a keyboard with a numeric keypad is \
+         present. Keyboard settings apply live in the Metis session within ~1s.",
     ));
     content.append(&typing_card);
 
     content.append(&build_shortcuts_section());
 
+    let wire = |layout: &gtk::Entry,
+                variant: &gtk::Entry,
+                options: &gtk::Entry,
+                delay: &gtk::Scale,
+                rate: &gtk::Scale,
+                caps: &gtk::DropDown,
+                compose: &gtk::DropDown,
+                num_lock: &gtk::DropDown| {
+        (
+            layout.clone(),
+            variant.clone(),
+            options.clone(),
+            delay.clone(),
+            rate.clone(),
+            caps.clone(),
+            compose.clone(),
+            num_lock.clone(),
+        )
+    };
+
     layout.connect_changed({
-        let delay = delay.clone();
-        let rate = rate.clone();
-        let caps = caps.clone();
-        let compose = compose.clone();
-        let variant = variant.clone();
-        let options = options.clone();
-        move |entry| save_keyboard(entry, &variant, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     variant.connect_changed({
-        let layout = layout.clone();
-        let delay = delay.clone();
-        let rate = rate.clone();
-        let caps = caps.clone();
-        let compose = compose.clone();
-        let options = options.clone();
-        move |entry| save_keyboard(&layout, entry, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     options.connect_changed({
-        let layout = layout.clone();
-        let delay = delay.clone();
-        let rate = rate.clone();
-        let caps = caps.clone();
-        let compose = compose.clone();
-        let variant = variant.clone();
-        move |entry| save_keyboard(&layout, &variant, entry, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     delay.connect_value_changed({
-        let layout = layout.clone();
-        let rate = rate.clone();
-        let caps = caps.clone();
-        let compose = compose.clone();
-        let variant = variant.clone();
-        let options = options.clone();
-        let delay = delay.clone();
-        move |_| save_keyboard(&layout, &variant, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     rate.connect_value_changed({
-        let layout = layout.clone();
-        let delay = delay.clone();
-        let caps = caps.clone();
-        let compose = compose.clone();
-        let variant = variant.clone();
-        let options = options.clone();
-        let rate = rate.clone();
-        move |_| save_keyboard(&layout, &variant, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     caps.connect_notify_local(Some("selected"), {
-        let layout = layout.clone();
-        let delay = delay.clone();
-        let rate = rate.clone();
-        let compose = compose.clone();
-        let variant = variant.clone();
-        let options = options.clone();
-        let caps = caps.clone();
-        move |_, _| save_keyboard(&layout, &variant, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_, _| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
     compose.connect_notify_local(Some("selected"), {
-        let layout = layout.clone();
-        let delay = delay.clone();
-        let rate = rate.clone();
-        let caps = caps.clone();
-        let variant = variant.clone();
-        let options = options.clone();
-        let compose = compose.clone();
-        move |_, _| save_keyboard(&layout, &variant, &options, &delay, &rate, &caps, &compose)
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_, _| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
+    });
+    num_lock.connect_notify_local(Some("selected"), {
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
+            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        move |_, _| {
+            save_keyboard(
+                &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+            )
+        }
     });
 
     scroller.upcast()
@@ -576,6 +615,7 @@ fn save_keyboard(
     rate: &gtk::Scale,
     caps: &gtk::DropDown,
     compose: &gtk::DropDown,
+    num_lock: &gtk::DropDown,
 ) {
     let mut cfg = metis_config::load_input_config();
     cfg.keyboard = KeyboardConfig {
@@ -586,6 +626,7 @@ fn save_keyboard(
         repeat_rate_hz: rate.value().round() as i32,
         caps_lock: caps_lock_from_dropdown(caps),
         compose_key: compose_key_from_dropdown(compose),
+        num_lock: num_lock_from_dropdown(num_lock),
     };
     persist(&cfg);
 }
@@ -605,5 +646,13 @@ fn compose_key_from_dropdown(dd: &gtk::DropDown) -> ComposeKey {
         3 => ComposeKey::LeftAlt,
         4 => ComposeKey::ScrollLock,
         _ => ComposeKey::Disabled,
+    }
+}
+
+fn num_lock_from_dropdown(dd: &gtk::DropDown) -> NumLockStartup {
+    match dd.selected() {
+        1 => NumLockStartup::On,
+        2 => NumLockStartup::Off,
+        _ => NumLockStartup::Auto,
     }
 }

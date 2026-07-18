@@ -293,7 +293,11 @@ pub fn init_udev(
                     state.ensure_touch_device();
                 }
                 state.input_runtime.on_device_added(device.clone());
-            } else             if let InputEvent::DeviceRemoved { device } = &event {
+                // Keyboards (and keypad hotplug) may arrive after seat setup —
+                // re-evaluate Auto Num Lock when a device appears.
+                let pref = state.input_runtime.cached().keyboard.num_lock;
+                crate::device_input::apply_num_lock(state, pref);
+            } else if let InputEvent::DeviceRemoved { device } = &event {
                 state.input_runtime.on_device_removed(device);
             }
             if let Some(device) = crate::device_input::libinput_device_from_event(&event) {

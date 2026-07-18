@@ -321,7 +321,7 @@ pub use graphics::{
 };
 pub use input::{
     load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
-    ComposeKey, InputConfig, KeyboardConfig, MouseConfig, TouchpadConfig,
+    ComposeKey, InputConfig, KeyboardConfig, MouseConfig, NumLockStartup, TouchpadConfig,
 };
 pub use keybinds::{
     default_chord, keybinds_config_path, load_keybinds_config, reserved_chords,

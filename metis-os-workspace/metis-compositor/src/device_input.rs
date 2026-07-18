@@ -9,12 +9,15 @@
 use std::time::{Duration, Instant};
 
 use input::{AccelProfile as LiAccelProfile, Device, DeviceCapability, DeviceConfigResult};
-use metis_config::{AccelProfile, InputConfig};
+use metis_config::{AccelProfile, InputConfig, NumLockStartup};
 use smithay::backend::input::InputEvent;
 use smithay::backend::libinput::LibinputInputBackend;
 use smithay::input::keyboard::XkbConfig;
 
 use crate::state::MetisState;
+
+/// Linux `KEY_KP0` — present on real numeric keypads (not bare NumLock-only overlays).
+const KEY_KP0: u32 = 82;
 
 pub struct InputRuntime {
     last_check: Instant,
@@ -39,6 +42,10 @@ impl InputRuntime {
         metis_config::load_input_config()
     }
 
+    pub fn cached(&self) -> &InputConfig {
+        &self.cached
+    }
+
     pub fn on_device_added(&mut self, mut device: Device) {
         let touchpad = device.config_tap_finger_count() > 0;
         let caps = device_capabilities(&device);
@@ -59,6 +66,11 @@ impl InputRuntime {
 
     pub fn note_pointer_device(&mut self, device: &Device) {
         self.active_touchpad = device.config_tap_finger_count() > 0;
+    }
+
+    /// True when any keyboard reports a numeric keypad (`KEY_KP0`).
+    pub fn has_numpad(&self) -> bool {
+        self.devices.iter().any(device_has_numpad)
     }
 
     /// Scroll-wheel / touchpad scroll multiplier from `input.json`.
@@ -120,6 +132,49 @@ pub fn apply_keyboard(state: &mut MetisState, cfg: &InputConfig) {
         }
         keyboard.change_repeat_info(kb.repeat_rate_hz, kb.repeat_delay_ms);
     }
+    apply_num_lock(state, cfg.keyboard.num_lock);
+}
+
+/// Enable / disable Num Lock per preference (Auto = keypad present).
+pub fn apply_num_lock(state: &mut MetisState, preference: NumLockStartup) {
+    let want = match preference {
+        NumLockStartup::On => true,
+        NumLockStartup::Off => false,
+        NumLockStartup::Auto => state.input_runtime.has_numpad(),
+    };
+    let Some(keyboard) = state.seat.get_keyboard() else {
+        return;
+    };
+    let mut mods = keyboard.modifier_state();
+    if mods.num_lock == want {
+        sync_keyboard_leds(state);
+        return;
+    }
+    mods.num_lock = want;
+    let changed = keyboard.set_modifier_state(mods);
+    if changed != 0 {
+        keyboard.advertise_modifier_state(state);
+        tracing::info!(num_lock = want, ?preference, "applied Num Lock preference");
+    }
+    sync_keyboard_leds(state);
+}
+
+fn sync_keyboard_leds(state: &mut MetisState) {
+    let Some(led_state) = state.seat.get_keyboard().map(|kb| kb.led_state()) else {
+        return;
+    };
+    for device in &mut state.input_runtime.devices {
+        if device.has_capability(DeviceCapability::Keyboard) {
+            let _ = device.led_update(led_state.into());
+        }
+    }
+}
+
+fn device_has_numpad(device: &Device) -> bool {
+    if !device.has_capability(DeviceCapability::Keyboard) {
+        return false;
+    }
+    matches!(device.keyboard_has_key(KEY_KP0), Ok(true))
 }
 
 fn apply_to_device(cfg: &InputConfig, device: &mut Device) {

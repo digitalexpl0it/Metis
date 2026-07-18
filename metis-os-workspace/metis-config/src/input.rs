@@ -19,6 +19,19 @@ pub enum CapsLockBehavior {
     Control,
 }
 
+/// When to enable Num Lock at session start / keyboard hotplug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NumLockStartup {
+    /// Turn Num Lock on when a keyboard with a numeric keypad is present.
+    #[default]
+    Auto,
+    /// Always enable Num Lock.
+    On,
+    /// Leave Num Lock off (user can still toggle with the key).
+    Off,
+}
+
 /// Compose key placement via xkb options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -84,6 +97,9 @@ pub struct KeyboardConfig {
     pub caps_lock: CapsLockBehavior,
     #[serde(default)]
     pub compose_key: ComposeKey,
+    /// Num Lock on login / keyboard hotplug (default: auto-detect keypad).
+    #[serde(default)]
+    pub num_lock: NumLockStartup,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -152,6 +168,7 @@ impl Default for KeyboardConfig {
             repeat_rate_hz: default_repeat_rate_hz(),
             caps_lock: CapsLockBehavior::default(),
             compose_key: ComposeKey::default(),
+            num_lock: NumLockStartup::default(),
         }
     }
 }

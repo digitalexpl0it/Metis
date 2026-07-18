@@ -7,6 +7,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [2026-07-17]
 
+### Added
+
+- **Num Lock on login** — Settings → Keyboard. Default **Auto** turns Num Lock
+  on when libinput reports a numeric keypad (`KEY_KP0`), so the numpad types
+  digits without pressing NumLk first. Always on / Off overrides available.
+
 ### Changed
 
 - **Graphics profile lives under Display** — moved from Settings → Windows to
