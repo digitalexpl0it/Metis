@@ -5,11 +5,35 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-17]
+
+### Changed
+
+- **Graphics profile lives under Display** — moved from Settings → Windows to
+  Settings → Display (top of the page). It controls session GTK rendering, not
+  window chrome.
+
+### Fixed
+
+- **CSD apps show close-only** — session start now writes
+  `org.gnome.desktop.wm.preferences button-layout` to
+  `appmenu:minimize,maximize,close` (and gtk-decoration-layout when the schema
+  has it). Fresh installs and leftover `appmenu:close` dconf no longer hide
+  minimize/maximize on Firefox, Chromium, and GTK headerbars on bare metal or
+  VMs. The Settings portal also emits the layout so portal clients refresh.
+- **Edge-bar “Settings…” buttons** — Network / Power / Bluetooth overlays launch
+  `metis-settings --page …`, but GApplication treated `--page` as an unknown
+  option and exited immediately. Settings now registers the option, runs with a
+  stripped argv, and uses a valid `com.metis.Settings` application id.
+- **Network → Known Wi-Fi networks** — no longer lists ethernet / loopback NM
+  profiles under Wireless (Ethernet-only machines looked broken). Wired and
+  Proxy Apply buttons use the shared actions inset for padding.
+
 ## [2026-07-16]
 
 ### Added
 
-- **Graphics profile** — Settings → Windows dropdown (Auto / Compatibility /
+- **Graphics profile** — Settings → Display dropdown (Auto / Compatibility /
   Normal). Auto detects VMs (VirtualBox, VMware, KVM, …) and forces Cairo GSK
   plus disables window animations so GTK apps stay usable on broken guest GL.
   Normal overrides autodetection when hardware rendering works.

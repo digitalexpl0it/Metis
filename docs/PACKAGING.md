@@ -7,9 +7,17 @@ or build locally.
 ## Install from a release
 
 ```bash
-# Example for Ubuntu 24.04
+# Example for Ubuntu 24.04 (from the directory that contains the .deb)
 sudo apt install ./metis_0.1.0-1_amd64.ubuntu24.04.deb
 ```
+
+You can also open the `.deb` in your distro’s package installer (Ubuntu Software,
+GDebi, Discover, etc.) or run `sudo dpkg -i metis_*.deb` then
+`sudo apt-get install -f` if dependencies need filling in.
+
+If `apt` prints `N: … couldn't be accessed by user '_apt' … Permission denied`
+when installing from a home folder, ignore it — the package still installed.
+That notice is apt’s sandbox, not a Metis packaging bug.
 
 Then **log out** and pick **Metis** from your display manager’s session menu
 (GDM on Ubuntu, SDDM on Kubuntu, and other Wayland-capable greeters). The package

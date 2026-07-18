@@ -10,20 +10,21 @@ use ashpd::{
     zbus::zvariant::{OwnedValue, Value},
 };
 use async_trait::async_trait;
-use metis_config::{ThemeMode, load_theme_preference};
+use metis_config::{
+    ThemeMode, load_theme_preference, SESSION_GTK_DECORATION_LAYOUT, SESSION_WM_BUTTON_LAYOUT,
+};
 
 const NS_WM: &str = "org.gnome.desktop.wm.preferences";
 const KEY_BUTTON_LAYOUT: &str = "button-layout";
 const NS_INTERFACE: &str = "org.gnome.desktop.interface";
 const KEY_DECO_LAYOUT: &str = "gtk-decoration-layout";
 const KEY_GTK_THEME: &str = "gtk-theme";
-/// Standard Ubuntu/GNOME headerbar layout for client-side decorations.
+/// Portal / GTK decoration layout for client-side decorations.
 ///
 /// Metis only draws server-side chrome for classified terminal/SSD apps; GTK
 /// headerbar clients (Cheese, Calculator, …) and browsers keep native CSD.
 /// Serving `":"` here hid minimize/maximize on Firefox/Chromium and could
 /// leave a partial headerbar visible alongside Metis SSD on misclassified apps.
-const GNOME_CSD_BUTTON_LAYOUT: &str = "icon:minimize,maximize,close";
 
 static SETTINGS_EMITTER: OnceLock<Mutex<Option<Arc<dyn SettingsSignalEmitter>>>> = OnceLock::new();
 static THEME_WATCH_STARTED: OnceLock<()> = OnceLock::new();
@@ -83,7 +84,7 @@ fn interface_namespace(snapshot: &Snapshot) -> Namespace {
     let mut map = HashMap::new();
     map.insert(
         KEY_DECO_LAYOUT.to_owned(),
-        owned_string(GNOME_CSD_BUTTON_LAYOUT),
+        owned_string(SESSION_GTK_DECORATION_LAYOUT),
     );
     map.insert(
         KEY_GTK_THEME.to_owned(),
@@ -96,7 +97,7 @@ fn wm_namespace() -> Namespace {
     let mut map = HashMap::new();
     map.insert(
         KEY_BUTTON_LAYOUT.to_owned(),
-        owned_string(GNOME_CSD_BUTTON_LAYOUT),
+        owned_string(SESSION_WM_BUTTON_LAYOUT),
     );
     map
 }
@@ -104,8 +105,8 @@ fn wm_namespace() -> Namespace {
 fn read_key(snapshot: &Snapshot, namespace: &str, key: &str) -> Result<OwnedValue, PortalError> {
     match (namespace, key) {
         (APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY) => Ok(OwnedValue::from(snapshot.color_scheme)),
-        (NS_WM, KEY_BUTTON_LAYOUT) => Ok(owned_string(GNOME_CSD_BUTTON_LAYOUT)),
-        (NS_INTERFACE, KEY_DECO_LAYOUT) => Ok(owned_string(GNOME_CSD_BUTTON_LAYOUT)),
+        (NS_WM, KEY_BUTTON_LAYOUT) => Ok(owned_string(SESSION_WM_BUTTON_LAYOUT)),
+        (NS_INTERFACE, KEY_DECO_LAYOUT) => Ok(owned_string(SESSION_GTK_DECORATION_LAYOUT)),
         (NS_INTERFACE, KEY_GTK_THEME) => Ok(owned_string(&snapshot.gtk_theme)),
         _ => Err(PortalError::NotFound(format!(
             "unknown namespace/key: {namespace}/{key}"
@@ -139,6 +140,26 @@ async fn emit_appearance(snapshot: &Snapshot) {
         .await
     {
         tracing::warn!(%err, "portal: emit gtk-theme failed");
+    }
+    if let Err(err) = emitter
+        .emit_changed(
+            NS_WM,
+            KEY_BUTTON_LAYOUT,
+            Value::from(SESSION_WM_BUTTON_LAYOUT),
+        )
+        .await
+    {
+        tracing::warn!(%err, "portal: emit button-layout failed");
+    }
+    if let Err(err) = emitter
+        .emit_changed(
+            NS_INTERFACE,
+            KEY_DECO_LAYOUT,
+            Value::from(SESSION_GTK_DECORATION_LAYOUT),
+        )
+        .await
+    {
+        tracing::warn!(%err, "portal: emit gtk-decoration-layout failed");
     }
 }
 

@@ -52,7 +52,7 @@ pub const NAV: &[NavItem] = &[
         title: "Display",
         icon: Some("video-display-symbolic"),
         hue: Some(NavHue::Blue),
-        subtitle: Some("Arrangement, resolution, scale, and night light"),
+        subtitle: Some("Graphics profile, arrangement, resolution, scale, and night light"),
     },
     NavItem {
         page_id: None,

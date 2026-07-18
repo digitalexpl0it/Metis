@@ -54,7 +54,7 @@ pub fn build() -> gtk::Widget {
     wifi_body.append(&wifi_list);
     wireless.append(&wifi_card);
 
-    let (saved_card, saved_body) = ui::section("Known networks");
+    let (saved_card, saved_body) = ui::section("Known Wi-Fi networks");
     wireless.append(&saved_card);
 
     let (wdns_card, wdns_body) = ui::section("DNS");
@@ -216,11 +216,11 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
     let saved_list = gtk::Box::new(gtk::Orientation::Vertical, 4);
     saved_list.add_css_class("metis-settings-list");
     if snap.saved.is_empty() {
-        sections.saved.append(&hint("No saved connections."));
+        sections.saved.append(&hint("No saved Wi-Fi networks."));
     } else {
         for c in &snap.saved {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-            let label = gtk::Label::new(Some(&format!("{}  ·  {}", c.name, c.ctype)));
+            let label = gtk::Label::new(Some(&c.name));
             label.set_xalign(0.0);
             label.set_hexpand(true);
             let forget = gtk::Button::with_label("Forget");
@@ -286,9 +286,12 @@ fn dns_override_editor<F: Fn() + 'static>(
     ));
 
     let apply = gtk::Button::with_label("Apply DNS");
-    apply.set_halign(gtk::Align::End);
     apply.add_css_class("suggested-action");
-    card.append(&apply);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.add_css_class("metis-settings-actions");
+    actions.set_halign(gtk::Align::End);
+    actions.append(&apply);
+    card.append(&actions);
     {
         let refresh = refresh.clone();
         let conn = conn.to_string();
@@ -303,15 +306,16 @@ fn dns_override_editor<F: Fn() + 'static>(
 
 fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk::Widget {
     let card = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    card.add_css_class("metis-settings-list");
     card.set_margin_top(4);
 
-    let title = gtk::Label::new(Some(&format!(
-        "{}  ·  {}",
-        dev.device,
-        if dev.connected { "connected" } else { "down" }
-    )));
+    let status = if dev.connected { "Connected" } else { "Disconnected" };
+    let title = match &dev.connection {
+        Some(conn) if !conn.is_empty() => format!("{}  ·  {status}  ·  {conn}", dev.device),
+        _ => format!("{}  ·  {status}", dev.device),
+    };
+    let title = gtk::Label::new(Some(&title));
     title.set_xalign(0.0);
+    title.add_css_class("metis-settings-value");
     card.append(&title);
 
     let Some(conn) = dev.connection.clone() else {
@@ -345,9 +349,12 @@ fn ethernet_editor<F: Fn() + 'static>(dev: &net::EthDev, refresh: &Rc<F>) -> gtk
     }
 
     let apply = gtk::Button::with_label("Apply");
-    apply.set_halign(gtk::Align::End);
     apply.add_css_class("suggested-action");
-    card.append(&apply);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.add_css_class("metis-settings-actions");
+    actions.set_halign(gtk::Align::End);
+    actions.append(&apply);
+    card.append(&actions);
     {
         let refresh = refresh.clone();
         let conn = conn.clone();
@@ -421,9 +428,12 @@ fn proxy_editor<F: Fn() + 'static>(cfg: &net::ProxyConfig, refresh: &Rc<F>) -> g
     ));
 
     let apply = gtk::Button::with_label("Apply");
-    apply.set_halign(gtk::Align::End);
     apply.add_css_class("suggested-action");
-    card.append(&apply);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.add_css_class("metis-settings-actions");
+    actions.set_halign(gtk::Align::End);
+    actions.append(&apply);
+    card.append(&actions);
     {
         let refresh = refresh.clone();
         let mode = mode.clone();

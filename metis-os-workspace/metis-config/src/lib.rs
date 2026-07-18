@@ -179,7 +179,19 @@ pub fn appearance_gtk_theme_env(mode: ThemeMode) -> Option<&'static str> {
     }
 }
 
-/// Best-effort sync so non-Metis GTK apps follow Metis light/dark.
+/// GNOME WM preference for CSD traffic lights (`org.gnome.desktop.wm.preferences`).
+///
+/// Fresh Ubuntu images (and some greeter leftovers) ship `appmenu:close`, which
+/// hides minimize/maximize on Firefox, Chromium, and GTK headerbars. Metis owns
+/// the session, so we normalize to the full Ubuntu/GNOME layout.
+pub const SESSION_WM_BUTTON_LAYOUT: &str = "appmenu:minimize,maximize,close";
+
+/// GTK decoration layout string (`org.gnome.desktop.interface gtk-decoration-layout`
+/// when the schema key exists) and the Settings portal value for the same idea.
+pub const SESSION_GTK_DECORATION_LAYOUT: &str = "icon:minimize,maximize,close";
+
+/// Best-effort sync so non-Metis GTK / browser CSD follows Metis light/dark and
+/// shows minimize + maximize + close (not close-only).
 pub fn apply_session_appearance_gsettings(mode: ThemeMode) {
     let (scheme, gtk_theme) = appearance_gsettings_values(mode);
     let _ = std::process::Command::new("gsettings")
@@ -196,6 +208,23 @@ pub fn apply_session_appearance_gsettings(mode: ThemeMode) {
             "org.gnome.desktop.interface",
             "gtk-theme",
             gtk_theme,
+        ])
+        .status();
+    let _ = std::process::Command::new("gsettings")
+        .args([
+            "set",
+            "org.gnome.desktop.wm.preferences",
+            "button-layout",
+            SESSION_WM_BUTTON_LAYOUT,
+        ])
+        .status();
+    // Present on full GNOME schema installs; missing on some minimal images.
+    let _ = std::process::Command::new("gsettings")
+        .args([
+            "set",
+            "org.gnome.desktop.interface",
+            "gtk-decoration-layout",
+            SESSION_GTK_DECORATION_LAYOUT,
         ])
         .status();
 }

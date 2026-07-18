@@ -7,5 +7,5 @@ TryExec=metis-settings
 Icon=metis-settings
 Type=Application
 Categories=Settings;GNOME;GTK;
-StartupWMClass=metis-settings
+StartupWMClass=com.metis.Settings
 Keywords=metis;settings;appearance;theme;network;weather;display;

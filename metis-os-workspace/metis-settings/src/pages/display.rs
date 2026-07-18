@@ -42,6 +42,49 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let modes_cache: Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>> =
         Rc::new(RefCell::new(HashMap::new()));
 
+    let (gfx_card, gfx_body) = ui::section_with_icon("Graphics", "computer-symbolic");
+    let graphics_profile = gtk::DropDown::from_strings(&[
+        "Auto (recommended)",
+        "Compatibility",
+        "Normal",
+    ]);
+    graphics_profile.set_selected(match metis_config::load_graphics_profile() {
+        metis_config::GraphicsProfile::Auto => 0,
+        metis_config::GraphicsProfile::Compatibility => 1,
+        metis_config::GraphicsProfile::Normal => 2,
+    });
+    gfx_body.append(&ui::row_with_icon(
+        "computer-symbolic",
+        "Graphics profile",
+        &graphics_profile,
+    ));
+    let gfx_hint = gtk::Label::new(Some(
+        "Auto uses software GTK painting in virtual machines (VirtualBox, etc.) \
+         so Settings and other GTK apps stay readable. Compatibility always \
+         forces that soft path; Normal forces hardware/GL. Already-running apps \
+         keep their renderer until relaunched. Compatibility also turns off \
+         window animations.",
+    ));
+    gfx_hint.set_xalign(0.0);
+    gfx_hint.set_wrap(true);
+    gfx_hint.add_css_class("metis-settings-hint");
+    gfx_body.append(&gfx_hint);
+    content.append(&gfx_card);
+
+    graphics_profile.connect_selected_notify(move |dd| {
+        let profile = match dd.selected() {
+            1 => metis_config::GraphicsProfile::Compatibility,
+            2 => metis_config::GraphicsProfile::Normal,
+            _ => metis_config::GraphicsProfile::Auto,
+        };
+        if let Err(err) = metis_config::save_graphics_profile(profile) {
+            tracing::warn!(%err, "failed to save graphics profile");
+        }
+        // Compositor re-reads config on spawn / animation checks; nudge shell
+        // so any listeners can refresh.
+        runtime::send("reload-graphics-profile");
+    });
+
     let (global_card, global_body) = ui::section("Night light");
     let (night_row, night) = ui::switch_row("Enable night light");
     night.set_active(cfg.borrow().night_light_enabled);

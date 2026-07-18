@@ -38,18 +38,36 @@ fn main() {
         )
         .init();
 
+    // Parse before GApplication sees argv — bare `app.run()` treats `--page` as
+    // an unknown option and exits ("Unknown option --page"), which broke every
+    // edge-bar "… settings" button that launches `metis-settings --page <id>`.
     let page = parse_page_arg();
 
     let app = gtk::Application::builder()
-        .application_id("metis-settings")
+        // Must be a reverse-DNS id (GLib rejects `metis-settings`).
+        .application_id("com.metis.Settings")
         .flags(gio::ApplicationFlags::NON_UNIQUE | gio::ApplicationFlags::HANDLES_OPEN)
         .build();
+
+    app.add_main_option(
+        "page",
+        glib::Char::from(b'\0'),
+        glib::OptionFlags::NONE,
+        glib::OptionArg::String,
+        "Open a settings page (network, power, bluetooth, …)",
+        Some("PAGE"),
+    );
 
     app.connect_activate(move |app| {
         build_ui(app, page.clone());
     });
 
-    std::process::exit(app.run().into());
+    // Hand GApplication only argv0 so our custom `--page` is not rejected even
+    // if option registration fails on older glib; we already parsed it above.
+    let argv0 = std::env::args()
+        .next()
+        .unwrap_or_else(|| "metis-settings".into());
+    std::process::exit(app.run_with_args(&[argv0]).into());
 }
 
 fn parse_page_arg() -> Option<String> {

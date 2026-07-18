@@ -69,14 +69,19 @@ and system configuration.
 ### Install from a `.deb` (Ubuntu 24.04)
 
 Download the latest `metis_*_amd64.ubuntu24.04.deb` from
-[GitHub Releases](https://github.com/digitalexpl0it/Metis/releases), then:
+[GitHub Releases](https://github.com/digitalexpl0it/Metis/releases), then open it
+in your package installer, or:
 
 ```bash
 sudo apt install ./metis_VERSION-1_amd64.ubuntu24.04.deb
+# or: sudo dpkg -i metis_VERSION-1_amd64.ubuntu24.04.deb && sudo apt-get install -f
 ```
 
-Log out and pick **Metis** at the greeter. See [`docs/PACKAGING.md`](docs/PACKAGING.md)
-for Depends/Suggests, local packaging, and CI release tags.
+An apt `_apt` / `Permission denied` notice from `~/Downloads` is harmless — the
+package still installs. See [`docs/PACKAGING.md`](docs/PACKAGING.md) for
+Depends/Suggests, local packaging, and CI release tags.
+
+Log out and pick **Metis** at the greeter.
 
 ### Build from source (dev)
 
@@ -138,7 +143,7 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   maximize. Drag the titlebar to move; drag to a screen edge to snap
   (half / quarter / maximize); drag a border to resize. On the default desktop
   layout, windows reopen at the position and size you last left them. Settings →
-  Windows includes a **Graphics profile** (Auto / Compatibility / Normal) for
+  Display includes a **Graphics profile** (Auto / Compatibility / Normal) for
   VM-safe GTK rendering.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
   focused window, `Super`+`Alt`+`←`/`→` cycle workspaces (wraps). Each monitor
@@ -150,7 +155,8 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   strip with `Super`+`\`; navigate with `Super`+arrows.
 - **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
   sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
-  include Display, Appearance (dark by default; session GTK apps follow light/dark),
+  include Display, Appearance (dark by default; session GTK apps follow light/dark
+  and get minimize/maximize/close on CSD titlebars),
   Metis Menu (**kitty** is the preferred default terminal when auto-detecting),
   Weather, Network, Calendars, Input, Bluetooth, Printers, Power, Sound,
   **Gaming**, and **Control Center**.
@@ -235,7 +241,7 @@ reference.
   titlebars, and first-class XWayland windows (Metis titlebar, placement,
   move/resize/snap, dock/IPC). Electron/Chromium apps are steered onto native
   Wayland for stability. Appearance light/dark syncs session GTK apps via
-  portal + gsettings; Windows → Graphics profile softens GTK rendering in VMs.
+  portal + gsettings (including CSD button layout); Display → Graphics profile softens GTK rendering in VMs.
 - **Phase 3 — Multi-monitor, workspaces & tiling:** largely complete. Per-output
   edge bars, wallpaper, and usable areas; independent or linked per-output
   workspaces; a taskbar dock that follows the output + workspace; and an optional

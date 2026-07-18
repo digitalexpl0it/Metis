@@ -150,6 +150,11 @@ pub fn saved_connections() -> Vec<SavedConn> {
             if f.len() < 3 || f[0].is_empty() {
                 return None;
             }
+            let ctype = f[2].as_str();
+            // Wireless "Known networks" must not list ethernet, loopback, VPN, …
+            if !is_wifi_connection_type(ctype) {
+                return None;
+            }
             Some(SavedConn {
                 name: f[0].clone(),
                 uuid: f[1].clone(),
@@ -157,6 +162,14 @@ pub fn saved_connections() -> Vec<SavedConn> {
             })
         })
         .collect()
+}
+
+/// NetworkManager Wi-Fi profile types (`nmcli connection show` TYPE column).
+fn is_wifi_connection_type(ctype: &str) -> bool {
+    matches!(
+        ctype,
+        "802-11-wireless" | "wifi" | "wireless" | "80211-wireless"
+    )
 }
 
 fn ethernet_devices() -> Vec<EthDev> {

@@ -42,6 +42,7 @@ impl BatteryWidget {
             if let Err(err) = crate::compositor::launch_program("metis-settings --page power") {
                 tracing::warn!(%err, "failed to open power settings");
             }
+            super::super::dropdown::request_close_all();
         });
         panel.append(&settings_btn);
         super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
@@ -160,6 +161,7 @@ impl BluetoothWidget {
             {
                 tracing::warn!(%err, "failed to open bluetooth settings");
             }
+            super::super::dropdown::request_close_all();
         });
         panel.append(&settings_btn);
         super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
