@@ -1,9 +1,9 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 14** (Desktop Widgets) is **in progress** — Folders /
-Apps / Clock / System / Weather / Equalizer builtins, Settings list + configure
-dialogs, chrome, and text style shipped **2026-07-18**; hit-testing notes and
-extension API remain. **Phase 13** (Notification Center) is
+**Current phase:** **Phase 14** (Desktop Widgets) is **complete** (2026-07-18) —
+Folders / Apps / Clock / System / Weather / Equalizer builtins, Settings list +
+configure dialogs, chrome, and text style. Extension API deferred. **Phase 13**
+(Notification Center) is
 **complete** (2026-07-10) — Win11-style right panel from the clock, merged
 notifications + calendar tools, closable toasts. **Phase 12** (Native Screenshot
 Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-aware
@@ -1080,14 +1080,15 @@ aims for click-through where layer-shell allows (imperfect pass-through OK in v1
 ### A. Platform
 
 - [x] **Layer host** — per-output Bottom layer-shell surface; theme tokens; tear
-      down when master switch is off (session-lock parking still open)
+      down when master switch is off. Compositor lock screen covers the session
+      (widgets are not shown on the lock UI).
 - [x] **Widget registry** — kind id → factory (build GTK content + settings);
       iterate `instances` from config (not hardcoded layout)
 - [x] **Edit / lock** — global edit mode + per-instance `locked`; move/resize
       only when unlocked; persist geometry (`x`, `y`, `w`, `h`, `output`)
 - [x] **Multi-monitor** — instances bound to an output name; recreate on hotplug
-- [ ] **Hit-testing notes** — document v1 click-through limits; avoid stealing
-      clicks on empty panel chrome where possible
+- [x] **Hit-testing** — v1: content and chrome receive clicks as expected;
+      empty desktop around widgets stays usable (no special pass-through work)
 - [x] **Live reload** — Gio monitor on `desktop-widgets.json` (same pattern as
       `bar.json` / `dashboard.json`)
 
@@ -1161,9 +1162,9 @@ Config sketch:
 }
 ```
 
-### E. Extension API (later)
+### E. Extension API (deferred)
 
-Builtins-only until the host is solid. Then:
+Builtins-only for Phase 14. Possible later phase:
 
 - [ ] **Manifest** — widget id, name, version, size hints, settings schema
 - [ ] **Host API** — theme tokens, open URI / launch app, weather + sysinfo
@@ -1171,9 +1172,7 @@ Builtins-only until the host is solid. Then:
 - [ ] **Script / JSON widgets** (or a thin plugin ABI) — sandboxed; no Electron-style
       plugins in v1
 
-**Implementation order:** (1) config + Settings stub + empty host when enabled,
-(2) edit/lock + placeholder instance, (3) Folders + Apps, (4) Clock / System /
-Weather / Equalizer, (5) Settings list UX + text style + docs (2026-07-18).
+**Phase 14 complete (2026-07-18).**
 
 **Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
 dashboard sampling (done); Phase 2 weather service (done); app launch /

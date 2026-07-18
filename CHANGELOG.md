@@ -9,11 +9,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
-- **Desktop widgets content (Phase 14)** — Folders (`~/Desktop` or custom path),
+- **Desktop widgets (Phase 14 complete)** — Folders (`~/Desktop` or custom path),
   Apps (follows start-menu pins from `menu.json` by default; optional dedicated
   import), Clock, System (CPU / RAM / disk), Weather, and **Equalizer** over the
   wallpaper. Config: `~/.config/metis/desktop-widgets.json` (master switch
-  default off).
+  default off). Compositor lock screen covers the session (widgets stay off the
+  lock UI).
 - **Equalizer desktop widget** — visualizes default-sink audio (PipeWire/Pulse
   monitor). Styles: Spectrum lines, Bars, Neon wave, Radial. Bar shapes:
   Segmented, Solid, Dots, Dense dots. Colour modes: Solid, Gradient
