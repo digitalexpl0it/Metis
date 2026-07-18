@@ -127,6 +127,58 @@ fn settings_css(t: &ThemeTokens) -> String {
             border-radius: 12px;
             box-shadow: 0 12px 40px alpha({text}, 0.18);
         }}
+        .metis-settings-widget-dialog {{
+            background-color: {surface};
+            border: 1px solid {border};
+            border-radius: 12px;
+            box-shadow: 0 12px 40px alpha({text}, 0.18);
+        }}
+        .metis-widget-add-row {{
+            padding: 4px 16px 12px;
+        }}
+        .metis-widget-list {{
+            margin: 0 12px 12px;
+            border: 1px solid {border};
+            border-radius: {rl}px;
+            overflow: hidden;
+            background-color: {raised};
+        }}
+        .metis-widget-list-row {{
+            padding: 10px 12px;
+            background-color: transparent;
+            transition: background-color 140ms ease;
+        }}
+        .metis-widget-list-row-alt {{
+            background-color: color-mix(in srgb, {surface} 55%, transparent);
+        }}
+        .metis-widget-list-row:hover {{
+            background-color: color-mix(in srgb, {accent} 10%, {raised});
+        }}
+        .metis-widget-list-icon {{
+            color: {accent};
+            -gtk-icon-style: symbolic;
+        }}
+        .metis-widget-list-title {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 600;
+        }}
+        .metis-widget-list-subtitle {{
+            color: {muted};
+            font-size: 11px;
+        }}
+        .metis-widget-configure-btn {{
+            min-width: 34px;
+            min-height: 34px;
+            padding: 0;
+        }}
+        .metis-widget-configure-btn image {{
+            color: {muted};
+            -gtk-icon-style: symbolic;
+        }}
+        .metis-widget-configure-btn:hover image {{
+            color: {accent};
+        }}
         windowhandle, headerbar, .titlebar {{
             background-color: {surface};
             background-image: none;

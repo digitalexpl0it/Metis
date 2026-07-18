@@ -1040,11 +1040,14 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
                 error = ?snapshot.error,
                 "weather: UI received snapshot"
             );
+            // Cache on the GTK thread too (worker already stores process-wide).
+            crate::services::weather::remember_snapshot(&snapshot);
             BARS.with(|bars| {
                 for handle in bars.borrow().iter() {
                     handle.widget_refs.apply_weather(&snapshot);
                 }
             });
+            crate::ui::desktop_widgets::on_weather_snapshot(&snapshot);
         }
         glib::ControlFlow::Continue
     });

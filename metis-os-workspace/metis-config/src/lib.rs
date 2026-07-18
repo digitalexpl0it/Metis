@@ -301,7 +301,9 @@ pub use dashboard::{
 };
 pub use desktop_widgets::{
     desktop_widgets_config_path, load_desktop_widgets_config, save_desktop_widgets_config,
-    DesktopWidgetInstance, DesktopWidgetKind, DesktopWidgetsConfig,
+    DesktopWidgetChrome, DesktopWidgetChromeOverride, DesktopWidgetInstance, DesktopWidgetKind,
+    DesktopWidgetView, DesktopWidgetsConfig, EqualizerBarShape, EqualizerColorMode,
+    EqualizerVizStyle, ResolvedDesktopWidgetChrome,
 };
 pub use decorations::{
     decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,

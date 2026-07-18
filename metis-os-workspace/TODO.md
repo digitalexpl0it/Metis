@@ -1,8 +1,9 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 14** (Desktop Widgets) is **in progress** — platform
-host + Settings stub + Placeholder move/resize shipped; Folders / Apps / Clock /
-System / Weather content next. **Phase 13** (Notification Center) is
+**Current phase:** **Phase 14** (Desktop Widgets) is **in progress** — Folders /
+Apps / Clock / System / Weather / Equalizer builtins, Settings list + configure
+dialogs, chrome, and text style shipped **2026-07-18**; hit-testing notes and
+extension API remain. **Phase 13** (Notification Center) is
 **complete** (2026-07-10) — Win11-style right panel from the clock, merged
 notifications + calendar tools, closable toasts. **Phase 12** (Native Screenshot
 Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-aware
@@ -1061,9 +1062,10 @@ media in toasts.
 ## Phase 14 — Desktop Widgets
 
 Optional **free-floating wallpaper widgets** instead of classic desktop icons.
-Users who want a glanceable desktop get Folders / Apps / Clock / System / Weather
-panels they can place, resize, and lock; everyone else leaves the feature off.
-Wallpaper stays the hero; widgets sit above it and below normal windows.
+Users who want a glanceable desktop get Folders / Apps / Clock / System /
+Weather / Equalizer panels they can place, resize, and lock; everyone else
+leaves the feature off. Wallpaper stays the hero; widgets sit above it and
+below normal windows.
 
 **Non-goals (v1):** classic desktop icons; reviving compositor `desk.json`
 `TileKind::Widget` grid tiles (already stripped on load — keep `desk.json` for
@@ -1091,28 +1093,41 @@ aims for click-through where layer-shell allows (imperfect pass-through OK in v1
 
 ### B. Folders + Apps (v1 differentiators)
 
-- [ ] **Folders widget** — path default `~/Desktop` or custom; directories first,
+- [x] **Folders widget** — path default `~/Desktop` or custom; directories first,
       then files, A–Z; Gio `FileMonitor`; open via configured file manager /
       launch; faint transparent panel; cap/virtualize huge folders
-- [ ] **Apps widget** — dedicated widget pin list (not a silent dump of start-menu
+- [x] **Apps widget** — dedicated widget pin list (not a silent dump of start-menu
       pins); “Import start-menu pins” action; launch via `applications::launch_id`
       (handles `OnlyShowIn=GNOME` desktop files)
 
-### C. Clock / System / Weather
+### C. Clock / System / Weather / Equalizer
 
-- [ ] **Clock** — large time + date; Metis light/dark tokens
-- [ ] **System** — CPU / RAM / disk glance; reuse Control Center / dashboard
-      sampling patterns (not a second process killer)
-- [ ] **Weather** — reuse shell weather service (same data as the edge-bar widget)
+- [x] **Clock** — large time + date; Metis light/dark tokens; optional font /
+      text colour / accent
+- [x] **System** — CPU / RAM / disk glance; optional font / text colour /
+      progress-bar accent
+- [x] **Weather** — reuse shell weather service (same data as the edge-bar
+      widget); optional font / text colour
+- [x] **Equalizer** — default-sink monitor (Pulse/PipeWire) FFT visualizer;
+      styles: spectrum lines / bars / neon wave / radial; bar shapes:
+      segmented / solid / dots / dense dots; colour: solid / gradient /
+      theme; bars: height gradient, peak caps, reflection; neon: mirror
 
 ### D. Settings + config
 
 - [x] **`desktop-widgets.json`** in `metis-config` — `enabled`, `edit_mode`,
-      `instances[]` (`id`, `kind`, `output`, geometry, `locked`, kind-specific
-      `path` / `pins`); sanitize + defaults; write on demand
+      global `chrome` (bg opacity/colour, border width/colour) + per-instance
+      `chrome` overrides, `instances[]` (`id`, `kind`, `output`, geometry,
+      `locked`, kind-specific fields: `path` / `pins` / `view` / `font` /
+      `text_color` / `accent_color` / equalizer viz options); sanitize +
+      defaults; write on demand
 - [x] **Settings → Desktop → Desktop widgets** — master enable, edit mode,
-      add/remove instances, per-instance lock (folder path / app pins UI later)
-- [ ] **Docs** — User Guide + CHANGELOG + README when the feature ships
+      default look, compact zebra list + configure dialog, add/remove,
+      folder path, import app pins, per-instance lock, text style, equalizer
+      options (style-dependent)
+- [x] **Docs** — User Guide + CHANGELOG + README (2026-07-18)
+- [x] **Widget chrome** — global defaults + per-widget overrides; opacity 0 /
+      border width 0 fully clear the fill / edge (text stays opaque)
 
 Config sketch:
 
@@ -1120,6 +1135,12 @@ Config sketch:
 {
   "enabled": false,
   "edit_mode": false,
+  "chrome": {
+    "background_opacity": 0.4,
+    "background_color": "",
+    "border_width": 1.0,
+    "border_color": ""
+  },
   "instances": [
     {
       "id": "uuid",
@@ -1130,7 +1151,11 @@ Config sketch:
       "w": 360,
       "h": 280,
       "locked": false,
-      "settings": { "path": "~/Desktop" }
+      "path": "~/Desktop",
+      "chrome": {
+        "background_opacity": 0.0,
+        "border_width": 0.0
+      }
     }
   ]
 }
@@ -1148,7 +1173,7 @@ Builtins-only until the host is solid. Then:
 
 **Implementation order:** (1) config + Settings stub + empty host when enabled,
 (2) edit/lock + placeholder instance, (3) Folders + Apps, (4) Clock / System /
-Weather, (5) docs + changelog.
+Weather / Equalizer, (5) Settings list UX + text style + docs (2026-07-18).
 
 **Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
 dashboard sampling (done); Phase 2 weather service (done); app launch /
@@ -1174,7 +1199,7 @@ user-created), `desktop-widgets.json` *(Phase 14)*.
 | `menu.json` | App launcher: terminal + file-manager defaults, pinned apps |
 | `wallpaper.json` | Wallpaper picture / colour / gradient (+ per-output overrides) |
 | `desk.json` | Compositor window-grid layout (app tiles; not desktop widgets) |
-| `desktop-widgets.json` | *(Phase 14)* Free-floating wallpaper widgets: enable, edit mode, instances |
+| `desktop-widgets.json` | *(Phase 14)* Wallpaper widgets: enable, edit mode, chrome, instances (Folders / Apps / Clock / System / Weather / Equalizer) |
 | `themes/dark.json`, `themes/light.json` | Design tokens (accent + secondary accent, semantic colors, `text_on_accent`, shadows/glows); live-reloaded |
 | `briefing.json` | Weather coordinates + RSS feed URL |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |

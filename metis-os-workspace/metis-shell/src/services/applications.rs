@@ -252,6 +252,7 @@ pub fn toggle_pin(id: &str) -> bool {
     if let Err(err) = save_menu_config(&cfg) {
         tracing::warn!(%err, "failed to persist menu.json after pin toggle");
     }
+    crate::ui::desktop_widgets::on_menu_pins_changed();
     now_pinned
 }
 

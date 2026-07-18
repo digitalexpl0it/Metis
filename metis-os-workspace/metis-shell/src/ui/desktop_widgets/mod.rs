@@ -5,6 +5,8 @@
 //! for unlocked instances. Empty chrome may still receive pointer hits in v1
 //! (imperfect click-through — documented in TODO).
 
+mod content;
+
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -15,7 +17,7 @@ use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_config::{
     desktop_widgets_config_path, load_desktop_widgets_config, save_desktop_widgets_config,
-    DesktopWidgetInstance, DesktopWidgetKind, DesktopWidgetsConfig,
+    DesktopWidgetInstance, DesktopWidgetsConfig,
 };
 
 const MIN_W: i32 = 160;
@@ -23,7 +25,11 @@ const MIN_H: i32 = 120;
 const RESIZE_HANDLE: i32 = 20;
 const SAVE_DEBOUNCE_MS: u64 = 350;
 /// Ignore config reloads while dragging and shortly after we write geometry.
-const RELOAD_SUPPRESS_AFTER_SAVE: Duration = Duration::from_millis(600);
+const RELOAD_SUPPRESS_AFTER_SAVE: Duration = Duration::from_millis(900);
+/// Block disk reloads from the moment geometry changes (not only after save).
+const RELOAD_SUPPRESS_ON_EDIT: Duration = Duration::from_millis(1200);
+/// Coalesce rapid Settings/file-monitor reloads (opacity slider, etc.).
+const RELOAD_DEBOUNCE_MS: u64 = 180;
 
 struct HostSurface {
     window: gtk::Window,
@@ -44,6 +50,12 @@ thread_local! {
     /// tear down the surface mid-drag (that caused stutter + resize rubberbanding).
     static INTERACTION: Cell<u32> = const { Cell::new(0) };
     static SUPPRESS_RELOAD_UNTIL: Cell<Option<Instant>> = const { Cell::new(None) };
+    /// Per-card CssProviders (keyed by sanitized instance id). Kept alive so
+    /// USER-priority chrome CSS outlives the load call.
+    static CARD_CHROME: RefCell<std::collections::HashMap<String, gtk::CssProvider>> =
+        RefCell::new(std::collections::HashMap::new());
+    /// Coalesce file-monitor / IPC reload storms (slider drags write often).
+    static RELOAD_DEBOUNCE: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
 }
 
 /// Start the desktop-widgets host (idempotent). Called once from bar startup.
@@ -58,11 +70,87 @@ pub fn init() {
 
 /// Re-read `desktop-widgets.json` and rebuild host surfaces.
 pub fn reload() {
-    if interaction_blocks_reload() {
-        tracing::debug!("desktop widgets reload deferred (edit interaction active)");
+    schedule_reload();
+}
+
+/// Theme tokens changed — rebuild cards so empty chrome colours pick up the new surface/text.
+pub fn on_theme_changed() {
+    if !INITED.get() {
         return;
     }
-    reload_from_disk();
+    if interaction_blocks_reload() {
+        return;
+    }
+    // Theme tint changes only affect resolved chrome colours.
+    let cfg = current_cfg();
+    if hosts_are_live() && cfg.enabled {
+        apply_all_card_chrome(&cfg);
+    } else {
+        rebuild_hosts();
+    }
+}
+
+/// Start-menu pin list changed — refresh Apps widgets that follow `menu.json`.
+pub fn on_menu_pins_changed() {
+    if !INITED.get() {
+        return;
+    }
+    let cfg = current_cfg();
+    if !cfg.enabled {
+        return;
+    }
+    let follows_menu = cfg.instances.iter().any(|i| {
+        i.kind == metis_config::DesktopWidgetKind::Apps && i.pins.is_empty()
+    });
+    if !follows_menu {
+        return;
+    }
+    if interaction_blocks_reload() {
+        schedule_reload();
+        return;
+    }
+    rebuild_hosts();
+}
+
+/// Fresh weather snapshot from the bar service — update live desktop weather cards.
+pub fn on_weather_snapshot(snapshot: &crate::services::WeatherSnapshot) {
+    content::weather::on_snapshot(snapshot);
+}
+
+fn schedule_reload() {
+    if !INITED.get() {
+        return;
+    }
+    if let Some(id) = RELOAD_DEBOUNCE.with(|c| c.borrow_mut().take()) {
+        id.remove();
+    }
+
+    // If a drag/save suppress window is active, wait until it ends — do not spin
+    // every debounce tick (that caused post-drop rebuild storms).
+    let delay = if let Some(until) = SUPPRESS_RELOAD_UNTIL.get() {
+        let now = Instant::now();
+        if now < until {
+            (until - now) + Duration::from_millis(50)
+        } else {
+            Duration::from_millis(RELOAD_DEBOUNCE_MS)
+        }
+    } else if INTERACTION.get() > 0 {
+        Duration::from_millis(RELOAD_DEBOUNCE_MS.max(250))
+    } else {
+        Duration::from_millis(RELOAD_DEBOUNCE_MS)
+    };
+
+    let id = glib::timeout_add_local(delay, || {
+        RELOAD_DEBOUNCE.with(|c| *c.borrow_mut() = None);
+        if interaction_blocks_reload() || SAVE_PENDING.with(|c| c.borrow().is_some()) {
+            tracing::debug!("desktop widgets reload deferred (edit / pending save)");
+            schedule_reload();
+            return glib::ControlFlow::Break;
+        }
+        reload_from_disk();
+        glib::ControlFlow::Break
+    });
+    RELOAD_DEBOUNCE.with(|c| *c.borrow_mut() = Some(id));
 }
 
 fn interaction_blocks_reload() -> bool {
@@ -78,18 +166,154 @@ fn interaction_blocks_reload() -> bool {
     false
 }
 
+fn suppress_reloads_for(duration: Duration) {
+    let until = Instant::now() + duration;
+    match SUPPRESS_RELOAD_UNTIL.get() {
+        Some(prev) if prev > until => {}
+        _ => SUPPRESS_RELOAD_UNTIL.set(Some(until)),
+    }
+}
+
 fn begin_interaction() {
     INTERACTION.set(INTERACTION.get().saturating_add(1));
+    suppress_reloads_for(RELOAD_SUPPRESS_ON_EDIT);
 }
 
 fn end_interaction() {
     INTERACTION.set(INTERACTION.get().saturating_sub(1));
+    // Keep suppress briefly after release so the debounced save + file monitor
+    // cannot rebuild hosts from stale disk geometry.
+    suppress_reloads_for(RELOAD_SUPPRESS_ON_EDIT);
+}
+
+fn hosts_are_live() -> bool {
+    HOSTS.with(|h| !h.borrow().is_empty())
 }
 
 fn reload_from_disk() {
+    // Never clobber in-flight geometry edits with a stale file read.
+    if SAVE_PENDING.with(|c| c.borrow().is_some()) {
+        schedule_reload();
+        return;
+    }
+
     let cfg = load_desktop_widgets_config();
-    CFG.with(|cell| *cell.borrow_mut() = cfg);
+    let prev = current_cfg();
+
+    // Same widgets, only positions/sizes differ → move in place (no flicker).
+    if hosts_are_live() && cfg.enabled && same_widget_identity(&prev, &cfg) {
+        CFG.with(|cell| *cell.borrow_mut() = cfg.clone());
+        if !same_widget_geometry(&prev, &cfg) {
+            apply_geometry_in_place(&cfg);
+        }
+        if prev.chrome != cfg.chrome
+            || prev
+                .instances
+                .iter()
+                .zip(&cfg.instances)
+                .any(|(a, b)| a.chrome != b.chrome)
+        {
+            apply_all_card_chrome(&cfg);
+        }
+        return;
+    }
+
+    let layout_same = hosts_are_live() && cfg.enabled && same_widget_layout(&prev, &cfg);
+    CFG.with(|cell| *cell.borrow_mut() = cfg.clone());
+
+    if layout_same {
+        if prev.chrome != cfg.chrome
+            || prev
+                .instances
+                .iter()
+                .zip(&cfg.instances)
+                .any(|(a, b)| a.chrome != b.chrome)
+        {
+            apply_all_card_chrome(&cfg);
+        }
+        return;
+    }
+
     rebuild_hosts();
+}
+
+/// Layout / content identity (everything except chrome). When this matches, only
+/// CSS needs updating.
+fn same_widget_layout(a: &DesktopWidgetsConfig, b: &DesktopWidgetsConfig) -> bool {
+    same_widget_identity(a, b) && same_widget_geometry(a, b)
+}
+
+fn same_widget_identity(a: &DesktopWidgetsConfig, b: &DesktopWidgetsConfig) -> bool {
+    a.enabled == b.enabled
+        && a.edit_mode == b.edit_mode
+        && a.instances.len() == b.instances.len()
+        && a.instances.iter().zip(&b.instances).all(|(x, y)| {
+            x.id == y.id
+                && x.kind == y.kind
+                && x.output == y.output
+                && x.locked == y.locked
+                && x.path == y.path
+                && x.pins == y.pins
+                && x.view == y.view
+                && x.show_title == y.show_title
+                && x.font == y.font
+                && x.text_color == y.text_color
+                && x.accent_color == y.accent_color
+                && x.viz_style == y.viz_style
+                && x.bar_shape == y.bar_shape
+                && x.color_mode == y.color_mode
+                && x.solid_color == y.solid_color
+                && x.gradient_start == y.gradient_start
+                && x.gradient_end == y.gradient_end
+                && x.bar_count == y.bar_count
+                && x.bar_gradient == y.bar_gradient
+                && x.show_peaks == y.show_peaks
+                && x.peak_color == y.peak_color
+                && x.show_reflection == y.show_reflection
+        })
+}
+
+fn same_widget_geometry(a: &DesktopWidgetsConfig, b: &DesktopWidgetsConfig) -> bool {
+    a.instances
+        .iter()
+        .zip(&b.instances)
+        .all(|(x, y)| x.x == y.x && x.y == y.y && x.w == y.w && x.h == y.h)
+}
+
+fn apply_geometry_in_place(cfg: &DesktopWidgetsConfig) {
+    HOSTS.with(|hosts| {
+        for host in hosts.borrow().iter() {
+            let mut child = host.canvas.first_child();
+            while let Some(widget) = child {
+                child = widget.next_sibling();
+                let name = widget.widget_name();
+                if name.is_empty() {
+                    continue;
+                }
+                let Some(inst) = cfg.instances.iter().find(|i| i.id == name.as_str()) else {
+                    continue;
+                };
+                if !instance_belongs(inst, host) {
+                    continue;
+                }
+                host.canvas
+                    .move_(&widget, inst.x as f64, inst.y as f64);
+                widget.set_size_request(inst.w as i32, inst.h as i32);
+            }
+        }
+    });
+}
+
+fn apply_all_card_chrome(cfg: &DesktopWidgetsConfig) {
+    for inst in &cfg.instances {
+        let style_class = format!("metis-dw-c-{}", sanitize_css_id(&inst.id));
+        apply_card_chrome(
+            &style_class,
+            &cfg.chrome.resolve(&inst.chrome),
+            &inst.text_color,
+            &inst.accent_color,
+        );
+    }
 }
 
 fn current_cfg() -> DesktopWidgetsConfig {
@@ -179,7 +403,7 @@ fn populate_host(host: &HostSurface, cfg: &DesktopWidgetsConfig) {
         if !instance_belongs(inst, host) {
             continue;
         }
-        let card = build_card(inst, cfg.edit_mode);
+        let card = build_card(inst, &cfg.chrome, cfg.edit_mode);
         host.canvas
             .put(&card, inst.x as f64, inst.y as f64);
     }
@@ -192,11 +416,19 @@ fn instance_belongs(inst: &DesktopWidgetInstance, host: &HostSurface) -> bool {
     inst.output == host.output
 }
 
-fn build_card(inst: &DesktopWidgetInstance, edit_mode: bool) -> gtk::Widget {
+fn build_card(
+    inst: &DesktopWidgetInstance,
+    global_chrome: &metis_config::DesktopWidgetChrome,
+    edit_mode: bool,
+) -> gtk::Widget {
     let can_edit = edit_mode && !inst.locked;
 
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
     outer.add_css_class("metis-dw-card");
+    // Stable id for in-place geometry updates after config reload.
+    outer.set_widget_name(&inst.id);
+    let style_class = format!("metis-dw-c-{}", sanitize_css_id(&inst.id));
+    outer.add_css_class(&style_class);
     if can_edit {
         outer.add_css_class("metis-dw-edit");
     }
@@ -206,36 +438,60 @@ fn build_card(inst: &DesktopWidgetInstance, edit_mode: bool) -> gtk::Widget {
     outer.set_size_request(inst.w as i32, inst.h as i32);
     outer.set_overflow(gtk::Overflow::Hidden);
 
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    header.add_css_class("metis-dw-header");
-    // Give the header a drag target area without competing with body content.
-    header.set_height_request(28);
-    let title = gtk::Label::new(Some(inst.kind.label()));
-    title.add_css_class("metis-dw-title");
-    title.set_xalign(0.0);
-    title.set_hexpand(true);
-    // Labels steal nothing useful for drag; keep them non-target so the header
-    // gesture always wins.
-    title.set_can_target(false);
-    header.append(&title);
-    if inst.locked {
-        let lock = gtk::Label::new(Some("Locked"));
-        lock.add_css_class("metis-dw-badge");
-        lock.set_can_target(false);
-        header.append(&lock);
-    } else if can_edit {
-        let badge = gtk::Label::new(Some("Drag title · resize ↘"));
-        badge.add_css_class("metis-dw-badge");
-        badge.set_can_target(false);
-        header.append(&badge);
+    apply_card_chrome(
+        &style_class,
+        &global_chrome.resolve(&inst.chrome),
+        &inst.text_color,
+        &inst.accent_color,
+    );
+
+    // Title bar: full chrome when shown; thin drag strip in edit mode when hidden.
+    let show_header = inst.show_title || can_edit;
+    let mut move_target: Option<gtk::Box> = None;
+    if show_header {
+        let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        header.add_css_class("metis-dw-header");
+        if inst.show_title {
+            header.set_height_request(28);
+            let title = gtk::Label::new(Some(inst.kind.label()));
+            title.add_css_class("metis-dw-title");
+            title.set_xalign(0.0);
+            title.set_hexpand(true);
+            title.set_can_target(false);
+            header.append(&title);
+            if inst.locked {
+                let lock = gtk::Label::new(Some("Locked"));
+                lock.add_css_class("metis-dw-badge");
+                lock.set_can_target(false);
+                header.append(&lock);
+            } else if can_edit {
+                let badge = gtk::Label::new(Some("Drag title · resize ↘"));
+                badge.add_css_class("metis-dw-badge");
+                badge.set_can_target(false);
+                header.append(&badge);
+            }
+        } else {
+            // Title off but edit mode: keep a grab strip so the card stays movable.
+            header.set_height_request(18);
+            header.add_css_class("metis-dw-header-slim");
+            let badge = gtk::Label::new(Some("⋮⋮ drag"));
+            badge.add_css_class("metis-dw-badge");
+            badge.set_hexpand(true);
+            badge.set_xalign(0.5);
+            badge.set_can_target(false);
+            header.append(&badge);
+        }
+        outer.append(&header);
+        if can_edit {
+            move_target = Some(header);
+        }
     }
-    outer.append(&header);
 
     let body = gtk::Box::new(gtk::Orientation::Vertical, 6);
     body.add_css_class("metis-dw-body");
     body.set_hexpand(true);
     body.set_vexpand(true);
-    body.append(&content_for_kind(inst));
+    body.append(&content::build(inst));
     outer.append(&body);
 
     if can_edit {
@@ -252,41 +508,13 @@ fn build_card(inst: &DesktopWidgetInstance, edit_mode: bool) -> gtk::Widget {
         footer.append(&handle);
         outer.append(&footer);
 
-        // Move from the header only so resize gestures are not stolen.
-        wire_move(&header, &outer, &inst.id);
+        if let Some(header) = move_target {
+            wire_move(&header, &outer, &inst.id);
+        }
         wire_resize(&handle, &outer, &inst.id);
     }
 
     outer.upcast()
-}
-
-fn content_for_kind(inst: &DesktopWidgetInstance) -> gtk::Widget {
-    match inst.kind {
-        DesktopWidgetKind::Placeholder => {
-            let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
-            let hint = gtk::Label::new(Some(
-                "Placeholder — drag the title bar to move, corner to resize. \
-                 Folders, Apps, Clock, System, and Weather come next.",
-            ));
-            hint.set_wrap(true);
-            hint.set_xalign(0.0);
-            hint.add_css_class("metis-dw-hint");
-            col.append(&hint);
-            col.upcast()
-        }
-        other => {
-            let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
-            let hint = gtk::Label::new(Some(&format!(
-                "{} widget — content lands in a later Phase 14 step.",
-                other.label()
-            )));
-            hint.set_wrap(true);
-            hint.set_xalign(0.0);
-            hint.add_css_class("metis-dw-hint");
-            col.append(&hint);
-            col.upcast()
-        }
-    }
 }
 
 /// Pointer position in the native surface's coordinate space.
@@ -298,31 +526,6 @@ fn gesture_surface_pos(gesture: &gtk::GestureDrag) -> Option<(f64, f64)> {
     gesture.current_event()?.position()
 }
 
-fn css_class_for_id(id: &str) -> String {
-    let mut out = String::from("metis-dw-t-");
-    for ch in id.chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch);
-        } else {
-            out.push('_');
-        }
-    }
-    out
-}
-
-/// Live translate while dragging — layout position stays put so gestures stay
-/// stable and we avoid full Fixed relayout every pointer event.
-fn apply_live_translate(provider: &gtk::CssProvider, class: &str, dx: f64, dy: f64) {
-    let css = format!(
-        ".{class} {{ transform: translate({dx:.1}px, {dy:.1}px); }}"
-    );
-    provider.load_from_data(&css);
-}
-
-fn clear_live_transform(provider: &gtk::CssProvider, class: &str) {
-    provider.load_from_data(&format!(".{class} {{ }}"));
-}
-
 fn wire_move(header: &gtk::Box, card: &gtk::Box, id: &str) {
     let drag = gtk::GestureDrag::new();
     drag.set_button(gdk::BUTTON_PRIMARY);
@@ -330,35 +533,21 @@ fn wire_move(header: &gtk::Box, card: &gtk::Box, id: &str) {
     drag.set_exclusive(true);
 
     let id = id.to_string();
-    let class = css_class_for_id(&id);
-    card.add_css_class(&class);
-
-    let provider = gtk::CssProvider::new();
-    if let Some(display) = gdk::Display::default() {
-        gtk::style_context_add_provider_for_display(
-            &display,
-            &provider,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 50,
-        );
-    }
-
     let card_origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
     let ptr_origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
-    let last_delta = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
+    let last_pos = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
 
     {
         let card = card.clone();
         let card_origin = card_origin.clone();
         let ptr_origin = ptr_origin.clone();
-        let last_delta = last_delta.clone();
-        let provider = provider.clone();
-        let class = class.clone();
+        let last_pos = last_pos.clone();
         drag.connect_drag_begin(move |gesture, _x, _y| {
             begin_interaction();
-            last_delta.set((0.0, 0.0));
-            clear_live_transform(&provider, &class);
             if let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) {
-                card_origin.set(fixed.child_position(&card));
+                let origin = fixed.child_position(&card);
+                card_origin.set(origin);
+                last_pos.set(origin);
             }
             if let Some(pos) = gesture_surface_pos(gesture) {
                 ptr_origin.set(pos);
@@ -366,42 +555,44 @@ fn wire_move(header: &gtk::Box, card: &gtk::Box, id: &str) {
         });
     }
     {
+        let card = card.clone();
+        let card_origin = card_origin.clone();
         let ptr_origin = ptr_origin.clone();
-        let last_delta = last_delta.clone();
-        let provider = provider.clone();
-        let class = class.clone();
+        let last_pos = last_pos.clone();
         drag.connect_drag_update(move |gesture, _ox, _oy| {
             let Some((px, py)) = gesture_surface_pos(gesture) else {
                 return;
             };
             let (sx, sy) = ptr_origin.get();
-            let dx = px - sx;
-            let dy = py - sy;
-            last_delta.set((dx, dy));
-            apply_live_translate(&provider, &class, dx, dy);
+            let (ox, oy) = card_origin.get();
+            let nx = (ox + (px - sx)).max(0.0);
+            let ny = (oy + (py - sy)).max(0.0);
+            last_pos.set((nx, ny));
+            // Surface-absolute Fixed moves — no CSS transform, so release cannot
+            // "snap back" from a translate/layout mismatch.
+            if let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) {
+                fixed.move_(&card, nx, ny);
+            }
         });
     }
     {
         let card = card.clone();
+        let last_pos = last_pos.clone();
         let card_origin = card_origin.clone();
-        let last_delta = last_delta.clone();
-        let provider = provider.clone();
-        let class = class.clone();
+        let ptr_origin = ptr_origin.clone();
         drag.connect_drag_end(move |gesture, _, _| {
-            let (mut dx, mut dy) = last_delta.get();
+            let (mut nx, mut ny) = last_pos.get();
             if let Some((px, py)) = gesture_surface_pos(gesture) {
                 let (sx, sy) = ptr_origin.get();
-                dx = px - sx;
-                dy = py - sy;
+                let (ox, oy) = card_origin.get();
+                nx = (ox + (px - sx)).max(0.0);
+                ny = (oy + (py - sy)).max(0.0);
             }
-            clear_live_transform(&provider, &class);
-            let (ox, oy) = card_origin.get();
-            let nx = (ox + dx).max(0.0);
-            let ny = (oy + dy).max(0.0);
             if let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) {
                 fixed.move_(&card, nx, ny);
             }
-            if dx.abs() >= 1.0 || dy.abs() >= 1.0 {
+            let (ox, oy) = card_origin.get();
+            if (nx - ox).abs() >= 1.0 || (ny - oy).abs() >= 1.0 {
                 update_instance_geometry(&id, |inst| {
                     inst.x = nx.round() as i32;
                     inst.y = ny.round() as i32;
@@ -411,10 +602,7 @@ fn wire_move(header: &gtk::Box, card: &gtk::Box, id: &str) {
         });
     }
     {
-        let provider = provider.clone();
-        let class = class.clone();
         drag.connect_cancel(move |_, _| {
-            clear_live_transform(&provider, &class);
             end_interaction();
         });
     }
@@ -499,6 +687,9 @@ fn update_instance_geometry(id: &str, f: impl FnOnce(&mut DesktopWidgetInstance)
     };
     f(inst);
     CFG.with(|cell| *cell.borrow_mut() = cfg.clone());
+    // Suppress before the debounced write — otherwise the file monitor (or a
+    // deferred reload) can rebuild from stale disk coords mid-save window.
+    suppress_reloads_for(RELOAD_SUPPRESS_ON_EDIT);
     schedule_save(cfg);
 }
 
@@ -510,7 +701,7 @@ fn schedule_save(cfg: DesktopWidgetsConfig) {
         Duration::from_millis(SAVE_DEBOUNCE_MS),
         move || {
             SAVE_PENDING.with(|cell| *cell.borrow_mut() = None);
-            SUPPRESS_RELOAD_UNTIL.set(Some(Instant::now() + RELOAD_SUPPRESS_AFTER_SAVE));
+            suppress_reloads_for(RELOAD_SUPPRESS_AFTER_SAVE);
             if let Err(err) = save_desktop_widgets_config(&cfg) {
                 tracing::warn!(%err, "failed to persist desktop widget geometry");
             }
@@ -535,9 +726,9 @@ fn watch_config_file() {
         return;
     };
     monitor.connect_changed(move |_, _, _, _| {
-        glib::timeout_add_local_once(Duration::from_millis(250), || {
-            reload();
-        });
+        // Atomic save is write(tmp)+rename → DELETE/CREATE flood. One debounced
+        // reload is enough; chrome-only edits skip host teardown.
+        schedule_reload();
     });
     FILE_MONITOR.with(|cell| *cell.borrow_mut() = Some(monitor));
 }
@@ -578,3 +769,103 @@ fn monitor_output_name(monitor: &gdk::Monitor) -> Option<String> {
         .map(|c| c.to_string())
         .filter(|c| !c.is_empty())
 }
+
+fn sanitize_css_id(id: &str) -> String {
+    id.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+fn apply_card_chrome(
+    style_class: &str,
+    chrome: &metis_config::ResolvedDesktopWidgetChrome,
+    text_color: &str,
+    accent_color: &str,
+) {
+    let tokens = crate::ui::theme::active_tokens();
+    let fill_rgb = if chrome.background_color.is_empty() {
+        if tokens.mode.eq_ignore_ascii_case("light") {
+            tokens.surface_raised_rgb()
+        } else {
+            tokens.surface_rgb()
+        }
+    } else {
+        hex_to_rgb_triplet(&chrome.background_color).unwrap_or_else(|| tokens.surface_rgb())
+    };
+    let alpha = chrome.background_opacity.clamp(0.0, 1.0);
+    let border_css = if chrome.border_width <= 0.0 {
+        "border: none;".to_string()
+    } else {
+        let border_rgb = if chrome.border_color.is_empty() {
+            tokens.text_rgb()
+        } else {
+            hex_to_rgb_triplet(&chrome.border_color).unwrap_or_else(|| tokens.text_rgb())
+        };
+        let border_alpha = if chrome.border_color.is_empty() {
+            0.12
+        } else {
+            1.0
+        };
+        format!(
+            "border: {:.2}px solid rgba({border_rgb}, {border_alpha:.3});",
+            chrome.border_width
+        )
+    };
+
+    let mut extra = String::new();
+    if let Some(text_rgb) = hex_to_rgb_triplet(text_color) {
+        extra.push_str(&format!(
+            ".metis-dw-card.{style_class} label {{ color: rgb({text_rgb}); }}\
+             .metis-dw-card.{style_class} .metis-dw-hint {{ color: rgba({text_rgb}, 0.72); }}\
+             .metis-dw-card.{style_class} .metis-dw-title {{ color: rgb({text_rgb}); }}\
+             .metis-dw-card.{style_class} image {{ color: rgb({text_rgb}); }}"
+        ));
+    }
+    if let Some(accent_rgb) = hex_to_rgb_triplet(accent_color) {
+        extra.push_str(&format!(
+            "progressbar.metis-dw-progress.{style_class} progress,\
+             .metis-dw-card.{style_class} progressbar.metis-dw-progress progress {{\
+                 background-color: rgb({accent_rgb}); background-image: none; }}"
+        ));
+    }
+
+    let css = format!(
+        ".metis-dw-card.{style_class} {{ background-color: rgba({fill_rgb}, {alpha:.3}); {border_css} }}{extra}"
+    );
+
+    CARD_CHROME.with(|map| {
+        let mut map = map.borrow_mut();
+        let is_new = !map.contains_key(style_class);
+        let provider = map
+            .entry(style_class.to_string())
+            .or_insert_with(gtk::CssProvider::new);
+        provider.load_from_data(&css);
+        if is_new {
+            if let Some(display) = gdk::Display::default() {
+                gtk::style_context_add_provider_for_display(
+                    &display,
+                    provider,
+                    gtk::STYLE_PROVIDER_PRIORITY_USER,
+                );
+            }
+        }
+    });
+}
+
+fn hex_to_rgb_triplet(hex: &str) -> Option<String> {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&h[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&h[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&h[4..6], 16).ok()?;
+    Some(format!("{r}, {g}, {b}"))
+}
+

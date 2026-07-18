@@ -64,6 +64,9 @@ or with `metis-cmd.sh show-onboarding`. Disable for dev with
 - **Edge bar** — a thin bar anchored to one screen edge (top by default). It
   holds the app launcher, a taskbar dock of running apps, workspace dots, and
   status widgets (weather, battery, Bluetooth, network, volume, clipboard, clock).
+- **Desktop widgets** *(optional)* — free-floating panels over the wallpaper
+  (Folders, Apps, Clock, System, Weather, Equalizer). Off by default; turn on
+  in **Settings → Desktop widgets**, then use **Edit mode** to move/resize.
 - **Windows** — every app gets a compositor-drawn **titlebar** with close,
   minimize, and maximize buttons, plus a border. Windows tile into a grid by
   default — opening or closing an app re-splits the area below desk widgets among
@@ -646,6 +649,14 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   only), *Workspaces* (independent vs linked), and *New workspace layout* (grid
   vs scrolling). The **Windows** card covers titlebar opacity, the title pill
   border, and the window frame border.
+- **Desktop widgets** — optional wallpaper panels (Folders, Apps, Clock, System,
+  Weather, Equalizer; off by default). Enable the layer, turn on **Edit mode**
+  to move/resize, set **Default look** (fill / border), and manage instances in
+  a compact zebra list (**Add** stays at the top; gear opens a configure
+  dialog). Clock / Weather / System: font, text colour, accent. Equalizer:
+  Spectrum / Bars / Neon wave / Radial, bar shapes, colour modes, peaks,
+  reflection / mirror. Per-widget look overrides live in each dialog. Writes
+  `desktop-widgets.json`; the shell live-reloads.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
   opacity. Saved to `menu.json`.
@@ -834,6 +845,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `wallpaper.json` | Background picture / colour / gradient, plus per-output overrides |
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `desk.json` | Compositor window-grid layout (widget tiles) |
+| `desktop-widgets.json` | Wallpaper desktop widgets: enable, edit mode, chrome, instances |
 | `dismissed.json` | Dismissed calendar reminder IDs |
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard layout/repeat (compositor live-reload) |

@@ -82,12 +82,8 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     let nc_panel_bg = dash_panel_bg.clone();
     let nc_card_bg = dash_card_bg.clone();
     let toast_card_bg = dash_card_bg.clone();
-    // Desktop widgets: fainter than dash cards so wallpaper stays visible.
-    let dw_card_bg = if is_light {
-        format!("rgba({raised_rgb}, 0.42)")
-    } else {
-        format!("rgba({surface_rgb}, 0.38)")
-    };
+    // Desktop widget fill/border come from per-card chrome (desktop-widgets.json),
+    // not the theme stylesheet.
     // Notification rows inside the NC / legacy popover — follow raised surface,
     // never a hardcoded dark charcoal (that looked like dark-mode in light theme).
     let notif_card_bg = dash_card_bg.clone();
@@ -3619,15 +3615,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: transparent;
     }}
     .metis-dw-card {{
-        background-color: {dw_card_bg};
-        border: 1px solid rgba({text_rgb}, 0.12);
+        background-color: transparent;
+        border: none;
         border-radius: {rm}px;
         color: {text};
         padding: 8px 10px 6px 10px;
     }}
     .metis-dw-card.metis-dw-edit {{
-        border: 1px dashed rgba({accent_rgb}, 0.65);
-        box-shadow: 0 0 0 1px rgba({accent_rgb}, 0.18);
+        /* Edit outline stays visible even when fill/border chrome is transparent. */
+        outline: 1px dashed rgba({accent_rgb}, 0.65);
+        outline-offset: -1px;
     }}
     .metis-dw-card.metis-dw-locked {{
         opacity: 0.92;
@@ -3635,6 +3632,11 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-dw-header {{
         margin-bottom: 4px;
         min-height: 28px;
+    }}
+    .metis-dw-header.metis-dw-header-slim {{
+        min-height: 18px;
+        margin-bottom: 2px;
+        opacity: 0.85;
     }}
     .metis-dw-title {{
         font-weight: 600;
@@ -3655,6 +3657,73 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {muted};
         font-size: 0.85rem;
         opacity: 0.9;
+    }}
+    .metis-dw-list {{
+        padding: 0;
+    }}
+    button.metis-dw-row {{
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        border-radius: {rs}px;
+        padding: 4px 6px;
+        color: {text};
+    }}
+    button.metis-dw-row:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-dw-folder-grid {{
+        padding: 2px;
+    }}
+    button.metis-dw-folder-tile {{
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        border-radius: {rs}px;
+        padding: 6px 4px;
+        color: {text};
+    }}
+    button.metis-dw-folder-tile:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-dw-folder-name {{
+        font-size: 0.72rem;
+        color: {text};
+    }}
+    button.metis-dw-menu-item {{
+        background-image: none;
+        background-color: transparent;
+        border: none;
+        border-radius: {rs}px;
+        padding: 6px 10px;
+        color: {text};
+    }}
+    button.metis-dw-menu-item:hover {{
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    .metis-dw-clock-time {{
+        font-size: 2.4rem;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-dw-clock-date {{
+        font-size: 0.95rem;
+        color: {muted};
+    }}
+    .metis-dw-metric-label {{
+        font-weight: 600;
+        color: {text};
+        font-size: 0.85rem;
+    }}
+    progressbar.metis-dw-progress trough {{
+        min-height: 6px;
+        border-radius: 999px;
+        background-color: rgba({text_rgb}, 0.12);
+    }}
+    progressbar.metis-dw-progress progress {{
+        min-height: 6px;
+        border-radius: 999px;
+        background-color: {accent};
     }}
     .metis-dw-resize {{
         background-image: none;
@@ -3696,6 +3765,5 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         overlay_card_bg = overlay_card_bg,
         overlay_dot = overlay_dot,
         accent2 = accent2,
-        dw_card_bg = dw_card_bg,
     )
 }

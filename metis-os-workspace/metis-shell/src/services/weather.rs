@@ -11,7 +11,6 @@
 //! Temperature unit follows `weather.json` (`auto` resolves US-style regions to
 //! Fahrenheit, everything else to Celsius).
 
-use std::cell::RefCell;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -28,6 +27,11 @@ const HOURLY_POINTS: usize = 5;
 /// Auto-detected location, cached for the process lifetime so a later geocoding
 /// failure can't wipe out a location we already resolved.
 static CACHED_GEO: OnceLock<Mutex<Option<Geo>>> = OnceLock::new();
+
+/// Latest snapshot shared across the weather worker and the GTK main thread.
+/// Must not be `thread_local` — the worker writes it; the bar / desktop widgets
+/// read it on the UI thread.
+static LAST_WEATHER: Mutex<Option<WeatherSnapshot>> = Mutex::new(None);
 
 #[derive(Debug, thiserror::Error)]
 enum WeatherError {
@@ -74,14 +78,24 @@ enum WeatherCommand {
 
 static WEATHER_CMD_TX: OnceLock<Sender<WeatherCommand>> = OnceLock::new();
 
-thread_local! {
-    static LAST_WEATHER: RefCell<Option<WeatherSnapshot>> = RefCell::new(None);
+/// Last weather snapshot — used to re-hydrate bar / desktop widgets after a
+/// rebuild (the async service only pushes every ~15 minutes).
+pub fn last_weather_snapshot() -> Option<WeatherSnapshot> {
+    LAST_WEATHER
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone())
 }
 
-/// Last weather snapshot sent to the bar — used to re-hydrate widgets after a
-/// live bar rebuild (the async service only pushes every ~15 minutes).
-pub fn last_weather_snapshot() -> Option<WeatherSnapshot> {
-    LAST_WEATHER.with(|s| s.borrow().clone())
+/// Remember a snapshot on the GTK thread (also written by the worker).
+pub fn remember_snapshot(snapshot: &WeatherSnapshot) {
+    store_last_weather(snapshot);
+}
+
+fn store_last_weather(snapshot: &WeatherSnapshot) {
+    if let Ok(mut guard) = LAST_WEATHER.lock() {
+        *guard = Some(snapshot.clone());
+    }
 }
 
 /// Spawn the weather background thread and return the snapshot receiver.
@@ -127,7 +141,7 @@ async fn weather_loop(tx: Sender<WeatherSnapshot>, cmd_rx: Receiver<WeatherComma
             "weather: snapshot ready"
         );
         let failed = snapshot.error.is_some();
-        LAST_WEATHER.with(|s| *s.borrow_mut() = Some(snapshot.clone()));
+        store_last_weather(&snapshot);
         if tx.send(snapshot).is_err() {
             return;
         }

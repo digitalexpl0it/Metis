@@ -5,6 +5,60 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-18]
+
+### Added
+
+- **Desktop widgets content (Phase 14)** — Folders (`~/Desktop` or custom path),
+  Apps (follows start-menu pins from `menu.json` by default; optional dedicated
+  import), Clock, System (CPU / RAM / disk), Weather, and **Equalizer** over the
+  wallpaper. Config: `~/.config/metis/desktop-widgets.json` (master switch
+  default off).
+- **Equalizer desktop widget** — visualizes default-sink audio (PipeWire/Pulse
+  monitor). Styles: Spectrum lines, Bars, Neon wave, Radial. Bar shapes:
+  Segmented, Solid, Dots, Dense dots. Colour modes: Solid, Gradient
+  (start/end), Theme. Bars: height gradient, peak caps + colour, reflection.
+  Neon wave: mirror on/off. Settings options switch with the selected style.
+- **Clock / Weather / System text style** — per-widget font (family, weight,
+  size), text colour, and accent (System progress fills) in the configure
+  dialog.
+- **Settings → Desktop widgets list UX** — compact zebra-striped rows with kind
+  icons; **Add widget** pinned at the top; gear opens a modal for per-widget
+  options (keeps the page scannable).
+
+### Changed
+
+- **Folders widget is a grid** — app icons for `.desktop` files (extension kept
+  in the label), clickable launch; folders open in the file manager; other files
+  use `xdg-open`. Right-click: Open, Open with…, Rename, Delete, New Folder.
+- **Folders / Apps view modes** — per-widget Grid or List (Settings). Both sort
+  A–Z; Folders lists directories first, then files.
+- **Desktop widgets** — free placement (edge snap removed); optional title bar;
+  Settings → Desktop widgets includes **Default look** (background
+  opacity/colour, border width/colour) plus optional **per-widget overrides**.
+  Opacity 0 clears the fill; border width 0 removes the edge.
+- **Equalizer colour mode** — “Multi colour” relabelled **Gradient** with
+  configurable start/end colours.
+- **Desktop widget chrome edits** — opacity/border sliders update card CSS in
+  place (no layer-shell teardown), so dragging overrides no longer blanks the
+  desktop for seconds.
+- **Desktop weather widget** — reads the shared weather snapshot correctly (it
+  was stuck on “Waiting…” because the cache lived on the wrong thread).
+- **Desktop widget drag** — geometry saves no longer race a file-monitor rebuild
+  that yanked cards back.
+- **Settings widget page scroll** — changing a setting no longer rebuilds the
+  whole list and jumps to the top; most toggles update in place.
+
+### Fixed
+
+- **Minimized windows stay on the task dock** — `ListWindows` now includes
+  minimized/unmapped windows from the registry, so reconcile no longer drops
+  them (which forced a second launch to “get back” to the app).
+- **Equalizer latency** — low Pulse fragsize + overlapping FFT hops so the
+  visualizer tracks audio instead of lagging ~1s.
+- **Equalizer Solid colour** — bars no longer force a pink peak / neon height
+  wash; height gradient and peak colour are configurable.
+
 ## [2026-07-17]
 
 ### Added

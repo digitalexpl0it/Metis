@@ -1,4 +1,5 @@
 pub mod applications;
+pub mod audio_viz;
 pub mod calendar;
 mod dashboard;
 mod notifications;
@@ -16,6 +17,7 @@ mod volumes;
 mod workspaces;
 
 pub use applications::{watch_app_index, AppEntry};
+pub use audio_viz::{audio_viz_frame, ensure_audio_viz, release_audio_viz, VizFrame};
 pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };
@@ -53,7 +55,10 @@ pub use volumes::{
     mount_volume as volumes_mount, open_in_file_manager, register_refresh as register_volumes_refresh,
     snapshot as volumes_snapshot, unmount as volumes_unmount, VolumeEntry, VolumeKind,
 };
-pub use weather::{last_weather_snapshot, spawn_weather_service, weather_refresh, LocationWeather, WeatherSnapshot};
+pub use weather::{
+    last_weather_snapshot, remember_snapshot, spawn_weather_service, weather_refresh,
+    LocationWeather, WeatherSnapshot,
+};
 pub use windows::refresh_taskbars;
 pub use workspaces::{
     active_workspace_for, dispatch_workspace, set_active_workspace, workspace_snapshot,

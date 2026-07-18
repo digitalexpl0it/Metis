@@ -103,6 +103,7 @@ fn apply_tokens(tokens: &ThemeTokens) {
         BAR_POSITION.with(Cell::get),
     );
     apply_menu_opacity(MENU_OPACITY.with(Cell::get));
+    crate::ui::desktop_widgets::on_theme_changed();
     crate::ui::dashboard::on_theme_changed();
     crate::ui::screenshot::on_theme_changed();
     crate::ui::notification_center::on_theme_changed();

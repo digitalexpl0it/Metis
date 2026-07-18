@@ -212,6 +212,7 @@ Other files are created on demand:
 | `wallpaper.json` | You pick a background | Wallpaper picture / colour / gradient (+ per-output overrides) |
 | `weather.json` | You configure weather | Bar weather: unit, auto-detect / IP-geolocation, saved locations |
 | `desk.json` | The compositor persists its layout | Compositor window-grid layout (widget tiles) |
+| `desktop-widgets.json` | You enable Desktop widgets | Wallpaper widgets: enable, edit mode, chrome, Folders / Apps / Clock / System / Weather / Equalizer instances |
 | `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
 | `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |

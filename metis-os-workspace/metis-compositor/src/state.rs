@@ -7638,31 +7638,23 @@ impl MetisState {
                 }
             }
             CompositorCommand::ListWindows => {
+                // Use the full registry (includes minimized/unmapped). Walking
+                // `space.elements()` only sees mapped windows and previously
+                // skipped minimized ones, so shell reconcile wiped them from the
+                // task dock and the user could not restore them.
                 let focused = self.focused_window_id();
-                let mut windows = Vec::new();
-                // Top-to-bottom (front to back) so clients can hit-test the visible window.
-                for window in self.space.elements().rev() {
-                    let Some(id) = self.windows.id_for_window(window) else {
-                        continue;
-                    };
-                    let Some(record) = self.windows.get(id) else {
-                        continue;
-                    };
-                    if !record.ready || record.minimized {
-                        continue;
-                    }
-                    windows.push(WindowInfo {
-                        id,
-                        title: record.title.clone(),
-                        app_id: record.app_id.clone(),
-                        rect: record.target_rect,
-                        fullscreen: record.fullscreen,
-                        minimized: false,
-                        focused: focused == Some(id),
-                        output: record.output.clone(),
-                        workspace: record.workspace,
-                    });
+                let mut windows = self.windows.list();
+                for w in &mut windows {
+                    w.focused = focused == Some(w.id);
                 }
+                // Front-ish order: focused first, then non-minimized, then minimized.
+                windows.sort_by_key(|w| {
+                    (
+                        if focused == Some(w.id) { 0 } else { 1 },
+                        if w.minimized { 2 } else { 1 },
+                        w.id,
+                    )
+                });
                 CompositorEvent::WindowList { windows }
             }
             CompositorCommand::MoveWindow { id, rect } => {
