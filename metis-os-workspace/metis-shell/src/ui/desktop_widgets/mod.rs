@@ -7,6 +7,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use gtk::gdk;
 use gtk::gio;
@@ -19,8 +20,10 @@ use metis_config::{
 
 const MIN_W: i32 = 160;
 const MIN_H: i32 = 120;
-const RESIZE_HANDLE: i32 = 18;
-const SAVE_DEBOUNCE_MS: u64 = 200;
+const RESIZE_HANDLE: i32 = 20;
+const SAVE_DEBOUNCE_MS: u64 = 350;
+/// Ignore config reloads while dragging and shortly after we write geometry.
+const RELOAD_SUPPRESS_AFTER_SAVE: Duration = Duration::from_millis(600);
 
 struct HostSurface {
     window: gtk::Window,
@@ -36,9 +39,11 @@ thread_local! {
     static CFG: RefCell<DesktopWidgetsConfig> = RefCell::new(DesktopWidgetsConfig::default());
     static INITED: Cell<bool> = const { Cell::new(false) };
     static FILE_MONITOR: RefCell<Option<gio::FileMonitor>> = const { RefCell::new(None) };
-    /// Skip one file-monitor reload after we write geometry ourselves.
-    static SKIP_RELOAD: Cell<bool> = const { Cell::new(false) };
     static SAVE_PENDING: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
+    /// Active move/resize gestures — file monitor / Settings reload must not
+    /// tear down the surface mid-drag (that caused stutter + resize rubberbanding).
+    static INTERACTION: Cell<u32> = const { Cell::new(0) };
+    static SUPPRESS_RELOAD_UNTIL: Cell<Option<Instant>> = const { Cell::new(None) };
 }
 
 /// Start the desktop-widgets host (idempotent). Called once from bar startup.
@@ -53,10 +58,32 @@ pub fn init() {
 
 /// Re-read `desktop-widgets.json` and rebuild host surfaces.
 pub fn reload() {
-    if SKIP_RELOAD.replace(false) {
+    if interaction_blocks_reload() {
+        tracing::debug!("desktop widgets reload deferred (edit interaction active)");
         return;
     }
     reload_from_disk();
+}
+
+fn interaction_blocks_reload() -> bool {
+    if INTERACTION.get() > 0 {
+        return true;
+    }
+    if let Some(until) = SUPPRESS_RELOAD_UNTIL.get() {
+        if Instant::now() < until {
+            return true;
+        }
+        SUPPRESS_RELOAD_UNTIL.set(None);
+    }
+    false
+}
+
+fn begin_interaction() {
+    INTERACTION.set(INTERACTION.get().saturating_add(1));
+}
+
+fn end_interaction() {
+    INTERACTION.set(INTERACTION.get().saturating_sub(1));
 }
 
 fn reload_from_disk() {
@@ -181,18 +208,25 @@ fn build_card(inst: &DesktopWidgetInstance, edit_mode: bool) -> gtk::Widget {
 
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     header.add_css_class("metis-dw-header");
+    // Give the header a drag target area without competing with body content.
+    header.set_height_request(28);
     let title = gtk::Label::new(Some(inst.kind.label()));
     title.add_css_class("metis-dw-title");
     title.set_xalign(0.0);
     title.set_hexpand(true);
+    // Labels steal nothing useful for drag; keep them non-target so the header
+    // gesture always wins.
+    title.set_can_target(false);
     header.append(&title);
     if inst.locked {
         let lock = gtk::Label::new(Some("Locked"));
         lock.add_css_class("metis-dw-badge");
+        lock.set_can_target(false);
         header.append(&lock);
     } else if can_edit {
-        let badge = gtk::Label::new(Some("Edit"));
+        let badge = gtk::Label::new(Some("Drag title · resize ↘"));
         badge.add_css_class("metis-dw-badge");
+        badge.set_can_target(false);
         header.append(&badge);
     }
     outer.append(&header);
@@ -207,15 +241,19 @@ fn build_card(inst: &DesktopWidgetInstance, edit_mode: bool) -> gtk::Widget {
     if can_edit {
         let footer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         footer.set_halign(gtk::Align::End);
-        let handle = gtk::Button::new();
-        handle.set_label("↘");
-        handle.set_tooltip_text(Some("Drag to resize"));
+        // Plain box, not a Button — Button + GestureDrag fights and rubberbands.
+        let handle = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         handle.add_css_class("metis-dw-resize");
         handle.set_size_request(RESIZE_HANDLE, RESIZE_HANDLE);
+        handle.set_tooltip_text(Some("Drag to resize"));
+        let grip = gtk::Label::new(Some("↘"));
+        grip.set_can_target(false);
+        handle.append(&grip);
         footer.append(&handle);
         outer.append(&footer);
 
-        wire_move(&outer, &inst.id);
+        // Move from the header only so resize gestures are not stolen.
+        wire_move(&header, &outer, &inst.id);
         wire_resize(&handle, &outer, &inst.id);
     }
 
@@ -227,7 +265,7 @@ fn content_for_kind(inst: &DesktopWidgetInstance) -> gtk::Widget {
         DesktopWidgetKind::Placeholder => {
             let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
             let hint = gtk::Label::new(Some(
-                "Placeholder — use Edit mode to move and resize. \
+                "Placeholder — drag the title bar to move, corner to resize. \
                  Folders, Apps, Clock, System, and Weather come next.",
             ));
             hint.set_wrap(true);
@@ -251,103 +289,203 @@ fn content_for_kind(inst: &DesktopWidgetInstance) -> gtk::Widget {
     }
 }
 
-fn wire_move(card: &gtk::Box, id: &str) {
+/// Pointer position in the native surface's coordinate space.
+///
+/// `GestureDrag::offset()` is widget-local. Moving/resizing that widget under the
+/// cursor collapses the offset toward zero (rubberband / jitter). Surface coords
+/// stay stable for the lifetime of the gesture.
+fn gesture_surface_pos(gesture: &gtk::GestureDrag) -> Option<(f64, f64)> {
+    gesture.current_event()?.position()
+}
+
+fn css_class_for_id(id: &str) -> String {
+    let mut out = String::from("metis-dw-t-");
+    for ch in id.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+/// Live translate while dragging — layout position stays put so gestures stay
+/// stable and we avoid full Fixed relayout every pointer event.
+fn apply_live_translate(provider: &gtk::CssProvider, class: &str, dx: f64, dy: f64) {
+    let css = format!(
+        ".{class} {{ transform: translate({dx:.1}px, {dy:.1}px); }}"
+    );
+    provider.load_from_data(&css);
+}
+
+fn clear_live_transform(provider: &gtk::CssProvider, class: &str) {
+    provider.load_from_data(&format!(".{class} {{ }}"));
+}
+
+fn wire_move(header: &gtk::Box, card: &gtk::Box, id: &str) {
     let drag = gtk::GestureDrag::new();
-    drag.set_button(1);
+    drag.set_button(gdk::BUTTON_PRIMARY);
     drag.set_propagation_phase(gtk::PropagationPhase::Capture);
+    drag.set_exclusive(true);
 
     let id = id.to_string();
-    let start = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
-    let origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
+    let class = css_class_for_id(&id);
+    card.add_css_class(&class);
+
+    let provider = gtk::CssProvider::new();
+    if let Some(display) = gdk::Display::default() {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION + 50,
+        );
+    }
+
+    let card_origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
+    let ptr_origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
+    let last_delta = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
 
     {
-        let start = start.clone();
-        let origin = origin.clone();
         let card = card.clone();
-        drag.connect_drag_begin(move |_, _x, _y| {
-            start.set((0.0, 0.0));
+        let card_origin = card_origin.clone();
+        let ptr_origin = ptr_origin.clone();
+        let last_delta = last_delta.clone();
+        let provider = provider.clone();
+        let class = class.clone();
+        drag.connect_drag_begin(move |gesture, _x, _y| {
+            begin_interaction();
+            last_delta.set((0.0, 0.0));
+            clear_live_transform(&provider, &class);
             if let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) {
-                let (fx, fy) = fixed.child_position(&card);
-                origin.set((fx, fy));
+                card_origin.set(fixed.child_position(&card));
+            }
+            if let Some(pos) = gesture_surface_pos(gesture) {
+                ptr_origin.set(pos);
             }
         });
     }
     {
-        let origin = origin.clone();
-        let card = card.clone();
-        drag.connect_drag_update(move |gesture, _x, _y| {
-            let Some((dx, dy)) = gesture.offset() else {
+        let ptr_origin = ptr_origin.clone();
+        let last_delta = last_delta.clone();
+        let provider = provider.clone();
+        let class = class.clone();
+        drag.connect_drag_update(move |gesture, _ox, _oy| {
+            let Some((px, py)) = gesture_surface_pos(gesture) else {
                 return;
             };
-            let (ox, oy) = origin.get();
+            let (sx, sy) = ptr_origin.get();
+            let dx = px - sx;
+            let dy = py - sy;
+            last_delta.set((dx, dy));
+            apply_live_translate(&provider, &class, dx, dy);
+        });
+    }
+    {
+        let card = card.clone();
+        let card_origin = card_origin.clone();
+        let last_delta = last_delta.clone();
+        let provider = provider.clone();
+        let class = class.clone();
+        drag.connect_drag_end(move |gesture, _, _| {
+            let (mut dx, mut dy) = last_delta.get();
+            if let Some((px, py)) = gesture_surface_pos(gesture) {
+                let (sx, sy) = ptr_origin.get();
+                dx = px - sx;
+                dy = py - sy;
+            }
+            clear_live_transform(&provider, &class);
+            let (ox, oy) = card_origin.get();
             let nx = (ox + dx).max(0.0);
             let ny = (oy + dy).max(0.0);
             if let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) {
                 fixed.move_(&card, nx, ny);
             }
+            if dx.abs() >= 1.0 || dy.abs() >= 1.0 {
+                update_instance_geometry(&id, |inst| {
+                    inst.x = nx.round() as i32;
+                    inst.y = ny.round() as i32;
+                });
+            }
+            end_interaction();
         });
     }
     {
-        let card = card.clone();
-        drag.connect_drag_end(move |gesture, _x, _y| {
-            let Some((dx, dy)) = gesture.offset() else {
-                return;
-            };
-            // Ignore tiny clicks.
-            if dx.abs() < 1.0 && dy.abs() < 1.0 {
-                return;
-            }
-            let Some(fixed) = card.parent().and_then(|p| p.downcast::<gtk::Fixed>().ok()) else {
-                return;
-            };
-            let (fx, fy) = fixed.child_position(&card);
-            update_instance_geometry(&id, |inst| {
-                inst.x = fx.round() as i32;
-                inst.y = fy.round() as i32;
-            });
+        let provider = provider.clone();
+        let class = class.clone();
+        drag.connect_cancel(move |_, _| {
+            clear_live_transform(&provider, &class);
+            end_interaction();
         });
     }
 
-    card.add_controller(drag);
+    header.add_controller(drag);
 }
 
-fn wire_resize(handle: &gtk::Button, card: &gtk::Box, id: &str) {
+fn wire_resize(handle: &gtk::Box, card: &gtk::Box, id: &str) {
     let drag = gtk::GestureDrag::new();
-    drag.set_button(1);
+    drag.set_button(gdk::BUTTON_PRIMARY);
     drag.set_propagation_phase(gtk::PropagationPhase::Capture);
+    drag.set_exclusive(true);
 
     let id = id.to_string();
     let start_size = Rc::new(Cell::new((0_i32, 0_i32)));
+    let ptr_origin = Rc::new(Cell::new((0.0_f64, 0.0_f64)));
+    let pending = Rc::new(Cell::new((0_i32, 0_i32)));
 
     {
         let start_size = start_size.clone();
+        let ptr_origin = ptr_origin.clone();
+        let pending = pending.clone();
         let card = card.clone();
-        drag.connect_drag_begin(move |_, _, _| {
-            start_size.set((card.width().max(MIN_W), card.height().max(MIN_H)));
+        drag.connect_drag_begin(move |gesture, _, _| {
+            begin_interaction();
+            let w = card.width().max(card.width_request()).max(MIN_W);
+            let h = card.height().max(card.height_request()).max(MIN_H);
+            start_size.set((w, h));
+            pending.set((w, h));
+            if let Some(pos) = gesture_surface_pos(gesture) {
+                ptr_origin.set(pos);
+            }
         });
     }
     {
         let start_size = start_size.clone();
+        let ptr_origin = ptr_origin.clone();
+        let pending = pending.clone();
         let card = card.clone();
         drag.connect_drag_update(move |gesture, _, _| {
-            let Some((dx, dy)) = gesture.offset() else {
+            let Some((px, py)) = gesture_surface_pos(gesture) else {
                 return;
             };
+            let (sx, sy) = ptr_origin.get();
             let (sw, sh) = start_size.get();
-            let nw = (sw as f64 + dx).round() as i32;
-            let nh = (sh as f64 + dy).round() as i32;
-            card.set_size_request(nw.max(MIN_W), nh.max(MIN_H));
+            let nw = ((sw as f64 + (px - sx)).round() as i32).max(MIN_W);
+            let nh = ((sh as f64 + (py - sy)).round() as i32).max(MIN_H);
+            pending.set((nw, nh));
+            // Apply immediately from surface deltas (not widget-local offset) so
+            // growing the card under the grip cannot collapse the gesture.
+            card.set_size_request(nw, nh);
         });
     }
     {
         let card = card.clone();
+        let pending = pending.clone();
         drag.connect_drag_end(move |_, _, _| {
-            let w = card.width().max(MIN_W) as u32;
-            let h = card.height().max(MIN_H) as u32;
+            let (w, h) = pending.get();
+            let w = w.max(MIN_W) as u32;
+            let h = h.max(MIN_H) as u32;
+            card.set_size_request(w as i32, h as i32);
             update_instance_geometry(&id, |inst| {
                 inst.w = w.clamp(160, 2400);
                 inst.h = h.clamp(120, 1800);
             });
+            end_interaction();
+        });
+    }
+    {
+        drag.connect_cancel(move |_, _| {
+            end_interaction();
         });
     }
 
@@ -369,16 +507,13 @@ fn schedule_save(cfg: DesktopWidgetsConfig) {
         id.remove();
     }
     let id = glib::timeout_add_local(
-        std::time::Duration::from_millis(SAVE_DEBOUNCE_MS),
+        Duration::from_millis(SAVE_DEBOUNCE_MS),
         move || {
             SAVE_PENDING.with(|cell| *cell.borrow_mut() = None);
-            SKIP_RELOAD.set(true);
+            SUPPRESS_RELOAD_UNTIL.set(Some(Instant::now() + RELOAD_SUPPRESS_AFTER_SAVE));
             if let Err(err) = save_desktop_widgets_config(&cfg) {
                 tracing::warn!(%err, "failed to persist desktop widget geometry");
-                SKIP_RELOAD.set(false);
             }
-            // Refresh Settings list labels eventually via file monitor; we skip
-            // our own rebuild so drag feels smooth.
             glib::ControlFlow::Break
         },
     );
@@ -400,7 +535,7 @@ fn watch_config_file() {
         return;
     };
     monitor.connect_changed(move |_, _, _, _| {
-        glib::timeout_add_local_once(std::time::Duration::from_millis(250), || {
+        glib::timeout_add_local_once(Duration::from_millis(250), || {
             reload();
         });
     });
@@ -413,7 +548,10 @@ fn watch_monitors() {
         return;
     };
     display.monitors().connect_items_changed(move |_, _, _, _| {
-        glib::timeout_add_local_once(std::time::Duration::from_millis(200), || {
+        glib::timeout_add_local_once(Duration::from_millis(200), || {
+            if interaction_blocks_reload() {
+                return;
+            }
             rebuild_hosts();
         });
     });

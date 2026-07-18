@@ -3634,6 +3634,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     .metis-dw-header {{
         margin-bottom: 4px;
+        min-height: 28px;
     }}
     .metis-dw-title {{
         font-weight: 600;
@@ -3655,19 +3656,19 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 0.85rem;
         opacity: 0.9;
     }}
-    button.metis-dw-resize {{
+    .metis-dw-resize {{
         background-image: none;
-        background-color: rgba({accent_rgb}, 0.18);
-        border: 1px solid rgba({accent_rgb}, 0.45);
+        background-color: rgba({accent_rgb}, 0.22);
+        border: 1px solid rgba({accent_rgb}, 0.50);
         border-radius: 4px;
         color: {text};
         padding: 0;
-        min-width: 18px;
-        min-height: 18px;
+        min-width: 20px;
+        min-height: 20px;
         font-size: 0.7rem;
     }}
-    button.metis-dw-resize:hover {{
-        background-color: rgba({accent_rgb}, 0.32);
+    .metis-dw-resize:hover {{
+        background-color: rgba({accent_rgb}, 0.38);
     }}
 "#,
         surface = surface,

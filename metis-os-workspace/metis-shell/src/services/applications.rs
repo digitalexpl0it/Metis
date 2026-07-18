@@ -428,11 +428,43 @@ fn desktop_id_candidates(id: &str) -> Vec<String> {
     out
 }
 
+/// Wayland `app_id` values that do not match the `.desktop` basename.
+///
+/// GNOME Terminal's process reports `gnome-terminal-server`; pinning that string
+/// used to leave a dock icon that could not resolve an Exec line.
+fn app_id_launch_aliases(id: &str) -> Vec<String> {
+    let lower = id.trim().to_lowercase();
+    let mut out = Vec::new();
+    match lower.as_str() {
+        "gnome-terminal-server" | "gnome-terminal" | "gnome-terminal.desktop" => {
+            out.push("org.gnome.Terminal.desktop".into());
+            out.push("org.gnome.Terminal".into());
+        }
+        "gnome-terminal-preferences" | "org.gnome.terminal.preferences" => {
+            out.push("org.gnome.Terminal.Preferences.desktop".into());
+        }
+        _ => {}
+    }
+    if let Some(base) = lower.strip_suffix("-server") {
+        if !base.is_empty() {
+            out.push(format!("{base}.desktop"));
+            out.push(base.to_string());
+        }
+    }
+    out
+}
+
+fn entry_from_desktop_candidate(candidate: &str) -> Option<AppEntry> {
+    let info = gio::DesktopAppInfo::new(candidate)?;
+    entry_from_info(info.upcast())
+}
+
 /// Resolve a pin / Wayland app id to a launchable entry.
 ///
 /// Tries the visible app index first, then `DesktopAppInfo::new` so apps that
 /// declare `OnlyShowIn=GNOME` (e.g. GNOME Terminal) still resolve under Metis
-/// even when `AppInfo::all().should_show()` hides them from the menu.
+/// even when `AppInfo::all().should_show()` hides them from the menu. Also maps
+/// known Wayland `app_id` aliases (`gnome-terminal-server` → Terminal).
 pub fn resolve_entry_for_id(id: &str) -> Option<AppEntry> {
     let needle = id.trim().to_lowercase();
     if needle.is_empty() {
@@ -445,11 +477,21 @@ pub fn resolve_entry_for_id(id: &str) -> Option<AppEntry> {
         return Some(entry);
     }
     for candidate in desktop_id_candidates(id) {
-        let Some(info) = gio::DesktopAppInfo::new(&candidate) else {
-            continue;
-        };
-        if let Some(entry) = entry_from_info(info.upcast()) {
+        if let Some(entry) = entry_from_desktop_candidate(&candidate) {
             return Some(entry);
+        }
+    }
+    for alias in app_id_launch_aliases(&needle) {
+        if let Some(entry) = list_apps()
+            .into_iter()
+            .find(|e| matches_app_id(e, &alias.to_lowercase()))
+        {
+            return Some(entry);
+        }
+        for candidate in desktop_id_candidates(&alias) {
+            if let Some(entry) = entry_from_desktop_candidate(&candidate) {
+                return Some(entry);
+            }
         }
     }
     None

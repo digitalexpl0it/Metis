@@ -1,5 +1,9 @@
 //! Desktop widgets: enable the wallpaper widget layer, edit mode, and manage
 //! instances. Persists to `desktop-widgets.json`; the shell live-reloads.
+//!
+//! Geometry is owned by the shell while the user drags/resizes. Every Settings
+//! write reloads from disk first so toggles (edit mode, lock, …) cannot clobber
+//! positions the shell already saved.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -103,16 +107,27 @@ pub fn build() -> gtk::Widget {
 
     {
         let cfg = cfg.clone();
+        let refresh_list = refresh_list.clone();
         enabled.connect_active_notify(move |sw| {
-            cfg.borrow_mut().enabled = sw.is_active();
-            persist(&cfg.borrow());
+            // Reload disk first so we keep shell-saved geometry.
+            mutate_from_disk(&cfg, |disk| {
+                disk.enabled = sw.is_active();
+            });
+            if let Some(refresh) = refresh_list.borrow().as_ref() {
+                refresh();
+            }
         });
     }
     {
         let cfg = cfg.clone();
+        let refresh_list = refresh_list.clone();
         edit_mode.connect_active_notify(move |sw| {
-            cfg.borrow_mut().edit_mode = sw.is_active();
-            persist(&cfg.borrow());
+            mutate_from_disk(&cfg, |disk| {
+                disk.edit_mode = sw.is_active();
+            });
+            if let Some(refresh) = refresh_list.borrow().as_ref() {
+                refresh();
+            }
         });
     }
     {
@@ -124,10 +139,10 @@ pub fn build() -> gtk::Widget {
                 .get(idx)
                 .copied()
                 .unwrap_or(DesktopWidgetKind::Placeholder);
-            cfg.borrow_mut()
-                .instances
-                .push(DesktopWidgetInstance::new(kind));
-            persist(&cfg.borrow());
+            mutate_from_disk(&cfg, |disk| {
+                disk.instances
+                    .push(DesktopWidgetInstance::new(kind));
+            });
             if let Some(refresh) = refresh_list.borrow().as_ref() {
                 refresh();
             }
@@ -168,15 +183,12 @@ fn instance_row(
     {
         let cfg = cfg.clone();
         locked.connect_toggled(move |btn| {
-            if let Some(inst) = cfg
-                .borrow_mut()
-                .instances
-                .iter_mut()
-                .find(|i| i.id == id)
-            {
-                inst.locked = btn.is_active();
-            }
-            persist(&cfg.borrow());
+            let locked = btn.is_active();
+            mutate_from_disk(&cfg, |disk| {
+                if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
+                    inst.locked = locked;
+                }
+            });
         });
     }
     row.append(&locked);
@@ -185,8 +197,9 @@ fn instance_row(
     remove.add_css_class("destructive-action");
     let id = inst.id.clone();
     remove.connect_clicked(move |_| {
-        cfg.borrow_mut().instances.retain(|i| i.id != id);
-        persist(&cfg.borrow());
+        mutate_from_disk(&cfg, |disk| {
+            disk.instances.retain(|i| i.id != id);
+        });
         if let Some(refresh) = refresh_list.borrow().as_ref() {
             refresh();
         }
@@ -196,8 +209,16 @@ fn instance_row(
     row.upcast()
 }
 
-fn persist(cfg: &DesktopWidgetsConfig) {
-    if let Err(err) = save_desktop_widgets_config(cfg) {
+/// Re-read `desktop-widgets.json`, apply `f`, write back, and ask the shell to
+/// reload. Preserves geometry the shell saved after drag/resize.
+fn mutate_from_disk(
+    cfg: &RefCell<DesktopWidgetsConfig>,
+    f: impl FnOnce(&mut DesktopWidgetsConfig),
+) {
+    let mut disk = load_desktop_widgets_config();
+    f(&mut disk);
+    *cfg.borrow_mut() = disk.clone();
+    if let Err(err) = save_desktop_widgets_config(&disk) {
         tracing::warn!(%err, "failed to save desktop-widgets.json");
     }
     crate::runtime::send("reload-desktop-widgets");

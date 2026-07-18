@@ -27,6 +27,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Pinned GNOME Terminal won’t launch** — Terminal’s Wayland `app_id` is
+  `gnome-terminal-server`, which was stored as the pin id and could not resolve
+  a `.desktop` Exec. Pins/launch now map that alias to
+  `org.gnome.Terminal.desktop`.
+- **Desktop widget drag / resize** — move is title-bar only; resize uses a plain
+  grip (not a Button). Gestures track **surface** pointer coords (widget-local
+  `GestureDrag` offsets rubberband when the card moves under the cursor). Move
+  uses a live CSS translate, then commits `Fixed` position on release; config
+  reloads stay suppressed during edit.
+- **Desktop widgets reset on leaving edit mode** — Settings re-reads
+  `desktop-widgets.json` before every save so toggling edit/enable/lock no
+  longer overwrites shell-saved geometry with a stale in-memory copy.
+
 - **CSD apps show close-only** — session start now writes
   `org.gnome.desktop.wm.preferences button-layout` to
   `appmenu:minimize,maximize,close` (and gtk-decoration-layout when the schema
