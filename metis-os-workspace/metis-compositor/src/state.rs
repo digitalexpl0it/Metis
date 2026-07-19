@@ -1205,6 +1205,11 @@ impl MetisState {
     }
 
     /// Throttle pointer motion forwarded to clients — GTK hover repaints were saturating the loop.
+    ///
+    /// Never throttle over a running game: the compositor cursor still moves on
+    /// every libinput sample, and dropping absolute `motion` leaves the client
+    /// behind. The next click then injects the true position and Proton/UE titles
+    /// snap the camera to the Metis cursor (often ahead due to pointer accel).
     pub fn should_forward_pointer_motion(&mut self, location: Point<f64, Logical>) -> bool {
         // Never throttle while a compositor grab (move/resize/scroll-resize) owns the
         // pointer — dropped motion events leave the grab stuck at its start size.
@@ -1212,6 +1217,10 @@ impl MetisState {
             return true;
         }
         if self.metis_bar_ui_hit(location) {
+            return true;
+        }
+        if self.pointer_over_running_game(location) {
+            self.last_pointer_forward = Some((std::time::Instant::now(), location));
             return true;
         }
         const MIN_MS: u128 = 48;
@@ -1226,6 +1235,30 @@ impl MetisState {
         }
         self.last_pointer_forward = Some((now, location));
         true
+    }
+
+    /// True when the pointer is over a Proton/native game window (incl. windowed).
+    pub(crate) fn pointer_over_running_game(&self, location: Point<f64, Logical>) -> bool {
+        let Some((surface, _)) = self.pointer_target_at(location) else {
+            return false;
+        };
+        self.windows
+            .id_for_surface(&surface)
+            .is_some_and(|id| self.window_is_running_game(id))
+    }
+
+    /// Active `zwp_locked_pointer_v1` on this surface (mouse-look / raw input).
+    pub(crate) fn pointer_locked_on_surface(
+        &self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+        pointer: &smithay::input::pointer::PointerHandle<Self>,
+    ) -> bool {
+        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
+        with_pointer_constraint(surface, pointer, |constraint| {
+            constraint.is_some_and(|c| {
+                c.is_active() && matches!(&*c, PointerConstraint::Locked(_))
+            })
+        })
     }
 
     pub fn window_id_for_toplevel(&self, surface: &smithay::wayland::shell::xdg::ToplevelSurface) -> Option<u32> {

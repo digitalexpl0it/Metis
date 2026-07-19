@@ -483,20 +483,22 @@ impl MetisState {
                 self.update_hover_cursor(location);
                 self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(location);
-                if !self.should_forward_pointer_motion(location) {
-                    return;
-                }
                 let serial = SERIAL_COUNTER.next_serial();
                 let new_under = self.pointer_target_at(location);
-                pointer.motion(
-                    self,
-                    new_under.clone(),
-                    &MotionEvent {
-                        location,
-                        serial,
-                        time: event.time_msec(),
-                    },
-                );
+                let forward = self.should_forward_pointer_motion(location);
+                if forward {
+                    pointer.motion(
+                        self,
+                        new_under.clone(),
+                        &MotionEvent {
+                            location,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                }
+                // Always frame so `relative_motion` flushes even when absolute
+                // motion is throttled (desktop GTK hover path).
                 pointer.frame(self);
 
                 // Arm a not-yet-active constraint once the pointer enters its
@@ -526,20 +528,19 @@ impl MetisState {
                 self.update_hover_cursor(pos);
                 self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(pos);
-                if !self.should_forward_pointer_motion(pos) {
-                    return;
-                }
                 let serial = SERIAL_COUNTER.next_serial();
                 let under = self.pointer_target_at(pos);
-                pointer.motion(
-                    self,
-                    under,
-                    &MotionEvent {
-                        location: pos,
-                        serial,
-                        time: event.time_msec(),
-                    },
-                );
+                if self.should_forward_pointer_motion(pos) {
+                    pointer.motion(
+                        self,
+                        under,
+                        &MotionEvent {
+                            location: pos,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                }
                 pointer.frame(self);
             }
             InputEvent::PointerButton { event, .. } => {
@@ -552,6 +553,14 @@ impl MetisState {
                 let under = self.pointer_target_at(raw_loc);
                 let loc = self.effective_pointer_delivery_loc(&pointer, under.as_ref());
                 let remapped_via_hint = loc != raw_loc;
+                let pointer_locked = under
+                    .as_ref()
+                    .is_some_and(|(surface, _)| self.pointer_locked_on_surface(surface, &pointer));
+                let over_game = under.as_ref().is_some_and(|(surface, _)| {
+                    self.windows
+                        .id_for_surface(surface)
+                        .is_some_and(|id| self.window_is_running_game(id))
+                });
                 if remapped_via_hint {
                     if let Some((surface, _)) = under.as_ref() {
                         self.trace_game_pointer(
@@ -578,20 +587,32 @@ impl MetisState {
                     }
                 }
 
-                // Sync motion target before button so layer-shell clients receive
-                // enter/press. `motion` updates PointerInternal.location — when we
-                // remapped through a Proton menu hint, restore the lock anchor
-                // after the button frame so gameplay clicks do not permanently
-                // warp the cursor (weapon fire / mouse-look).
-                pointer.motion(
-                    self,
-                    under.clone(),
-                    &MotionEvent {
-                        location: loc,
-                        serial,
-                        time: event.time_msec(),
-                    },
-                );
+                // Absolute motion before a button tells the client "cursor is here".
+                // Games drive look from relative deltas (and Metis cursor accel often
+                // runs ahead). Injecting absolute on click snaps the camera to the
+                // system cursor — skip it for games unless remapping a Proton menu
+                // hint. Desktop/apps still get the sync motion for enter/press.
+                let send_absolute = remapped_via_hint || (!pointer_locked && !over_game);
+                if send_absolute {
+                    pointer.motion(
+                        self,
+                        under.clone(),
+                        &MotionEvent {
+                            location: loc,
+                            serial,
+                            time: event.time_msec(),
+                        },
+                    );
+                } else if button_state == ButtonState::Pressed {
+                    if let Some((surface, _)) = under.as_ref() {
+                        self.trace_game_pointer(
+                            surface,
+                            &pointer,
+                            "game click without absolute motion",
+                            Some(raw_loc),
+                        );
+                    }
+                }
 
                 if ButtonState::Pressed == button_state {
                     const BTN_LEFT: u32 = 0x110;
