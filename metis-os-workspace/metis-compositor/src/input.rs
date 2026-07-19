@@ -445,14 +445,42 @@ impl MetisState {
                 );
 
                 if pointer_locked {
-                    // Locked: the cursor stays put; deliver relative motion only.
-                    // A leftover menu hint must not remap the next fire/click —
-                    // mouse-look invalidates it until the client publishes a fresh
-                    // `set_cursor_position_hint` (pause-menu cursor moves).
+                    // Protocol lock: relative only, cursor stays put.
                     self.cursor_hint_click_valid = false;
-                    // Do not schedule_redraw — nothing on screen changes and the
-                    // game repaints from its own commits; repainting here on every
-                    // mouse poll was saturating the compositor during mouse-look.
+                    pointer.frame(self);
+                    return;
+                }
+
+                // Proton/XWayland FPS-style capture: keep absolute pointer at the
+                // window centre while still sending relative deltas. Absolute-only
+                // look clamps at the edge; skipping absolute entirely breaks X11
+                // MotionNotify. Warping absolute to centre (and relative for look)
+                // matches gamescope --force-grab-cursor and stops click-aim snaps.
+                let over_game = under.as_ref().is_some_and(|(surface, _)| {
+                    self.windows
+                        .id_for_surface(surface)
+                        .is_some_and(|id| self.window_is_running_game(id))
+                });
+                let game_menu = under
+                    .as_ref()
+                    .is_some_and(|(surface, _)| self.game_surface_in_menu_mode(surface));
+                if over_game && !game_menu {
+                    self.cursor_hint_click_valid = false;
+                    if let Some((surface, _)) = under.as_ref() {
+                        if let Some(anchor) = self.game_pointer_anchor(surface) {
+                            pointer.set_location(anchor);
+                            let serial = SERIAL_COUNTER.next_serial();
+                            pointer.motion(
+                                self,
+                                under.clone(),
+                                &MotionEvent {
+                                    location: anchor,
+                                    serial,
+                                    time: event.time_msec(),
+                                },
+                            );
+                        }
+                    }
                     pointer.frame(self);
                     return;
                 }
@@ -561,6 +589,20 @@ impl MetisState {
                         .id_for_surface(surface)
                         .is_some_and(|id| self.window_is_running_game(id))
                 });
+                let game_menu = under
+                    .as_ref()
+                    .is_some_and(|(surface, _)| self.game_surface_in_menu_mode(surface));
+                // Gameplay capture keeps the pointer at the window centre so a
+                // click cannot inherit a drifted edge position as aim/look.
+                let mut loc = loc;
+                if over_game && !game_menu && !remapped_via_hint {
+                    if let Some((surface, _)) = under.as_ref() {
+                        if let Some(anchor) = self.game_pointer_anchor(surface) {
+                            pointer.set_location(anchor);
+                            loc = anchor;
+                        }
+                    }
+                }
                 if remapped_via_hint {
                     if let Some((surface, _)) = under.as_ref() {
                         self.trace_game_pointer(
@@ -587,12 +629,9 @@ impl MetisState {
                     }
                 }
 
-                // Absolute motion before a button tells the client "cursor is here".
-                // Games drive look from relative deltas (and Metis cursor accel often
-                // runs ahead). Injecting absolute on click snaps the camera to the
-                // system cursor — skip it for games unless remapping a Proton menu
-                // hint. Desktop/apps still get the sync motion for enter/press.
-                let send_absolute = remapped_via_hint || (!pointer_locked && !over_game);
+                // Locked: no absolute unless menu-hint remap. Gameplay warp: send
+                // absolute at centre. Desktop: normal absolute at pointer.
+                let send_absolute = remapped_via_hint || !pointer_locked;
                 if send_absolute {
                     pointer.motion(
                         self,
@@ -608,7 +647,7 @@ impl MetisState {
                         self.trace_game_pointer(
                             surface,
                             &pointer,
-                            "game click without absolute motion",
+                            "locked click without absolute motion",
                             Some(raw_loc),
                         );
                     }

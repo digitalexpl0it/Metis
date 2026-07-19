@@ -1182,6 +1182,8 @@ impl MetisState {
 
     /// While a locked-pointer constraint is active the game draws its own cursor
     /// (or none) and the compositor cursor only blocks primary-plane scanout.
+    /// Same while Metis warps absolute position to the window centre for a
+    /// running Proton/XWayland game (FPS-style capture).
     pub(crate) fn active_pointer_lock_suppresses_cursor(&self) -> bool {
         let Some(pointer) = self.seat.get_pointer() else {
             return false;
@@ -1189,12 +1191,39 @@ impl MetisState {
         let Some(focus) = pointer.current_focus() else {
             return false;
         };
-        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
-        with_pointer_constraint(&focus, &pointer, |constraint| {
-            constraint.is_some_and(|c| {
-                c.is_active() && matches!(&*c, PointerConstraint::Locked(_))
-            })
-        })
+        if self.pointer_locked_on_surface(&focus, &pointer) {
+            return true;
+        }
+        self.windows
+            .id_for_surface(&focus)
+            .is_some_and(|id| self.window_is_running_game(id))
+            && !self.game_surface_in_menu_mode(&focus)
+    }
+
+    /// Pause-menu mode: client deactivated pointer lock and shows a cursor.
+    pub(crate) fn game_surface_in_menu_mode(
+        &self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) -> bool {
+        use smithay::reexports::wayland_server::Resource;
+        self.pointer_constraint_phases.get(&surface.id())
+            == Some(&PointerConstraintPhase::ClientDeactivated)
+    }
+
+    /// Centre of the game client surface — absolute pointer warp target so
+    /// X11/Proton aim cannot inherit an edge position on click.
+    pub(crate) fn game_pointer_anchor(
+        &self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) -> Option<Point<f64, Logical>> {
+        let origin = self.surface_space_origin(surface)?;
+        let id = self.windows.id_for_surface(surface)?;
+        let record = self.windows.get(id)?;
+        let size = record.window.geometry().size;
+        Some(Point::from((
+            origin.x + f64::from(size.w) * 0.5,
+            origin.y + f64::from(size.h) * 0.5,
+        )))
     }
 
     pub fn flush_clients_if_pending(&mut self) {
@@ -1205,11 +1234,6 @@ impl MetisState {
     }
 
     /// Throttle pointer motion forwarded to clients — GTK hover repaints were saturating the loop.
-    ///
-    /// Never throttle over a running game: the compositor cursor still moves on
-    /// every libinput sample, and dropping absolute `motion` leaves the client
-    /// behind. The next click then injects the true position and Proton/UE titles
-    /// snap the camera to the Metis cursor (often ahead due to pointer accel).
     pub fn should_forward_pointer_motion(&mut self, location: Point<f64, Logical>) -> bool {
         // Never throttle while a compositor grab (move/resize/scroll-resize) owns the
         // pointer — dropped motion events leave the grab stuck at its start size.
@@ -1217,10 +1241,6 @@ impl MetisState {
             return true;
         }
         if self.metis_bar_ui_hit(location) {
-            return true;
-        }
-        if self.pointer_over_running_game(location) {
-            self.last_pointer_forward = Some((std::time::Instant::now(), location));
             return true;
         }
         const MIN_MS: u128 = 48;
@@ -1235,16 +1255,6 @@ impl MetisState {
         }
         self.last_pointer_forward = Some((now, location));
         true
-    }
-
-    /// True when the pointer is over a Proton/native game window (incl. windowed).
-    pub(crate) fn pointer_over_running_game(&self, location: Point<f64, Logical>) -> bool {
-        let Some((surface, _)) = self.pointer_target_at(location) else {
-            return false;
-        };
-        self.windows
-            .id_for_surface(&surface)
-            .is_some_and(|id| self.window_is_running_game(id))
     }
 
     /// Active `zwp_locked_pointer_v1` on this surface (mouse-look / raw input).
@@ -3923,16 +3933,23 @@ impl MetisState {
             } else if self.pointer_constraint_phases.get(&surface_id)
                 == Some(&PointerConstraintPhase::Active)
             {
-                self.pointer_constraint_phases.insert(
-                    surface_id.clone(),
-                    PointerConstraintPhase::ClientDeactivated,
-                );
-                trace = Some((
-                    "constraint client-deactivated (pause menu?)",
-                    PointerConstraintPhase::ClientDeactivated,
-                    false,
-                    false,
-                ));
+                // Only treat as a pause menu when the client shows a cursor.
+                // Weapon clicks often drop the lock briefly with a hidden cursor;
+                // marking those as ClientDeactivated permanently kills mouse-look.
+                use smithay::input::pointer::CursorImageStatus;
+                let menu_cursor = !matches!(self.cursor_status, CursorImageStatus::Hidden);
+                if menu_cursor {
+                    self.pointer_constraint_phases.insert(
+                        surface_id.clone(),
+                        PointerConstraintPhase::ClientDeactivated,
+                    );
+                    trace = Some((
+                        "constraint client-deactivated (pause menu?)",
+                        PointerConstraintPhase::ClientDeactivated,
+                        false,
+                        false,
+                    ));
+                }
             }
         });
         if let Some((event, phase, is_active, is_locked)) = trace {
