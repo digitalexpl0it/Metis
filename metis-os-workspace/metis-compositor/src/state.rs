@@ -337,6 +337,11 @@ pub struct MetisState {
     /// the system cursor there when the game (Steam/Proton, Hytale, …) releases
     /// its `zwp_locked_pointer_v1` mouse-look grab.
     pub(crate) cursor_position_hint: Option<(WlSurface, Point<f64, Logical>)>,
+    /// True after `set_cursor_position_hint` until the next locked relative
+    /// motion. Menu UIs refresh the hint after moving their software cursor;
+    /// mouse-look only emits relative deltas, so a stale hint must not remap
+    /// weapon clicks.
+    pub(crate) cursor_hint_click_valid: bool,
     /// Per-surface pointer-constraint lifecycle. Prevents re-arming a lock the
     /// client intentionally deactivated (pause menu / visible cursor).
     pub(crate) pointer_constraint_phases:
@@ -927,6 +932,7 @@ impl MetisState {
             idle_inhibit_state,
             idle_notifier_state,
             cursor_position_hint: None,
+            cursor_hint_click_valid: false,
             pointer_constraint_phases: std::collections::HashMap::new(),
             last_pointer_motion_surface: None,
         }
@@ -3682,20 +3688,29 @@ impl MetisState {
         self.last_focused_window.or(self.focused_window_id())
     }
 
-    /// Space-relative origin (top-left) of the window that owns `surface`, if it
-    /// is currently mapped. Used to translate a locked-pointer cursor hint (which
-    /// is surface-local) back into global desktop coordinates.
+    /// Space-relative origin (top-left) of the wl_surface that owns `surface`, if
+    /// its window is mapped. Matches `window_surface_for`: mapped location minus
+    /// the client's geometry offset (CSD / X11 insets). Used to translate a
+    /// locked-pointer cursor hint (surface-local) into global desktop coordinates.
     pub(crate) fn surface_space_origin(
         &self,
         surface: &WlSurface,
     ) -> Option<Point<f64, Logical>> {
         use smithay::wayland::seat::WaylandFocus;
-        let window = self.space.elements().find(|window| {
-            window.wl_surface().as_deref() == Some(surface)
-        })?;
-        self.space
-            .element_location(window)
-            .map(|loc| loc.to_f64())
+        let window = self
+            .windows
+            .id_for_surface(surface)
+            .and_then(|id| self.windows.get(id))
+            .map(|record| record.window.clone())
+            .or_else(|| {
+                self.space
+                    .elements()
+                    .find(|window| window.wl_surface().as_deref() == Some(surface))
+                    .cloned()
+            })?;
+        let map_loc = self.space.element_location(&window)?;
+        let geo = window.geometry();
+        Some(map_loc.to_f64() - geo.loc.to_f64())
     }
 
     /// Where to aim pointer motion/button delivery. While a locked-pointer
@@ -3703,12 +3718,16 @@ impl MetisState {
     /// the client tracks its own cursor via `set_cursor_position_hint` (menu
     /// navigation in Proton games). Clicks must use the hinted position or every
     /// press lands on the lock anchor (e.g. always opening Settings).
+    ///
+    /// After a remapped press, `process_input_event` restores the lock anchor so
+    /// `motion`'s internal location update does not permanently warp gameplay
+    /// clicks (weapon fire / mouse-look).
     pub(crate) fn effective_pointer_delivery_loc(
         &self,
         pointer: &smithay::input::pointer::PointerHandle<Self>,
         under: Option<&(WlSurface, Point<f64, Logical>)>,
     ) -> Point<f64, Logical> {
-        use smithay::reexports::wayland_server::Resource;
+        use smithay::reexports::wayland_server::Resource as _;
         use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
 
         let current = pointer.current_location();
@@ -3730,6 +3749,10 @@ impl MetisState {
             return current;
         };
         if hint_surface.id() != surface.id() {
+            return current;
+        }
+        // Stale hint after mouse-look: remapping would jump the cursor on fire.
+        if !self.cursor_hint_click_valid {
             return current;
         }
 
@@ -3856,6 +3879,7 @@ impl MetisState {
                     .insert(surface_id.clone(), PointerConstraintPhase::Active);
                 if prev != Some(PointerConstraintPhase::Active) {
                     self.cursor_position_hint = None;
+                    self.cursor_hint_click_valid = false;
                     trace = Some((
                         "constraint became active",
                         PointerConstraintPhase::Active,

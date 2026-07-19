@@ -446,6 +446,10 @@ impl MetisState {
 
                 if pointer_locked {
                     // Locked: the cursor stays put; deliver relative motion only.
+                    // A leftover menu hint must not remap the next fire/click —
+                    // mouse-look invalidates it until the client publishes a fresh
+                    // `set_cursor_position_hint` (pause-menu cursor moves).
+                    self.cursor_hint_click_valid = false;
                     // Do not schedule_redraw — nothing on screen changes and the
                     // game repaints from its own commits; repainting here on every
                     // mouse poll was saturating the compositor during mouse-look.
@@ -547,8 +551,8 @@ impl MetisState {
                 let raw_loc = pointer.current_location();
                 let under = self.pointer_target_at(raw_loc);
                 let loc = self.effective_pointer_delivery_loc(&pointer, under.as_ref());
-                if loc != raw_loc {
-                    pointer.set_location(loc);
+                let remapped_via_hint = loc != raw_loc;
+                if remapped_via_hint {
                     if let Some((surface, _)) = under.as_ref() {
                         self.trace_game_pointer(
                             surface,
@@ -574,7 +578,11 @@ impl MetisState {
                     }
                 }
 
-                // Sync motion target before button so layer-shell clients receive enter/press.
+                // Sync motion target before button so layer-shell clients receive
+                // enter/press. `motion` updates PointerInternal.location — when we
+                // remapped through a Proton menu hint, restore the lock anchor
+                // after the button frame so gameplay clicks do not permanently
+                // warp the cursor (weapon fire / mouse-look).
                 pointer.motion(
                     self,
                     under.clone(),
@@ -658,6 +666,12 @@ impl MetisState {
                     }
                 }
                 pointer.frame(self);
+                if remapped_via_hint {
+                    // Clients are never notified of set_location — this only
+                    // rewinds the compositor lock anchor after the synthetic
+                    // delivery motion above.
+                    pointer.set_location(raw_loc);
+                }
             }
             InputEvent::PointerAxis { event, .. } => {
                 needs_redraw = true;

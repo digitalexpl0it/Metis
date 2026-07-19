@@ -35,6 +35,7 @@ jobs:
             libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
             libdisplay-info-dev libpam0g-dev \
             libpipewire-0.3-dev \
+            libpulse-dev \
             libwayland-dev wayland-protocols \
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \

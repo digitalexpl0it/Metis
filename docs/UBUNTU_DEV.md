@@ -9,6 +9,7 @@ sudo apt update
 sudo apt install -y \
   build-essential pkg-config libssl-dev \
   libgtk-4-dev libadwaita-1-dev libgtk-4-layer-shell-dev \
+  libpulse-dev \
   curl git
 ```
 
@@ -19,7 +20,8 @@ also install the session, input, and GPU libraries:
 sudo apt install -y \
   libudev-dev libinput-dev libseat-dev \
   libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
-  libdisplay-info-dev libpam0g-dev
+  libdisplay-info-dev libpam0g-dev \
+  libpipewire-0.3-dev
 ```
 
 If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.

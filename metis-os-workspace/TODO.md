@@ -596,7 +596,10 @@ alternative desktop with the same Steam/Proton stack.
       GPU; `METIS_GAME_GPU=igpu|dgpu|off` overrides (2026-07-04)
 - [x] **Pointer lock & relative motion** — `zwp_pointer_constraints_v1` +
       `zwp_relative_pointer_v1` for mouse-look; cursor-position-hint remapping for
-      in-game menu clicks under an active lock (2026-07-04)
+      in-game menu clicks under an active lock (2026-07-04). **Follow-up (2026-07-18):**
+      stale hints invalidated on relative mouse-look so weapon clicks do not jump;
+      lock anchor restored after remapped menu clicks; surface-origin geometry
+      aligned with hit-testing (fixes The Mound / similar Proton titles).
 - [x] **Proton keyboard focus (XWayland)** — keyboard events routed through
       `X11Surface::KeyboardTarget` (`XSetInputFocus`); map-before-surface race
       fixed on first surface commit (2026-07-04)

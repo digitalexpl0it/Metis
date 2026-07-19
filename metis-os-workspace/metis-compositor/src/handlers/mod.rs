@@ -236,6 +236,7 @@ impl PointerConstraintsHandler for MetisState {
         });
         if should_restore {
             if let Some((hint_surface, hint_location)) = self.cursor_position_hint.take() {
+                self.cursor_hint_click_valid = false;
                 if let Some(origin) = self.surface_space_origin(&hint_surface) {
                     let restore = origin + hint_location;
                     self.trace_game_pointer_at(
@@ -262,6 +263,7 @@ impl PointerConstraintsHandler for MetisState {
             constraint.is_some_and(|c| c.is_active())
         }) {
             self.cursor_position_hint = Some((surface.clone(), location));
+            self.cursor_hint_click_valid = true;
             self.trace_game_pointer(
                 surface,
                 pointer,

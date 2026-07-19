@@ -421,7 +421,9 @@ Wayland pointer-constraints and relative-pointer protocols. Games that lock the
 pointer for camera control receive relative motion deltas while the system cursor
 stays put. Proton titles that draw their own cursor in menus send a
 `set_cursor_position_hint`; Metis remaps clicks through that hint so menu items
-activate where you point, not at the frozen lock anchor. During pointer lock the
+activate where you point, not at the frozen lock anchor. Relative mouse-look
+invalidates a stale hint so weapon / fire clicks do not jump the cursor, and the
+lock anchor is restored after any remapped menu click. During pointer lock the
 compositor does not repaint on mouse motion — only the game's commits drive
 frames. Fullscreen games skip wallpaper, night light, and the compositor cursor
 so the display path can promote the game buffer to direct scanout when formats
@@ -895,6 +897,7 @@ changes live.
 | Steam / Proton game black screen or wrong GPU | Install 32-bit Vulkan (`i386` + `mesa-vulkan-drivers:i386`). Metis auto-forwards its render GPU to clients and auto-offloads game/Steam launches to a discrete GPU when present (`METIS_GAME_GPU` = igpu, dgpu, or off). Per-game, override with `DRI_PRIME=1 %command%` / `prime-run %command%` (or NVIDIA offload vars). Session-wide, set `METIS_DRM_DEVICE=/dev/dri/cardN`; disable fullscreen optimizations per-game |
 | Proton game: keys dead but mouse works | Re-login after `./run-metis.sh --install-session` (2026-07-04 XWayland keyboard-focus fix). Click the game window so it holds focus; confirm Steam is not popping over the game (focus-stealing prevention is in place) |
 | Proton game: menu clicks open wrong item / only Settings | Fixed 2026-07-04 (cursor-position-hint click remapping). Rebuild and reinstall the session; filter logs with `rg 'game-pointer' ~/.local/state/metis/logs/session-*.log` |
+| Proton game: cursor jumps on left/right click while aiming | Fixed 2026-07-18 (stale hint invalidated on mouse-look; lock anchor restored after remapped menu clicks; surface-origin geometry matched to hit-testing). Rebuild/reinstall the compositor session |
 | Steam tray Quit / Exit does nothing | Fixed 2026-07-04 (dbusmenu label re-resolve). Rebuild shell and reinstall session |
 | Steam overlay (Shift+Tab) missing | Click the game window so it holds focus (Metis is click-to-focus, no focus-follows-mouse). Most reliable on XWayland/Proton titles; some native-Wayland games draw the overlay differently |
 | Big Picture button missing from menu | The rail shows it only when Steam is installed — native `steam` on `PATH` or the `com.valvesoftware.Steam` Flatpak. Install Steam and reopen the menu |
