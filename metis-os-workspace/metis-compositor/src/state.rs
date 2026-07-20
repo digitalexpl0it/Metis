@@ -333,36 +333,28 @@ pub struct MetisState {
     pub idle_inhibit_state: IdleInhibitManagerState,
     /// `ext_idle_notify_v1` global (idle notifications for swayidle-style clients).
     pub idle_notifier_state: IdleNotifierState<MetisState>,
-    /// Where a locked-pointer client last drew its own cursor, so we can restore
-    /// the system cursor there when the game (Steam/Proton, Hytale, …) releases
-    /// its `zwp_locked_pointer_v1` mouse-look grab.
+    /// Where a locked-pointer client last drew its own cursor. Used only to
+    /// restore the system cursor when the lock is destroyed — never to remap
+    /// clicks while locked (Proton streams hints continuously during mouse-look).
     pub(crate) cursor_position_hint: Option<(WlSurface, Point<f64, Logical>)>,
-    /// True after `set_cursor_position_hint` until the next locked relative
-    /// motion. Menu UIs refresh the hint after moving their software cursor;
-    /// mouse-look only emits relative deltas, so a stale hint must not remap
-    /// weapon clicks.
-    pub(crate) cursor_hint_click_valid: bool,
-    /// Per-surface pointer-constraint lifecycle. Prevents re-arming a lock the
-    /// client intentionally deactivated (pause menu / visible cursor).
+    /// Per-surface pointer-constraint lifecycle (NeverActivated / Active).
     pub(crate) pointer_constraint_phases:
         std::collections::HashMap<smithay::reexports::wayland_server::backend::ObjectId, PointerConstraintPhase>,
-    /// Last surface that received a pointer motion/button event — used to arm a
-    /// not-yet-active lock only on pointer *entry*, not on every move over the
-    /// same surface (which would re-capture the mouse in a pause menu).
+    /// Last surface that received pointer motion (for enter detection / tracing).
     pub(crate) last_pointer_motion_surface:
         Option<smithay::reexports::wayland_server::backend::ObjectId>,
 }
 
 /// Lifecycle of a `zwp_pointer_constraints_v1` lock on a surface.
+/// Matches Mutter/KWin: inactive constraints may be activated again while the
+/// pointer remains over the surface. Pause menus destroy the constraint object
+/// (see `remove_constraint`); we do not latch a permanent "deactivated" phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PointerConstraintPhase {
     /// Created but not yet activated (waiting for pointer to enter the region).
     NeverActivated,
-    /// Currently or previously active during this constraint object’s lifetime.
+    /// Constraint is active (locked / confined).
     Active,
-    /// Client called `deactivate` (pause menu, settings with visible cursor).
-    /// Must NOT be re-armed on the next pointer motion over the surface.
-    ClientDeactivated,
 }
 
 /// Cursor theme/size for nested clients. Never calls D-Bus — a synchronous
@@ -932,7 +924,6 @@ impl MetisState {
             idle_inhibit_state,
             idle_notifier_state,
             cursor_position_hint: None,
-            cursor_hint_click_valid: false,
             pointer_constraint_phases: std::collections::HashMap::new(),
             last_pointer_motion_surface: None,
         }
@@ -1182,8 +1173,6 @@ impl MetisState {
 
     /// While a locked-pointer constraint is active the game draws its own cursor
     /// (or none) and the compositor cursor only blocks primary-plane scanout.
-    /// Same while Metis warps absolute position to the window centre for a
-    /// running Proton/XWayland game (FPS-style capture).
     pub(crate) fn active_pointer_lock_suppresses_cursor(&self) -> bool {
         let Some(pointer) = self.seat.get_pointer() else {
             return false;
@@ -1191,39 +1180,7 @@ impl MetisState {
         let Some(focus) = pointer.current_focus() else {
             return false;
         };
-        if self.pointer_locked_on_surface(&focus, &pointer) {
-            return true;
-        }
-        self.windows
-            .id_for_surface(&focus)
-            .is_some_and(|id| self.window_is_running_game(id))
-            && !self.game_surface_in_menu_mode(&focus)
-    }
-
-    /// Pause-menu mode: client deactivated pointer lock and shows a cursor.
-    pub(crate) fn game_surface_in_menu_mode(
-        &self,
-        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
-    ) -> bool {
-        use smithay::reexports::wayland_server::Resource;
-        self.pointer_constraint_phases.get(&surface.id())
-            == Some(&PointerConstraintPhase::ClientDeactivated)
-    }
-
-    /// Centre of the game client surface — absolute pointer warp target so
-    /// X11/Proton aim cannot inherit an edge position on click.
-    pub(crate) fn game_pointer_anchor(
-        &self,
-        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
-    ) -> Option<Point<f64, Logical>> {
-        let origin = self.surface_space_origin(surface)?;
-        let id = self.windows.id_for_surface(surface)?;
-        let record = self.windows.get(id)?;
-        let size = record.window.geometry().size;
-        Some(Point::from((
-            origin.x + f64::from(size.w) * 0.5,
-            origin.y + f64::from(size.h) * 0.5,
-        )))
+        self.pointer_locked_on_surface(&focus, &pointer)
     }
 
     pub fn flush_clients_if_pending(&mut self) {
@@ -3734,7 +3691,8 @@ impl MetisState {
     /// Space-relative origin (top-left) of the wl_surface that owns `surface`, if
     /// its window is mapped. Matches `window_surface_for`: mapped location minus
     /// the client's geometry offset (CSD / X11 insets). Used to translate a
-    /// locked-pointer cursor hint (surface-local) into global desktop coordinates.
+    /// locked-pointer cursor hint (surface-local) into global desktop coordinates
+    /// when restoring the cursor on unlock.
     pub(crate) fn surface_space_origin(
         &self,
         surface: &WlSurface,
@@ -3754,61 +3712,6 @@ impl MetisState {
         let map_loc = self.space.element_location(&window)?;
         let geo = window.geometry();
         Some(map_loc.to_f64() - geo.loc.to_f64())
-    }
-
-    /// Where to aim pointer motion/button delivery. While a locked-pointer
-    /// constraint is active the compositor cursor stays at the lock anchor, but
-    /// the client tracks its own cursor via `set_cursor_position_hint` (menu
-    /// navigation in Proton games). Clicks must use the hinted position or every
-    /// press lands on the lock anchor (e.g. always opening Settings).
-    ///
-    /// After a remapped press, `process_input_event` restores the lock anchor so
-    /// `motion`'s internal location update does not permanently warp gameplay
-    /// clicks (weapon fire / mouse-look).
-    pub(crate) fn effective_pointer_delivery_loc(
-        &self,
-        pointer: &smithay::input::pointer::PointerHandle<Self>,
-        under: Option<&(WlSurface, Point<f64, Logical>)>,
-    ) -> Point<f64, Logical> {
-        use smithay::reexports::wayland_server::Resource as _;
-        use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
-
-        let current = pointer.current_location();
-        let Some((surface, _)) = under else {
-            return current;
-        };
-
-        let locked = with_pointer_constraint(surface, pointer, |constraint| {
-            let Some(constraint) = constraint else {
-                return false;
-            };
-            constraint.is_active() && matches!(&*constraint, PointerConstraint::Locked(_))
-        });
-        if !locked {
-            return current;
-        }
-
-        let Some((hint_surface, hint_loc)) = self.cursor_position_hint.as_ref() else {
-            return current;
-        };
-        if hint_surface.id() != surface.id() {
-            return current;
-        }
-        // Stale hint after mouse-look: remapping would jump the cursor on fire.
-        if !self.cursor_hint_click_valid {
-            return current;
-        }
-
-        // Proton games sometimes publish (0, 0) before the first real menu hint.
-        // Remapping a gameplay click through that bogus hint warps the pointer to
-        // the surface origin (top-left) once; ignore the sentinel.
-        if hint_loc.x.abs() < 1.0 && hint_loc.y.abs() < 1.0 {
-            return current;
-        }
-
-        self.surface_space_origin(surface)
-            .map(|origin| origin + *hint_loc)
-            .unwrap_or(current)
     }
 
     /// Resolve window id + app_id for pointer-constraint diagnostics.
@@ -3896,9 +3799,11 @@ impl MetisState {
         self.trace_game_pointer_at(surface, event, pointer_loc, phase, is_active, is_locked);
     }
 
-    /// Sync constraint phase from the live protocol state. When a lock that was
-    /// `Active` becomes inactive the client opened a pause menu — mark it so we
-    /// never re-arm or allow a spurious re-activation on the next click.
+    /// Sync constraint phase from the live protocol state (Mutter/KWin-style).
+    /// Inactive constraints stay `NeverActivated` so they can be re-armed while
+    /// the pointer remains over the surface. Do not latch a permanent pause-menu
+    /// phase from compositor cursor visibility — windowed games show the theme
+    /// cursor whenever unlocked, and that wrongly blocked mouse-look forever.
     pub(crate) fn sync_pointer_constraint_phase(
         &mut self,
         surface: &WlSurface,
@@ -3922,7 +3827,6 @@ impl MetisState {
                     .insert(surface_id.clone(), PointerConstraintPhase::Active);
                 if prev != Some(PointerConstraintPhase::Active) {
                     self.cursor_position_hint = None;
-                    self.cursor_hint_click_valid = false;
                     trace = Some((
                         "constraint became active",
                         PointerConstraintPhase::Active,
@@ -3933,23 +3837,16 @@ impl MetisState {
             } else if self.pointer_constraint_phases.get(&surface_id)
                 == Some(&PointerConstraintPhase::Active)
             {
-                // Only treat as a pause menu when the client shows a cursor.
-                // Weapon clicks often drop the lock briefly with a hidden cursor;
-                // marking those as ClientDeactivated permanently kills mouse-look.
-                use smithay::input::pointer::CursorImageStatus;
-                let menu_cursor = !matches!(self.cursor_status, CursorImageStatus::Hidden);
-                if menu_cursor {
-                    self.pointer_constraint_phases.insert(
-                        surface_id.clone(),
-                        PointerConstraintPhase::ClientDeactivated,
-                    );
-                    trace = Some((
-                        "constraint client-deactivated (pause menu?)",
-                        PointerConstraintPhase::ClientDeactivated,
-                        false,
-                        false,
-                    ));
-                }
+                self.pointer_constraint_phases.insert(
+                    surface_id.clone(),
+                    PointerConstraintPhase::NeverActivated,
+                );
+                trace = Some((
+                    "constraint became inactive (eligible to re-arm)",
+                    PointerConstraintPhase::NeverActivated,
+                    false,
+                    false,
+                ));
             }
         });
         if let Some((event, phase, is_active, is_locked)) = trace {
@@ -3957,47 +3854,11 @@ impl MetisState {
         }
     }
 
-    /// If the client wrongly re-activated its lock during a pause menu (common
-    /// on a menu click in Proton games), drop it again so the system cursor stays
-    /// visible and clickable.
-    pub(crate) fn suppress_spurious_pointer_lock(
-        &mut self,
-        surface: &WlSurface,
-        pointer: &smithay::input::pointer::PointerHandle<Self>,
-    ) {
-        use smithay::reexports::wayland_server::Resource;
-        use smithay::wayland::pointer_constraints::with_pointer_constraint;
-
-        let surface_id = surface.id();
-        if self.pointer_constraint_phases.get(&surface_id)
-            != Some(&PointerConstraintPhase::ClientDeactivated)
-        {
-            return;
-        }
-        let mut suppressed = false;
-        with_pointer_constraint(surface, pointer, |constraint| {
-            let Some(constraint) = constraint else {
-                return;
-            };
-            if constraint.is_active() {
-                constraint.deactivate();
-                suppressed = true;
-            }
-        });
-        if suppressed {
-            self.trace_game_pointer_at(
-                surface,
-                "suppressed spurious lock re-activation after click",
-                None,
-                Some(PointerConstraintPhase::ClientDeactivated),
-                false,
-                false,
-            );
-        }
-    }
-
-    /// Arm a pointer lock on the first pointer entry to a surface. Never re-arm
-    /// after the client deactivated it for a pause menu.
+    /// Activate an inactive pointer constraint while the pointer is over its
+    /// surface/region (same model as Mutter/KWin). Re-arm on motion, not only
+    /// on surface entry — games often drop the lock briefly without the pointer
+    /// leaving the window; refusing to re-arm left absolute desktop motion in
+    /// control and made attack clicks warp the camera.
     pub(crate) fn maybe_arm_pointer_constraint(
         &mut self,
         surface: &WlSurface,
@@ -4011,37 +3872,14 @@ impl MetisState {
         self.sync_pointer_constraint_phase(surface, pointer);
 
         let surface_id = surface.id();
-        let entered = self.last_pointer_motion_surface.as_ref() != Some(&surface_id);
         self.last_pointer_motion_surface = Some(surface_id.clone());
-
-        if !entered {
-            return;
-        }
-
-        let phase = self
-            .pointer_constraint_phases
-            .get(&surface_id)
-            .copied()
-            .unwrap_or(PointerConstraintPhase::NeverActivated);
-
-        if phase == PointerConstraintPhase::ClientDeactivated {
-            self.trace_game_pointer_at(
-                surface,
-                "skipped arming — client-deactivated (pause menu)",
-                Some(location),
-                Some(phase),
-                false,
-                false,
-            );
-            return;
-        }
 
         let mut armed = false;
         with_pointer_constraint(surface, pointer, |constraint| {
             let Some(constraint) = constraint else {
                 return;
             };
-            if constraint.is_active() || phase != PointerConstraintPhase::NeverActivated {
+            if constraint.is_active() {
                 return;
             }
             let point = (location - surface_loc).to_i32_round();
@@ -4056,9 +3894,10 @@ impl MetisState {
             }
         });
         if armed {
+            self.cursor_position_hint = None;
             self.trace_game_pointer_at(
                 surface,
-                "constraint armed on surface entry",
+                "constraint re-armed while pointer over surface",
                 Some(location),
                 Some(PointerConstraintPhase::Active),
                 true,

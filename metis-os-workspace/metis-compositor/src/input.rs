@@ -445,42 +445,9 @@ impl MetisState {
                 );
 
                 if pointer_locked {
-                    // Protocol lock: relative only, cursor stays put.
-                    self.cursor_hint_click_valid = false;
-                    pointer.frame(self);
-                    return;
-                }
-
-                // Proton/XWayland FPS-style capture: keep absolute pointer at the
-                // window centre while still sending relative deltas. Absolute-only
-                // look clamps at the edge; skipping absolute entirely breaks X11
-                // MotionNotify. Warping absolute to centre (and relative for look)
-                // matches gamescope --force-grab-cursor and stops click-aim snaps.
-                let over_game = under.as_ref().is_some_and(|(surface, _)| {
-                    self.windows
-                        .id_for_surface(surface)
-                        .is_some_and(|id| self.window_is_running_game(id))
-                });
-                let game_menu = under
-                    .as_ref()
-                    .is_some_and(|(surface, _)| self.game_surface_in_menu_mode(surface));
-                if over_game && !game_menu {
-                    self.cursor_hint_click_valid = false;
-                    if let Some((surface, _)) = under.as_ref() {
-                        if let Some(anchor) = self.game_pointer_anchor(surface) {
-                            pointer.set_location(anchor);
-                            let serial = SERIAL_COUNTER.next_serial();
-                            pointer.motion(
-                                self,
-                                under.clone(),
-                                &MotionEvent {
-                                    location: anchor,
-                                    serial,
-                                    time: event.time_msec(),
-                                },
-                            );
-                        }
-                    }
+                    // Spec: locked pointer emits relative motion only (Mutter/KWin).
+                    // Locked: relative motion only (Mutter/KWin). Hints are kept
+                    // for unlock restore, never for click remapping.
                     pointer.frame(self);
                     return;
                 }
@@ -579,40 +546,20 @@ impl MetisState {
                 let button_state = event.state();
                 let raw_loc = pointer.current_location();
                 let under = self.pointer_target_at(raw_loc);
-                let loc = self.effective_pointer_delivery_loc(&pointer, under.as_ref());
-                let remapped_via_hint = loc != raw_loc;
+                // Mutter/KWin: activate a pending lock before click delivery so a
+                // brief unlock cannot inject absolute desktop motion on fire.
+                if let Some((surface, surface_loc)) = under.as_ref() {
+                    self.maybe_arm_pointer_constraint(
+                        surface,
+                        &pointer,
+                        raw_loc,
+                        *surface_loc,
+                    );
+                }
+                let loc = raw_loc;
                 let pointer_locked = under
                     .as_ref()
                     .is_some_and(|(surface, _)| self.pointer_locked_on_surface(surface, &pointer));
-                let over_game = under.as_ref().is_some_and(|(surface, _)| {
-                    self.windows
-                        .id_for_surface(surface)
-                        .is_some_and(|id| self.window_is_running_game(id))
-                });
-                let game_menu = under
-                    .as_ref()
-                    .is_some_and(|(surface, _)| self.game_surface_in_menu_mode(surface));
-                // Gameplay capture keeps the pointer at the window centre so a
-                // click cannot inherit a drifted edge position as aim/look.
-                let mut loc = loc;
-                if over_game && !game_menu && !remapped_via_hint {
-                    if let Some((surface, _)) = under.as_ref() {
-                        if let Some(anchor) = self.game_pointer_anchor(surface) {
-                            pointer.set_location(anchor);
-                            loc = anchor;
-                        }
-                    }
-                }
-                if remapped_via_hint {
-                    if let Some((surface, _)) = under.as_ref() {
-                        self.trace_game_pointer(
-                            surface,
-                            &pointer,
-                            "click remapped via cursor position hint",
-                            Some(loc),
-                        );
-                    }
-                }
 
                 if let Some((surface, _)) = under.as_ref() {
                     self.sync_pointer_constraint_phase(surface, &pointer);
@@ -629,10 +576,10 @@ impl MetisState {
                     }
                 }
 
-                // Locked: no absolute unless menu-hint remap. Gameplay warp: send
-                // absolute at centre. Desktop: normal absolute at pointer.
-                let send_absolute = remapped_via_hint || !pointer_locked;
-                if send_absolute {
+                // Mutter/KWin: no absolute wl_pointer.motion while locked.
+                // Do not remap locked clicks through cursor_position_hint — Proton
+                // streams hints during mouse-look; remapping them warps the camera.
+                if !pointer_locked {
                     pointer.motion(
                         self,
                         under.clone(),
@@ -642,15 +589,6 @@ impl MetisState {
                             time: event.time_msec(),
                         },
                     );
-                } else if button_state == ButtonState::Pressed {
-                    if let Some((surface, _)) = under.as_ref() {
-                        self.trace_game_pointer(
-                            surface,
-                            &pointer,
-                            "locked click without absolute motion",
-                            Some(raw_loc),
-                        );
-                    }
                 }
 
                 if ButtonState::Pressed == button_state {
@@ -715,23 +653,16 @@ impl MetisState {
                     },
                 );
                 if let Some((surface, _)) = under {
-                    self.suppress_spurious_pointer_lock(&surface, &pointer);
                     if button_state == ButtonState::Pressed {
                         self.trace_game_pointer(
                             &surface,
                             &pointer,
-                            "after pointer button (post-suppress)",
+                            "after pointer button",
                             Some(loc),
                         );
                     }
                 }
                 pointer.frame(self);
-                if remapped_via_hint {
-                    // Clients are never notified of set_location — this only
-                    // rewinds the compositor lock anchor after the synthetic
-                    // delivery motion above.
-                    pointer.set_location(raw_loc);
-                }
             }
             InputEvent::PointerAxis { event, .. } => {
                 needs_redraw = true;

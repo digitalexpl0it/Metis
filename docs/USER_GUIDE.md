@@ -417,18 +417,16 @@ service (`com.feralinteractive.GameMode`); games talk to it directly via
 package. MangoHud/vkBasalt likewise attach per game.
 
 **Mouse-look & in-game menus (pointer lock).** Metis implements the standard
-Wayland pointer-constraints and relative-pointer protocols. Games that lock the
-pointer for camera control receive relative motion deltas while the system cursor
-stays put. Proton titles that draw their own cursor in menus send a
-`set_cursor_position_hint`; Metis remaps clicks through that hint so menu items
-activate where you point, not at the frozen lock anchor. Relative mouse-look
-invalidates a stale hint so weapon / fire clicks do not jump the cursor, and the
-lock anchor is restored after any remapped menu click. During pointer lock the
-compositor does not repaint on mouse motion — only the game's commits drive
-frames. Fullscreen games skip wallpaper, night light, and the compositor cursor
-so the display path can promote the game buffer to direct scanout when formats
-match. Enable **Adaptive sync** in Settings → Display for VRR on supported panels.
-Keyboard navigation in menus always works as a fallback.
+Wayland pointer-constraints and relative-pointer protocols (same model as
+Mutter/KWin). While locked, only relative motion is delivered and the system
+cursor stays put. Proton titles that draw a software cursor in menus may send
+`set_cursor_position_hint`; Metis remaps those menu clicks through a fresh hint
+and restores the lock anchor afterward. Stale hints from mouse-look are ignored.
+During pointer lock the compositor does not repaint on mouse motion — only the
+game's commits drive frames. Fullscreen games skip wallpaper, night light, and
+the compositor cursor so the display path can promote the game buffer to direct
+scanout when formats match. Enable **Adaptive sync** in Settings → Display for
+VRR on supported panels. Keyboard navigation in menus always works as a fallback.
 
 **Gamescope (optional):** SteamOS Gaming Mode uses [Gamescope](https://github.com/ValveSoftware/gamescope)
 as its compositor. On Metis, Gamescope is optional — add to a game's Steam launch
@@ -439,7 +437,8 @@ gamescope -W 1920 -H 1080 -f -- %command%
 ```
 
 Metis stays the session compositor; Gamescope nests inside it for that game
-(frame limit, scaling, FSR). Install: `sudo apt install gamescope` (where available).
+(frame limit, scaling, FSR). On Ubuntu 24.04, `gamescope` is not in apt — build
+from [source](https://github.com/ValveSoftware/gamescope) if you need it.
 
 **SteamOS / handheld (experimental).** Valve's SteamOS 3.x uses Gamescope for
 handheld Gaming Mode and KDE for Desktop Mode. Running Metis *on* SteamOS
@@ -897,8 +896,8 @@ changes live.
 | Steam / Proton game black screen or wrong GPU | Install 32-bit Vulkan (`i386` + `mesa-vulkan-drivers:i386`). Metis auto-forwards its render GPU to clients and auto-offloads game/Steam launches to a discrete GPU when present (`METIS_GAME_GPU` = igpu, dgpu, or off). Per-game, override with `DRI_PRIME=1 %command%` / `prime-run %command%` (or NVIDIA offload vars). Session-wide, set `METIS_DRM_DEVICE=/dev/dri/cardN`; disable fullscreen optimizations per-game |
 | Proton game: keys dead but mouse works | Re-login after `./run-metis.sh --install-session` (2026-07-04 XWayland keyboard-focus fix). Click the game window so it holds focus; confirm Steam is not popping over the game (focus-stealing prevention is in place) |
 | Proton game: menu clicks open wrong item / only Settings | Fixed 2026-07-04 (cursor-position-hint click remapping). Rebuild and reinstall the session; filter logs with `rg 'game-pointer' ~/.local/state/metis/logs/session-*.log` |
-| Proton game: cursor jumps on left/right click while aiming | Partial: locked-pointer clicks no longer inject absolute warps; menu hint remapping kept. Soft relative-grab was reverted (broke Proton/XWayland). Workaround: `gamescope --force-grab-cursor -f -- %command%` |
-| Proton game: mouse-look stops at window/screen edges | Use fullscreen or gamescope (`--force-grab-cursor`); windowed absolute cursor clamps at edges under XWayland |
+| Proton game: cursor jumps on left/right click while aiming | Fixed 2026-07-19 (2): lock stays armed; locked clicks are no longer remapped through `cursor_position_hint` (Proton streams hints during look — remapping warped the camera). Hints only restore the cursor on unlock. Rebuild/reinstall and re-login; attack clicks should show `is_locked=true` with no `click remapped` lines |
+| Proton game: mouse-look stops at window/screen edges | Use exclusive fullscreen so XWayland can lock; windowed absolute cursor clamps at edges |
 | Steam tray Quit / Exit does nothing | Fixed 2026-07-04 (dbusmenu label re-resolve). Rebuild shell and reinstall session |
 | Steam overlay (Shift+Tab) missing | Click the game window so it holds focus (Metis is click-to-focus, no focus-follows-mouse). Most reliable on XWayland/Proton titles; some native-Wayland games draw the overlay differently |
 | Big Picture button missing from menu | The rail shows it only when Steam is installed — native `steam` on `PATH` or the `com.valvesoftware.Steam` Flatpak. Install Steam and reopen the menu |
