@@ -5,6 +5,34 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-19]
+
+### Fixed
+
+- **Proton mouse-look: camera jumps on left-click (attack)** — two compositor
+  bugs stacked on titles like The Mound (`steam_app_2569760`):
+  1. **Pause-menu lock latch** — when a lock briefly dropped, Metis treated a
+     visible theme cursor (normal in windowed mode) as a pause menu
+     (`ClientDeactivated`), then refused to re-arm and killed “spurious”
+     re-locks on click. Looking around then moved the desktop cursor; fire
+     injected that absolute position. Removed the latch / suppress path;
+     inactive locks re-arm while the pointer stays over the surface
+     (Mutter/KWin-style).
+  2. **Cursor-position-hint click remapping** — Proton streams
+     `set_cursor_position_hint` during mouse-look. Remapping locked clicks
+     through those hints warped the camera on attack. Hints are now used only
+     to restore the desktop cursor when the lock is destroyed — never to
+     rewrite locked button delivery. Locked path stays relative motion +
+     button + frame only.
+  Diagnose with `rg 'game-pointer' ~/.local/state/metis/logs/session-latest.log`
+  (`is_locked=true` on fire; no `click remapped` lines).
+  (`metis-compositor` `input.rs`, `state.rs`, `handlers/mod.rs`; `USER_GUIDE.md`)
+
+### Changed
+
+- **Gamescope install note** — Ubuntu 24.04 has no `gamescope` apt package;
+  document building from source when needed (`USER_GUIDE.md`).
+
 ## [2026-07-18]
 
 ### Added
