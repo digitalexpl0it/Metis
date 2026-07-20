@@ -595,11 +595,12 @@ alternative desktop with the same Steam/Proton stack.
       Steam/Proton/game launches onto the discrete GPU when distinct from the display
       GPU; `METIS_GAME_GPU=igpu|dgpu|off` overrides (2026-07-04)
 - [x] **Pointer lock & relative motion** — `zwp_pointer_constraints_v1` +
-      `zwp_relative_pointer_v1` for mouse-look; cursor-position-hint remapping for
-      in-game menu clicks under an active lock (2026-07-04). **Follow-up (2026-07-18):**
-      stale hints invalidated on relative mouse-look so weapon clicks do not jump;
-      lock anchor restored after remapped menu clicks; surface-origin geometry
-      aligned with hit-testing (fixes The Mound / similar Proton titles).
+      `zwp_relative_pointer_v1` for mouse-look (2026-07-04). **Follow-up
+      (2026-07-19):** Mutter/KWin-aligned path — re-arm inactive locks while the
+      pointer stays over the surface (removed `ClientDeactivated` latch);
+      `set_cursor_position_hint` restores the cursor on unlock only (no locked
+      click remapping — Proton hint streams during look caused camera jumps on
+      fire). Verified on The Mound (`steam_app_2569760`).
 - [x] **Proton keyboard focus (XWayland)** — keyboard events routed through
       `X11Surface::KeyboardTarget` (`XSetInputFocus`); map-before-surface race
       fixed on first surface commit (2026-07-04)
@@ -632,8 +633,8 @@ Mode. Track compatibility either way:
       performance-profile tie-in could be a later follow-up)
 - [x] **Fullscreen / pointer confinement** — compositor implements
       `zwp_pointer_constraints_v1` + `zwp_relative_pointer_v1` (mouse-look lock,
-      region confinement, cursor-position-hint click remapping for Proton menus)
-      (2026-07-04)
+      region confinement; cursor hints restore on unlock only as of 2026-07-19)
+      (2026-07-04 / 2026-07-19)
 - [x] **XWayland game notes** — documented XWayland vs native-Wayland caveats
       (overlay, Proton) in `USER_GUIDE.md`
 - [x] **MangoHud / vkBasalt** — documented `%command%` prefix patterns in Steam

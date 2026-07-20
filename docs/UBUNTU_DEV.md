@@ -147,13 +147,15 @@ Optional: `gamescope` for per-game nested compositor (Steam launch options:
 `gamescope -W 1920 -H 1080 -f -- %command%`).
 
 Hybrid GPU laptops: see `METIS_DRM_DEVICE` and `METIS_GAME_GPU` in the
-standalone session section below. To debug Proton pointer-lock / menu-click issues,
-filter compositor logs with:
+standalone session section below. To debug Proton pointer-lock / click-jump
+issues (see CHANGELOG 2026-07-19), filter compositor logs with:
 
 ```bash
-rg 'game-pointer' ~/.local/state/metis/logs/session-*.log
+rg 'game-pointer' ~/.local/state/metis/logs/session-latest.log
 ```
 
+Look for `is_locked=true` on fire clicks and the absence of `click remapped`
+lines after the 2026-07-19 fix.
 Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proton--steamos-class-gaming).
 
 **Gaming Platform 2.0 (Phase 11):** `metis-gamingd` starts automatically with the
