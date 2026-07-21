@@ -531,6 +531,53 @@ impl MetisState {
         false
     }
 
+    /// True while the Control Center layer surface is mapped with a buffer.
+    /// Used to make global close shortcuts dismiss the panel instead of the
+    /// application underneath it.
+    pub(crate) fn control_center_mapped(&self) -> bool {
+        for output in self.space.outputs() {
+            let map = layer_map_for_output(output);
+            for layer in map.layers() {
+                let namespace = layer.namespace();
+                if (namespace == "metis-dashboard" || namespace == "metis-control-center")
+                    && surface_has_buffer(layer.wl_surface())
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Topmost mapped Top/Overlay layer requesting `KeyboardInteractivity::Exclusive`.
+    ///
+    /// Per the layer-shell protocol (and Anvil), these surfaces own the keyboard
+    /// whenever they are mapped — even when the pointer is not over them. Used so
+    /// Super-opened menus / Control Center / screenshot UI receive typing without
+    /// a prior click on the surface.
+    pub(crate) fn exclusive_keyboard_layer(&self) -> Option<smithay::desktop::LayerSurface> {
+        use smithay::wayland::shell::wlr_layer::KeyboardInteractivity;
+
+        for layer_kind in [WlrLayer::Overlay, WlrLayer::Top] {
+            for output in self.space.outputs() {
+                let map = layer_map_for_output(output);
+                // Walk top-to-bottom within the layer so the most recently mapped
+                // Exclusive surface wins (GTK popovers share the bar surface).
+                for layer in map.layers_on(layer_kind).rev() {
+                    if !surface_has_buffer(layer.wl_surface()) {
+                        continue;
+                    }
+                    let exclusive = layer.cached_state().keyboard_interactivity
+                        == KeyboardInteractivity::Exclusive;
+                    if exclusive {
+                        return Some(layer.clone());
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Pointer is over the Notification Center panel (not the rest of the screen).
     pub(crate) fn metis_notification_center_hit(&self, pos: Point<f64, Logical>) -> bool {
         let Some(output) = self.space.outputs().find(|o| {

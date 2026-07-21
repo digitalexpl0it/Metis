@@ -5,6 +5,7 @@ pub mod desktop_widgets;
 pub mod icons;
 pub mod notification_center;
 pub mod onboarding;
+pub mod osd;
 pub mod screenshot;
 pub mod splash;
 pub mod theme;

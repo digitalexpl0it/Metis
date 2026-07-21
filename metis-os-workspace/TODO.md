@@ -901,6 +901,8 @@ never destroy mid-session.
       System row with temp gauges; embedded in bar window (no gap) (2026-07-06).
 - [x] **Control Center button** — workspace-dot grid icon toggles panel with
       slide animation (2026-07-06).
+- [x] **Control Center keyboard dismissal** — Esc (capture phase) and Super+Q
+      close the panel without closing the underlying app (2026-07-20).
 - [x] **Chart polish** — gradient fills/strokes, smooth curves, Y-axis ticks,
       per-core CPU palette, aggregate fill behind core lines (2026-07-06).
 - [x] **Widget registry** — built-in widgets register by id in
@@ -925,6 +927,14 @@ never destroy mid-session.
 - [x] **Settings → Keyboard → Shortcuts** — capture/edit desktop shortcuts;
       `keybinds.json` + compositor `ReloadKeybinds` / `SetKeybindCapture`;
       reserved DRM VT/quit binds locked (2026-07-11).
+- [x] **Multimedia & hardware keys** — `XF86*` volume/mute/mic, display + keyboard
+      backlight (logind `SetBrightness`), MPRIS media transport, and `XF86Display`
+      mirror⇄extend toggle, with a bottom-center OSD. Compositor forwards intents;
+      shell services them on a worker thread (`services/hardware.rs`, `ui/osd.rs`);
+      listed under Shortcuts → System (2026-07-20).
+- [x] **Shell launch polish** — standalone Super toggles the Metis Menu and
+      focuses type-to-search; the menu's Settings action restores an existing
+      minimized Settings window instead of spawning a duplicate (2026-07-20).
 - [x] **USER_GUIDE** — gesture, overview layout, temp gauges, discrete GPU
       behaviour, kill semantics (2026-07-06; process tree + keybinds 2026-07-11).
 - [x] **Metis Settings icon** — transparent `metis-settings.png` for Settings app

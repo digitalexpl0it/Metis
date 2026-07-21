@@ -486,6 +486,24 @@ fn watch_compositor_dismiss() {
                     crate::ui::dashboard::request_close();
                     crate::ui::notification_center::dismiss();
                 }
+                "toggle-menu" => widgets::toggle_menu(),
+                // Multimedia / hardware keys forwarded by the compositor
+                // (`hw <action>`): volume, brightness, media transport, and the
+                // display mirror/extend confirmation overlay.
+                "hw" => {
+                    let arg = arg.trim();
+                    if let Some(mode) = arg.strip_prefix("osd-display") {
+                        let mode = mode.trim();
+                        let label = if mode == "mirror" {
+                            "Mirror displays"
+                        } else {
+                            "Extend displays"
+                        };
+                        crate::ui::osd::show("video-display-symbolic", label, None, false);
+                    } else if !crate::services::hardware::dispatch(arg) {
+                        tracing::debug!(%arg, "unknown hardware key action");
+                    }
+                }
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
                 "reload-dashboard" => crate::ui::dashboard::on_dashboard_config_changed(),

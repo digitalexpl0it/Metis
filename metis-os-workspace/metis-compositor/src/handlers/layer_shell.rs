@@ -89,6 +89,8 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
     // between top/bottom/left/right in settings) update layer geometry. Skipping
     // arrange left the surface stuck at its initial top-strip size/position.
     if namespace.starts_with("metis-bar") {
+        let exclusive = layer.cached_state().keyboard_interactivity
+            == smithay::wayland::shell::wlr_layer::KeyboardInteractivity::Exclusive;
         map.arrange();
         if !initial_configure_sent {
             tracing::debug!(namespace, "layer surface initial configure");
@@ -97,6 +99,20 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
         drop(map);
         state.on_bar_layer_committed();
         state.reapply_maximized_windows_on_output(&output);
+        // Super-opened menus set Exclusive without a pointer click — claim seat
+        // focus as soon as the layer commits the new interactivity.
+        if exclusive {
+            let serial = smithay::utils::SERIAL_COUNTER.next_serial();
+            if let Some(layer) = state.exclusive_keyboard_layer() {
+                if let Some(keyboard) = state.seat.get_keyboard() {
+                    keyboard.set_focus(
+                        state,
+                        Some(crate::focus::KeyboardFocusTarget::from(layer)),
+                        serial,
+                    );
+                }
+            }
+        }
         state.schedule_redraw();
         return;
     }

@@ -5,6 +5,44 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-20]
+
+### Added
+
+- **Super-key application menu** — tapping Super toggles the Metis Menu.
+  Programmatic opens give keyboard focus to the existing search entry, so
+  typing immediately filters applications. Super chords still dispatch their
+  configured actions (`metis-compositor` `input.rs`, `state.rs`; `metis-shell`
+  `menu.rs`, `bar/mod.rs`).
+- **Control Center keyboard dismissal** — both `Super+Q` and `Esc` close the
+  Control Center. The compositor intercepts `Super+Q` before the normal
+  close-window action, and the panel's Escape controller runs in capture phase
+  so focused search/dropdown children cannot consume it (`input.rs`,
+  `desk_input.rs`, `dashboard/mod.rs`).
+- **Multimedia & hardware keys** — the `XF86*` function-row keys are now serviced
+  system-wide with a bottom-center on-screen display (OSD):
+  - **Volume up / down / mute** and **microphone mute** via PipeWire/PulseAudio
+    (`pactl`), with a live level readout.
+  - **Display brightness up / down** and **keyboard backlight up / down / toggle**
+    through logind `SetBrightness` (no root, udev rule, or setuid helper needed).
+  - **Play/Pause, Stop, Next, Previous, Fast-forward, Rewind** via MPRIS D-Bus,
+    preferring the currently-playing player.
+  - **`XF86Display`** toggles multi-monitor **mirror ⇄ extend** mode (persisted to
+    `outputs.json`) with a confirmation overlay.
+  The compositor intercepts the keysyms and forwards an intent over the runtime
+  command channel; the shell runs the action on a dedicated worker thread and
+  flashes the OSD. These keys are fixed (firmware/xkb) and listed under
+  Settings → Keyboard → Shortcuts → System for discoverability
+  (`metis-compositor` `input.rs`, `state.rs`; `metis-shell` `services/hardware.rs`,
+  `ui/osd.rs`, `bar/mod.rs`; `metis-config` `keybinds.rs`, `css.rs`).
+
+### Changed
+
+- **Settings launcher reuses its window** — selecting Settings from the Metis
+  Menu now activates an existing `com.metis.Settings` window, including
+  restoring it from minimized state and switching to its workspace, instead of
+  spawning a duplicate (`metis-shell` `menu.rs`).
+
 ## [2026-07-19]
 
 ### Fixed

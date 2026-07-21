@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use gtk::gdk;
 use gtk::prelude::*;
+use gtk4_layer_shell::{KeyboardMode, LayerShell};
 
 use crate::services::{applications, AppEntry};
 
@@ -20,6 +21,37 @@ const FREQUENT_LIMIT: usize = 8;
 /// Alphabetical rows appended per idle slice so opening the menu never blocks the
 /// GTK main loop (and the nested compositor Wayland socket) for one giant rebuild.
 const MENU_ALPHA_CHUNK: usize = 32;
+
+thread_local! {
+    /// Menu instances for every output. Weak handles avoid keeping bars alive
+    /// across a live bar rebuild.
+    static MENU_POPOVERS: RefCell<Vec<glib::WeakRef<gtk::Popover>>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// Toggle the first live Metis menu. Used by the compositor's standalone Super
+/// shortcut; pointer-opened menus use the same popover and focus behavior.
+pub(crate) fn request_toggle() {
+    let target = MENU_POPOVERS.with(|menus| {
+        let mut menus = menus.borrow_mut();
+        menus.retain(|weak| weak.upgrade().is_some());
+        let live: Vec<gtk::Popover> = menus.iter().filter_map(glib::WeakRef::upgrade).collect();
+        live.iter()
+            .find(|popover| popover.is_visible())
+            .cloned()
+            .or_else(|| live.into_iter().next())
+    });
+    let Some(popover) = target else {
+        tracing::debug!("menu toggle requested before a bar menu was available");
+        return;
+    };
+    if popover.is_visible() {
+        glib::idle_add_local_once(move || popover.popdown());
+    } else {
+        super::super::dropdown::close_all();
+        glib::idle_add_local_once(move || popover.popup());
+    }
+}
 
 /// Build the menu popover and wire it to `button` (the brand launcher button).
 pub fn install(button: &gtk::Button) {
@@ -211,6 +243,7 @@ pub fn install(button: &gtk::Button) {
     popover.add_css_class("metis-bar-popover");
     popover.add_css_class("metis-menu-popover");
     popover.set_parent(button);
+    MENU_POPOVERS.with(|menus| menus.borrow_mut().push(popover.downgrade()));
 
     // Type-to-search without forcing focus on open: key capture routes typing
     // anywhere in the popover to the search entry (which only grabs focus once you
@@ -222,8 +255,11 @@ pub fn install(button: &gtk::Button) {
         let btn = button.clone();
         let rebuild = rebuild.clone();
         let search = search.clone();
-        popover.connect_map(move |_| {
+        popover.connect_map(move |popover| {
             btn.add_css_class("metis-bar-dropdown-active");
+            if let Some(window) = popover.root().and_downcast::<gtk::Window>() {
+                window.set_keyboard_mode(KeyboardMode::Exclusive);
+            }
             // Clearing the search entry fires `search_changed`, which would
             // synchronously rebuild the entire app list during `map` and freeze
             // the nested session — block it and defer one rebuild on idle instead.
@@ -233,12 +269,26 @@ pub fn install(button: &gtk::Button) {
             applications::invalidate_app_cache();
             let rebuild = rebuild.clone();
             glib::idle_add_local_once(move || rebuild());
+            // Super-key opens never get a pointer click to claim OnDemand focus;
+            // Exclusive is set above and the compositor routes keys to this layer.
+            // Grab (and re-grab once after a tick) so SearchEntry is the GTK focus
+            // target as soon as the layer owns the seat.
+            search.grab_focus();
+            let search_again = search.clone();
+            glib::timeout_add_local_once(std::time::Duration::from_millis(50), move || {
+                if !search_again.has_focus() {
+                    search_again.grab_focus();
+                }
+            });
         });
     }
     {
         let btn = button.clone();
-        popover.connect_unmap(move |_| {
+        popover.connect_unmap(move |popover| {
             btn.remove_css_class("metis-bar-dropdown-active");
+            if let Some(window) = popover.root().and_downcast::<gtk::Window>() {
+                window.set_keyboard_mode(KeyboardMode::OnDemand);
+            }
         });
     }
 
@@ -270,9 +320,7 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     }));
     rail.append(&rail_button(overlay, tip, "preferences-system-symbolic", "Settings", || {
         super::super::dropdown::close_all();
-        if let Err(err) = crate::compositor::launch_program("metis-settings") {
-            tracing::warn!(%err, "failed to launch metis-settings");
-        }
+        activate_or_launch_settings();
     }));
 
     // Controller-friendly Steam Big Picture, shown only when Steam is installed
@@ -322,6 +370,37 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     }));
 
     rail
+}
+
+fn activate_or_launch_settings() {
+    const SETTINGS_APP_ID: &str = "com.metis.Settings";
+    let existing = match crate::compositor::list_windows() {
+        Ok(windows) => windows
+            .into_iter()
+            .filter(|window| {
+                window
+                    .app_id
+                    .as_deref()
+                    .is_some_and(|app_id| app_id.eq_ignore_ascii_case(SETTINGS_APP_ID))
+            })
+            .min_by_key(|window| (!window.focused, window.id)),
+        Err(err) => {
+            tracing::debug!(%err, "could not query open windows before launching Settings");
+            None
+        }
+    };
+
+    if let Some(window) = existing {
+        match crate::compositor::activate_window(window.id) {
+            Ok(()) => return,
+            Err(err) => {
+                tracing::warn!(%err, id = window.id, "failed to restore existing Metis Settings");
+            }
+        }
+    }
+    if let Err(err) = crate::compositor::launch_program("metis-settings") {
+        tracing::warn!(%err, "failed to launch metis-settings");
+    }
 }
 
 fn rail_button(

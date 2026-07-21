@@ -475,6 +475,9 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     ensure_bar_strip_geometry(shell);
 
     let key = gtk::EventControllerKey::new();
+    // Capture before SearchEntry/dropdowns so Escape always dismisses the
+    // Control Center (after closing an open process context menu).
+    key.set_propagation_phase(gtk::PropagationPhase::Capture);
     key.connect_key_pressed(|_, key, _, _| {
         if key == gtk::gdk::Key::Escape {
             if process_context_menu_open() {

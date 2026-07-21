@@ -34,6 +34,65 @@ fn vt_from_keysym(sym: u32) -> Option<i32> {
     None
 }
 
+fn is_super_keysym(sym: u32) -> bool {
+    matches!(
+        sym,
+        keysyms::KEY_Super_L
+            | keysyms::KEY_Super_R
+            | keysyms::KEY_Meta_L
+            | keysyms::KEY_Meta_R
+    )
+}
+
+/// Multimedia / hardware keysyms (`XF86*`) emitted by laptop function rows and
+/// media keyboards. Matched by raw value so we do not depend on which XF86
+/// symbols the installed `xkbcommon` happens to export as named constants.
+mod xf86 {
+    pub const MON_BRIGHTNESS_UP: u32 = 0x1008_FF02;
+    pub const MON_BRIGHTNESS_DOWN: u32 = 0x1008_FF03;
+    pub const KBD_LIGHT_ON_OFF: u32 = 0x1008_FF04;
+    pub const KBD_BRIGHTNESS_UP: u32 = 0x1008_FF05;
+    pub const KBD_BRIGHTNESS_DOWN: u32 = 0x1008_FF06;
+    pub const AUDIO_LOWER_VOLUME: u32 = 0x1008_FF11;
+    pub const AUDIO_MUTE: u32 = 0x1008_FF12;
+    pub const AUDIO_RAISE_VOLUME: u32 = 0x1008_FF13;
+    pub const AUDIO_PLAY: u32 = 0x1008_FF14;
+    pub const AUDIO_STOP: u32 = 0x1008_FF15;
+    pub const AUDIO_PREV: u32 = 0x1008_FF16;
+    pub const AUDIO_NEXT: u32 = 0x1008_FF17;
+    pub const AUDIO_PAUSE: u32 = 0x1008_FF31;
+    pub const AUDIO_REWIND: u32 = 0x1008_FF3E;
+    pub const AUDIO_FORWARD: u32 = 0x1008_FF97;
+    pub const AUDIO_MICMUTE: u32 = 0x1008_FFB2;
+    pub const DISPLAY: u32 = 0x1008_FF59;
+}
+
+/// Map a multimedia keysym to the shell runtime command that services it. The
+/// shell owns audio (PipeWire/PulseAudio), backlight (logind), and MPRIS media
+/// control plus the on-screen level overlay, so the compositor just forwards the
+/// intent. `XF86Display` is handled in the compositor itself (see caller) since
+/// it toggles output mirror/extend mode.
+fn hardware_key_command(sym: u32) -> Option<&'static str> {
+    Some(match sym {
+        xf86::AUDIO_RAISE_VOLUME => "hw volume-up",
+        xf86::AUDIO_LOWER_VOLUME => "hw volume-down",
+        xf86::AUDIO_MUTE => "hw volume-mute",
+        xf86::AUDIO_MICMUTE => "hw mic-mute",
+        xf86::MON_BRIGHTNESS_UP => "hw brightness-up",
+        xf86::MON_BRIGHTNESS_DOWN => "hw brightness-down",
+        xf86::KBD_BRIGHTNESS_UP => "hw kbd-backlight-up",
+        xf86::KBD_BRIGHTNESS_DOWN => "hw kbd-backlight-down",
+        xf86::KBD_LIGHT_ON_OFF => "hw kbd-backlight-toggle",
+        xf86::AUDIO_PLAY | xf86::AUDIO_PAUSE => "hw media-playpause",
+        xf86::AUDIO_STOP => "hw media-stop",
+        xf86::AUDIO_NEXT => "hw media-next",
+        xf86::AUDIO_PREV => "hw media-prev",
+        xf86::AUDIO_FORWARD => "hw media-forward",
+        xf86::AUDIO_REWIND => "hw media-rewind",
+        _ => return None,
+    })
+}
+
 /// Run a configured desktop shortcut. Returns `true` when the event should be
 /// intercepted (even if the action was a no-op for the current layout).
 fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
@@ -277,6 +336,23 @@ impl MetisState {
                 let time = Event::time_msec(&event);
                 let key_state = event.state();
 
+                // Anvil-style: Exclusive Top/Overlay layers own the keyboard
+                // whenever mapped (Metis Menu, Control Center, screenshot). Set
+                // focus *before* the filter so Forward delivers keys even when
+                // the pointer is not over the surface — required for Super-key
+                // menu opens where there was never a click to claim OnDemand focus.
+                if !self.lock.locked {
+                    if let Some(layer) = self.exclusive_keyboard_layer() {
+                        if let Some(keyboard) = self.seat.get_keyboard() {
+                            keyboard.set_focus(
+                                self,
+                                Some(KeyboardFocusTarget::from(layer)),
+                                serial,
+                            );
+                        }
+                    }
+                }
+
                 self.seat.get_keyboard().unwrap().input::<(), _>(
                     self,
                     event.key_code(),
@@ -324,8 +400,48 @@ impl MetisState {
                             }
                             return FilterResult::Intercept(());
                         }
+                        let sym = u32::from(keysym.modified_sym());
+
+                        // Reserve a standalone Super tap for the application
+                        // menu. Any other pressed key turns it into a normal
+                        // shortcut chord instead.
+                        if is_super_keysym(sym) {
+                            match key_state {
+                                KeyState::Pressed => {
+                                    state.super_tap_armed = !modifiers.ctrl && !modifiers.alt;
+                                }
+                                KeyState::Released => {
+                                    let toggle_menu = state.super_tap_armed;
+                                    state.super_tap_armed = false;
+                                    if toggle_menu {
+                                        let _ =
+                                            metis_protocol::write_runtime_command("toggle-menu");
+                                    }
+                                }
+                            }
+                            return FilterResult::Intercept(());
+                        }
+
+                        // Multimedia / hardware keys (volume, brightness, media
+                        // transport, display switch). These carry fixed XF86
+                        // keysyms and are handled system-wide regardless of focus
+                        // or Settings shortcut-capture — matching GNOME/KDE. Act
+                        // on press; swallow the release too so clients never see a
+                        // dangling release for a key they never received.
+                        if sym == xf86::DISPLAY || hardware_key_command(sym).is_some() {
+                            if key_state == KeyState::Pressed {
+                                state.super_tap_armed = false;
+                                if sym == xf86::DISPLAY {
+                                    state.toggle_display_mirror();
+                                } else if let Some(cmd) = hardware_key_command(sym) {
+                                    let _ = metis_protocol::write_runtime_command(cmd);
+                                }
+                            }
+                            return FilterResult::Intercept(());
+                        }
+
                         if key_state == KeyState::Pressed {
-                            let sym = u32::from(keysym.modified_sym());
+                            state.super_tap_armed = false;
                             if state.screenshot_overlay_active()
                                 && sym == keysyms::KEY_Escape
                                 && !mod_active(&state.keybinds, modifiers)
@@ -356,8 +472,30 @@ impl MetisState {
                                     return FilterResult::Intercept(());
                                 }
                             }
+                            if state.control_center_mapped() {
+                                let bare_escape = sym == keysyms::KEY_Escape
+                                    && !modifiers.ctrl
+                                    && !modifiers.alt
+                                    && !modifiers.shift
+                                    && !modifiers.logo;
+                                let super_q = modifiers.logo
+                                    && !modifiers.ctrl
+                                    && !modifiers.alt
+                                    && matches!(sym, keysyms::KEY_q | keysyms::KEY_Q);
+                                if bare_escape || super_q {
+                                    let _ =
+                                        metis_protocol::write_runtime_command("close-popovers");
+                                    return FilterResult::Intercept(());
+                                }
+                            }
                             // Settings shortcut capture: do not fire global actions.
                             if capture_active() {
+                                return FilterResult::Forward;
+                            }
+                            // While an Exclusive layer owns the keyboard (menu,
+                            // Control Center, …), skip compositor chords so typing
+                            // and Escape reach the shell surface instead.
+                            if state.exclusive_keyboard_layer().is_some() {
                                 return FilterResult::Forward;
                             }
                             if let Some(token) = keysym_to_token(sym, digit_sym) {

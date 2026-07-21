@@ -890,6 +890,55 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-radius: {rs}px;
     }}
 
+    /* ---- Hardware-key OSD (volume / brightness / media, bottom-center) ---- */
+    window.metis-osd-window {{
+        background-color: transparent;
+    }}
+    .metis-osd-card {{
+        background-color: {toast_card_bg};
+        border-radius: 18px;
+        border: 1px solid {border};
+        padding: 20px 24px;
+        box-shadow: {dash_shadow};
+        color: {text};
+        min-width: 220px;
+    }}
+    .metis-osd-card.muted {{
+        opacity: 0.72;
+    }}
+    .metis-osd-icon {{
+        color: {text};
+    }}
+    .metis-osd-title {{
+        font-size: 13px;
+        font-weight: 600;
+        color: {text};
+    }}
+    .metis-osd-percent {{
+        font-size: 12px;
+        color: {muted};
+    }}
+    .metis-osd-level trough {{
+        min-height: 8px;
+        border-radius: 6px;
+        /* Neutral track — never tint with accent, or a cyan theme makes the
+           empty portion look identical to the filled bar. */
+        background-color: rgba({text_rgb}, 0.18);
+    }}
+    .metis-osd-level block.empty {{
+        min-height: 8px;
+        border-radius: 6px;
+        background-color: transparent;
+    }}
+    .metis-osd-level block.filled {{
+        min-height: 8px;
+        border-radius: 6px;
+        background-color: {accent};
+    }}
+    .metis-osd-card.muted .metis-osd-level block.filled {{
+        background-color: {muted};
+    }}
+
     .metis-notif-card-error {{
         box-shadow: 0 0 18px rgba({c_error_rgb}, 0.18);
         border-color: rgba({c_error_rgb}, 0.40);

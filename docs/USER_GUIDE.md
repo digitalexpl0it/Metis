@@ -590,8 +590,9 @@ scrolling mode; in grid mode they're inert.
 ## 8. Keyboard shortcuts reference
 
 Defaults are listed below. Change them anytime in **Settings → Keyboard →
-Shortcuts** (saved to `~/.config/metis/keybinds.json`, live-reloaded). Ctrl+Alt+F1–F12
-and Ctrl+Alt+Backspace are system-only and cannot be rebound.
+Shortcuts** (saved to `~/.config/metis/keybinds.json`, live-reloaded). Ctrl+Alt+F1–F12,
+Ctrl+Alt+Backspace, and the multimedia / hardware keys (see below) are system-only
+and cannot be rebound.
 
 | Shortcut | Action |
 |----------|--------|
@@ -612,6 +613,27 @@ and Ctrl+Alt+Backspace are system-only and cannot be rebound.
 | `Super`+`←` `→` `↑` `↓` | (scrolling) Move focus between/within columns |
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
+
+### Multimedia & hardware keys
+
+Laptop function-row and media-keyboard keys work system-wide and flash a
+bottom-center overlay showing the new level. They are wired in firmware/xkb, so
+they are fixed and cannot be rebound (they appear under **Settings → Keyboard →
+Shortcuts → System** for reference).
+
+| Key | Action |
+|-----|--------|
+| Volume Up / Down / Mute | Adjust or mute the default output (PipeWire/PulseAudio) |
+| Mic Mute | Mute / unmute the default microphone |
+| Brightness Up / Down | Display backlight (via logind) |
+| Keyboard Backlight Up / Down / Toggle | Keyboard backlight (via logind) |
+| Play/Pause · Stop · Next · Prev | Media transport for the active player (MPRIS) |
+| Rewind / Fast-forward | Seek the active player ∓10 s |
+| Display (monitor switch) | Toggle **mirror ⇄ extend** across displays (DRM sessions) |
+
+Brightness and keyboard backlight use logind's `SetBrightness`, so no root
+privileges, udev rule, or setuid helper is required. Media control targets the
+first player reporting `Playing`; if none is playing, the first available player.
 
 **Nested in GNOME?** `./run-metis.sh --session` may set `METIS_MOD=alt` for first-run
 defaults — read **Super** as **Alt** in the table above **except** workspace cycle
@@ -663,7 +685,10 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   `desktop-widgets.json`; the shell live-reloads.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
-  opacity. Saved to `menu.json`.
+  opacity. Tap **Super** to toggle the menu; start typing while it is open to
+  filter applications. Selecting **Settings** restores and focuses the existing
+  Settings window (including when minimized) instead of opening a duplicate.
+  Saved to `menu.json`.
 - **Weather** — manual location override + search, multiple saved locations
   (reorder/remove), °F/°C unit, and an IP-geolocation toggle.
 - **Network** — wired/NIC config (DHCP vs static) and Wi-Fi scan/connect/forget.
@@ -812,9 +837,10 @@ configured process monitor (Settings → Control Center: auto-detect prefers
 btop/htop in a terminal, then GUI monitors). The process list pauses refresh while
 a context menu is open so actions stay usable.
 
-Dismiss with **Esc**, the close button, **drag back toward the bar** on the
-header, or by clicking the desktop. Configure in Settings → **Control Center** or
-edit `~/.config/metis/dashboard.json` directly.
+Dismiss with **Esc**, **Super+Q**, the close button, **drag back toward the bar**
+on the header, or by clicking the desktop. While the panel is open, `Super+Q`
+closes it rather than the application underneath. Configure in Settings →
+**Control Center** or edit `~/.config/metis/dashboard.json` directly.
 
 ---
 

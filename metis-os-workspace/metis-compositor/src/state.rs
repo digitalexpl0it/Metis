@@ -252,6 +252,9 @@ pub struct MetisState {
     pub decoration_overrides: crate::decoration_overrides::DecorationsRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
     pub keybinds: crate::keybinds::KeybindRuntime,
+    /// Armed by a standalone Super press and cancelled by any chord key.
+    /// Releasing while armed toggles the Metis application menu.
+    pub(crate) super_tap_armed: bool,
     pub output_runtime: crate::output_prefs::OutputRuntime,
 
     redraw_trigger: Option<Rc<dyn Fn()>>,
@@ -885,6 +888,7 @@ impl MetisState {
             decoration_overrides: crate::decoration_overrides::DecorationsRuntime::load(),
             input_runtime: crate::device_input::InputRuntime::new(),
             keybinds: crate::keybinds::KeybindRuntime::load(),
+            super_tap_armed: false,
             output_runtime: crate::output_prefs::OutputRuntime::new(),
             redraw_trigger: None,
             damaged: true,
@@ -4197,6 +4201,36 @@ impl MetisState {
         } else {
             self.pending_apply_outputs = true;
         }
+    }
+
+    /// Toggle multi-monitor mode between extended desktop and duplicate (mirror),
+    /// bound to the `XF86Display` key. Persists the choice to `outputs.json`,
+    /// refreshes the runtime cache, and reapplies on the next tick. Notifies the
+    /// shell so it can flash an on-screen confirmation. No-op unless the DRM
+    /// backend is active (the nested winit session has a single output).
+    pub(crate) fn toggle_display_mirror(&mut self) {
+        if !self.is_drm_backend() {
+            return;
+        }
+        let mut cfg =
+            metis_config::load_outputs_config_with_fallback(self.output_runtime.cached());
+        let next = match cfg.display_mode {
+            metis_config::DisplayLayoutMode::Extend => metis_config::DisplayLayoutMode::Mirror,
+            metis_config::DisplayLayoutMode::Mirror => metis_config::DisplayLayoutMode::Extend,
+        };
+        cfg.display_mode = next;
+        if let Err(err) = metis_config::save_outputs_config(&cfg) {
+            tracing::warn!(%err, "failed to persist display mode toggle");
+            return;
+        }
+        let _ = self.output_runtime.reload_from_disk();
+        self.pending_apply_outputs = true;
+        let osd = match next {
+            metis_config::DisplayLayoutMode::Mirror => "hw osd-display mirror",
+            metis_config::DisplayLayoutMode::Extend => "hw osd-display extend",
+        };
+        let _ = metis_protocol::write_runtime_command(osd);
+        tracing::info!(?next, "display mode toggled via XF86Display");
     }
 
     fn output_for_wl_output(

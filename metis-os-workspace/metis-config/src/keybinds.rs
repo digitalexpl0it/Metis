@@ -438,7 +438,7 @@ pub fn reserved_chords() -> Vec<Chord> {
 
 /// Reserved system shortcuts for the Settings list (label, chord).
 pub fn reserved_system_rows() -> Vec<(String, Chord)> {
-    let mut rows = Vec::with_capacity(13);
+    let mut rows = Vec::with_capacity(28);
     for n in 1..=12 {
         rows.push((
             format!("Switch to VT {n}"),
@@ -449,7 +449,32 @@ pub fn reserved_system_rows() -> Vec<(String, Chord)> {
         "Quit session (return to greeter)".into(),
         Chord::new(false, true, true, false, "BackSpace"),
     ));
+    rows.extend(hardware_key_rows());
     rows
+}
+
+/// Fixed multimedia / hardware keys (`XF86*`) serviced by the compositor and
+/// shell. Shown in Settings for discoverability; the key caps are wired in
+/// firmware/xkb and are not user-rebindable.
+fn hardware_key_rows() -> Vec<(String, Chord)> {
+    let hw = |label: &str, cap: &str| (label.to_string(), Chord::new(false, false, false, false, cap));
+    vec![
+        hw("Volume up", "Vol +"),
+        hw("Volume down", "Vol -"),
+        hw("Mute", "Mute"),
+        hw("Microphone mute", "Mic mute"),
+        hw("Display brightness up", "Bright +"),
+        hw("Display brightness down", "Bright -"),
+        hw("Keyboard backlight up", "Kbd +"),
+        hw("Keyboard backlight down", "Kbd -"),
+        hw("Play / Pause", "Play"),
+        hw("Stop", "Stop"),
+        hw("Next track", "Next"),
+        hw("Previous track", "Prev"),
+        hw("Fast-forward", "Fwd"),
+        hw("Rewind", "Rew"),
+        hw("Mirror / extend displays", "Display"),
+    ]
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

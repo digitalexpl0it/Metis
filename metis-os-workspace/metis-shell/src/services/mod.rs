@@ -2,6 +2,7 @@ pub mod applications;
 pub mod audio_viz;
 pub mod calendar;
 mod dashboard;
+pub mod hardware;
 mod notifications;
 mod clipboard;
 mod notify_dbus;
