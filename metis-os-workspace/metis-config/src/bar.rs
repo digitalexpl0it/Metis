@@ -100,6 +100,8 @@ pub enum BarWidgetId {
     Clock,
     Battery,
     Network,
+    /// NetworkManager VPN / WireGuard profiles (connect / disconnect popover).
+    Vpn,
     Bluetooth,
     Volume,
     Notifications,
@@ -461,6 +463,7 @@ fn default_widgets() -> Vec<BarWidgetId> {
         BarWidgetId::Weather,
         BarWidgetId::Battery,
         BarWidgetId::Network,
+        BarWidgetId::Vpn,
         BarWidgetId::Bluetooth,
         BarWidgetId::Volume,
         BarWidgetId::Clipboard,
@@ -579,6 +582,7 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                     w,
                     BarWidgetId::Battery
                         | BarWidgetId::Network
+                        | BarWidgetId::Vpn
                         | BarWidgetId::Bluetooth
                         |                     BarWidgetId::Volume
                         | BarWidgetId::Clipboard
@@ -617,6 +621,20 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
             .map(|i| i + 1)
             .unwrap_or(cfg.widgets.len());
         cfg.widgets.insert(pos, BarWidgetId::Bluetooth);
+        if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
+            let _ = std::fs::write(bar_config_path(), json);
+        }
+    }
+
+    // VPN sits immediately after Network (before Bluetooth when present).
+    if !cfg.widgets.contains(&BarWidgetId::Vpn) {
+        let pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Network))
+            .map(|i| i + 1)
+            .unwrap_or(cfg.widgets.len());
+        cfg.widgets.insert(pos, BarWidgetId::Vpn);
         if let Ok(json) = serde_json::to_string_pretty(&*cfg) {
             let _ = std::fs::write(bar_config_path(), json);
         }

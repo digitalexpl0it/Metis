@@ -214,7 +214,6 @@ fn drive_looks_optical(drive: &gio::Drive) -> bool {
 
 fn entry_from_volume(volume: &gio::Volume) -> Option<VolumeEntry> {
     let id = volume_id(volume);
-    let label = volume.name().to_string();
     let mount = volume.get_mount();
     let mount_path = mount.as_ref().and_then(mount_path);
     if let Some(path) = mount_path.as_ref() {
@@ -222,6 +221,7 @@ fn entry_from_volume(volume: &gio::Volume) -> Option<VolumeEntry> {
             return None;
         }
     }
+    let label = friendly_volume_label(volume, mount.as_ref(), mount_path.as_deref());
     let encrypted = looks_encrypted(volume);
     let needs_mount = mount.is_none();
     let is_encrypted_locked = needs_mount && encrypted;
@@ -260,7 +260,7 @@ fn entry_from_volume(volume: &gio::Volume) -> Option<VolumeEntry> {
 }
 
 fn entry_from_mount(mount: &gio::Mount, path: PathBuf) -> VolumeEntry {
-    let label = mount.name().to_string();
+    let label = friendly_mount_label(mount, &path);
     let id = format!("mount:{}", path.display());
     let kind = if path_looks_optical(&path) {
         VolumeKind::Optical
@@ -279,6 +279,131 @@ fn entry_from_mount(mount: &gio::Mount, path: PathBuf) -> VolumeEntry {
         is_encrypted_locked: false,
         tooltip,
     }
+}
+
+/// User-facing media name. GIO's `volume.name()` is often a UUID / FAT serial
+/// when the filesystem has no label — prefer the FS label, then the mount-folder
+/// basename (what Nautilus shows), then a non-serial drive/volume name.
+fn friendly_volume_label(
+    volume: &gio::Volume,
+    mount: Option<&gio::Mount>,
+    mount_path: Option<&Path>,
+) -> String {
+    if let Some(label) = volume.identifier("label") {
+        let label = label.trim();
+        if !label.is_empty() && !looks_like_serial_or_uuid(label) {
+            return label.to_string();
+        }
+    }
+    if let Some(path) = mount_path {
+        if let Some(name) = media_basename(path) {
+            return name;
+        }
+    }
+    if let Some(mount) = mount {
+        let name = mount.name();
+        let name = name.trim();
+        if !name.is_empty() && !looks_like_serial_or_uuid(name) {
+            return name.to_string();
+        }
+    }
+    let vol_name = volume.name();
+    let vol_name = vol_name.trim();
+    if !vol_name.is_empty() && !looks_like_serial_or_uuid(vol_name) {
+        return vol_name.to_string();
+    }
+    if let Some(drive) = volume.drive() {
+        let name = drive.name();
+        let name = name.trim();
+        if !name.is_empty() && !looks_like_serial_or_uuid(name) && !drive_name_is_generic(name) {
+            return name.to_string();
+        }
+    }
+    if let Some(dev) = volume.identifier("unix-device") {
+        if let Some(base) = Path::new(dev.trim()).file_name() {
+            let s = base.to_string_lossy();
+            if !s.is_empty() {
+                return format!("Drive ({s})");
+            }
+        }
+    }
+    "Removable drive".into()
+}
+
+fn friendly_mount_label(mount: &gio::Mount, path: &Path) -> String {
+    if let Some(name) = media_basename(path) {
+        return name;
+    }
+    let name = mount.name();
+    let name = name.trim();
+    if !name.is_empty() && !looks_like_serial_or_uuid(name) {
+        return name.to_string();
+    }
+    "Removable drive".into()
+}
+
+/// Last path component under `/media` / `/run/media` / `/mnt`, skipping UUID-like names.
+fn media_basename(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?.trim();
+    if name.is_empty() || looks_like_serial_or_uuid(name) {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+fn drive_name_is_generic(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "usb drive"
+            | "usb disk"
+            | "usb device"
+            | "removable disk"
+            | "removable media"
+            | "sd card"
+            | "card reader"
+            | "floppy disk"
+            | "cd-rom"
+            | "cdrom"
+            | "dvd"
+            | "dvd-rom"
+    )
+}
+
+/// FAT volume ids (`XXXX-XXXX`), GPT/MBR UUIDs, and long hex serials that GIO
+/// often surfaces as the volume "name" when no filesystem label is set.
+fn looks_like_serial_or_uuid(name: &str) -> bool {
+    let s = name.trim();
+    if s.is_empty() {
+        return false;
+    }
+    // FAT16/32 volume serial: ABCD-1234
+    if s.len() == 9 {
+        let b = s.as_bytes();
+        if b[4] == b'-'
+            && s[..4].chars().all(|c| c.is_ascii_hexdigit())
+            && s[5..].chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return true;
+        }
+    }
+    // Canonical UUID: 8-4-4-4-12 hex
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() == 5
+        && parts[0].len() == 8
+        && parts[1].len() == 4
+        && parts[2].len() == 4
+        && parts[3].len() == 4
+        && parts[4].len() == 12
+        && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+    {
+        return true;
+    }
+    // Long unbroken hex / alphanumeric serials (no spaces), common for raw device ids.
+    let alnum: String = s.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
+    if alnum.len() >= 12 && alnum.chars().all(|c| c.is_ascii_hexdigit()) && !s.contains(' ') {
+        return true;
+    }
+    false
 }
 
 fn volume_id(volume: &gio::Volume) -> String {

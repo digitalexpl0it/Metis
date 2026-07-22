@@ -26,9 +26,27 @@ enum NetworkCommand {
         password: Option<String>,
     },
     SetRadio(bool),
+    VpnUp(String),
+    VpnDown(String),
 }
 
 static NETWORK_CMD_TX: OnceLock<Sender<NetworkCommand>> = OnceLock::new();
+
+#[derive(Debug, Clone, Default)]
+struct VpnOpState {
+    /// UUID/name currently connecting or disconnecting.
+    pending: Option<(String, Instant, bool)>,
+    /// Last failed connect/disconnect message for the popover.
+    last_error: Option<String>,
+}
+
+static VPN_OP: Mutex<VpnOpState> = Mutex::new(VpnOpState {
+    pending: None,
+    last_error: None,
+});
+
+/// Last known UUID → display name pairs for VPN toast labels.
+static LAST_VPN_NAMES: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 
 /// A single visible Wi-Fi network (deduped by SSID).
 #[derive(Debug, Clone, PartialEq)]
@@ -46,6 +64,25 @@ pub struct EthernetStatus {
     pub present: bool,
     pub connected: bool,
     pub label: String,
+}
+
+/// A NetworkManager VPN / WireGuard profile for the bar popover.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VpnStatus {
+    pub name: String,
+    pub uuid: String,
+    pub kind: String,
+    pub active: bool,
+    /// True while an up/down nmcli is in flight for this profile.
+    pub pending: bool,
+}
+
+/// Bar-facing VPN operation feedback (spinner target + last error).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct VpnFeedback {
+    pub pending_target: Option<String>,
+    pub connecting: bool,
+    pub last_error: Option<String>,
 }
 
 /// A single connected Bluetooth device, with battery level when the device
@@ -84,6 +121,8 @@ pub struct BarSnapshot {
     pub wifi: Vec<WifiNetwork>,
     pub ethernet: EthernetStatus,
     pub wifi_enabled: bool,
+    pub vpn: Vec<VpnStatus>,
+    pub vpn_feedback: VpnFeedback,
     pub volume_percent: u8,
     pub volume_muted: bool,
     pub mic_percent: u8,
@@ -98,11 +137,118 @@ pub fn spawn_bar_pollers() -> Receiver<BarSnapshot> {
     let _ = AUDIO_CMD_TX.set(audio_tx);
     let (network_tx, network_rx) = mpsc::channel();
     let _ = NETWORK_CMD_TX.set(network_tx);
+    spawn_vpn_session_autoconnect();
     thread::Builder::new()
         .name("metis-bar-poll".into())
         .spawn(move || poll_loop(tx, audio_rx, network_rx))
         .expect("spawn bar poller");
     rx
+}
+
+/// After login, NetworkManager often leaves WireGuard/`autoconnect=yes` idle
+/// until the underlay (Wi‑Fi/Ethernet) is fully up. Bring the exclusive
+/// autoconnect VPN profile up once connectivity looks ready.
+fn spawn_vpn_session_autoconnect() {
+    thread::Builder::new()
+        .name("metis-vpn-auto".into())
+        .spawn(|| {
+            for attempt in 0..24 {
+                let delay = if attempt == 0 {
+                    Duration::from_secs(4)
+                } else {
+                    Duration::from_secs(2)
+                };
+                thread::sleep(delay);
+                if !network_underlay_ready() {
+                    continue;
+                }
+                let Some((uuid, _name)) = vpn_autoconnect_target() else {
+                    return;
+                };
+                if vpn_uuid_active(&uuid) {
+                    return;
+                }
+                tracing::info!(%uuid, "bringing up VPN autoconnect profile");
+                begin_vpn_op(uuid.clone(), true);
+                spawn_nmcli_vpn(
+                    vec!["connection".into(), "up".into(), uuid.clone()],
+                    Duration::from_secs(45),
+                    uuid,
+                    true,
+                );
+                return;
+            }
+            tracing::debug!("VPN autoconnect: gave up waiting for network underlay");
+        })
+        .ok();
+}
+
+fn network_underlay_ready() -> bool {
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args(["-t", "-f", "STATE", "general"]);
+    let Some(output) = run_command(&mut cmd) else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let state = text.lines().next().unwrap_or("").trim().to_ascii_lowercase();
+    // "connected" is ideal; "connecting" means underlay is coming up — keep waiting.
+    state == "connected"
+}
+
+/// UUID + name of the VPN profile with autoconnect enabled (highest priority wins).
+fn vpn_autoconnect_target() -> Option<(String, String)> {
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args([
+        "-t",
+        "-f",
+        "NAME,UUID,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY",
+        "connection",
+        "show",
+    ]);
+    let output = run_command(&mut cmd)?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut best: Option<(i32, String, String)> = None;
+    for line in text.lines() {
+        let f = nmcli_split(line);
+        if f.len() < 4 {
+            continue;
+        }
+        if !is_vpn_connection_type(&f[2]) {
+            continue;
+        }
+        let auto = f[3].eq_ignore_ascii_case("yes")
+            || f[3].eq_ignore_ascii_case("true")
+            || f[3] == "1";
+        if !auto {
+            continue;
+        }
+        let prio: i32 = f.get(4).and_then(|s| s.parse().ok()).unwrap_or(0);
+        match &best {
+            Some((bp, _, _)) if *bp >= prio => {}
+            _ => best = Some((prio, f[1].clone(), f[0].clone())),
+        }
+    }
+    best.map(|(_, uuid, name)| (uuid, name))
+}
+
+fn vpn_uuid_active(uuid: &str) -> bool {
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args([
+        "-t",
+        "-f",
+        "UUID,TYPE",
+        "connection",
+        "show",
+        "--active",
+    ]);
+    let Some(output) = run_command(&mut cmd) else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    text.lines().any(|line| {
+        let f = nmcli_split(line);
+        f.len() >= 2 && f[0] == uuid && is_vpn_connection_type(&f[1])
+    })
 }
 
 fn poll_loop(
@@ -134,6 +280,16 @@ fn poll_loop(
             if let Some(eth) = read_ethernet_status() {
                 cached.ethernet = eth;
             }
+            if let Some(vpn) = read_vpn_status() {
+                if let Ok(mut names) = LAST_VPN_NAMES.lock() {
+                    *names = vpn
+                        .iter()
+                        .map(|v| (v.uuid.clone(), v.name.clone()))
+                        .collect();
+                }
+                cached.vpn = vpn;
+            }
+            cached.vpn_feedback = read_vpn_feedback(&cached.vpn);
             if cached.wifi_enabled {
                 if let Some(networks) = read_wifi_networks() {
                     let in_scan_grace = wifi_scan_grace_until
@@ -220,6 +376,24 @@ fn drain_network_commands(
                     Duration::from_secs(5),
                 );
             }
+            NetworkCommand::VpnUp(target) => {
+                begin_vpn_op(target.clone(), true);
+                spawn_nmcli_vpn(
+                    vec!["connection".into(), "up".into(), target.clone()],
+                    Duration::from_secs(45),
+                    target,
+                    true,
+                );
+            }
+            NetworkCommand::VpnDown(target) => {
+                begin_vpn_op(target.clone(), false);
+                spawn_nmcli_vpn(
+                    vec!["connection".into(), "down".into(), target.clone()],
+                    Duration::from_secs(20),
+                    target,
+                    false,
+                );
+            }
         }
     }
 }
@@ -243,6 +417,16 @@ pub fn wifi_connect(ssid: String, password: Option<String>) {
 /// Enable or disable the Wi-Fi radio.
 pub fn wifi_set_radio(on: bool) {
     queue_network(NetworkCommand::SetRadio(on));
+}
+
+/// Bring a NetworkManager VPN / WireGuard profile up (by UUID or name).
+pub fn vpn_up(target: String) {
+    queue_network(NetworkCommand::VpnUp(target));
+}
+
+/// Take a NetworkManager VPN / WireGuard profile down.
+pub fn vpn_down(target: String) {
+    queue_network(NetworkCommand::VpnDown(target));
 }
 
 /// Enable or disable the Bluetooth adapter radio.
@@ -293,6 +477,173 @@ fn spawn_nmcli(args: Vec<String>, timeout: Duration) {
             if std::time::Instant::now() >= deadline {
                 let _ = child.kill();
                 let _ = child.wait();
+                return;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
+fn begin_vpn_op(target: String, connecting: bool) {
+    if let Ok(mut st) = VPN_OP.lock() {
+        st.pending = Some((target, Instant::now(), connecting));
+        st.last_error = None;
+    }
+}
+
+fn finish_vpn_op(target: &str, connecting: bool, error: Option<String>) {
+    if let Ok(mut st) = VPN_OP.lock() {
+        if st
+            .pending
+            .as_ref()
+            .is_some_and(|(t, _, _)| t == target)
+        {
+            st.pending = None;
+        }
+        if let Some(err) = error.clone() {
+            st.last_error = Some(err);
+        } else {
+            st.last_error = None;
+        }
+    }
+    notify_vpn_result(target, connecting, error);
+}
+
+fn vpn_already_inactive(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("not an active connection")
+        || e.contains("no active connection")
+        || e.contains("not active")
+}
+
+fn notify_vpn_result(target: &str, connecting: bool, error: Option<String>) {
+    let label = vpn_display_name(target);
+    glib::idle_add_once(move || {
+        let (kind, title, message) = if let Some(err) = error {
+            (
+                crate::services::NotificationKind::Error,
+                "VPN".to_string(),
+                format!("{label}: {err}"),
+            )
+        } else if connecting {
+            (
+                crate::services::NotificationKind::Success,
+                "VPN connected".to_string(),
+                label,
+            )
+        } else {
+            (
+                crate::services::NotificationKind::Information,
+                "VPN disconnected".to_string(),
+                label,
+            )
+        };
+        let note = crate::services::BarNotification::internal(kind, title, message);
+        if !crate::services::do_not_disturb() {
+            crate::ui::toast::show(&note);
+        }
+        crate::services::push_notification(note);
+    });
+}
+
+fn vpn_display_name(target: &str) -> String {
+    if let Ok(guard) = LAST_VPN_NAMES.lock() {
+        if let Some(name) = guard
+            .iter()
+            .find(|(uuid, name)| uuid == target || name == target)
+            .map(|(_, name)| name.clone())
+        {
+            return name;
+        }
+    }
+    target.to_string()
+}
+
+fn read_vpn_feedback(vpn: &[VpnStatus]) -> VpnFeedback {
+    let Ok(mut st) = VPN_OP.lock() else {
+        return VpnFeedback::default();
+    };
+    // Clear pending once the profile reaches the expected active state, or after timeout.
+    if let Some((ref target, started, connecting)) = st.pending.clone() {
+        let matched = vpn.iter().find(|v| v.uuid == *target || v.name == *target);
+        let settled = matched.is_some_and(|v| v.active == connecting);
+        if settled || started.elapsed() > Duration::from_secs(50) {
+            if !settled && started.elapsed() > Duration::from_secs(50) {
+                st.last_error = Some(if connecting {
+                    "VPN connect timed out.".into()
+                } else {
+                    "VPN disconnect timed out.".into()
+                });
+            }
+            st.pending = None;
+        }
+    }
+    VpnFeedback {
+        pending_target: st.pending.as_ref().map(|(t, _, _)| t.clone()),
+        connecting: st.pending.as_ref().is_some_and(|(_, _, c)| *c),
+        last_error: st.last_error.clone(),
+    }
+}
+
+/// Spawn nmcli for VPN up/down, capturing stderr so the bar can show failures.
+fn spawn_nmcli_vpn(args: Vec<String>, timeout: Duration, target: String, connecting: bool) {
+    thread::spawn(move || {
+        use std::io::Read;
+
+        let mut cmd = std::process::Command::new("nmcli");
+        cmd.args(&args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        let Ok(mut child) = cmd.spawn() else {
+            finish_vpn_op(&target, connecting, Some("Could not run nmcli.".into()));
+            return;
+        };
+        let deadline = Instant::now() + timeout;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    let mut stdout = String::new();
+                    let mut stderr = String::new();
+                    if let Some(mut out) = child.stdout.take() {
+                        let _ = out.read_to_string(&mut stdout);
+                    }
+                    if let Some(mut err) = child.stderr.take() {
+                        let _ = err.read_to_string(&mut stderr);
+                    }
+                    let _ = child.wait();
+                    if status.success() {
+                        finish_vpn_op(&target, connecting, None);
+                    } else {
+                        let msg = if !stderr.trim().is_empty() {
+                            stderr.trim().to_string()
+                        } else if !stdout.trim().is_empty() {
+                            stdout.trim().to_string()
+                        } else {
+                            "VPN operation failed.".into()
+                        };
+                        // Stale UI: disconnecting an already-down profile is fine.
+                        if !connecting && vpn_already_inactive(&msg) {
+                            finish_vpn_op(&target, connecting, None);
+                        } else {
+                            let clean = msg
+                                .trim_start_matches("Error:")
+                                .trim()
+                                .to_string();
+                            finish_vpn_op(&target, connecting, Some(clean));
+                        }
+                    }
+                    return;
+                }
+                Ok(None) => {}
+                Err(_) => {
+                    finish_vpn_op(&target, connecting, Some("VPN operation failed.".into()));
+                    return;
+                }
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                finish_vpn_op(&target, connecting, Some("VPN operation timed out.".into()));
                 return;
             }
             thread::sleep(Duration::from_millis(100));
@@ -466,6 +817,88 @@ fn read_ethernet_status() -> Option<EthernetStatus> {
         });
     }
     Some(EthernetStatus::default())
+}
+
+fn read_vpn_status() -> Option<Vec<VpnStatus>> {
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args(["-t", "-f", "NAME,UUID,TYPE,DEVICE", "connection", "show"]);
+    let output = run_command(&mut cmd)?;
+    let text = String::from_utf8_lossy(&output.stdout);
+
+    let mut active = std::collections::HashSet::new();
+    {
+        let mut active_cmd = std::process::Command::new("nmcli");
+        active_cmd.args([
+            "-t",
+            "-f",
+            "NAME,UUID,TYPE",
+            "connection",
+            "show",
+            "--active",
+        ]);
+        if let Some(out) = run_command(&mut active_cmd) {
+            let active_text = String::from_utf8_lossy(&out.stdout);
+            for line in active_text.lines() {
+                let f = nmcli_split(line);
+                if f.len() >= 3 && is_vpn_connection_type(&f[2]) {
+                    active.insert(f[1].clone());
+                }
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let f = nmcli_split(line);
+        if f.len() < 3 || f[0].is_empty() {
+            continue;
+        }
+        if !is_vpn_connection_type(&f[2]) {
+            continue;
+        }
+        let kind = vpn_kind_label(&f[2]);
+        let is_active =
+            active.contains(&f[1]) || (f.len() >= 4 && !f[3].is_empty() && f[3] != "--");
+        out.push(VpnStatus {
+            name: f[0].clone(),
+            uuid: f[1].clone(),
+            kind: kind.to_string(),
+            active: is_active,
+            pending: false,
+        });
+    }
+    // Stamp pending from in-flight ops so the popover can show a spinner.
+    if let Ok(st) = VPN_OP.lock() {
+        if let Some((ref target, _, _)) = st.pending {
+            for v in &mut out {
+                if v.uuid == *target || v.name == *target {
+                    v.pending = true;
+                }
+            }
+        }
+    }
+    out.sort_by(|a, b| {
+        b.active
+            .cmp(&a.active)
+            .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Some(out)
+}
+
+fn is_vpn_connection_type(ctype: &str) -> bool {
+    let t = ctype.to_ascii_lowercase();
+    t == "wireguard" || t == "vpn" || t.starts_with("vpn")
+}
+
+fn vpn_kind_label(ctype: &str) -> &'static str {
+    let t = ctype.to_ascii_lowercase();
+    if t == "wireguard" {
+        "WireGuard"
+    } else if t.contains("openvpn") {
+        "OpenVPN"
+    } else {
+        "VPN"
+    }
 }
 
 fn read_battery_percent() -> Option<u8> {

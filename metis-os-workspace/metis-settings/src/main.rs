@@ -54,7 +54,7 @@ fn main() {
         glib::Char::from(b'\0'),
         glib::OptionFlags::NONE,
         glib::OptionArg::String,
-        "Open a settings page (network, power, bluetooth, …)",
+        "Open a settings page (network, network/vpn, power, bluetooth, …)",
         Some("PAGE"),
     );
 
@@ -70,30 +70,46 @@ fn main() {
     std::process::exit(app.run_with_args(&[argv0]).into());
 }
 
-fn parse_page_arg() -> Option<String> {
+#[derive(Debug, Clone, Default)]
+struct PageLaunch {
+    /// Sidebar page id (`network`, `power`, …).
+    page: Option<String>,
+    /// Optional sub-tab within that page (`vpn` for Network).
+    tab: Option<String>,
+}
+
+fn parse_page_arg() -> PageLaunch {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         if let Some(name) = arg.strip_prefix("--page=") {
-            return normalize_page(name);
+            return normalize_launch(name);
         }
         if arg == "--page" {
             if let Some(name) = args.next() {
-                return normalize_page(&name);
+                return normalize_launch(&name);
             }
         }
     }
-    None
+    PageLaunch::default()
 }
 
-fn normalize_page(name: &str) -> Option<String> {
-    let name = name.trim().to_lowercase();
-    nav::page_ids()
+fn normalize_launch(raw: &str) -> PageLaunch {
+    let raw = raw.trim().to_lowercase();
+    let (page_raw, tab) = if let Some((p, t)) = raw.split_once('/') {
+        (p, Some(t.trim().to_string()))
+    } else if let Some((p, t)) = raw.split_once(':') {
+        (p, Some(t.trim().to_string()))
+    } else {
+        (raw.as_str(), None)
+    };
+    let page = nav::page_ids()
         .into_iter()
-        .find(|id| *id == name)
-        .map(str::to_string)
+        .find(|id| *id == page_raw)
+        .map(str::to_string);
+    PageLaunch { page, tab }
 }
 
-fn build_ui(app: &gtk::Application, page: Option<String>) {
+fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     theme::install();
 
     let stack = gtk::Stack::new();
@@ -140,7 +156,15 @@ fn build_ui(app: &gtk::Application, page: Option<String>) {
     stack.add_titled(&pages::titlebars::build(), Some("titlebars"), "App titlebars");
     stack.add_titled(&pages::menu::build(), Some("menu"), "Metis Menu");
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
-    stack.add_titled(&pages::network::build(), Some("network"), "Network");
+    stack.add_titled(
+        &pages::network::build(if launch.page.as_deref() == Some("network") {
+            launch.tab.as_deref()
+        } else {
+            None
+        }),
+        Some("network"),
+        "Network",
+    );
     stack.add_titled(&pages::calendars::build(), Some("calendars"), "Calendars");
     stack.add_titled(&pages::mouse::build(), Some("mouse"), "Mouse");
     stack.add_titled(&pages::touchpad::build(), Some("touchpad"), "Touchpad");
@@ -342,7 +366,8 @@ fn build_ui(app: &gtk::Application, page: Option<String>) {
     layout.append(&content);
     layout.add_css_class("metis-settings-root");
 
-    let initial_row = page
+    let initial_row = launch
+        .page
         .as_deref()
         .and_then(|p| NAV.iter().position(|item| item.page_id == Some(p)))
         .unwrap_or(1);

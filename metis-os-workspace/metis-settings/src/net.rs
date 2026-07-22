@@ -77,6 +77,8 @@ pub struct NetSnapshot {
     /// The active Wi-Fi connection profile, if any (for the DNS override UI).
     pub active_wifi: Option<ActiveConn>,
     pub proxy: ProxyConfig,
+    /// NetworkManager VPN / WireGuard profiles.
+    pub vpn: Vec<VpnConn>,
 }
 
 /// Gather a full network snapshot (blocking — call on a worker thread).
@@ -88,6 +90,7 @@ pub fn load_snapshot() -> NetSnapshot {
         eth: ethernet_devices(),
         active_wifi: active_wifi_connection(),
         proxy: read_proxy(),
+        vpn: list_vpn_connections(),
     }
 }
 
@@ -373,6 +376,885 @@ pub fn set_ipv4_static(conn: &str, address: &str, gateway: &str, dns: &str) {
     });
 }
 
+// ---- VPN / WireGuard (NetworkManager) ------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VpnKind {
+    OpenVpn,
+    WireGuard,
+    Other,
+}
+
+impl VpnKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::OpenVpn => "OpenVPN",
+            Self::WireGuard => "WireGuard",
+            Self::Other => "VPN",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VpnConn {
+    pub name: String,
+    pub uuid: String,
+    pub kind: VpnKind,
+    pub active: bool,
+    pub autoconnect: bool,
+}
+
+/// Fields for a simple WireGuard profile create dialog.
+#[derive(Debug, Clone)]
+pub struct WireGuardCreate {
+    pub name: String,
+    pub private_key: String,
+    pub address: String,
+    pub peer_public_key: String,
+    pub endpoint: String,
+    pub allowed_ips: String,
+    pub dns: String,
+}
+
+fn vpn_kind_from_type(ctype: &str) -> Option<VpnKind> {
+    let t = ctype.to_ascii_lowercase();
+    if t == "wireguard" {
+        Some(VpnKind::WireGuard)
+    } else if t == "vpn" || t.starts_with("vpn") || t.contains("openvpn") {
+        // NM OpenVPN plugin usually reports TYPE=vpn; some builds use vpn-openvpn.
+        Some(if t.contains("openvpn") {
+            VpnKind::OpenVpn
+        } else {
+            VpnKind::Other
+        })
+    } else {
+        None
+    }
+}
+
+fn refine_vpn_kind(uuid: &str, kind: VpnKind) -> VpnKind {
+    if kind != VpnKind::Other {
+        return kind;
+    }
+    // Prefer service-type when TYPE is the generic "vpn".
+    let Some(text) = capture(
+        &["-t", "-f", "connection.id,vpn.service-type", "connection", "show", uuid],
+        Duration::from_secs(3),
+    ) else {
+        return kind;
+    };
+    for line in text.lines() {
+        let Some((key, val)) = line.split_once(':') else {
+            continue;
+        };
+        if key.trim() == "vpn.service-type" {
+            let v = val.to_ascii_lowercase();
+            if v.contains("openvpn") {
+                return VpnKind::OpenVpn;
+            }
+            if v.contains("wireguard") {
+                return VpnKind::WireGuard;
+            }
+        }
+    }
+    kind
+}
+
+/// All saved VPN / WireGuard profiles, with active state.
+pub fn list_vpn_connections() -> Vec<VpnConn> {
+    let Some(text) = capture(
+        &[
+            "-t",
+            "-f",
+            "NAME,UUID,TYPE,DEVICE,AUTOCONNECT",
+            "connection",
+            "show",
+        ],
+        Duration::from_secs(4),
+    ) else {
+        return Vec::new();
+    };
+    let active_uuids = active_vpn_uuids();
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let f = split(line);
+        if f.len() < 3 || f[0].is_empty() {
+            continue;
+        }
+        let Some(mut kind) = vpn_kind_from_type(&f[2]) else {
+            continue;
+        };
+        kind = refine_vpn_kind(&f[1], kind);
+        // Prefer `--active` membership; DEVICE is a secondary hint when NM still
+        // lists an iface on a profile that is mid-transition.
+        let active = active_uuids.contains(&f[1])
+            || (f.len() >= 4 && !f[3].is_empty() && f[3] != "--");
+        let autoconnect = f
+            .get(4)
+            .map(|s| {
+                let s = s.trim().to_ascii_lowercase();
+                s == "yes" || s == "true" || s == "1"
+            })
+            .unwrap_or(false);
+        out.push(VpnConn {
+            name: f[0].clone(),
+            uuid: f[1].clone(),
+            kind,
+            active,
+            autoconnect,
+        });
+    }
+    out.sort_by(|a, b| {
+        b.active
+            .cmp(&a.active)
+            .then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    out
+}
+
+fn active_vpn_uuids() -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    let Some(text) = capture(
+        &[
+            "-t",
+            "-f",
+            "NAME,UUID,TYPE",
+            "connection",
+            "show",
+            "--active",
+        ],
+        Duration::from_secs(4),
+    ) else {
+        return set;
+    };
+    for line in text.lines() {
+        let f = split(line);
+        if f.len() < 3 {
+            continue;
+        }
+        if vpn_kind_from_type(&f[2]).is_some() {
+            set.insert(f[1].clone());
+        }
+    }
+    set
+}
+
+pub fn vpn_up(target: &str) -> Result<(), String> {
+    vpn_toggle("up", target, Duration::from_secs(45))
+}
+
+pub fn vpn_down(target: &str) -> Result<(), String> {
+    vpn_toggle("down", target, Duration::from_secs(20))
+}
+
+fn vpn_toggle(action: &str, target: &str, timeout: Duration) -> Result<(), String> {
+    let (stdout, stderr, ok) = run_capture_both(
+        &["connection", action, target],
+        timeout,
+    );
+    if ok {
+        return Ok(());
+    }
+    let err = if stderr.is_empty() { stdout } else { stderr };
+    let trimmed = err.trim();
+    // Stale UI / race: disconnecting an already-down profile is success.
+    if action == "down" && vpn_already_inactive(trimmed) {
+        return Ok(());
+    }
+    let clean = trimmed.trim_start_matches("Error:").trim();
+    if clean.is_empty() {
+        Err(format!("Failed to {action} VPN connection."))
+    } else {
+        Err(clean.to_string())
+    }
+}
+
+fn vpn_already_inactive(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("not an active connection")
+        || e.contains("no active connection")
+        || e.contains("not active")
+}
+
+/// Enable or disable NetworkManager autoconnect for a VPN profile.
+///
+/// Autoconnect is exclusive among Metis VPN profiles: turning it on for one
+/// clears it on every other VPN / WireGuard connection. NM often will not bring
+/// WireGuard up by itself at login (endpoint not reachable until Wi‑Fi is up),
+/// so the shell also activates the chosen profile after the session starts.
+pub fn vpn_set_autoconnect(uuid: &str, on: bool) -> Result<(), String> {
+    if on {
+        for other in list_vpn_connections() {
+            if other.uuid == uuid || !other.autoconnect {
+                continue;
+            }
+            let (_o, e, ok) = run_capture_both(
+                &[
+                    "connection",
+                    "modify",
+                    &other.uuid,
+                    "connection.autoconnect",
+                    "no",
+                ],
+                Duration::from_secs(8),
+            );
+            if !ok && !e.trim().is_empty() {
+                tracing::warn!(uuid = %other.uuid, err = %e, "failed to clear VPN autoconnect");
+            }
+        }
+        let (_o, e, ok) = run_capture_both(
+            &[
+                "connection",
+                "modify",
+                uuid,
+                "connection.autoconnect",
+                "yes",
+                "connection.autoconnect-priority",
+                "50",
+            ],
+            Duration::from_secs(8),
+        );
+        if !ok {
+            return Err(if e.trim().is_empty() {
+                "Could not enable autoconnect.".into()
+            } else {
+                e
+            });
+        }
+        Ok(())
+    } else {
+        let (_o, e, ok) = run_capture_both(
+            &[
+                "connection",
+                "modify",
+                uuid,
+                "connection.autoconnect",
+                "no",
+                "connection.autoconnect-priority",
+                "0",
+            ],
+            Duration::from_secs(8),
+        );
+        if ok {
+            Ok(())
+        } else if e.trim().is_empty() {
+            Err("Could not update autoconnect.".into())
+        } else {
+            Err(e)
+        }
+    }
+}
+
+pub fn vpn_delete(target: &str) {
+    forget(target);
+}
+
+/// True when the NetworkManager OpenVPN plugin is installed (Debian/Ubuntu/Mint paths).
+pub fn openvpn_plugin_present() -> bool {
+    const CANDIDATES: &[&str] = &[
+        "/usr/lib/NetworkManager/VPN/nm-openvpn-service.name",
+        "/usr/lib/x86_64-linux-gnu/NetworkManager/VPN/nm-openvpn-service.name",
+        "/usr/lib64/NetworkManager/VPN/nm-openvpn-service.name",
+        "/usr/lib/NetworkManager/VPN/nm-openvpn-service",
+        "/usr/lib/x86_64-linux-gnu/NetworkManager/VPN/nm-openvpn-service",
+    ];
+    CANDIDATES.iter().any(|p| std::path::Path::new(p).is_file())
+}
+
+/// Editable WireGuard fields (private key is never returned or required on edit).
+#[derive(Debug, Clone, Default)]
+pub struct WireGuardProfile {
+    pub name: String,
+    pub address: String,
+    pub peer_public_key: String,
+    pub endpoint: String,
+    pub allowed_ips: String,
+    pub dns: String,
+}
+
+/// Read a WireGuard profile for the edit dialog.
+///
+/// Peer details are not exposed by `nmcli -f wireguard.peers` (modify-only on
+/// many NM builds), and `nmcli connection export` rejects native WireGuard
+/// ("not VPN"). We read peers from NetworkManager's D-Bus `GetSettings`.
+pub fn vpn_get_wireguard(uuid: &str) -> Option<WireGuardProfile> {
+    let text = capture(
+        &[
+            "-t",
+            "-f",
+            "connection.id,ipv4.addresses,ipv4.dns",
+            "connection",
+            "show",
+            uuid,
+        ],
+        Duration::from_secs(4),
+    )?;
+    let mut profile = WireGuardProfile::default();
+    for line in text.lines() {
+        let Some((key, val)) = line.split_once(':') else {
+            continue;
+        };
+        match key.trim() {
+            "connection.id" => profile.name = val.to_string(),
+            "ipv4.addresses" => {
+                profile.address = val.split(',').next().unwrap_or(val).trim().to_string();
+                if profile.address == "--" {
+                    profile.address.clear();
+                }
+            }
+            "ipv4.dns" => {
+                profile.dns = val
+                    .split(|c| c == ',' || c == '|' || c == ' ')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty() && *s != "--")
+                    .collect::<Vec<_>>()
+                    .join(", ");
+            }
+            _ => {}
+        }
+    }
+    if profile.name.is_empty() {
+        return None;
+    }
+    fill_wg_peers_from_nm_dbus(uuid, &mut profile);
+    // Fallback for older layouts / classic plugin exports.
+    if profile.peer_public_key.is_empty() || profile.endpoint.is_empty() {
+        if let Some(export) = capture(&["connection", "export", uuid], Duration::from_secs(6)) {
+            fill_wg_profile_from_export(&export, &mut profile);
+        }
+    }
+    Some(profile)
+}
+
+/// Load the first WireGuard peer (public key, endpoint, allowed-ips) via
+/// `busctl` JSON `GetSettings`. Never reads or stores the private key.
+fn fill_wg_peers_from_nm_dbus(uuid: &str, profile: &mut WireGuardProfile) {
+    let Some(path) = nm_settings_path_for_uuid(uuid) else {
+        return;
+    };
+    let Some(raw) = run_stdout(
+        "busctl",
+        &[
+            "--system",
+            "call",
+            "org.freedesktop.NetworkManager",
+            &path,
+            "org.freedesktop.NetworkManager.Settings.Connection",
+            "GetSettings",
+            "--json=pretty",
+        ],
+        Duration::from_secs(6),
+    ) else {
+        return;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return;
+    };
+    let Some(settings) = json.get("data").and_then(|d| d.get(0)) else {
+        return;
+    };
+    let Some(peers) = settings
+        .pointer("/wireguard/peers/data")
+        .and_then(|v| v.as_array())
+    else {
+        return;
+    };
+    let Some(peer) = peers.first() else {
+        return;
+    };
+    if profile.peer_public_key.is_empty() {
+        if let Some(pk) = busctl_variant_str(peer.get("public-key")) {
+            profile.peer_public_key = pk;
+        }
+    }
+    if profile.endpoint.is_empty() {
+        if let Some(ep) = busctl_variant_str(peer.get("endpoint")) {
+            profile.endpoint = ep;
+        }
+    }
+    if profile.allowed_ips.is_empty() {
+        if let Some(ips) = busctl_variant_str_array(peer.get("allowed-ips")) {
+            profile.allowed_ips = ips.join(", ");
+        }
+    }
+}
+
+fn nm_settings_path_for_uuid(uuid: &str) -> Option<String> {
+    let raw = run_stdout(
+        "busctl",
+        &[
+            "--system",
+            "call",
+            "org.freedesktop.NetworkManager",
+            "/org/freedesktop/NetworkManager/Settings",
+            "org.freedesktop.NetworkManager.Settings",
+            "GetConnectionByUuid",
+            "s",
+            uuid,
+            "--json=pretty",
+        ],
+        Duration::from_secs(4),
+    )?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    json.get("data")
+        .and_then(|d| d.get(0))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+}
+
+fn busctl_variant_str(v: Option<&serde_json::Value>) -> Option<String> {
+    v?.get("data")?.as_str().map(str::to_string)
+}
+
+fn busctl_variant_str_array(v: Option<&serde_json::Value>) -> Option<Vec<String>> {
+    let arr = v?.get("data")?.as_array()?;
+    Some(
+        arr.iter()
+            .filter_map(|x| x.as_str().map(str::to_string))
+            .collect(),
+    )
+}
+
+/// Parse NetworkManager keyfile or WireGuard `.conf` export text.
+/// Never stores `PrivateKey` / `private-key` values.
+fn fill_wg_profile_from_export(export: &str, profile: &mut WireGuardProfile) {
+    let mut in_peer = false;
+
+    for raw in export.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            let name = &line[1..line.len() - 1];
+            let lower = name.to_ascii_lowercase();
+            in_peer = lower == "peer" || lower.starts_with("wireguard-peer.");
+            if lower.starts_with("wireguard-peer.") {
+                if let Some(orig) = name.get("wireguard-peer.".len()..) {
+                    let pk = orig.trim_end_matches('=').trim();
+                    if !pk.is_empty() && profile.peer_public_key.is_empty() {
+                        profile.peer_public_key = pk.to_string();
+                    }
+                }
+            }
+            continue;
+        }
+        let Some((k, v)) = line.split_once('=') else {
+            continue;
+        };
+        let key = k.trim().to_ascii_lowercase().replace('_', "-");
+        let val = v.trim();
+        // Never capture private material.
+        if key == "private-key"
+            || key == "privatekey"
+            || key == "preshared-key"
+            || key == "presharedkey"
+        {
+            continue;
+        }
+        if !in_peer {
+            if (key == "address" || key == "address1") && profile.address.is_empty() {
+                profile.address = val.split(',').next().unwrap_or(val).trim().to_string();
+            }
+            if key == "dns" && profile.dns.is_empty() {
+                profile.dns = val
+                    .split(|c| c == ',' || c == ';')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+            }
+            continue;
+        }
+        match key.as_str() {
+            "public-key" | "publickey" | "pubkey" => {
+                if profile.peer_public_key.is_empty() {
+                    profile.peer_public_key = val.to_string();
+                }
+            }
+            "endpoint" => {
+                if profile.endpoint.is_empty() {
+                    profile.endpoint = val.to_string();
+                }
+            }
+            "allowed-ips" | "allowedips" => {
+                if profile.allowed_ips.is_empty() {
+                    profile.allowed_ips = val
+                        .split(|c| c == ',' || c == ';')
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Apply simple WireGuard edits (name, address, peer endpoint/allowed-ips/pubkey, DNS).
+/// Does not change the interface private key.
+pub fn vpn_update_wireguard(uuid: &str, cfg: WireGuardProfile) -> Result<(), String> {
+    let name = cfg.name.trim();
+    if name.is_empty() {
+        return Err("Name is required.".into());
+    }
+    if cfg.address.trim().is_empty() {
+        return Err("Interface address (CIDR) is required.".into());
+    }
+
+    let (_o, e1, ok1) = run_capture_both(
+        &[
+            "connection",
+            "modify",
+            uuid,
+            "connection.id",
+            name,
+            "ipv4.method",
+            "manual",
+            "ipv4.addresses",
+            cfg.address.trim(),
+        ],
+        Duration::from_secs(15),
+    );
+    if !ok1 {
+        return Err(if e1.trim().is_empty() {
+            "Could not update WireGuard connection.".into()
+        } else {
+            e1
+        });
+    }
+
+    // Peer update is optional when the dialog could not load an existing pubkey
+    // (older NM builds hide peers from `connection show`).
+    if !cfg.peer_public_key.trim().is_empty() {
+        let allowed = if cfg.allowed_ips.trim().is_empty() {
+            "0.0.0.0/0, ::/0"
+        } else {
+            cfg.allowed_ips.trim()
+        };
+
+        let mut peer_prop = format!(
+            "pubkey={};allowed-ips={};",
+            cfg.peer_public_key.trim(),
+            allowed
+        );
+        if !cfg.endpoint.trim().is_empty() {
+            peer_prop.push_str(&format!("endpoint={};", cfg.endpoint.trim()));
+        }
+        let (_o, e2, ok2) = run_capture_both(
+            &["connection", "modify", uuid, "wireguard.peers", &peer_prop],
+            Duration::from_secs(15),
+        );
+        if !ok2 {
+            return Err(if e2.trim().is_empty() {
+                "Could not update WireGuard peer.".into()
+            } else {
+                e2
+            });
+        }
+    }
+
+    if cfg.dns.trim().is_empty() {
+        let _ = run_blocking(&[
+            "connection",
+            "modify",
+            uuid,
+            "ipv4.dns",
+            "",
+            "ipv4.ignore-auto-dns",
+            "no",
+        ]);
+    } else {
+        let (_o, e3, ok3) = run_capture_both(
+            &[
+                "connection",
+                "modify",
+                uuid,
+                "ipv4.dns",
+                cfg.dns.trim(),
+                "ipv4.ignore-auto-dns",
+                "yes",
+            ],
+            Duration::from_secs(10),
+        );
+        if !ok3 && !e3.trim().is_empty() {
+            return Err(e3);
+        }
+    }
+    Ok(())
+}
+
+/// Import an OpenVPN `.ovpn` file. Returns Ok(connection name hint) or an error
+/// string suitable for the UI (missing plugin, bad file, …).
+pub fn vpn_import_openvpn(path: &str) -> Result<String, String> {
+    vpn_import("openvpn", path, "sudo apt install network-manager-openvpn")
+}
+
+/// Import a WireGuard `.conf` file.
+///
+/// NetworkManager requires the file basename (minus `.conf`) to be a valid Linux
+/// interface name (≤15 chars, `[a-zA-Z0-9_-]`). Provider exports like Proton's
+/// `Proton-US-FREE-79.conf` fail that check — we copy to a sanitized temp name,
+/// import, then set the connection title to the original stem.
+pub fn vpn_import_wireguard(path: &str) -> Result<String, String> {
+    use std::path::{Path, PathBuf};
+
+    let src = Path::new(path);
+    let stem = src
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("wg")
+        .to_string();
+    let friendly = stem.clone();
+    let iface = sanitize_wg_iface_name(&stem);
+
+    let (import_path, temp): (PathBuf, Option<PathBuf>) =
+        if wg_iface_name_ok(&stem) && src.extension().and_then(|e| e.to_str()) == Some("conf") {
+            (src.to_path_buf(), None)
+        } else {
+            let tmp = std::env::temp_dir().join(format!("{iface}.conf"));
+            std::fs::copy(src, &tmp).map_err(|e| {
+                format!("Could not prepare WireGuard config for import: {e}")
+            })?;
+            (tmp.clone(), Some(tmp))
+        };
+
+    let import_s = import_path.to_string_lossy().to_string();
+    let result = vpn_import(
+        "wireguard",
+        &import_s,
+        "ensure NetworkManager WireGuard support is available (NM ≥ 1.16)",
+    );
+    if let Some(tmp) = temp {
+        let _ = std::fs::remove_file(tmp);
+    }
+    let imported = result?;
+
+    // Prefer the provider filename as the displayed connection name when it
+    // differs from the short interface name NM used at import.
+    if friendly != imported && friendly != iface {
+        let (_o, _e, ok) = run_capture_both(
+            &["connection", "modify", &imported, "connection.id", &friendly],
+            Duration::from_secs(8),
+        );
+        if ok {
+            return Ok(friendly);
+        }
+    }
+    Ok(imported)
+}
+
+/// Linux IFNAMSIZ is 16 including NUL → 15 usable chars. NM WireGuard import
+/// uses the `.conf` stem as the interface name.
+fn wg_iface_name_ok(stem: &str) -> bool {
+    if stem.is_empty() || stem.len() > 15 {
+        return false;
+    }
+    let mut chars = stem.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphanumeric() {
+        return false;
+    }
+    stem.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn sanitize_wg_iface_name(stem: &str) -> String {
+    let mut out: String = stem
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    while out.contains("--") {
+        out = out.replace("--", "-");
+    }
+    out = out.trim_matches('-').to_string();
+    if out.is_empty() {
+        out = "wg".into();
+    }
+    if !out.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+        out = format!("wg{out}");
+    }
+    if out.len() > 15 {
+        out.truncate(15);
+        out = out.trim_end_matches('-').to_string();
+    }
+    if out.is_empty() {
+        "wg0".into()
+    } else {
+        out
+    }
+}
+
+fn vpn_import(kind: &str, path: &str, plugin_hint: &str) -> Result<String, String> {
+    let (stdout, stderr, ok) = run_capture_both(
+        &["connection", "import", "type", kind, "file", path],
+        Duration::from_secs(30),
+    );
+    if ok {
+        let name = stdout
+            .lines()
+            .find_map(|l| {
+                l.strip_prefix("Connection '")
+                    .and_then(|r| r.split('\'').next())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| path.to_string());
+        return Ok(name);
+    }
+    let err = if stderr.is_empty() { stdout } else { stderr };
+    let lower = err.to_ascii_lowercase();
+    if lower.contains("unknown connection type")
+        || lower.contains("plugin")
+        || lower.contains("no vpn plugin")
+        || (lower.contains("wireguard") && lower.contains("not"))
+    {
+        return Err(format!(
+            "Could not import {kind} profile. {plugin_hint}.\n{err}"
+        ));
+    }
+    Err(if err.trim().is_empty() {
+        format!("Could not import {kind} profile.")
+    } else {
+        err
+    })
+}
+
+/// Create a WireGuard connection from the simple Settings dialog fields.
+pub fn vpn_create_wireguard(cfg: WireGuardCreate) -> Result<(), String> {
+    let name = cfg.name.trim();
+    if name.is_empty() {
+        return Err("Name is required.".into());
+    }
+    if cfg.private_key.trim().is_empty() || cfg.peer_public_key.trim().is_empty() {
+        return Err("Private key and peer public key are required.".into());
+    }
+    if cfg.address.trim().is_empty() {
+        return Err("Interface address (CIDR) is required.".into());
+    }
+    let allowed = if cfg.allowed_ips.trim().is_empty() {
+        "0.0.0.0/0, ::/0"
+    } else {
+        cfg.allowed_ips.trim()
+    };
+
+    // `connection add type wireguard` creates the iface profile; peer settings
+    // use the wireguard.peers / ipv4 addressing properties.
+    let (stdout, stderr, ok) = run_capture_both(
+        &[
+            "connection",
+            "add",
+            "type",
+            "wireguard",
+            "con-name",
+            name,
+            "ifname",
+            name,
+            "autoconnect",
+            "no",
+            "wireguard.private-key",
+            cfg.private_key.trim(),
+            "ipv4.method",
+            "manual",
+            "ipv4.addresses",
+            cfg.address.trim(),
+            "ipv6.method",
+            "disabled",
+        ],
+        Duration::from_secs(20),
+    );
+    if !ok {
+        let err = if stderr.is_empty() { stdout } else { stderr };
+        return Err(if err.trim().is_empty() {
+            "Could not create WireGuard connection (is WireGuard supported by NetworkManager?).".into()
+        } else {
+            err
+        });
+    }
+
+    // NM wireguard.peers format: "pubkey=…;allowed-ips=…;endpoint=…;"
+    let mut peer_prop = format!(
+        "pubkey={};allowed-ips={};",
+        cfg.peer_public_key.trim(),
+        allowed
+    );
+    if !cfg.endpoint.trim().is_empty() {
+        peer_prop.push_str(&format!("endpoint={};", cfg.endpoint.trim()));
+    }
+    let (_o, e2, ok2) = run_capture_both(
+        &["connection", "modify", name, "wireguard.peers", &peer_prop],
+        Duration::from_secs(15),
+    );
+    if !ok2 {
+        let _ = run_blocking(&["connection", "delete", name]);
+        return Err(if e2.trim().is_empty() {
+            "Could not set WireGuard peer.".into()
+        } else {
+            e2
+        });
+    }
+    if !cfg.dns.trim().is_empty() {
+        let _ = run_blocking(&[
+            "connection",
+            "modify",
+            name,
+            "ipv4.dns",
+            cfg.dns.trim(),
+            "ipv4.ignore-auto-dns",
+            "yes",
+        ]);
+    }
+    Ok(())
+}
+
+/// Run nmcli capturing stdout+stderr and success bit.
+fn run_capture_both(args: &[&str], timeout: Duration) -> (String, String, bool) {
+    use std::io::Read;
+
+    let mut child = match Command::new("nmcli")
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(err) => return (String::new(), err.to_string(), false),
+    };
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let mut stdout = String::new();
+                let mut stderr = String::new();
+                if let Some(mut out) = child.stdout.take() {
+                    let _ = out.read_to_string(&mut stdout);
+                }
+                if let Some(mut err) = child.stderr.take() {
+                    let _ = err.read_to_string(&mut stderr);
+                }
+                let _ = child.wait();
+                return (stdout, stderr, status.success());
+            }
+            Ok(None) => {}
+            Err(err) => return (String::new(), err.to_string(), false),
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return (String::new(), "nmcli timed out".into(), false);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
 // ---- proxy (GNOME gsettings) ---------------------------------------------
 
 const PROXY_SCHEMA: &str = "org.gnome.system.proxy";
@@ -500,6 +1382,41 @@ fn run_blocking(args: &[&str]) -> Option<String> {
 
 fn capture(args: &[&str], timeout: Duration) -> Option<String> {
     run_with_timeout(args, timeout)
+}
+
+fn run_stdout(program: &str, args: &[&str], timeout: Duration) -> Option<String> {
+    use std::io::Read;
+
+    let mut child = Command::new(program)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let mut stdout = String::new();
+                if let Some(mut out) = child.stdout.take() {
+                    let _ = out.read_to_string(&mut stdout);
+                }
+                let _ = child.wait();
+                if !status.success() {
+                    return None;
+                }
+                return Some(stdout);
+            }
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }
 
 fn run_with_timeout(args: &[&str], timeout: Duration) -> Option<String> {

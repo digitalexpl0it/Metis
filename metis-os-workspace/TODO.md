@@ -112,6 +112,10 @@ decorations so it (and every app) gets a real titlebar.
       `wallpaper.json`
 - [x] Network page — wired/NIC config (DHCP vs static), Wi-Fi scan/connect/forget;
       bar "wired-only" network click opens this page
+- [x] Network page — **VPN** tab (OpenVPN `.ovpn` + WireGuard `.conf` import,
+      simple WireGuard create, connect/disconnect/delete via `nmcli`); dedicated
+      edge-bar VPN icon + popover. Deferred: PPTP/L2TP/IPsec editors, full
+      cert/MFA wizards, auto-connect-on-Wi-Fi
 - [x] Calendars page — moved CalDAV/MS365 account config out of the clock popover
 - [x] **Split Appearance page** — extracted Background, Edge bar, and Windows into
       separate sidebar pages under Desktop; Appearance now holds only theme mode,
@@ -1364,7 +1368,8 @@ Send runtime commands to a running shell with `scripts/metis-cmd.sh {close-popov
 | Clock | Opens Notification Center (calendar, world clocks, stopwatch, timer, alarms) + unread badge |
 | Battery | `/sys/class/power_supply/BAT*` |
 | Bluetooth | BlueZ (`bluetoothctl`) + UPower + optional Solaar (Logitech HID++); bar popover lists connected devices |
-| Network | `nmcli` (timeouts + scan grace for stable Wi-Fi icon) |
+| Network | `nmcli` (Wi-Fi + Ethernet) |
+| VPN | `nmcli` (OpenVPN / WireGuard connect/disconnect) |
 | Volume | `pactl` (scroll on widget to adjust) |
 | Notifications | *(optional)* Same Notification Center as clock; freedesktop D-Bus → runtime store |
 | Weather | Open-Meteo (keyless); IP-geolocation auto-detect (timezone fallback), override in Settings |

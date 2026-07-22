@@ -127,11 +127,41 @@ fn settings_css(t: &ThemeTokens) -> String {
             border-radius: 12px;
             box-shadow: 0 12px 40px alpha({text}, 0.18);
         }}
+        .metis-settings-password-dialog .metis-settings-section-title {{
+            padding: 0;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: {text};
+        }}
+        .metis-settings-password-dialog .metis-settings-row {{
+            padding: 6px 0;
+            border-top: none;
+        }}
+        .metis-settings-password-dialog .metis-settings-hint {{
+            padding: 0;
+        }}
         .metis-settings-widget-dialog {{
             background-color: {surface};
             border: 1px solid {border};
             border-radius: 12px;
             box-shadow: 0 12px 40px alpha({text}, 0.18);
+        }}
+        .metis-settings-widget-dialog .metis-settings-section-title {{
+            padding: 0;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: {text};
+        }}
+        .metis-settings-widget-dialog .metis-settings-row {{
+            padding: 6px 0;
+            border-top: none;
+        }}
+        .metis-settings-widget-dialog .metis-settings-hint {{
+            padding: 0;
         }}
         .metis-widget-add-row {{
             padding: 4px 16px 12px;
@@ -458,6 +488,9 @@ fn settings_css(t: &ThemeTokens) -> String {
         }}
         .metis-settings-section-body > .metis-settings-section {{
             margin: 4px 12px 10px;
+        }}
+        .metis-settings-section-body > .metis-settings-list {{
+            margin: 0 12px 12px;
         }}
         .metis-settings-section-body > .metis-settings-hint,
         .metis-settings-section-body > label.metis-settings-hint {{

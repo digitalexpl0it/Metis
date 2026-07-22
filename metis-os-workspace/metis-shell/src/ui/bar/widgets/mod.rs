@@ -26,7 +26,7 @@ use notifications::NotificationsWidget;
 use clipboard::ClipboardWidget;
 pub use crate::services::do_not_disturb;
 pub(crate) use notifications::build_action_row;
-use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget};
+use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget, VpnWidget};
 use tasks::TasksWidget;
 use tray::TrayWidget;
 use volumes::VolumesWidget;
@@ -40,6 +40,7 @@ pub struct WidgetRefs {
     battery: RefCell<Option<BatteryWidget>>,
     bluetooth: RefCell<Option<BluetoothWidget>>,
     network: RefCell<Option<NetworkWidget>>,
+    vpn: RefCell<Option<VpnWidget>>,
     volume: RefCell<Option<VolumeWidget>>,
     notifications: RefCell<Option<NotificationsWidget>>,
     clipboard: RefCell<Option<ClipboardWidget>>,
@@ -61,6 +62,9 @@ impl WidgetRefs {
         }
         if let Some(w) = self.network.borrow().as_ref() {
             w.update(&snapshot.ethernet, &snapshot.wifi, snapshot.wifi_enabled);
+        }
+        if let Some(w) = self.vpn.borrow().as_ref() {
+            w.update(&snapshot.vpn, &snapshot.vpn_feedback);
         }
         if let Some(w) = self.volume.borrow().as_ref() {
             w.update(
@@ -139,6 +143,7 @@ pub fn build(
         battery: RefCell::new(None),
         bluetooth: RefCell::new(None),
         network: RefCell::new(None),
+        vpn: RefCell::new(None),
         volume: RefCell::new(None),
         notifications: RefCell::new(None),
         clipboard: RefCell::new(None),
@@ -221,6 +226,11 @@ pub fn build(
                 let w = NetworkWidget::new();
                 append_bar_widget(root, w.root(), bar_orientation);
                 *refs.network.borrow_mut() = Some(w);
+            }
+            BarWidgetId::Vpn => {
+                let w = VpnWidget::new();
+                append_bar_widget(root, w.root(), bar_orientation);
+                *refs.vpn.borrow_mut() = Some(w);
             }
             BarWidgetId::Bluetooth => {
                 let w = BluetoothWidget::new();

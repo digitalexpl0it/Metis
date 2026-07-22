@@ -5,6 +5,60 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-21]
+
+### Added
+
+- **Edge-bar VPN widget** — dedicated `network-vpn-symbolic` icon with its own
+  connect/disconnect popover (no longer nested under Network). Existing
+  `bar.json` layouts gain a `vpn` entry after Network on next shell start
+  (`metis-config` `bar.rs`; `metis-shell` `sys.rs`).
+- **VPN connect feedback** — Settings and the edge-bar VPN popover show
+  Connecting… / Disconnecting… with spinners and surface `nmcli` errors;
+  OpenVPN-missing plugin banner on the VPN tab; **Edit** for WireGuard
+  profiles; bar **VPN Settings…** opens `--page network/vpn`
+  (`metis-settings` `net.rs`, `pages/network.rs`, `main.rs`; `metis-shell`
+  `poll.rs`, `sys.rs`).
+- **NetworkManager VPN (OpenVPN + WireGuard)** — Settings → Network → **VPN**
+  tab lists NM profiles with Connect / Disconnect / Delete, **Import…** for
+  `.ovpn` / WireGuard `.conf`, and **Add WireGuard…** for a simple peer form.
+  Profiles created in Cinnamon or `nmcli` appear automatically. OpenVPN needs
+  `network-manager-openvpn` (`metis-settings` `net.rs`, `pages/network.rs`;
+  `metis-shell` `poll.rs`, `ui/bar/widgets/sys.rs`).
+
+### Fixed
+
+- **WireGuard Edit peer fields** — imported profiles now load peer public key,
+  endpoint, and allowed IPs via NetworkManager D-Bus `GetSettings` (`nmcli
+  connection export` rejects native WireGuard as “not VPN”)
+  (`metis-settings` `net.rs`).
+- **VPN Settings polish** — WireGuard **Edit** works on NetworkManager 1.46+
+  (peers are read via connection export; `wireguard.peers` is not a readable
+  nmcli field). VPN rows align actions, show an exclusive **Auto-connect**
+  switch (clears other VPN profiles; shell brings the tunnel up after login
+  once the underlay is connected — NM alone often skips WireGuard), refresh
+  every 2s so edge-bar disconnects update the list, and treat “already
+  disconnected” as success. Edge-bar VPN icon is wider, shows a spinner while
+  connecting/disconnecting, and raises a toast + notification on result
+  (`metis-settings` `net.rs`, `pages/network.rs`; `metis-shell` `poll.rs`,
+  `sys.rs`; `metis-config` `css.rs`).
+- **Removable-drive bar polish** — opening a volume's context menu no longer
+  grows the icon / expands the edge bar (stable transient popover + fixed
+  button geometry). Drive labels prefer the filesystem label or mount-folder
+  name instead of GIO's UUID / FAT serial when no friendly name is set
+  (`metis-shell` `volumes.rs`, `ui/bar/widgets/volumes.rs`; `metis-config`
+  `css.rs`).
+- **VPN Settings UI polish** — Add WireGuard dialog is undecorated (no Metis
+  SSD over the close control); VPN card actions/list use standard section
+  padding (`metis-settings` `network.rs`, `theme.rs`).
+- **WireGuard import naming** — provider configs whose filename is not a valid
+  Linux interface name (e.g. Proton `Proton-US-FREE-79.conf`, >15 chars) are
+  copied to a sanitized temp name for `nmcli import`, then titled with the
+  original stem (`metis-settings` `net.rs`).
+- **VPN tab deep-link** — `--page network/vpn` selects the VPN stack page after
+  tab children exist (pill was active while Wireless content still showed)
+  (`metis-settings` `pages/network.rs`).
+
 ## [2026-07-20]
 
 ### Added

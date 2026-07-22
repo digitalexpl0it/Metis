@@ -627,10 +627,31 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     .metis-bar-volumes {{
         spacing: 2px;
     }}
-    button.metis-bar-volume-item {{
+    button.metis-bar-volume-item,
+    button.metis-bar-volume-item:hover,
+    button.metis-bar-volume-item:active,
+    button.metis-bar-volume-item:checked,
+    button.metis-bar-volume-item:focus,
+    button.metis-bar-volume-item.metis-bar-dropdown-active,
+    button.metis-bar-volume-item.metis-bar-dropdown-active:hover {{
+        /* Fixed geometry so opening the context popover (:checked) never
+           grows the icon or expands the edge-bar pill. */
         min-width: 28px;
+        max-width: 28px;
         min-height: 28px;
+        max-height: 28px;
         padding: 2px;
+        margin: 0;
+    }}
+    button.metis-bar-volume-item image {{
+        -gtk-icon-size: 18px;
+    }}
+    .metis-bar-volumes-menu-panel {{
+        min-width: 140px;
+        max-width: 240px;
+    }}
+    .metis-bar-volumes-menu-title {{
+        max-width: 220px;
     }}
     .metis-bar-volumes-menu-item {{
         padding: 6px 10px;
@@ -1218,6 +1239,15 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
 
     .metis-net-active {{
         color: {accent};
+    }}
+
+    .metis-bar-vpn-active {{
+        color: {accent};
+    }}
+
+    .metis-bar-vpn {{
+        padding: 0 10px;
+        min-width: 28px;
     }}
 
     .metis-net-status {{

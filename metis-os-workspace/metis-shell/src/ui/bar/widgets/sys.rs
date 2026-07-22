@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use crate::ui::icons::{self, names};
 
-use crate::services::{BluetoothDevice, BluetoothStatus, EthernetStatus, WifiNetwork};
+use crate::services::{
+    BluetoothDevice, BluetoothStatus, EthernetStatus, VpnFeedback, VpnStatus, WifiNetwork,
+};
 
 pub struct BatteryWidget {
     root: gtk::Button,
@@ -617,6 +619,263 @@ impl NetworkWidget {
             self.inner.rebuild_list();
         }
     }
+}
+
+/// Dedicated VPN / WireGuard indicator with its own connect/disconnect popover.
+pub struct VpnWidget {
+    root: gtk::Button,
+    icon: gtk::Image,
+    spinner: gtk::Spinner,
+    check: gtk::Image,
+    list: gtk::Box,
+    empty_label: gtk::Label,
+    status_label: gtk::Label,
+    last_sig: RefCell<String>,
+}
+
+impl VpnWidget {
+    pub fn new() -> Self {
+        let root = gtk::Button::builder().build();
+        root.add_css_class("metis-bar-widget");
+        root.add_css_class("metis-bar-vpn");
+        root.add_css_class("metis-bar-sys-icon");
+
+        let face = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        face.set_halign(gtk::Align::Center);
+        face.set_valign(gtk::Align::Center);
+
+        let icon = icons::image("network-vpn-symbolic");
+        face.append(&icon);
+
+        let spinner = gtk::Spinner::new();
+        spinner.set_visible(false);
+        face.append(&spinner);
+
+        let check = icons::image("object-select-symbolic");
+        check.add_css_class("metis-bar-vpn-active");
+        check.set_visible(false);
+        face.append(&check);
+
+        root.set_child(Some(&face));
+        root.set_tooltip_text(Some("VPN"));
+
+        let panel = super::super::dropdown::build_panel();
+        panel.set_spacing(10);
+        panel.set_width_request(280);
+
+        let title = gtk::Label::builder()
+            .label("VPN")
+            .halign(gtk::Align::Start)
+            .build();
+        title.add_css_class("metis-bar-section-title");
+        panel.append(&title);
+
+        let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        panel.append(&list);
+
+        let empty_label = gtk::Label::new(Some(
+            "No VPN profiles yet. Import OpenVPN or WireGuard in Settings.",
+        ));
+        empty_label.set_wrap(true);
+        empty_label.set_xalign(0.0);
+        empty_label.add_css_class("metis-net-status");
+        panel.append(&empty_label);
+
+        let status_label = gtk::Label::new(None);
+        status_label.set_wrap(true);
+        status_label.set_xalign(0.0);
+        status_label.add_css_class("metis-net-status");
+        status_label.set_visible(false);
+        panel.append(&status_label);
+
+        let settings_btn = gtk::Button::with_label("VPN Settings…");
+        settings_btn.add_css_class("metis-net-settings-btn");
+        settings_btn.set_halign(gtk::Align::Start);
+        settings_btn.connect_clicked(|_| {
+            if let Err(err) =
+                crate::compositor::launch_program("metis-settings --page network/vpn")
+            {
+                tracing::warn!(%err, "failed to launch VPN settings");
+            }
+            super::super::dropdown::request_close_all();
+        });
+        panel.append(&settings_btn);
+
+        super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
+
+        Self {
+            root,
+            icon,
+            spinner,
+            check,
+            list,
+            empty_label,
+            status_label,
+            last_sig: RefCell::new(String::new()),
+        }
+    }
+
+    pub fn root(&self) -> &gtk::Button {
+        &self.root
+    }
+
+    pub fn update(&self, vpn: &[VpnStatus], feedback: &VpnFeedback) {
+        let sig = format!(
+            "{}|{}|{}|{}",
+            vpn_signature(vpn),
+            feedback.pending_target.as_deref().unwrap_or(""),
+            feedback.connecting as u8,
+            feedback.last_error.as_deref().unwrap_or("")
+        );
+        if *self.last_sig.borrow() == sig {
+            return;
+        }
+        *self.last_sig.borrow_mut() = sig;
+
+        let active: Vec<&str> = vpn
+            .iter()
+            .filter(|v| v.active)
+            .map(|v| v.name.as_str())
+            .collect();
+        let pending = feedback.pending_target.is_some();
+        let tooltip = if let Some(err) = feedback.last_error.as_deref() {
+            err.to_string()
+        } else if pending {
+            if feedback.connecting {
+                "Connecting VPN…".into()
+            } else {
+                "Disconnecting VPN…".into()
+            }
+        } else if active.is_empty() {
+            if vpn.is_empty() {
+                "VPN".into()
+            } else {
+                "VPN disconnected".into()
+            }
+        } else {
+            format!("VPN: {}", active.join(", "))
+        };
+        self.root.set_tooltip_text(Some(&tooltip));
+
+        if pending {
+            self.spinner.set_visible(true);
+            self.spinner.start();
+            self.check.set_visible(false);
+            self.icon.remove_css_class("metis-bar-vpn-active");
+        } else {
+            self.spinner.stop();
+            self.spinner.set_visible(false);
+            let connected = !active.is_empty();
+            self.check.set_visible(connected);
+            if connected {
+                self.icon.add_css_class("metis-bar-vpn-active");
+            } else {
+                self.icon.remove_css_class("metis-bar-vpn-active");
+            }
+        }
+        icons::set_icon(&self.icon, "network-vpn-symbolic");
+
+        if let Some(err) = feedback.last_error.as_deref() {
+            self.status_label.set_text(err);
+            self.status_label.set_visible(true);
+        } else if pending {
+            self.status_label.set_text(if feedback.connecting {
+                "Connecting…"
+            } else {
+                "Disconnecting…"
+            });
+            self.status_label.set_visible(true);
+        } else {
+            self.status_label.set_visible(false);
+        }
+
+        while let Some(child) = self.list.first_child() {
+            self.list.remove(&child);
+        }
+        self.empty_label.set_visible(vpn.is_empty());
+        for profile in vpn {
+            self.list.append(&build_vpn_row(profile));
+        }
+    }
+}
+
+fn build_vpn_row(profile: &VpnStatus) -> gtk::Box {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    row.add_css_class("metis-net-vpn-row");
+
+    let icon = icons::image("network-vpn-symbolic");
+    row.append(&icon);
+
+    let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    text.set_hexpand(true);
+    let name = gtk::Label::new(Some(&profile.name));
+    name.set_halign(gtk::Align::Start);
+    name.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    name.set_max_width_chars(18);
+    text.append(&name);
+    let kind = gtk::Label::new(Some(&profile.kind));
+    kind.set_halign(gtk::Align::Start);
+    kind.add_css_class("metis-net-status");
+    text.append(&kind);
+    row.append(&text);
+
+    if profile.pending {
+        let spinner = gtk::Spinner::new();
+        spinner.start();
+        row.append(&spinner);
+        let label = gtk::Label::new(Some(if profile.active {
+            "Disconnecting…"
+        } else {
+            "Connecting…"
+        }));
+        label.add_css_class("metis-net-status");
+        row.append(&label);
+        return row;
+    }
+
+    if profile.active {
+        let check = icons::image("object-select-symbolic");
+        check.add_css_class("metis-net-active");
+        row.append(&check);
+    }
+
+    let action = if profile.active {
+        gtk::Button::with_label("Disconnect")
+    } else {
+        gtk::Button::with_label("Connect")
+    };
+    action.add_css_class("metis-net-vpn-btn");
+    action.set_valign(gtk::Align::Center);
+    let target = if profile.uuid.is_empty() {
+        profile.name.clone()
+    } else {
+        profile.uuid.clone()
+    };
+    let active = profile.active;
+    action.connect_clicked(move |_| {
+        if active {
+            crate::services::vpn_down(target.clone());
+        } else {
+            crate::services::vpn_up(target.clone());
+        }
+    });
+    row.append(&action);
+    row
+}
+
+fn vpn_signature(vpn: &[VpnStatus]) -> String {
+    let mut s = String::new();
+    for v in vpn {
+        s.push_str(&format!(
+            "{}:{}:{}:{}:{};",
+            v.uuid,
+            v.name,
+            v.kind,
+            v.active as u8,
+            v.pending as u8
+        ));
+    }
+    s
 }
 
 fn wifi_signal_icon(signal: u8) -> &'static str {
