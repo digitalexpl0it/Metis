@@ -432,7 +432,7 @@ fn show_gaming_setup_dialog(
     actions.append(&start_btn);
     outer.append(&actions);
 
-    win.set_child(Some(&outer));
+    win.set_child(Some(&ui::dialog_sheet(&outer)));
 
     GAMING_SETUP_DIALOG.with(|slot| *slot.borrow_mut() = Some(win.clone()));
     {

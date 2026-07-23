@@ -38,6 +38,17 @@ fn main() {
         )
         .init();
 
+    // Prefer in-process file choosers so Import/Open dialogs follow Metis
+    // light/dark (`gtk_application_prefer_dark_theme`). Portal FileChooser
+    // (`xdg-desktop-portal-gtk`) often opens light Adwaita when gtk-theme is
+    // plain "Adwaita". Honour an explicit override if the user set one.
+    if std::env::var_os("GTK_USE_PORTAL").is_none() {
+        // SAFETY: single-threaded before GTK init; no other threads read env yet.
+        unsafe {
+            std::env::set_var("GTK_USE_PORTAL", "0");
+        }
+    }
+
     // Parse before GApplication sees argv — bare `app.run()` treats `--page` as
     // an unknown option and exits ("Unknown option --page"), which broke every
     // edge-bar "… settings" button that launches `metis-settings --page <id>`.

@@ -27,6 +27,11 @@ enum NetworkCommand {
     },
     SetRadio(bool),
     VpnUp(String),
+    VpnUpWithPassword {
+        target: String,
+        password: String,
+        remember: bool,
+    },
     VpnDown(String),
 }
 
@@ -38,11 +43,14 @@ struct VpnOpState {
     pending: Option<(String, Instant, bool)>,
     /// Last failed connect/disconnect message for the popover.
     last_error: Option<String>,
+    /// Profile that needs a password before connect can succeed.
+    needs_password: Option<String>,
 }
 
 static VPN_OP: Mutex<VpnOpState> = Mutex::new(VpnOpState {
     pending: None,
     last_error: None,
+    needs_password: None,
 });
 
 /// Last known UUID → display name pairs for VPN toast labels.
@@ -83,6 +91,8 @@ pub struct VpnFeedback {
     pub pending_target: Option<String>,
     pub connecting: bool,
     pub last_error: Option<String>,
+    /// UUID/name that needs a password prompt in the popover.
+    pub needs_password: Option<String>,
 }
 
 /// A single connected Bluetooth device, with battery level when the device
@@ -175,6 +185,7 @@ fn spawn_vpn_session_autoconnect() {
                     Duration::from_secs(45),
                     uuid,
                     true,
+                    None,
                 );
                 return;
             }
@@ -383,6 +394,21 @@ fn drain_network_commands(
                     Duration::from_secs(45),
                     target,
                     true,
+                    None,
+                );
+            }
+            NetworkCommand::VpnUpWithPassword {
+                target,
+                password,
+                remember,
+            } => {
+                begin_vpn_op(target.clone(), true);
+                spawn_nmcli_vpn(
+                    vec!["connection".into(), "up".into(), target.clone()],
+                    Duration::from_secs(45),
+                    target,
+                    true,
+                    Some((password, remember)),
                 );
             }
             NetworkCommand::VpnDown(target) => {
@@ -392,6 +418,7 @@ fn drain_network_commands(
                     Duration::from_secs(20),
                     target,
                     false,
+                    None,
                 );
             }
         }
@@ -422,6 +449,29 @@ pub fn wifi_set_radio(on: bool) {
 /// Bring a NetworkManager VPN / WireGuard profile up (by UUID or name).
 pub fn vpn_up(target: String) {
     queue_network(NetworkCommand::VpnUp(target));
+}
+
+/// Bring a VPN up with an explicit password (and optionally remember it on the profile).
+pub fn vpn_up_with_password(target: String, password: String, remember: bool) {
+    queue_network(NetworkCommand::VpnUpWithPassword {
+        target,
+        password,
+        remember,
+    });
+}
+
+/// Clear a pending "needs password" prompt (e.g. user cancelled).
+pub fn vpn_clear_password_prompt() {
+    if let Ok(mut st) = VPN_OP.lock() {
+        st.needs_password = None;
+        if st
+            .last_error
+            .as_ref()
+            .is_some_and(|e| vpn_secret_required(e))
+        {
+            st.last_error = None;
+        }
+    }
 }
 
 /// Take a NetworkManager VPN / WireGuard profile down.
@@ -488,6 +538,7 @@ fn begin_vpn_op(target: String, connecting: bool) {
     if let Ok(mut st) = VPN_OP.lock() {
         st.pending = Some((target, Instant::now(), connecting));
         st.last_error = None;
+        st.needs_password = None;
     }
 }
 
@@ -501,10 +552,21 @@ fn finish_vpn_op(target: &str, connecting: bool, error: Option<String>) {
             st.pending = None;
         }
         if let Some(err) = error.clone() {
-            st.last_error = Some(err);
+            if connecting && vpn_secret_required(&err) {
+                st.needs_password = Some(target.to_string());
+                st.last_error = Some("Password required.".into());
+            } else {
+                st.needs_password = None;
+                st.last_error = Some(err);
+            }
         } else {
             st.last_error = None;
+            st.needs_password = None;
         }
+    }
+    // Don't toast a password prompt — the popover asks instead.
+    if error.as_ref().is_some_and(|e| vpn_secret_required(e)) {
+        return;
     }
     notify_vpn_result(target, connecting, error);
 }
@@ -514,6 +576,19 @@ fn vpn_already_inactive(err: &str) -> bool {
     e.contains("not an active connection")
         || e.contains("no active connection")
         || e.contains("not active")
+}
+
+fn vpn_secret_required(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("secrets were required")
+        || e.contains("secret was required")
+        || e.contains("no secrets")
+        || e.contains("missing secret")
+        || e.contains("password is required")
+        || e.contains("password required")
+        || e.contains("need password")
+        || e.contains("authentication required")
+        || (e.contains("password") && (e.contains("required") || e.contains("provide")))
 }
 
 fn notify_vpn_result(target: &str, connecting: bool, error: Option<String>) {
@@ -582,19 +657,68 @@ fn read_vpn_feedback(vpn: &[VpnStatus]) -> VpnFeedback {
         pending_target: st.pending.as_ref().map(|(t, _, _)| t.clone()),
         connecting: st.pending.as_ref().is_some_and(|(_, _, c)| *c),
         last_error: st.last_error.clone(),
+        needs_password: st.needs_password.clone(),
     }
 }
 
 /// Spawn nmcli for VPN up/down, capturing stderr so the bar can show failures.
-fn spawn_nmcli_vpn(args: Vec<String>, timeout: Duration, target: String, connecting: bool) {
+/// When `password` is set, writes a temporary passwd-file and optionally remembers
+/// the secret on the NM profile after a successful connect.
+fn spawn_nmcli_vpn(
+    mut args: Vec<String>,
+    timeout: Duration,
+    target: String,
+    connecting: bool,
+    password: Option<(String, bool)>,
+) {
     thread::spawn(move || {
         use std::io::Read;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let passwd_path = if let Some((ref pw, _)) = password {
+            let path = std::env::temp_dir().join(format!(
+                "metis-vpn-passwd-{}-{}.tmp",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            ));
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&path)
+            {
+                Ok(mut file) => {
+                    let _ = writeln!(file, "vpn.secrets.password:{pw}");
+                    let _ = writeln!(file, "vpn.secrets.cert-pass:{pw}");
+                    args.push("passwd-file".into());
+                    args.push(path.to_string_lossy().into_owned());
+                    Some(path)
+                }
+                Err(_) => {
+                    finish_vpn_op(
+                        &target,
+                        connecting,
+                        Some("Could not prepare VPN password.".into()),
+                    );
+                    return;
+                }
+            }
+        } else {
+            None
+        };
 
         let mut cmd = std::process::Command::new("nmcli");
         cmd.args(&args)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
         let Ok(mut child) = cmd.spawn() else {
+            if let Some(path) = passwd_path {
+                let _ = std::fs::remove_file(path);
+            }
             finish_vpn_op(&target, connecting, Some("Could not run nmcli.".into()));
             return;
         };
@@ -611,7 +735,13 @@ fn spawn_nmcli_vpn(args: Vec<String>, timeout: Duration, target: String, connect
                         let _ = err.read_to_string(&mut stderr);
                     }
                     let _ = child.wait();
+                    if let Some(path) = passwd_path {
+                        let _ = std::fs::remove_file(path);
+                    }
                     if status.success() {
+                        if let Some((pw, true)) = password {
+                            remember_vpn_password(&target, &pw);
+                        }
                         finish_vpn_op(&target, connecting, None);
                     } else {
                         let msg = if !stderr.trim().is_empty() {
@@ -636,6 +766,9 @@ fn spawn_nmcli_vpn(args: Vec<String>, timeout: Duration, target: String, connect
                 }
                 Ok(None) => {}
                 Err(_) => {
+                    if let Some(path) = passwd_path {
+                        let _ = std::fs::remove_file(path);
+                    }
                     finish_vpn_op(&target, connecting, Some("VPN operation failed.".into()));
                     return;
                 }
@@ -643,12 +776,39 @@ fn spawn_nmcli_vpn(args: Vec<String>, timeout: Duration, target: String, connect
             if Instant::now() >= deadline {
                 let _ = child.kill();
                 let _ = child.wait();
+                if let Some(path) = passwd_path {
+                    let _ = std::fs::remove_file(path);
+                }
                 finish_vpn_op(&target, connecting, Some("VPN operation timed out.".into()));
                 return;
             }
             thread::sleep(Duration::from_millis(100));
         }
     });
+}
+
+fn remember_vpn_password(target: &str, password: &str) {
+    let secret = format!("password={password}");
+    let mut cmd = std::process::Command::new("nmcli");
+    cmd.args(["connection", "modify", target, "vpn.secrets", &secret]);
+    let ok = run_command_with_timeout(&mut cmd, Duration::from_secs(8))
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !ok {
+        let alt = format!("password:{password}");
+        let mut cmd2 = std::process::Command::new("nmcli");
+        cmd2.args(["connection", "modify", target, "+vpn.secrets", &alt]);
+        let _ = run_command_with_timeout(&mut cmd2, Duration::from_secs(8));
+    }
+    let mut flags = std::process::Command::new("nmcli");
+    flags.args([
+        "connection",
+        "modify",
+        target,
+        "+vpn.data",
+        "password-flags=0",
+    ]);
+    let _ = run_command_with_timeout(&mut flags, Duration::from_secs(5));
 }
 
 /// Spawn a `bluetoothctl` invocation on a detached thread.

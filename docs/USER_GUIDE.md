@@ -92,7 +92,7 @@ Widgets appear in the order set by `bar.json#widgets`. The defaults:
 | **Battery** | Charge level and state (hidden on desktops without a battery). Click to open Power settings. |
 | **Bluetooth** | Shown when a Bluetooth adapter is present. Click for connected devices (with battery level and charging icon when reported), plus a shortcut to Bluetooth settings. |
 | **Network** | Wired/Wi-Fi status. Click for a network popover (Wi-Fi scan/connect, Ethernet status). The signal icon stays stable during background rescans. |
-| **VPN** | NetworkManager VPN / WireGuard. Click for connect/disconnect per profile (bar spinner while connecting; toast + notification on result). Tooltip shows active tunnel names. **VPN Settings…** opens Settings → Network → VPN. Profiles with **Auto-connect** are brought up after login once Wi‑Fi/Ethernet is ready (one profile at a time). |
+| **VPN** | NetworkManager VPN / WireGuard. Click for connect/disconnect per profile (bar spinner while connecting; toast + notification on result). If a password is required, the popover (or Settings) prompts and can remember it on the profile. Tooltip shows active tunnel names. **VPN Settings…** opens Settings → Network → VPN. Profiles with **Auto-connect** are brought up after login once Wi‑Fi/Ethernet is ready (one profile at a time). |
 | **Volume** | Current output volume. Click for a slider + mute. |
 | **Notifications** | *(optional)* Legacy bell — opens the same Notification Center as the clock. Removed from the default bar layout in Phase 13. |
 | **Clock** | Date/time with unread badge. Click opens the **Notification Center** (right panel): notifications, calendar events, and calendar/tools (world clocks, stopwatch, timer, alarms). **Esc** closes. |
@@ -693,11 +693,11 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
 - **Weather** — manual location override + search, multiple saved locations
   (reorder/remove), °F/°C unit, and an IP-geolocation toggle.
 - **Network** — Wireless / Wired / **VPN** / Proxy. Wi-Fi scan/connect/forget;
-  wired DHCP vs static; VPN import (OpenVPN `.ovpn`, WireGuard `.conf`) plus a
-  simple WireGuard create/edit form, autoconnect toggle, and
+  wired DHCP vs static; VPN import (OpenVPN `.ovpn`, WireGuard `.conf`) plus
+  simple **Add OpenVPN…** / **Add WireGuard…** forms, autoconnect toggle, and
   connect/disconnect/delete for NetworkManager profiles. On Debian/Ubuntu/Mint
-  install `network-manager-openvpn` for OpenVPN import; WireGuard is built into
-  modern NetworkManager. Edge-bar **VPN** icon toggles connect/disconnect.
+  install `network-manager-openvpn` for OpenVPN; WireGuard is built into modern
+  NetworkManager. Edge-bar **VPN** icon toggles connect/disconnect.
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
   365) used by the Notification Center calendar.
 - **Input** — mouse, touchpad, and keyboard layout/repeat settings (`input.json`),

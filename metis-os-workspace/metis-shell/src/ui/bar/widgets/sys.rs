@@ -630,6 +630,11 @@ pub struct VpnWidget {
     list: gtk::Box,
     empty_label: gtk::Label,
     status_label: gtk::Label,
+    password_box: gtk::Box,
+    password_title: gtk::Label,
+    password_entry: gtk::PasswordEntry,
+    remember: gtk::CheckButton,
+    password_target: Rc<RefCell<Option<String>>>,
     last_sig: RefCell<String>,
 }
 
@@ -688,6 +693,34 @@ impl VpnWidget {
         status_label.set_visible(false);
         panel.append(&status_label);
 
+        let password_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        password_box.add_css_class("metis-net-connect");
+        password_box.set_visible(false);
+        let password_title = gtk::Label::new(Some("VPN password"));
+        password_title.set_halign(gtk::Align::Start);
+        password_title.add_css_class("metis-net-connect-title");
+        password_box.append(&password_title);
+        let password_entry = gtk::PasswordEntry::builder()
+            .show_peek_icon(true)
+            .hexpand(true)
+            .placeholder_text("Password")
+            .build();
+        password_entry.add_css_class("metis-net-password");
+        password_box.append(&password_entry);
+        let remember = gtk::CheckButton::with_label("Remember on this profile");
+        remember.set_active(true);
+        password_box.append(&remember);
+        let pw_btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        pw_btn_row.set_halign(gtk::Align::End);
+        let pw_cancel = gtk::Button::with_label("Cancel");
+        pw_cancel.add_css_class("metis-net-cancel");
+        let pw_connect = gtk::Button::with_label("Connect");
+        pw_connect.add_css_class("metis-net-connect-btn");
+        pw_btn_row.append(&pw_cancel);
+        pw_btn_row.append(&pw_connect);
+        password_box.append(&pw_btn_row);
+        panel.append(&password_box);
+
         let settings_btn = gtk::Button::with_label("VPN Settings…");
         settings_btn.add_css_class("metis-net-settings-btn");
         settings_btn.set_halign(gtk::Align::Start);
@@ -703,6 +736,48 @@ impl VpnWidget {
 
         super::super::dropdown::wire_toggle_prepare(&root, &panel, || {});
 
+        let password_target = Rc::new(RefCell::new(None::<String>));
+
+        {
+            let password_box = password_box.clone();
+            let password_entry = password_entry.clone();
+            let password_target = password_target.clone();
+            pw_cancel.connect_clicked(move |_| {
+                *password_target.borrow_mut() = None;
+                password_entry.set_text("");
+                password_box.set_visible(false);
+                crate::services::vpn_clear_password_prompt();
+            });
+        }
+        let submit = {
+            let password_box = password_box.clone();
+            let password_entry = password_entry.clone();
+            let remember = remember.clone();
+            let password_target = password_target.clone();
+            Rc::new(move || {
+                let Some(target) = password_target.borrow().clone() else {
+                    return;
+                };
+                let password = password_entry.text().to_string();
+                if password.trim().is_empty() {
+                    return;
+                }
+                let remember_on = remember.is_active();
+                crate::services::vpn_up_with_password(target, password, remember_on);
+                password_entry.set_text("");
+                password_box.set_visible(false);
+                *password_target.borrow_mut() = None;
+            })
+        };
+        {
+            let submit = submit.clone();
+            pw_connect.connect_clicked(move |_| submit());
+        }
+        {
+            let submit = submit.clone();
+            password_entry.connect_activate(move |_| submit());
+        }
+
         Self {
             root,
             icon,
@@ -711,6 +786,11 @@ impl VpnWidget {
             list,
             empty_label,
             status_label,
+            password_box,
+            password_title,
+            password_entry,
+            remember,
+            password_target,
             last_sig: RefCell::new(String::new()),
         }
     }
@@ -721,11 +801,12 @@ impl VpnWidget {
 
     pub fn update(&self, vpn: &[VpnStatus], feedback: &VpnFeedback) {
         let sig = format!(
-            "{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}",
             vpn_signature(vpn),
             feedback.pending_target.as_deref().unwrap_or(""),
             feedback.connecting as u8,
-            feedback.last_error.as_deref().unwrap_or("")
+            feedback.last_error.as_deref().unwrap_or(""),
+            feedback.needs_password.as_deref().unwrap_or("")
         );
         if *self.last_sig.borrow() == sig {
             return;
@@ -738,7 +819,9 @@ impl VpnWidget {
             .map(|v| v.name.as_str())
             .collect();
         let pending = feedback.pending_target.is_some();
-        let tooltip = if let Some(err) = feedback.last_error.as_deref() {
+        let tooltip = if feedback.needs_password.is_some() {
+            "VPN password required".into()
+        } else if let Some(err) = feedback.last_error.as_deref() {
             err.to_string()
         } else if pending {
             if feedback.connecting {
@@ -775,18 +858,47 @@ impl VpnWidget {
         }
         icons::set_icon(&self.icon, "network-vpn-symbolic");
 
-        if let Some(err) = feedback.last_error.as_deref() {
-            self.status_label.set_text(err);
+        if let Some(target) = feedback.needs_password.as_deref() {
+            let label = vpn
+                .iter()
+                .find(|v| v.uuid == target || v.name == target)
+                .map(|v| v.name.as_str())
+                .unwrap_or(target);
+            self.password_title
+                .set_text(&format!("Password for {label}"));
+            *self.password_target.borrow_mut() = Some(target.to_string());
+            self.password_box.set_visible(true);
+            self.status_label
+                .set_text("Enter the VPN password to connect.");
             self.status_label.set_visible(true);
-        } else if pending {
-            self.status_label.set_text(if feedback.connecting {
-                "Connecting…"
-            } else {
-                "Disconnecting…"
+            let entry = self.password_entry.clone();
+            glib::idle_add_local_once(move || {
+                entry.grab_focus();
             });
-            self.status_label.set_visible(true);
-        } else {
-            self.status_label.set_visible(false);
+        } else if !pending {
+            // Keep an in-progress typed password if user is mid-entry and we
+            // only got a transient poll; clear when no longer needed.
+            if self.password_target.borrow().is_some() {
+                *self.password_target.borrow_mut() = None;
+                self.password_entry.set_text("");
+                self.password_box.set_visible(false);
+            }
+        }
+
+        if feedback.needs_password.is_none() {
+            if let Some(err) = feedback.last_error.as_deref() {
+                self.status_label.set_text(err);
+                self.status_label.set_visible(true);
+            } else if pending {
+                self.status_label.set_text(if feedback.connecting {
+                    "Connecting…"
+                } else {
+                    "Disconnecting…"
+                });
+                self.status_label.set_visible(true);
+            } else if !self.password_box.is_visible() {
+                self.status_label.set_visible(false);
+            }
         }
 
         while let Some(child) = self.list.first_child() {

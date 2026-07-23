@@ -18,6 +18,11 @@ pub fn hint(text: &str) -> gtk::Label {
     let label = gtk::Label::new(Some(text));
     label.set_xalign(0.0);
     label.set_wrap(true);
+    label.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+    label.set_hexpand(true);
+    // Cap reported width so long hints don't lock Settings' minimum size.
+    label.set_width_chars(28);
+    label.set_max_width_chars(72);
     label.add_css_class("metis-settings-hint");
     label
 }

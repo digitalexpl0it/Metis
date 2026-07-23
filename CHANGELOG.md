@@ -28,6 +28,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Settings window min width** — Network (and other) hint labels wrap with a
+  capped width, page scrollers no longer propagate child natural width, and VPN
+  rows tuck Auto-connect under the profile name so Settings can shrink below
+  the default 960px (`metis-settings` `ui.rs`, `pages/network.rs`,
+  `pages/input_common.rs`).
+- **Proxy mode dropdown closes immediately** — Network’s 2s refresh was
+  rebuilding the Proxy editor (and other DropDown/entry panels) while the
+  popover was open; skip auto-refresh on the Proxy tab and only rebuild editors
+  when their data actually changes (`metis-settings` `pages/network.rs`).
+- **Modal dialog grey corner ears** — Settings sheets (Add OpenVPN / WireGuard,
+  VPN password, Remote, Gaming, widget configure) keep a transparent window
+  buffer and paint the rounded card on an inner sheet, so corners outside the
+  radius are true alpha instead of solid grey (`metis-settings` `theme.rs`,
+  `ui.rs`).
+- **Import dialog light theme** — Settings Import/Open file choosers follow Metis
+  dark/light again (`GTK_USE_PORTAL=0` in Settings; dark mode restores
+  `gtk-theme=Adwaita-dark` + portal-gtk `GTK_THEME`; Settings re-syncs gsettings
+  on theme apply) (`metis-settings` `main.rs`, `theme.rs`; `metis-config`;
+  `metis-portal`; `metis-compositor`).
+- **Add OpenVPN…** — Network → VPN gains a password-auth OpenVPN create dialog
+  (gateway / user / optional password + CA); full provider configs still use
+  Import… (`metis-settings` `net.rs`, `pages/network.rs`).
+- **VPN password prompt** — when NetworkManager needs a secret (common for
+  OpenVPN profiles imported from another desktop), Settings and the edge-bar
+  VPN popover ask for a password, connect via `passwd-file`, and can remember
+  it on the NM profile (`metis-settings` `net.rs`, `pages/network.rs`;
+  `metis-shell` `poll.rs`, `sys.rs`).
 - **WireGuard Edit peer fields** — imported profiles now load peer public key,
   endpoint, and allowed IPs via NetworkManager D-Bus `GetSettings` (`nmcli
   connection export` rejects native WireGuard as “not VPN”)

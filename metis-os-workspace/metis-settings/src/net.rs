@@ -416,6 +416,18 @@ pub struct WireGuardCreate {
     pub dns: String,
 }
 
+/// Fields for a simple password-auth OpenVPN create dialog.
+/// Full provider configs should still use Import… (`.ovpn`).
+#[derive(Debug, Clone)]
+pub struct OpenVpnCreate {
+    pub name: String,
+    pub gateway: String,
+    pub username: String,
+    pub password: String,
+    pub ca_path: String,
+    pub remember_password: bool,
+}
+
 fn vpn_kind_from_type(ctype: &str) -> Option<VpnKind> {
     let t = ctype.to_ascii_lowercase();
     if t == "wireguard" {
@@ -540,18 +552,70 @@ fn active_vpn_uuids() -> std::collections::HashSet<String> {
 }
 
 pub fn vpn_up(target: &str) -> Result<(), String> {
-    vpn_toggle("up", target, Duration::from_secs(45))
+    vpn_toggle("up", target, None, Duration::from_secs(45))
+}
+
+/// Bring a VPN up, supplying a password via a temporary `passwd-file`.
+/// When `remember` is true, also store the secret on the NM profile so later
+/// connects (and other desktops using the same NM) do not prompt again.
+pub fn vpn_up_with_password(target: &str, password: &str, remember: bool) -> Result<(), String> {
+    let password = password.trim();
+    if password.is_empty() {
+        return Err("Password is required.".into());
+    }
+    vpn_toggle("up", target, Some(password), Duration::from_secs(45))?;
+    if remember {
+        if let Err(e) = vpn_remember_password(target, password) {
+            tracing::warn!(%e, "VPN connected but could not save password to profile");
+        }
+    }
+    Ok(())
 }
 
 pub fn vpn_down(target: &str) -> Result<(), String> {
-    vpn_toggle("down", target, Duration::from_secs(20))
+    vpn_toggle("down", target, None, Duration::from_secs(20))
 }
 
-fn vpn_toggle(action: &str, target: &str, timeout: Duration) -> Result<(), String> {
-    let (stdout, stderr, ok) = run_capture_both(
-        &["connection", action, target],
-        timeout,
-    );
+/// True when an `nmcli connection up` failure means NM needs a VPN password
+/// (or other secret) that no agent provided.
+pub fn vpn_secret_required(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("secrets were required")
+        || e.contains("secret was required")
+        || e.contains("no secrets")
+        || e.contains("missing secret")
+        || e.contains("password is required")
+        || e.contains("password required")
+        || e.contains("need password")
+        || e.contains("authentication required")
+        || (e.contains("password") && (e.contains("required") || e.contains("provide")))
+}
+
+fn vpn_toggle(
+    action: &str,
+    target: &str,
+    password: Option<&str>,
+    timeout: Duration,
+) -> Result<(), String> {
+    let passwd_path = if action == "up" {
+        password.and_then(|pw| write_vpn_passwd_file(pw).ok())
+    } else {
+        None
+    };
+
+    let mut args: Vec<&str> = vec!["connection", action, target];
+    let passwd_owned;
+    if let Some(ref path) = passwd_path {
+        passwd_owned = path.to_string_lossy().into_owned();
+        args.push("passwd-file");
+        args.push(&passwd_owned);
+    }
+
+    let (stdout, stderr, ok) = run_capture_both(&args, timeout);
+    if let Some(path) = passwd_path {
+        let _ = std::fs::remove_file(path);
+    }
+
     if ok {
         return Ok(());
     }
@@ -567,6 +631,70 @@ fn vpn_toggle(action: &str, target: &str, timeout: Duration) -> Result<(), Strin
     } else {
         Err(clean.to_string())
     }
+}
+
+fn write_vpn_passwd_file(password: &str) -> Result<std::path::PathBuf, String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let path = std::env::temp_dir().join(format!(
+        "metis-vpn-passwd-{}-{}.tmp",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|e| format!("Could not create password file: {e}"))?;
+    // OpenVPN / generic NM VPN plugins expect `vpn.secrets.password`.
+    // A second common key covers certificate private-key passphrases.
+    writeln!(file, "vpn.secrets.password:{password}")
+        .and_then(|_| writeln!(file, "vpn.secrets.cert-pass:{password}"))
+        .map_err(|e| format!("Could not write password file: {e}"))?;
+    Ok(path)
+}
+
+/// Persist a VPN user password on the NetworkManager profile (system-owned).
+pub fn vpn_remember_password(target: &str, password: &str) -> Result<(), String> {
+    let secret = format!("password={password}");
+    let (_o, e1, ok1) = run_capture_both(
+        &["connection", "modify", target, "vpn.secrets", &secret],
+        Duration::from_secs(8),
+    );
+    if !ok1 {
+        // Older / alternate property form.
+        let (_o, e2, ok2) = run_capture_both(
+            &[
+                "connection",
+                "modify",
+                target,
+                "+vpn.secrets",
+                &format!("password:{password}"),
+            ],
+            Duration::from_secs(8),
+        );
+        if !ok2 {
+            let err = if !e1.trim().is_empty() {
+                e1
+            } else if !e2.trim().is_empty() {
+                e2
+            } else {
+                "Could not save VPN password.".into()
+            };
+            return Err(err.trim_start_matches("Error:").trim().to_string());
+        }
+    }
+    // Prefer storing in the connection instead of agent-only.
+    let _ = run_capture_both(
+        &["connection", "modify", target, "+vpn.data", "password-flags=0"],
+        Duration::from_secs(5),
+    );
+    Ok(())
 }
 
 fn vpn_already_inactive(err: &str) -> bool {
@@ -1211,6 +1339,84 @@ pub fn vpn_create_wireguard(cfg: WireGuardCreate) -> Result<(), String> {
             "ipv4.ignore-auto-dns",
             "yes",
         ]);
+    }
+    Ok(())
+}
+
+/// Create a password-auth OpenVPN connection (NetworkManager OpenVPN plugin).
+pub fn vpn_create_openvpn(cfg: OpenVpnCreate) -> Result<(), String> {
+    if !openvpn_plugin_present() {
+        return Err(
+            "OpenVPN plugin missing. Install with: sudo apt install network-manager-openvpn"
+                .into(),
+        );
+    }
+    let name = cfg.name.trim();
+    let gateway = cfg.gateway.trim();
+    let username = cfg.username.trim();
+    if name.is_empty() {
+        return Err("Name is required.".into());
+    }
+    if gateway.is_empty() {
+        return Err("Gateway (server host) is required.".into());
+    }
+    if username.is_empty() {
+        return Err("Username is required.".into());
+    }
+
+    let mut data = format!(
+        "remote={gateway},username={username},connection-type=password"
+    );
+    let ca = cfg.ca_path.trim();
+    if !ca.is_empty() {
+        if !std::path::Path::new(ca).is_file() {
+            return Err(format!("CA certificate not found: {ca}"));
+        }
+        data.push_str(&format!(",ca={ca}"));
+    }
+
+    let (stdout, stderr, ok) = run_capture_both(
+        &[
+            "connection",
+            "add",
+            "type",
+            "vpn",
+            "vpn-type",
+            "openvpn",
+            "con-name",
+            name,
+            "autoconnect",
+            "no",
+            "vpn.data",
+            &data,
+        ],
+        Duration::from_secs(20),
+    );
+    if !ok {
+        let err = if stderr.is_empty() { stdout } else { stderr };
+        return Err(if err.trim().is_empty() {
+            "Could not create OpenVPN connection.".into()
+        } else {
+            err.trim_start_matches("Error:").trim().to_string()
+        });
+    }
+
+    let password = cfg.password.trim();
+    if !password.is_empty() {
+        let secret = format!("password={password}");
+        let (_o, e, ok) = run_capture_both(
+            &["connection", "modify", name, "vpn.secrets", &secret],
+            Duration::from_secs(8),
+        );
+        if !ok && !e.trim().is_empty() {
+            tracing::warn!(%e, "OpenVPN created but password could not be stored");
+        }
+        if cfg.remember_password {
+            let _ = run_capture_both(
+                &["connection", "modify", name, "+vpn.data", "password-flags=0"],
+                Duration::from_secs(5),
+            );
+        }
     }
     Ok(())
 }

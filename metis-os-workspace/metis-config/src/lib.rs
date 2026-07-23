@@ -159,12 +159,12 @@ pub fn save_graphics_profile(profile: graphics::GraphicsProfile) -> std::io::Res
 
 /// `color-scheme` / `gtk-theme` values for `org.gnome.desktop.interface`.
 ///
-/// Libadwaita apps (Nautilus, GNOME apps) ignore the obsolete `Adwaita-dark`
-/// theme name and follow `color-scheme` instead — keep `gtk-theme` as `Adwaita`
-/// and drive dark via `prefer-dark`.
+/// Libadwaita follows `color-scheme`. Older GTK / `xdg-desktop-portal-gtk`
+/// (FileChooser, etc.) still key off the `gtk-theme` name — keep `Adwaita-dark`
+/// for dark mode so portal dialogs match Metis instead of opening light Adwaita.
 pub fn appearance_gsettings_values(mode: ThemeMode) -> (&'static str, &'static str) {
     match mode {
-        ThemeMode::Dark => ("prefer-dark", "Adwaita"),
+        ThemeMode::Dark => ("prefer-dark", "Adwaita-dark"),
         ThemeMode::Light => ("prefer-light", "Adwaita"),
         ThemeMode::System => ("default", "Adwaita"),
     }

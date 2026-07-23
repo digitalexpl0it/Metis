@@ -55,9 +55,12 @@ fn color_scheme_for(mode: &ThemeMode) -> ColorScheme {
 }
 
 fn gtk_theme_for(mode: &ThemeMode) -> String {
-    // Libadwaita uses color-scheme for dark/light; `Adwaita-dark` is obsolete.
+    // Portal FileChooser (xdg-desktop-portal-gtk) still follows the gtk-theme
+    // name; libadwaita prefers color-scheme. Serve Adwaita-dark in dark mode so
+    // Import / Open dialogs are not stuck on light Adwaita.
     match mode {
-        ThemeMode::Dark | ThemeMode::Light | ThemeMode::System => "Adwaita".into(),
+        ThemeMode::Dark => "Adwaita-dark".into(),
+        ThemeMode::Light | ThemeMode::System => "Adwaita".into(),
     }
 }
 

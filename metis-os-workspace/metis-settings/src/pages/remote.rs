@@ -472,7 +472,7 @@ fn show_password_dialog(
     btn_row.append(&save);
     outer.append(&btn_row);
 
-    dialog.set_child(Some(&outer));
+    dialog.set_child(Some(&ui::dialog_sheet(&outer)));
 
     *password_dialog.borrow_mut() = Some(dialog.clone());
 

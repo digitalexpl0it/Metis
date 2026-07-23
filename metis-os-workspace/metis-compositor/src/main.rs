@@ -525,13 +525,26 @@ fn spawn_portal_daemon(name: &str) -> bool {
     }) {
         return true;
     }
-    match std::process::Command::new(&bin)
-        .env("XDG_CURRENT_DESKTOP", portal_current_desktop())
+    let theme_mode =
+        metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
+    let mut cmd = std::process::Command::new(&bin);
+    cmd.env("XDG_CURRENT_DESKTOP", portal_current_desktop())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-    {
+        .stderr(std::process::Stdio::null());
+    // FileChooser / OpenURI live in portal-gtk; without GTK_THEME it often
+    // paints light Adwaita even when Metis is dark.
+    if name == "xdg-desktop-portal-gtk" {
+        match metis_config::appearance_gtk_theme_env(theme_mode) {
+            Some(gtk_theme) => {
+                cmd.env("GTK_THEME", gtk_theme);
+            }
+            None => {
+                cmd.env_remove("GTK_THEME");
+            }
+        }
+    }
+    match cmd.spawn() {
         Ok(_) => {
             tracing::info!(daemon = name, path = %bin.display(), "started portal daemon");
             true

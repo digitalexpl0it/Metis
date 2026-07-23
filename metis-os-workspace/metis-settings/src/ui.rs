@@ -113,6 +113,8 @@ pub fn page(header: PageHeader<'_>) -> (gtk::ScrolledWindow, gtk::Box) {
         .hexpand(true)
         .vexpand(true)
         .overlay_scrolling(false)
+        .propagate_natural_width(false)
+        .propagate_natural_height(false)
         .child(&content)
         .build();
     scroller.set_kinetic_scrolling(false);
@@ -120,6 +122,18 @@ pub fn page(header: PageHeader<'_>) -> (gtk::ScrolledWindow, gtk::Box) {
     scroller.add_css_class("metis-settings-scroller");
     wire_click_to_defocus(&content);
     (scroller, content)
+}
+
+/// Opaque rounded card for modal Settings sheets. Pair with a transparent
+/// `metis-settings-password-dialog` / `metis-settings-widget-dialog` window so
+/// pixels outside the radius stay true alpha instead of a solid grey fill.
+pub fn dialog_sheet(content: &impl IsA<gtk::Widget>) -> gtk::Box {
+    let sheet = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    sheet.add_css_class("metis-settings-dialog-sheet");
+    sheet.set_hexpand(true);
+    sheet.set_vexpand(true);
+    sheet.append(content);
+    sheet
 }
 
 /// Drop keyboard focus (committing any editable entry) when the user clicks an

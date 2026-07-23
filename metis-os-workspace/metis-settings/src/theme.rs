@@ -65,6 +65,8 @@ pub fn reapply() {
     if let Some(settings) = gtk::Settings::default() {
         settings.set_gtk_application_prefer_dark_theme(active_mode_is_dark());
     }
+    // Keep session gsettings / portal FileChooser in sync with Appearance.
+    metis_config::sync_session_appearance_from_config();
     let tokens = active_tokens();
     PROVIDERS.with(|p| {
         if let Some((base, extra)) = p.borrow().as_ref() {
@@ -121,33 +123,24 @@ fn settings_css(t: &ThemeTokens) -> String {
 
         /* Window + CSD titlebar so the whole frame tracks the active theme. */
         .metis-settings-window {{ background-color: {bg}; color: {text}; }}
-        .metis-settings-password-dialog {{
-            background-color: {surface};
-            border: 1px solid {border};
-            border-radius: 12px;
-            box-shadow: 0 12px 40px alpha({text}, 0.18);
-        }}
-        .metis-settings-password-dialog .metis-settings-section-title {{
-            padding: 0;
-            text-transform: none;
-            letter-spacing: 0;
-            font-size: 15px;
-            font-weight: 600;
+
+        /* Modal sheets: the window buffer stays transparent so pixels outside the
+           rounded card are true alpha (not a solid grey fill). Metis SSD already
+           draws the drop shadow — a CSS box-shadow here painted opaque "ears" in
+           the square corners outside border-radius. */
+        window.metis-settings-password-dialog,
+        window.metis-settings-widget-dialog,
+        window.metis-settings-window.metis-settings-password-dialog,
+        window.metis-settings-window.metis-settings-widget-dialog {{
+            background-color: transparent;
             color: {text};
         }}
-        .metis-settings-password-dialog .metis-settings-row {{
-            padding: 6px 0;
-            border-top: none;
-        }}
-        .metis-settings-password-dialog .metis-settings-hint {{
-            padding: 0;
-        }}
-        .metis-settings-widget-dialog {{
+        .metis-settings-dialog-sheet {{
             background-color: {surface};
             border: 1px solid {border};
             border-radius: 12px;
-            box-shadow: 0 12px 40px alpha({text}, 0.18);
         }}
+        .metis-settings-password-dialog .metis-settings-section-title,
         .metis-settings-widget-dialog .metis-settings-section-title {{
             padding: 0;
             text-transform: none;
@@ -156,10 +149,12 @@ fn settings_css(t: &ThemeTokens) -> String {
             font-weight: 600;
             color: {text};
         }}
+        .metis-settings-password-dialog .metis-settings-row,
         .metis-settings-widget-dialog .metis-settings-row {{
             padding: 6px 0;
             border-top: none;
         }}
+        .metis-settings-password-dialog .metis-settings-hint,
         .metis-settings-widget-dialog .metis-settings-hint {{
             padding: 0;
         }}

@@ -599,7 +599,7 @@ fn open_configure_dialog(
         rebuild();
     }
 
-    dialog.set_child(Some(&outer));
+    dialog.set_child(Some(&ui::dialog_sheet(&outer)));
 
     {
         let dialog = dialog.clone();
