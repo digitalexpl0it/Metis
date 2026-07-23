@@ -222,6 +222,8 @@ fn settings_css(t: &ThemeTokens) -> String {
         windowcontrols button image {{ color: {text}; }}
 
         .metis-settings-root {{ background-color: {bg}; }}
+        /* Logical spacing hints for RTL (GTK mirrors margin-inline automatically). */
+        .metis-settings-nav-row-inner {{ margin-inline: 0; }}
 
         /* Dividers between sidebar/content + any separators: theme-coloured, flat. */
         separator {{

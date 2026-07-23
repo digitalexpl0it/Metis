@@ -20,6 +20,9 @@ tracing-subscriber = { workspace = true }
 directories = "5"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 fontdue = "0.9"
+rustybuzz = "0.20"
+unicode-bidi = "0.3"
+metis-i18n = { workspace = true }
 thiserror = { workspace = true }
 xcursor = "0.3"
 input = "0.10"

@@ -1,0 +1,267 @@
+# Metis UI translations (pt).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: pt\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "System default"
+msgstr "Padrão do sistema"
+
+msgid "Language & region"
+msgstr "Idioma e região"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Formats follow language"
+msgstr "Os formatos seguem o idioma"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Settings"
+msgstr "Definições"
+
+msgid "Search"
+msgstr "Pesquisar"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "Display"
+msgstr "Ecrã"
+
+msgid "Appearance"
+msgstr "Aparência"
+
+msgid "Background"
+msgstr "Fundo"
+
+msgid "Edge bar"
+msgstr "Barra lateral"
+
+msgid "Network"
+msgstr "Rede"
+
+msgid "Skip"
+msgstr "Saltar"
+
+msgid "Back"
+msgstr "Voltar"
+
+msgid "Next"
+msgstr "Seguinte"
+
+msgid "Finish"
+msgstr "Concluir"
+
+msgid "Welcome to Metis"
+msgstr "Bem-vindo ao Metis"
+
+msgid "Choose your style"
+msgstr "Escolha o seu estilo"
+
+msgid "Pick a wallpaper"
+msgstr "Escolha um fundo de ecrã"
+
+msgid "Clock format"
+msgstr "Formato do relógio"
+
+msgid "Weather"
+msgstr "Meteorologia"
+
+msgid "Gaming"
+msgstr "Jogos"
+
+msgid "Optional software"
+msgstr "Software opcional"
+
+msgid "You're all set"
+msgstr "Tudo pronto"
+
+msgid "Language & region for this session"
+msgstr "Idioma e região desta sessão"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Escolha o idioma do Metis. Pode alterá-lo mais tarde nas Definições."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "Animações, opacidade da barra de título e bordas das janelas"
+
+msgid "App titlebars"
+msgstr "Barras de título das apps"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Aplica-se às Definições do Metis, à barra, ao assistente inicial e ao ecrã de bloqueio. Outras apps seguem o idioma do sistema."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "Bateria, perfis e comportamento em inatividade"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "Cartão de meteorologia do briefing na barra"
+
+msgid "Calendar accounts for the briefing"
+msgstr "Contas de calendário para o briefing"
+
+msgid "Calendars"
+msgstr "Calendários"
+
+msgid "Connectivity"
+msgstr "Ligação"
+
+msgid "Control Center"
+msgstr "Centro de controlo"
+
+msgid "Desktop"
+msgstr "Ambiente de trabalho"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "Fundo: imagem, cor sólida ou gradiente"
+
+msgid "Desktop widgets"
+msgstr "Widgets do ambiente de trabalho"
+
+msgid "Displays"
+msgstr "Ecrãs"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "Comandos, ecrãs táteis, Steam e sugestões de GPU"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "Gestos, tocar para clicar e deslocamento natural"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "Perfil gráfico, disposição, resolução, escala e luz noturna"
+
+msgid "Input"
+msgstr "Entrada"
+
+msgid "Installed printers and system print settings"
+msgstr "Impressoras instaladas e definições de impressão"
+
+msgid "Keyboard"
+msgstr "Teclado"
+
+msgid "Launcher apps and menu panel look"
+msgstr "Apps do lançador e aspeto do menu"
+
+msgid "Metis Menu"
+msgstr "Menu Metis"
+
+msgid "Mouse"
+msgstr "Rato"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "Widgets opcionais no fundo: pastas, apps, relógio e mais"
+
+msgid "Output and input audio devices"
+msgstr "Dispositivos de áudio de saída e entrada"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "Substituir barras de título Metis ou da app por aplicação"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Emparelhar e gerir dispositivos Bluetooth"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "Velocidade do ponteiro, aceleração e deslocamento"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "Posição, opacidade, desfoque, áreas de trabalho e bordo da barra"
+
+msgid "Power"
+msgstr "Energia"
+
+msgid "Printers"
+msgstr "Impressoras"
+
+msgid "Remote access"
+msgstr "Acesso remoto"
+
+msgid "Repeat rate and layout preferences"
+msgstr "Taxa de repetição e preferências de disposição"
+
+msgid "Session language and number/date formats"
+msgstr "Idioma da sessão e formatos de número/data"
+
+msgid "Share your logged-in session over the network"
+msgstr "Partilhar a sessão iniciada pela rede"
+
+msgid "Sound"
+msgstr "Som"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "Painel do monitor do sistema, taxa de atualização e controlos de processos"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "Modo do tema, cores de destaque e tipo de letra da interface"
+
+msgid "Touchpad"
+msgstr "Touchpad"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi, Ethernet, DNS e proxy"
+
+msgid "Windows"
+msgstr "Janelas"
+
+msgid "Files"
+msgstr "Ficheiros"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Lock"
+msgstr "Bloquear"
+
+msgid "Suspend"
+msgstr "Suspender"
+
+msgid "Log Out"
+msgstr "Terminar sessão"
+
+msgid "Restart"
+msgstr "Reiniciar"
+
+msgid "Shut Down"
+msgstr "Desligar"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "Pesquisar aplicações…"
+
+msgid "Pinned"
+msgstr "Afixadas"
+
+msgid "Right-click an app to pin it here."
+msgstr "Clique com o botão direito numa app para a afixar aqui."
+
+msgid "Frequent Apps"
+msgstr "Apps frequentes"
+
+msgid "Search Results"
+msgstr "Resultados da pesquisa"
+
+msgid "No matching applications"
+msgstr "Nenhuma aplicação correspondente"
+
+msgid "System tray"
+msgstr "Área de notificação"
+
+msgid "Background apps"
+msgstr "Apps em segundo plano"
+
+msgid "No background apps"
+msgstr "Sem apps em segundo plano"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Aplica-se à interface das Definições do Metis, ao menu Metis, ao assistente inicial e ao ecrã de bloqueio. Muitas etiquetas de páginas e widgets continuam em inglês até serem traduzidas. Outras apps seguem o idioma do sistema."

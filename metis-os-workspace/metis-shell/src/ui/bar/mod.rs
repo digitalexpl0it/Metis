@@ -533,6 +533,16 @@ fn watch_compositor_dismiss() {
                     let _ = metis_config::load_gaming_config();
                     let _ = crate::compositor::reload_gaming_config();
                 }
+                "reload-locale" => {
+                    metis_i18n::reload();
+                    let dir = if metis_i18n::is_rtl() {
+                        gtk::TextDirection::Rtl
+                    } else {
+                        gtk::TextDirection::Ltr
+                    };
+                    gtk::Widget::set_default_direction(dir);
+                    rebuild_from_config();
+                }
                 "optimize-gaming" => {
                     std::thread::spawn(|| {
                         let _ = metis_gaming::optimize_flatpak_gaming(&[]);

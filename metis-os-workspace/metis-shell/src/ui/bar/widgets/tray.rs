@@ -58,7 +58,7 @@ impl TrayWidget {
         toggle.add_css_class("metis-bar-widget");
         toggle.add_css_class("metis-bar-sys-icon");
         toggle.add_css_class("metis-bar-tray-toggle");
-        toggle.set_tooltip_text(Some("System tray"));
+        toggle.set_tooltip_text(Some(&metis_i18n::tr("System tray")));
         let toggle_icon = gtk::Image::from_icon_name("pan-up-symbolic");
         toggle_icon.set_pixel_size(TRAY_ICON_SIZE);
         toggle.set_child(Some(&toggle_icon));
@@ -67,7 +67,7 @@ impl TrayWidget {
         let panel = gtk::Box::new(gtk::Orientation::Vertical, 6);
         panel.add_css_class("metis-bar-dropdown-panel");
         panel.add_css_class("metis-bar-tray-panel");
-        let panel_title = gtk::Label::new(Some("Background apps"));
+        let panel_title = gtk::Label::new(Some(&metis_i18n::tr("Background apps")));
         panel_title.set_xalign(0.0);
         panel_title.add_css_class("metis-bar-section-title");
         panel.append(&panel_title);
@@ -81,7 +81,7 @@ impl TrayWidget {
         panel_flow.set_halign(gtk::Align::Start);
         panel_flow.set_valign(gtk::Align::Start);
         panel_flow.add_css_class("metis-bar-tray-flow");
-        let panel_empty = gtk::Label::new(Some("No background apps"));
+        let panel_empty = gtk::Label::new(Some(&metis_i18n::tr("No background apps")));
         panel_empty.add_css_class("dim-label");
         panel_empty.set_xalign(0.0);
         panel_empty.set_wrap(false);

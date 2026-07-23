@@ -1,0 +1,267 @@
+# Metis UI translations (ko).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "System default"
+msgstr "시스템 기본값"
+
+msgid "Language & region"
+msgstr "언어 및 지역"
+
+msgid "Language"
+msgstr "언어"
+
+msgid "Formats follow language"
+msgstr "형식이 언어를 따름"
+
+msgid "Apply"
+msgstr "적용"
+
+msgid "Settings"
+msgstr "설정"
+
+msgid "Search"
+msgstr "검색"
+
+msgid "System"
+msgstr "시스템"
+
+msgid "Display"
+msgstr "디스플레이"
+
+msgid "Appearance"
+msgstr "모양"
+
+msgid "Background"
+msgstr "배경"
+
+msgid "Edge bar"
+msgstr "가장자리 표시줄"
+
+msgid "Network"
+msgstr "네트워크"
+
+msgid "Skip"
+msgstr "건너뛰기"
+
+msgid "Back"
+msgstr "뒤로"
+
+msgid "Next"
+msgstr "다음"
+
+msgid "Finish"
+msgstr "완료"
+
+msgid "Welcome to Metis"
+msgstr "Metis에 오신 것을 환영합니다"
+
+msgid "Choose your style"
+msgstr "스타일 선택"
+
+msgid "Pick a wallpaper"
+msgstr "배경화면 선택"
+
+msgid "Clock format"
+msgstr "시계 형식"
+
+msgid "Weather"
+msgstr "날씨"
+
+msgid "Gaming"
+msgstr "게임"
+
+msgid "Optional software"
+msgstr "선택 소프트웨어"
+
+msgid "You're all set"
+msgstr "모두 준비되었습니다"
+
+msgid "Language & region for this session"
+msgstr "이 세션의 언어 및 지역"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Metis에서 사용할 언어를 선택하세요. 나중에 설정에서 변경할 수 있습니다."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "애니메이션, 제목 표시줄 불투명도 및 창 테두리"
+
+msgid "App titlebars"
+msgstr "앱 제목 표시줄"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Metis 설정, 가장자리 표시줄, 초기 설정 및 잠금 화면에 적용됩니다. 다른 앱은 시스템 언어를 따릅니다."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "배터리, 프로필 및 유휴 동작"
+
+msgid "Bluetooth"
+msgstr "블루투스"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "가장자리 표시줄의 브리핑 날씨 카드"
+
+msgid "Calendar accounts for the briefing"
+msgstr "브리핑용 캘린더 계정"
+
+msgid "Calendars"
+msgstr "캘린더"
+
+msgid "Connectivity"
+msgstr "연결"
+
+msgid "Control Center"
+msgstr "제어 센터"
+
+msgid "Desktop"
+msgstr "데스크톱"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "바탕 화면: 사진, 단색 또는 그라데이션"
+
+msgid "Desktop widgets"
+msgstr "데스크톱 위젯"
+
+msgid "Displays"
+msgstr "디스플레이"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "게임패드, 터치스크린, Steam 및 GPU 힌트"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "제스처, 탭하여 클릭 및 자연스러운 스크롤"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "그래픽 프로필, 배치, 해상도, 배율 및 야간 조명"
+
+msgid "Input"
+msgstr "입력"
+
+msgid "Installed printers and system print settings"
+msgstr "설치된 프린터 및 시스템 인쇄 설정"
+
+msgid "Keyboard"
+msgstr "키보드"
+
+msgid "Launcher apps and menu panel look"
+msgstr "런처 앱 및 메뉴 모양"
+
+msgid "Metis Menu"
+msgstr "Metis 메뉴"
+
+msgid "Mouse"
+msgstr "마우스"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "선택적 배경화면 위젯: 폴더, 앱, 시계 등"
+
+msgid "Output and input audio devices"
+msgstr "출력 및 입력 오디오 장치"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "애플리케이션별로 Metis/앱 제목 표시줄 재정의"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Bluetooth 기기 연결 및 관리"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "포인터 속도, 가속 및 스크롤"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "위치, 불투명도, 흐림, 작업 공간 및 표시줄 테두리"
+
+msgid "Power"
+msgstr "전원"
+
+msgid "Printers"
+msgstr "프린터"
+
+msgid "Remote access"
+msgstr "원격 액세스"
+
+msgid "Repeat rate and layout preferences"
+msgstr "반복 속도 및 레이아웃 기본 설정"
+
+msgid "Session language and number/date formats"
+msgstr "세션 언어와 숫자/날짜 형식"
+
+msgid "Share your logged-in session over the network"
+msgstr "로그인한 세션을 네트워크로 공유"
+
+msgid "Sound"
+msgstr "사운드"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "시스템 모니터 패널, 새로 고침 속도 및 프로세스 제어"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "테마 모드, 강조 색상 및 인터페이스 글꼴"
+
+msgid "Touchpad"
+msgstr "터치패드"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi, 이더넷, DNS 및 프록시"
+
+msgid "Windows"
+msgstr "창"
+
+msgid "Files"
+msgstr "파일"
+
+msgid "Terminal"
+msgstr "터미널"
+
+msgid "Lock"
+msgstr "잠금"
+
+msgid "Suspend"
+msgstr "절전"
+
+msgid "Log Out"
+msgstr "로그아웃"
+
+msgid "Restart"
+msgstr "다시 시작"
+
+msgid "Shut Down"
+msgstr "시스템 종료"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "애플리케이션 검색…"
+
+msgid "Pinned"
+msgstr "고정됨"
+
+msgid "Right-click an app to pin it here."
+msgstr "앱을 마우스 오른쪽 버튼으로 클릭해 여기에 고정하세요."
+
+msgid "Frequent Apps"
+msgstr "자주 사용하는 앱"
+
+msgid "Search Results"
+msgstr "검색 결과"
+
+msgid "No matching applications"
+msgstr "일치하는 애플리케이션 없음"
+
+msgid "System tray"
+msgstr "시스템 트레이"
+
+msgid "Background apps"
+msgstr "백그라운드 앱"
+
+msgid "No background apps"
+msgstr "백그라운드 앱 없음"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Metis 설정 UI, Metis 메뉴, 초기 설정 및 잠금 화면에 적용됩니다. 많은 페이지/위젯 레이블은 번역될 때까지 영어로 남습니다. 다른 앱은 시스템 언어를 따릅니다."

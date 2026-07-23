@@ -181,6 +181,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: None,
     },
     NavItem {
+        page_id: Some("locale"),
+        title: "Language & region",
+        icon: Some("preferences-desktop-locale-symbolic"),
+        hue: Some(NavHue::Blue),
+        subtitle: Some("Session language and number/date formats"),
+    },
+    NavItem {
         page_id: Some("control_center"),
         title: "Control Center",
         icon: Some("utilities-system-monitor-symbolic"),

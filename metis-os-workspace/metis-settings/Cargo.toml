@@ -16,6 +16,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 metis-config = { workspace = true }
+metis-i18n = { workspace = true }
 metis-secrets = { workspace = true }
 metis-protocol = { workspace = true }
 metis-gaming = { workspace = true }

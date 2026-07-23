@@ -254,7 +254,10 @@ reference.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
 - **Phase 7 — Remote access:** live-session RDP via `gnome-remote-desktop`
   (Settings → Remote access).
-- **Phase 9 — Onboarding:** **complete** (2026-07-04).
+- **Phase 8 — Internationalization:** hybrid gettext (shell/settings) + Fluent
+  (compositor); Settings Language & region; onboarding language step. See
+  [`docs/I18N.md`](docs/I18N.md).
+- **Phase 9 — Onboarding:** **complete** (2026-07-04); language step with Phase 8.
 - **Phase 10 — Control Center:** **complete** (2026-07-07; process tree + monitor
   picker 2026-07-11).
 - **Phase 11 — Gaming Platform 2.0:** **complete** (2026-07-07).

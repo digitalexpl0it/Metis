@@ -9,6 +9,8 @@ mod ui;
 fn main() {
     tracing_subscriber::fmt().init();
 
+    metis_i18n::init();
+
     if let Err(err) = config::ensure_config_dirs() {
         tracing::warn!("config dirs: {err}");
     }

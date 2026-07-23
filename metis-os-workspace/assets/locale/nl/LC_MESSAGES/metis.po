@@ -1,0 +1,267 @@
+# Metis UI translations (nl).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "System default"
+msgstr "Systeemstandaard"
+
+msgid "Language & region"
+msgstr "Taal en regio"
+
+msgid "Language"
+msgstr "Taal"
+
+msgid "Formats follow language"
+msgstr "Opmaak volgt de taal"
+
+msgid "Apply"
+msgstr "Toepassen"
+
+msgid "Settings"
+msgstr "Instellingen"
+
+msgid "Search"
+msgstr "Zoeken"
+
+msgid "System"
+msgstr "Systeem"
+
+msgid "Display"
+msgstr "Beeldscherm"
+
+msgid "Appearance"
+msgstr "Uiterlijk"
+
+msgid "Background"
+msgstr "Achtergrond"
+
+msgid "Edge bar"
+msgstr "Randbalk"
+
+msgid "Network"
+msgstr "Netwerk"
+
+msgid "Skip"
+msgstr "Overslaan"
+
+msgid "Back"
+msgstr "Terug"
+
+msgid "Next"
+msgstr "Volgende"
+
+msgid "Finish"
+msgstr "Voltooien"
+
+msgid "Welcome to Metis"
+msgstr "Welkom bij Metis"
+
+msgid "Choose your style"
+msgstr "Kies je stijl"
+
+msgid "Pick a wallpaper"
+msgstr "Kies een achtergrond"
+
+msgid "Clock format"
+msgstr "Kloknotatie"
+
+msgid "Weather"
+msgstr "Weer"
+
+msgid "Gaming"
+msgstr "Games"
+
+msgid "Optional software"
+msgstr "Optionele software"
+
+msgid "You're all set"
+msgstr "Je bent klaar"
+
+msgid "Language & region for this session"
+msgstr "Taal en regio voor deze sessie"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Kies de taal die Metis gebruikt. Je kunt dit later wijzigen in Instellingen."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "Animaties, dekking van de titelbalk en vensterranden"
+
+msgid "App titlebars"
+msgstr "App-titelbalken"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Geldt voor Metis-instellingen, de randbalk, de setup en het vergrendelscherm. Andere apps volgen de systeemtaal."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "Batterij, profielen en inactiviteitsgedrag"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "Weerkaart van de briefing op de randbalk"
+
+msgid "Calendar accounts for the briefing"
+msgstr "Agenda-accounts voor de briefing"
+
+msgid "Calendars"
+msgstr "Agenda’s"
+
+msgid "Connectivity"
+msgstr "Connectiviteit"
+
+msgid "Control Center"
+msgstr "Controlecentrum"
+
+msgid "Desktop"
+msgstr "Bureaublad"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "Bureaubladachtergrond: afbeelding, effen kleur of verloop"
+
+msgid "Desktop widgets"
+msgstr "Bureaubladwidgets"
+
+msgid "Displays"
+msgstr "Beeldschermen"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "Gamepads, touchscreens, Steam en GPU-hints"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "Gebaren, tikken om te klikken en natuurlijk scrollen"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "Grafisch profiel, indeling, resolutie, schaal en nachtlicht"
+
+msgid "Input"
+msgstr "Invoer"
+
+msgid "Installed printers and system print settings"
+msgstr "Geïnstalleerde printers en systeemafdrukinstellingen"
+
+msgid "Keyboard"
+msgstr "Toetsenbord"
+
+msgid "Launcher apps and menu panel look"
+msgstr "Launcher-apps en menu-uiterlijk"
+
+msgid "Metis Menu"
+msgstr "Metis-menu"
+
+msgid "Mouse"
+msgstr "Muis"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "Optionele achtergrondwidgets: mappen, apps, klok en meer"
+
+msgid "Output and input audio devices"
+msgstr "Uitvoer- en invoeraudioapparaten"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "Metis- of app-titelbalken per toepassing overschrijven"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Bluetooth-apparaten koppelen en beheren"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "Aanwijzersnelheid, versnelling en scrollen"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "Positie, dekking, vervaging, werkruimten en balkrand"
+
+msgid "Power"
+msgstr "Energie"
+
+msgid "Printers"
+msgstr "Printers"
+
+msgid "Remote access"
+msgstr "Externe toegang"
+
+msgid "Repeat rate and layout preferences"
+msgstr "Herhalingssnelheid en lay-outvoorkeuren"
+
+msgid "Session language and number/date formats"
+msgstr "Sessietaal en getal-/datumnotaties"
+
+msgid "Share your logged-in session over the network"
+msgstr "Je aangemelde sessie via het netwerk delen"
+
+msgid "Sound"
+msgstr "Geluid"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "Systeemmonitorpaneel, vernieuwingsfrequentie en procesbesturing"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "Themamodus, accentkleuren en interfacelettertype"
+
+msgid "Touchpad"
+msgstr "Touchpad"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi, ethernet, DNS en proxy"
+
+msgid "Windows"
+msgstr "Vensters"
+
+msgid "Files"
+msgstr "Bestanden"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Lock"
+msgstr "Vergrendelen"
+
+msgid "Suspend"
+msgstr "Slaapstand"
+
+msgid "Log Out"
+msgstr "Afmelden"
+
+msgid "Restart"
+msgstr "Herstarten"
+
+msgid "Shut Down"
+msgstr "Afsluiten"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "Apps zoeken…"
+
+msgid "Pinned"
+msgstr "Vastgezet"
+
+msgid "Right-click an app to pin it here."
+msgstr "Klik met de rechtermuisknop op een app om deze hier vast te zetten."
+
+msgid "Frequent Apps"
+msgstr "Frequente apps"
+
+msgid "Search Results"
+msgstr "Zoekresultaten"
+
+msgid "No matching applications"
+msgstr "Geen overeenkomende apps"
+
+msgid "System tray"
+msgstr "Systeemvak"
+
+msgid "Background apps"
+msgstr "Achtergrond-apps"
+
+msgid "No background apps"
+msgstr "Geen achtergrond-apps"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Geldt voor de Metis-instellingeninterface, het Metis-menu, de setup en het vergrendelscherm. Veel pagina- en widgetlabels blijven Engels tot ze vertaald zijn. Andere apps volgen de systeemtaal."

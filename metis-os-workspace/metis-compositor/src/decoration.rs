@@ -1657,23 +1657,33 @@ fn signature(windows: &[WindowDeco]) -> u64 {
     h
 }
 
-/// Load a UI font for titles: ask fontconfig, then fall back to common paths.
+/// Load a UI font for titles: ask fontconfig, then fall back to common paths
+/// (including CJK / Arabic Noto families for Phase 8 locale coverage).
 pub(crate) fn load_font() -> Option<Font> {
+    load_font_with_data().map(|(font, _)| font)
+}
+
+/// Like [`load_font`], but also returns the raw TTF/OTF bytes for rustybuzz.
+pub(crate) fn load_font_with_data() -> Option<(Font, Vec<u8>)> {
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
-    if let Ok(out) = std::process::Command::new("fc-match")
-        .args(["-f", "%{file}", "sans"])
-        .output()
-    {
-        if out.status.success() {
-            let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !p.is_empty() {
-                candidates.push(p.into());
+    for query in ["sans", "Noto Sans", "Noto Sans CJK", "Noto Sans Arabic"] {
+        if let Ok(out) = std::process::Command::new("fc-match")
+            .args(["-f", "%{file}", query])
+            .output()
+        {
+            if out.status.success() {
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !p.is_empty() {
+                    candidates.push(p.into());
+                }
             }
         }
     }
     candidates.extend(
         [
             "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/TTF/DejaVuSans.ttf",
         ]
@@ -1683,9 +1693,9 @@ pub(crate) fn load_font() -> Option<Font> {
 
     for path in candidates {
         if let Ok(bytes) = std::fs::read(&path) {
-            if let Ok(font) = Font::from_bytes(bytes, fontdue::FontSettings::default()) {
+            if let Ok(font) = Font::from_bytes(bytes.clone(), fontdue::FontSettings::default()) {
                 tracing::info!(path = %path.display(), "decoration: loaded title font");
-                return Some(font);
+                return Some((font, bytes));
             }
         }
     }

@@ -23,6 +23,7 @@ mod lock;
 mod color_management;
 mod mirror;
 mod night_light;
+mod text_layout;
 mod output_gamma;
 mod output_modes;
 mod output_prefs;
@@ -143,6 +144,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_filter(DropKnownPopupNoise),
         )
         .init();
+
+    metis_i18n::init();
 
     let backend = select_backend();
     tracing::info!(?backend, "selected compositor backend");

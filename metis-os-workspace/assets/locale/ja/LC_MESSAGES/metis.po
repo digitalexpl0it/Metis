@@ -1,0 +1,267 @@
+# Metis UI translations (ja).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "System default"
+msgstr "システム既定"
+
+msgid "Language & region"
+msgstr "言語と地域"
+
+msgid "Language"
+msgstr "言語"
+
+msgid "Formats follow language"
+msgstr "書式は言語に合わせる"
+
+msgid "Apply"
+msgstr "適用"
+
+msgid "Settings"
+msgstr "設定"
+
+msgid "Search"
+msgstr "検索"
+
+msgid "System"
+msgstr "システム"
+
+msgid "Display"
+msgstr "ディスプレイ"
+
+msgid "Appearance"
+msgstr "外観"
+
+msgid "Background"
+msgstr "背景"
+
+msgid "Edge bar"
+msgstr "エッジバー"
+
+msgid "Network"
+msgstr "ネットワーク"
+
+msgid "Skip"
+msgstr "スキップ"
+
+msgid "Back"
+msgstr "戻る"
+
+msgid "Next"
+msgstr "次へ"
+
+msgid "Finish"
+msgstr "完了"
+
+msgid "Welcome to Metis"
+msgstr "Metis へようこそ"
+
+msgid "Choose your style"
+msgstr "スタイルを選ぶ"
+
+msgid "Pick a wallpaper"
+msgstr "壁紙を選ぶ"
+
+msgid "Clock format"
+msgstr "時計の形式"
+
+msgid "Weather"
+msgstr "天気"
+
+msgid "Gaming"
+msgstr "ゲーム"
+
+msgid "Optional software"
+msgstr "オプションのソフトウェア"
+
+msgid "You're all set"
+msgstr "準備完了"
+
+msgid "Language & region for this session"
+msgstr "このセッションの言語と地域"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Metis で使う言語を選んでください。後から設定で変更できます。"
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "アニメーション、タイトルバーの不透明度、ウィンドウ枠"
+
+msgid "App titlebars"
+msgstr "アプリのタイトルバー"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Metis の設定、エッジバー、初期設定、ロック画面に適用されます。他のアプリはシステムの言語に従います。"
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "バッテリー、プロファイル、アイドル時の動作"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "エッジバーのブリーフィング天気カード"
+
+msgid "Calendar accounts for the briefing"
+msgstr "ブリーフィング用のカレンダーアカウント"
+
+msgid "Calendars"
+msgstr "カレンダー"
+
+msgid "Connectivity"
+msgstr "接続"
+
+msgid "Control Center"
+msgstr "コントロールセンター"
+
+msgid "Desktop"
+msgstr "デスクトップ"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "壁紙：画像、単色、またはグラデーション"
+
+msgid "Desktop widgets"
+msgstr "デスクトップウィジェット"
+
+msgid "Displays"
+msgstr "ディスプレイ"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "ゲームパッド、タッチスクリーン、Steam、GPU のヒント"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "ジェスチャ、タップでクリック、ナチュラルスクロール"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "グラフィックプロファイル、配置、解像度、スケール、ナイトライト"
+
+msgid "Input"
+msgstr "入力"
+
+msgid "Installed printers and system print settings"
+msgstr "インストール済みプリンタとシステムの印刷設定"
+
+msgid "Keyboard"
+msgstr "キーボード"
+
+msgid "Launcher apps and menu panel look"
+msgstr "ランチャーのアプリとメニューの見た目"
+
+msgid "Metis Menu"
+msgstr "Metis メニュー"
+
+msgid "Mouse"
+msgstr "マウス"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "壁紙ウィジェット（任意）：フォルダ、アプリ、時計など"
+
+msgid "Output and input audio devices"
+msgstr "出力・入力オーディオデバイス"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "アプリごとに Metis / アプリのタイトルバーを上書き"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Bluetooth デバイスのペアリングと管理"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "ポインタ速度、加速、スクロール"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "位置、不透明度、ぼかし、ワークスペース、バーの枠"
+
+msgid "Power"
+msgstr "電源"
+
+msgid "Printers"
+msgstr "プリンタ"
+
+msgid "Remote access"
+msgstr "リモートアクセス"
+
+msgid "Repeat rate and layout preferences"
+msgstr "リピート速度とレイアウト設定"
+
+msgid "Session language and number/date formats"
+msgstr "セッションの言語と数値・日付の形式"
+
+msgid "Share your logged-in session over the network"
+msgstr "ログイン中のセッションをネットワークで共有"
+
+msgid "Sound"
+msgstr "サウンド"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "システムモニタ、更新頻度、プロセス制御"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "テーマモード、アクセントカラー、UI フォント"
+
+msgid "Touchpad"
+msgstr "タッチパッド"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi、Ethernet、DNS、プロキシ"
+
+msgid "Windows"
+msgstr "ウィンドウ"
+
+msgid "Files"
+msgstr "ファイル"
+
+msgid "Terminal"
+msgstr "ターミナル"
+
+msgid "Lock"
+msgstr "ロック"
+
+msgid "Suspend"
+msgstr "サスペンド"
+
+msgid "Log Out"
+msgstr "ログアウト"
+
+msgid "Restart"
+msgstr "再起動"
+
+msgid "Shut Down"
+msgstr "シャットダウン"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "アプリを検索…"
+
+msgid "Pinned"
+msgstr "ピン留め"
+
+msgid "Right-click an app to pin it here."
+msgstr "アプリを右クリックしてここにピン留めします。"
+
+msgid "Frequent Apps"
+msgstr "よく使うアプリ"
+
+msgid "Search Results"
+msgstr "検索結果"
+
+msgid "No matching applications"
+msgstr "一致するアプリがありません"
+
+msgid "System tray"
+msgstr "システムトレイ"
+
+msgid "Background apps"
+msgstr "バックグラウンドアプリ"
+
+msgid "No background apps"
+msgstr "バックグラウンドアプリはありません"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Metis 設定の画面、Metis メニュー、初期設定、ロック画面に適用されます。多くのページやウィジェットのラベルは翻訳されるまで英語のままです。他のアプリはシステムの言語に従います。"

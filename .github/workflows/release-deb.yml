@@ -39,7 +39,8 @@ jobs:
             libwayland-dev wayland-protocols \
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \
-            dpkg-dev fakeroot curl git
+            dpkg-dev fakeroot curl git \
+            gettext
 
       - name: Build and install gtk4-layer-shell (not in Ubuntu 24.04)
         run: |
@@ -90,7 +91,10 @@ jobs:
         run: |
           ./scripts/package-deb.sh
           ls -lh dist/*.deb
-          dpkg-deb -c dist/*.deb | grep -E 'layer-shell|usr/bin/metis'
+          dpkg-deb -c dist/*.deb | grep -E 'layer-shell|usr/bin/metis|usr/share/metis/locale/.*/metis\.(mo|ftl)'
+          # Fail the job if locale catalogs were not packaged.
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.mo$')" -ge 2
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.ftl$')" -ge 2
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

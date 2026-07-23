@@ -10,6 +10,7 @@ pub mod edgebar;
 pub mod input_common;
 pub mod gaming;
 pub mod keyboard;
+pub mod locale;
 pub mod menu;
 pub mod mouse;
 pub mod network;

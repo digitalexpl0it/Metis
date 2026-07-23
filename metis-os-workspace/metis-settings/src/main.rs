@@ -5,6 +5,7 @@
 
 mod bluetooth;
 mod gaming;
+mod i18n_gtk;
 mod msauth;
 mod nav;
 mod net;
@@ -25,6 +26,7 @@ use std::time::Duration;
 use gtk::glib;
 use gtk::prelude::*;
 
+use metis_i18n::tr;
 use nav::{NavHue, NAV};
 
 const SIDEBAR_WIDTH: i32 = 248;
@@ -37,6 +39,8 @@ fn main() {
                 .unwrap_or_else(|_| "metis_settings=info,warn".into()),
         )
         .init();
+
+    metis_i18n::init();
 
     // Prefer in-process file choosers so Import/Open dialogs follow Metis
     // light/dark (`gtk_application_prefer_dark_theme`). Portal FileChooser
@@ -121,7 +125,18 @@ fn normalize_launch(raw: &str) -> PageLaunch {
 }
 
 fn build_ui(app: &gtk::Application, launch: PageLaunch) {
+    // GTK is initialized by Application before activate — safe to set direction.
+    i18n_gtk::apply_gtk_direction();
     theme::install();
+
+    // Keep GApplication alive while we tear down the old window and build a new
+    // one (closing the last window would otherwise quit the app).
+    let _hold = app.hold();
+
+    // Drop any previous Settings window so a live language switch can rebuild.
+    for win in app.windows() {
+        win.close();
+    }
 
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
@@ -140,7 +155,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     let under_metis = std::env::var_os("METIS_SESSION").is_some();
     let window = gtk::ApplicationWindow::builder()
         .application(app)
-        .title("Settings")
+        .title(tr("Settings"))
         .default_width(960)
         .default_height(680)
         .decorated(!under_metis)
@@ -189,6 +204,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     );
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
+    stack.add_titled(&pages::locale::build(), Some("locale"), "Language & region");
     stack.add_titled(
         &pages::remote::build(window.upcast_ref()),
         Some("remote"),
@@ -205,10 +221,11 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     nav.add_css_class("metis-settings-nav");
     nav.set_selection_mode(gtk::SelectionMode::Single);
     for item in NAV {
+        let title = tr(item.title);
         let row = if let Some(icon) = item.icon {
-            build_nav_row(item.title, icon, item.hue)
+            build_nav_row(&title, icon, item.hue)
         } else {
-            let label = gtk::Label::new(Some(item.title));
+            let label = gtk::Label::new(Some(&title));
             label.set_xalign(0.0);
             label.add_css_class("metis-settings-nav-section");
             let row = gtk::ListBoxRow::new();
@@ -265,7 +282,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     ui::wire_vertical_scroll(&nav_scroll);
 
     let search = gtk::Entry::builder()
-        .placeholder_text("Search")
+        .placeholder_text(tr("Search"))
         .hexpand(true)
         .build();
     search.add_css_class("metis-settings-search");
@@ -339,7 +356,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     sidebar.set_halign(gtk::Align::Start);
     sidebar.set_vexpand(true);
 
-    let sidebar_title = gtk::Label::new(Some("Settings"));
+    let sidebar_title = gtk::Label::new(Some(&tr("Settings")));
     sidebar_title.set_xalign(0.0);
     sidebar_title.add_css_class("metis-settings-sidebar-title");
     sidebar_title.set_hexpand(true);
@@ -388,6 +405,20 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
 
     window.set_child(Some(&layout));
     window.present();
+
+    // Live Language & region Apply rebuilds this window with fresh `tr()` labels.
+    {
+        let app = app.clone();
+        i18n_gtk::register_ui_rebuild(Rc::new(move |page_id| {
+            build_ui(
+                &app,
+                PageLaunch {
+                    page: Some(page_id),
+                    tab: None,
+                },
+            );
+        }));
+    }
 }
 
 fn load_app_icon() -> Option<gtk::gdk::Texture> {

@@ -1,0 +1,269 @@
+# Metis UI translations (English source / template).
+# msgid strings are English; msgstr stays empty for en (identity).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "System default"
+msgstr "System default"
+
+msgid "Language & region"
+msgstr "Language & region"
+
+msgid "Language"
+msgstr "Language"
+
+msgid "Formats follow language"
+msgstr "Formats follow language"
+
+msgid "Apply"
+msgstr "Apply"
+
+msgid "System"
+msgstr "System"
+
+msgid "Display"
+msgstr "Display"
+
+msgid "Appearance"
+msgstr "Appearance"
+
+msgid "Background"
+msgstr "Background"
+
+msgid "Edge bar"
+msgstr "Edge bar"
+
+msgid "Network"
+msgstr "Network"
+
+msgid "Skip"
+msgstr "Skip"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Finish"
+msgstr "Finish"
+
+msgid "Welcome to Metis"
+msgstr "Welcome to Metis"
+
+msgid "Choose your style"
+msgstr "Choose your style"
+
+msgid "Pick a wallpaper"
+msgstr "Pick a wallpaper"
+
+msgid "Clock format"
+msgstr "Clock format"
+
+msgid "Weather"
+msgstr "Weather"
+
+msgid "Gaming"
+msgstr "Gaming"
+
+msgid "Optional software"
+msgstr "Optional software"
+
+msgid "You're all set"
+msgstr "You're all set"
+
+msgid "Language & region for this session"
+msgstr "Language & region for this session"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Choose the language used by Metis. You can change this later in Settings."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "Animations, titlebar opacity, and window borders"
+
+msgid "App titlebars"
+msgstr "App titlebars"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "Battery, profiles, and idle behaviour"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "Briefing weather card on the edge bar"
+
+msgid "Calendar accounts for the briefing"
+msgstr "Calendar accounts for the briefing"
+
+msgid "Calendars"
+msgstr "Calendars"
+
+msgid "Connectivity"
+msgstr "Connectivity"
+
+msgid "Control Center"
+msgstr "Control Center"
+
+msgid "Desktop"
+msgstr "Desktop"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "Desktop wallpaper: picture, solid colour, or gradient"
+
+msgid "Desktop widgets"
+msgstr "Desktop widgets"
+
+msgid "Displays"
+msgstr "Displays"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "Gamepads, touchscreens, Steam, and GPU hints"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "Gestures, tap-to-click, and natural scroll"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "Graphics profile, arrangement, resolution, scale, and night light"
+
+msgid "Input"
+msgstr "Input"
+
+msgid "Installed printers and system print settings"
+msgstr "Installed printers and system print settings"
+
+msgid "Keyboard"
+msgstr "Keyboard"
+
+msgid "Launcher apps and menu panel look"
+msgstr "Launcher apps and menu panel look"
+
+msgid "Metis Menu"
+msgstr "Metis Menu"
+
+msgid "Mouse"
+msgstr "Mouse"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "Optional wallpaper widgets: folders, apps, clock, and more"
+
+msgid "Output and input audio devices"
+msgstr "Output and input audio devices"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "Override Metis vs app titlebars per application"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Pair and manage Bluetooth devices"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "Pointer speed, acceleration, and scrolling"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "Position, opacity, blur, workspaces, and the bar border"
+
+msgid "Power"
+msgstr "Power"
+
+msgid "Printers"
+msgstr "Printers"
+
+msgid "Remote access"
+msgstr "Remote access"
+
+msgid "Repeat rate and layout preferences"
+msgstr "Repeat rate and layout preferences"
+
+msgid "Session language and number/date formats"
+msgstr "Session language and number/date formats"
+
+msgid "Share your logged-in session over the network"
+msgstr "Share your logged-in session over the network"
+
+msgid "Sound"
+msgstr "Sound"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "System monitor panel, refresh rate, and process controls"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "Theme mode, accent colours, and interface font"
+
+msgid "Touchpad"
+msgstr "Touchpad"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi, Ethernet, DNS, and proxy"
+
+msgid "Windows"
+msgstr "Windows"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Files"
+msgstr "Files"
+
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "Lock"
+msgstr "Lock"
+
+msgid "Suspend"
+msgstr "Suspend"
+
+msgid "Log Out"
+msgstr "Log Out"
+
+msgid "Restart"
+msgstr "Restart"
+
+msgid "Shut Down"
+msgstr "Shut Down"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "Search applications…"
+
+msgid "Pinned"
+msgstr "Pinned"
+
+msgid "Right-click an app to pin it here."
+msgstr "Right-click an app to pin it here."
+
+msgid "Frequent Apps"
+msgstr "Frequent Apps"
+
+msgid "Search Results"
+msgstr "Search Results"
+
+msgid "No matching applications"
+msgstr "No matching applications"
+
+msgid "System tray"
+msgstr "System tray"
+
+msgid "Background apps"
+msgstr "Background apps"
+
+msgid "No background apps"
+msgstr "No background apps"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."

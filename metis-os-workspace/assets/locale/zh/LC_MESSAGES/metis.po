@@ -1,0 +1,267 @@
+# Metis UI translations (zh).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: zh\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "System default"
+msgstr "系统默认"
+
+msgid "Language & region"
+msgstr "语言和区域"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Formats follow language"
+msgstr "格式跟随语言"
+
+msgid "Apply"
+msgstr "应用"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "System"
+msgstr "系统"
+
+msgid "Display"
+msgstr "显示"
+
+msgid "Appearance"
+msgstr "外观"
+
+msgid "Background"
+msgstr "背景"
+
+msgid "Edge bar"
+msgstr "边缘栏"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "Skip"
+msgstr "跳过"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Next"
+msgstr "下一步"
+
+msgid "Finish"
+msgstr "完成"
+
+msgid "Welcome to Metis"
+msgstr "欢迎使用 Metis"
+
+msgid "Choose your style"
+msgstr "选择风格"
+
+msgid "Pick a wallpaper"
+msgstr "选择壁纸"
+
+msgid "Clock format"
+msgstr "时钟格式"
+
+msgid "Weather"
+msgstr "天气"
+
+msgid "Gaming"
+msgstr "游戏"
+
+msgid "Optional software"
+msgstr "可选软件"
+
+msgid "You're all set"
+msgstr "一切就绪"
+
+msgid "Language & region for this session"
+msgstr "此会话的语言和区域"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "选择 Metis 使用的语言。可稍后在设置中更改。"
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "动画、标题栏不透明度和窗口边框"
+
+msgid "App titlebars"
+msgstr "应用标题栏"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "适用于 Metis 设置、边缘栏、初始设置和锁屏。其他应用遵循系统语言。"
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "电池、配置文件和空闲行为"
+
+msgid "Bluetooth"
+msgstr "蓝牙"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "边缘栏上的简报天气卡片"
+
+msgid "Calendar accounts for the briefing"
+msgstr "用于简报的日历账户"
+
+msgid "Calendars"
+msgstr "日历"
+
+msgid "Connectivity"
+msgstr "连接"
+
+msgid "Control Center"
+msgstr "控制中心"
+
+msgid "Desktop"
+msgstr "桌面"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "桌面壁纸：图片、纯色或渐变"
+
+msgid "Desktop widgets"
+msgstr "桌面小部件"
+
+msgid "Displays"
+msgstr "显示器"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "手柄、触摸屏、Steam 和 GPU 提示"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "手势、轻点点击和自然滚动"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "图形配置、排列、分辨率、缩放和夜灯"
+
+msgid "Input"
+msgstr "输入"
+
+msgid "Installed printers and system print settings"
+msgstr "已安装的打印机和系统打印设置"
+
+msgid "Keyboard"
+msgstr "键盘"
+
+msgid "Launcher apps and menu panel look"
+msgstr "启动器应用和菜单外观"
+
+msgid "Metis Menu"
+msgstr "Metis 菜单"
+
+msgid "Mouse"
+msgstr "鼠标"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "可选壁纸小部件：文件夹、应用、时钟等"
+
+msgid "Output and input audio devices"
+msgstr "输出和输入音频设备"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "按应用覆盖 Metis 或应用标题栏"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "配对并管理蓝牙设备"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "指针速度、加速和滚动"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "位置、不透明度、模糊、工作区和栏边框"
+
+msgid "Power"
+msgstr "电源"
+
+msgid "Printers"
+msgstr "打印机"
+
+msgid "Remote access"
+msgstr "远程访问"
+
+msgid "Repeat rate and layout preferences"
+msgstr "重复速率和布局偏好"
+
+msgid "Session language and number/date formats"
+msgstr "会话语言及数字/日期格式"
+
+msgid "Share your logged-in session over the network"
+msgstr "通过网络共享已登录会话"
+
+msgid "Sound"
+msgstr "声音"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "系统监视器面板、刷新率和进程控制"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "主题模式、强调色和界面字体"
+
+msgid "Touchpad"
+msgstr "触控板"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi-Fi、以太网、DNS 和代理"
+
+msgid "Windows"
+msgstr "窗口"
+
+msgid "Files"
+msgstr "文件"
+
+msgid "Terminal"
+msgstr "终端"
+
+msgid "Lock"
+msgstr "锁定"
+
+msgid "Suspend"
+msgstr "待机"
+
+msgid "Log Out"
+msgstr "注销"
+
+msgid "Restart"
+msgstr "重新启动"
+
+msgid "Shut Down"
+msgstr "关机"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "搜索应用…"
+
+msgid "Pinned"
+msgstr "已固定"
+
+msgid "Right-click an app to pin it here."
+msgstr "右键点击应用以固定到此处。"
+
+msgid "Frequent Apps"
+msgstr "常用应用"
+
+msgid "Search Results"
+msgstr "搜索结果"
+
+msgid "No matching applications"
+msgstr "没有匹配的应用"
+
+msgid "System tray"
+msgstr "系统托盘"
+
+msgid "Background apps"
+msgstr "后台应用"
+
+msgid "No background apps"
+msgstr "没有后台应用"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "适用于 Metis 设置界面、Metis 菜单、初始设置和锁屏。许多页面和小部件标签在翻译完成前仍为英文。其他应用遵循系统语言。"

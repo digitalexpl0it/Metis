@@ -39,6 +39,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | `/usr/share/xdg-desktop-portal/…` | Portal backend registration |
 | `/usr/share/applications/metis-settings.desktop` + hicolor icons | Settings launcher |
 | `/usr/share/metis/wallpapers/` | Bundled wallpapers (onboarding / Appearance) |
+| `/usr/share/metis/locale/` | i18n catalogs (gettext `.mo` + Fluent `.ftl`) |
 | `/etc/pam.d/metis` | Lock-screen PAM service |
 
 ### Dependency policy
@@ -57,7 +58,7 @@ step (detect → grey out if present → toggles → **Install selected** via
 ## Build a `.deb` locally
 
 Prerequisites: Ubuntu 24.04 build deps from [`UBUNTU_DEV.md`](UBUNTU_DEV.md), plus
-`dpkg-dev` and `fakeroot`.
+`dpkg-dev`, `fakeroot`, and `gettext` (for `msgfmt` when compiling locale catalogs).
 
 ```bash
 cd metis-os-workspace

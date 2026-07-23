@@ -384,6 +384,31 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     done
     shopt -u nullglob
 
+    # i18n catalogs (gettext .mo + Fluent .ftl).
+    LOCALE_SRC="$(cd "$(dirname "$0")/.." && pwd)/assets/locale"
+    # Prefer workspace assets next to this script's package root.
+    if [[ ! -d "$LOCALE_SRC" ]]; then
+        LOCALE_SRC="$ASSETS_DIR/../locale"
+    fi
+    if [[ ! -d "$LOCALE_SRC" ]]; then
+        LOCALE_SRC="$(cd "$(dirname "$0")/../../assets/locale" 2>/dev/null && pwd)" || true
+    fi
+    LOCALE_DST="${METIS_LOCALE_DIR:-/usr/local/share/metis/locale}"
+    if [[ -d "$LOCALE_SRC" ]]; then
+        if [[ -x "$(dirname "$0")/../../scripts/i18n-compile.sh" ]]; then
+            "$(dirname "$0")/../../scripts/i18n-compile.sh" || true
+        elif [[ -x "$(cd "$(dirname "$0")/.." && pwd)/scripts/i18n-compile.sh" ]]; then
+            "$(cd "$(dirname "$0")/.." && pwd)/scripts/i18n-compile.sh" || true
+        fi
+        echo "Installing locale catalogs to $LOCALE_DST …"
+        $SUDO mkdir -p "$LOCALE_DST"
+        $SUDO cp -a "$LOCALE_SRC/." "$LOCALE_DST/"
+        echo "  catalogs: $(find "$LOCALE_DST" -name 'metis.mo' 2>/dev/null | wc -l) .mo, $(find "$LOCALE_DST" -name 'metis.ftl' 2>/dev/null | wc -l) .ftl"
+    else
+        echo "WARNING: locale catalogs not found (looked for assets/locale) — Language & region will stay English." >&2
+        echo "  expected near: $LOCALE_SRC" >&2
+    fi
+
     # PAM service for the compositor lock screen. Without it the compositor
     # falls back to the system "login" stack; installing the dedicated service
     # keeps unlocking working consistently across distros.

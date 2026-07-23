@@ -113,6 +113,15 @@ pub fn reload_lock_async() {
     });
 }
 
+/// Re-read `locale.json` and ask the compositor to refresh Fluent lock/SSD strings.
+pub fn reload_locale_async() {
+    std::thread::spawn(|| {
+        if let Err(err) = send_command(CompositorCommand::ReloadLocale) {
+            tracing::debug!(%err, "failed to reload locale via compositor IPC");
+        }
+    });
+}
+
 /// Re-read `gaming.json` and apply graphics/offload preferences live.
 pub fn reload_gaming_async() {
     std::thread::spawn(|| {

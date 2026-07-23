@@ -5,6 +5,35 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-22]
+
+### Fixed
+
+- **Settings closed on Language Apply** — live rebuild borrowed `REBUILD_UI`
+  while still inside `rebuild_ui_for_locale`, causing a `RefCell already borrowed`
+  abort; rebuild is now idle-deferred and holds GApplication across window
+  recreate (`metis-settings`).
+- **Language Apply did nothing** — gettext fell back to `C.UTF-8` when the host
+  lacked e.g. `es_ES.UTF-8`, which makes GNU gettext ignore `LANGUAGE`; Metis
+  now binds a non-`C` UTF-8 locale and selects catalogs via `LANGUAGE`. Settings
+  also rebuilds its UI after Apply, and session install copies
+  `/usr/local/share/metis/locale` catalogs (`metis-i18n`, `metis-settings`,
+  `run-metis.sh`).
+- **Skeleton catalogs for all Settings picker languages** — `fr`, `de`, `pt`,
+  `it`, `nl`, `pl`, `ru`, `ja`, `zh`, `ko`, `ar`, `he` (plus refreshed `es`) with
+  gettext `.po`/`.mo` and compositor Fluent `.ftl` under `assets/locale/`.
+  `package-deb.sh` and release CI ship them under `/usr/share/metis/locale`.
+- **Metis Menu / tray chrome** — rail actions and menu section labels use
+  `tr()` so `reload-locale` can switch them (Settings nav was already covered).
+
+### Added
+
+- **Phase 8 — Hybrid i18n** — `metis-i18n` crate (gettext for shell/settings,
+  Fluent for compositor); `locale.json`; Settings → Language & region; onboarding
+  language step; Spanish skeleton catalogs; `docs/I18N.md`; live `reload-locale` /
+  `ReloadLocale` (`metis-i18n`, `metis-config`, `metis-settings`, `metis-shell`,
+  `metis-compositor`, `metis-protocol`).
+
 ## [2026-07-21]
 
 ### Added

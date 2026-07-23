@@ -1,0 +1,267 @@
+# Metis UI translations (ar).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
+
+msgid "System default"
+msgstr "إعدادات النظام الافتراضية"
+
+msgid "Language & region"
+msgstr "اللغة والمنطقة"
+
+msgid "Language"
+msgstr "اللغة"
+
+msgid "Formats follow language"
+msgstr "تتبع التنسيقات اللغة"
+
+msgid "Apply"
+msgstr "تطبيق"
+
+msgid "Settings"
+msgstr "الإعدادات"
+
+msgid "Search"
+msgstr "بحث"
+
+msgid "System"
+msgstr "النظام"
+
+msgid "Display"
+msgstr "العرض"
+
+msgid "Appearance"
+msgstr "المظهر"
+
+msgid "Background"
+msgstr "الخلفية"
+
+msgid "Edge bar"
+msgstr "شريط الحافة"
+
+msgid "Network"
+msgstr "الشبكة"
+
+msgid "Skip"
+msgstr "تخطٍ"
+
+msgid "Back"
+msgstr "رجوع"
+
+msgid "Next"
+msgstr "التالي"
+
+msgid "Finish"
+msgstr "إنهاء"
+
+msgid "Welcome to Metis"
+msgstr "مرحبًا بك في Metis"
+
+msgid "Choose your style"
+msgstr "اختر نمطك"
+
+msgid "Pick a wallpaper"
+msgstr "اختر خلفية"
+
+msgid "Clock format"
+msgstr "تنسيق الساعة"
+
+msgid "Weather"
+msgstr "الطقس"
+
+msgid "Gaming"
+msgstr "الألعاب"
+
+msgid "Optional software"
+msgstr "برامج اختيارية"
+
+msgid "You're all set"
+msgstr "أنت جاهز"
+
+msgid "Language & region for this session"
+msgstr "اللغة والمنطقة لهذه الجلسة"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "اختر اللغة التي يستخدمها Metis. يمكنك تغييرها لاحقًا في الإعدادات."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "الرسوم المتحركة وشفافية شريط العنوان وحدود النوافذ"
+
+msgid "App titlebars"
+msgstr "أشرطة عناوين التطبيقات"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "ينطبق على إعدادات Metis وشريط الحافة والإعداد الأولي وشاشة القفل. التطبيقات الأخرى تتبع لغة النظام."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "البطارية والملفات الشخصية وسلوك الخمول"
+
+msgid "Bluetooth"
+msgstr "بلوتوث"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "بطاقة الطقس في الإحاطة على شريط الحافة"
+
+msgid "Calendar accounts for the briefing"
+msgstr "حسابات التقويم للإحاطة"
+
+msgid "Calendars"
+msgstr "التقويمات"
+
+msgid "Connectivity"
+msgstr "الاتصال"
+
+msgid "Control Center"
+msgstr "مركز التحكم"
+
+msgid "Desktop"
+msgstr "سطح المكتب"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "خلفية سطح المكتب: صورة أو لون ثابت أو تدرج"
+
+msgid "Desktop widgets"
+msgstr "أدوات سطح المكتب"
+
+msgid "Displays"
+msgstr "الشاشات"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "أجهزة التحكم والشاشات اللمسية وSteam وإرشادات GPU"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "الإيماءات والنقر باللمس والتمرير الطبيعي"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "ملف الرسومات والترتيب والدقة والمقياس والضوء الليلي"
+
+msgid "Input"
+msgstr "الإدخال"
+
+msgid "Installed printers and system print settings"
+msgstr "الطابعات المثبتة وإعدادات الطباعة"
+
+msgid "Keyboard"
+msgstr "لوحة المفاتيح"
+
+msgid "Launcher apps and menu panel look"
+msgstr "تطبيقات المشغّل ومظهر القائمة"
+
+msgid "Metis Menu"
+msgstr "قائمة Metis"
+
+msgid "Mouse"
+msgstr "الماوس"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "أدوات خلفية اختيارية: مجلدات وتطبيقات وساعة والمزيد"
+
+msgid "Output and input audio devices"
+msgstr "أجهزة الصوت للإخراج والإدخال"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "تجاوز أشرطة عناوين Metis أو التطبيق لكل تطبيق"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "إقران أجهزة Bluetooth وإدارتها"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "سرعة المؤشر والتسارع والتمرير"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "الموضع والتعتيم والضبابية ومساحات العمل وحدود الشريط"
+
+msgid "Power"
+msgstr "الطاقة"
+
+msgid "Printers"
+msgstr "الطابعات"
+
+msgid "Remote access"
+msgstr "الوصول عن بُعد"
+
+msgid "Repeat rate and layout preferences"
+msgstr "معدل التكرار وتفضيلات التخطيط"
+
+msgid "Session language and number/date formats"
+msgstr "لغة الجلسة وتنسيقات الأرقام/التاريخ"
+
+msgid "Share your logged-in session over the network"
+msgstr "مشاركة جلستك المسجّلة عبر الشبكة"
+
+msgid "Sound"
+msgstr "الصوت"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "لوحة مراقبة النظام ومعدل التحديث وعناصر التحكم في العمليات"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "وضع السمة وألوان التمييز وخط الواجهة"
+
+msgid "Touchpad"
+msgstr "لوحة اللمس"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi‑Fi وEthernet وDNS والوكيل"
+
+msgid "Windows"
+msgstr "النوافذ"
+
+msgid "Files"
+msgstr "الملفات"
+
+msgid "Terminal"
+msgstr "الطرفية"
+
+msgid "Lock"
+msgstr "قفل"
+
+msgid "Suspend"
+msgstr "تعليق"
+
+msgid "Log Out"
+msgstr "تسجيل الخروج"
+
+msgid "Restart"
+msgstr "إعادة التشغيل"
+
+msgid "Shut Down"
+msgstr "إيقاف التشغيل"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "البحث عن التطبيقات…"
+
+msgid "Pinned"
+msgstr "مثبّتة"
+
+msgid "Right-click an app to pin it here."
+msgstr "انقر بزر الفأرة الأيمن على تطبيق لتثبيته هنا."
+
+msgid "Frequent Apps"
+msgstr "التطبيقات المتكررة"
+
+msgid "Search Results"
+msgstr "نتائج البحث"
+
+msgid "No matching applications"
+msgstr "لا توجد تطبيقات مطابقة"
+
+msgid "System tray"
+msgstr "علبة النظام"
+
+msgid "Background apps"
+msgstr "تطبيقات الخلفية"
+
+msgid "No background apps"
+msgstr "لا توجد تطبيقات في الخلفية"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "ينطبق على واجهة إعدادات Metis وقائمة Metis والإعداد الأولي وشاشة القفل. تظل العديد من تسميات الصفحات والعناصر بالإنجليزية حتى تُترجم. التطبيقات الأخرى تتبع لغة النظام."

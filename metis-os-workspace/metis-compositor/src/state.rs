@@ -7824,6 +7824,15 @@ impl MetisState {
                 self.refresh_all_window_decoration_modes();
                 CompositorEvent::Pong
             }
+            CompositorCommand::ReloadLocale => {
+                metis_i18n::reload();
+                self.lock.clear_gpu_cache();
+                tracing::info!(
+                    locale = %metis_i18n::locale_info().tag,
+                    "reloaded locale; cleared lock text cache"
+                );
+                CompositorEvent::Pong
+            }
             CompositorCommand::SetClipboard {
                 mime,
                 text,

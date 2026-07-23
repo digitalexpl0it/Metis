@@ -25,20 +25,24 @@ use metis_config::{
 /// Metis wordmark (same asset as the splash).
 const LOGO_BYTES: &[u8] = include_bytes!("../../assets/metis_logo.png");
 
-const STEP_COUNT: usize = 9;
+const STEP_COUNT: usize = 10;
 const FADE: Duration = Duration::from_millis(320);
 
-const STEP_TITLES: [&str; STEP_COUNT] = [
-    "Welcome to Metis",
-    "Choose your style",
-    "Pick a wallpaper",
-    "Clock format",
-    "Edge bar",
-    "Weather",
-    "Gaming",
-    "Optional software",
-    "You're all set",
-];
+fn step_titles() -> [String; STEP_COUNT] {
+    use metis_i18n::tr;
+    [
+        tr("Language & region"),
+        tr("Welcome to Metis"),
+        tr("Choose your style"),
+        tr("Pick a wallpaper"),
+        tr("Clock format"),
+        tr("Edge bar"),
+        tr("Weather"),
+        tr("Gaming"),
+        tr("Optional software"),
+        tr("You're all set"),
+    ]
+}
 
 struct Onboarding {
     window: gtk::Window,
@@ -161,7 +165,7 @@ pub fn show() {
     header.set_hexpand(true);
     let header_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     header_spacer.set_hexpand(true);
-    let skip_btn = gtk::Button::with_label("Skip");
+    let skip_btn = gtk::Button::with_label(&metis_i18n::tr("Skip"));
     skip_btn.add_css_class("flat");
     skip_btn.add_css_class("metis-onboarding-skip");
     skip_btn.set_halign(gtk::Align::End);
@@ -203,11 +207,11 @@ pub fn show() {
     nav.add_css_class("metis-onboarding-nav");
     nav.set_margin_top(8);
     nav.set_halign(gtk::Align::Fill);
-    let back_btn = gtk::Button::with_label("Back");
+    let back_btn = gtk::Button::with_label(&metis_i18n::tr("Back"));
     back_btn.set_halign(gtk::Align::Start);
     let nav_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     nav_spacer.set_hexpand(true);
-    let next_btn = gtk::Button::with_label("Next");
+    let next_btn = gtk::Button::with_label(&metis_i18n::tr("Next"));
     next_btn.add_css_class("suggested-action");
     next_btn.set_halign(gtk::Align::End);
     nav.append(&back_btn);
@@ -353,28 +357,32 @@ fn dismiss(ob: Rc<RefCell<Onboarding>>) {
 }
 
 fn refresh_step(o: &mut Onboarding) {
-    o.title.set_text(STEP_TITLES[o.step]);
+    let titles = step_titles();
+    o.title.set_text(&titles[o.step]);
     o.back_btn.set_sensitive(o.step > 0);
-    o.next_btn.set_label(if o.step + 1 >= STEP_COUNT {
-        "Finish"
+    let next_label = if o.step + 1 >= STEP_COUNT {
+        metis_i18n::tr("Finish")
     } else {
-        "Next"
-    });
+        metis_i18n::tr("Next")
+    };
+    o.next_btn.set_label(&next_label);
+    o.back_btn.set_label(&metis_i18n::tr("Back"));
 
     while let Some(child) = o.body.first_child() {
         o.body.remove(&child);
     }
 
     let widget = match o.step {
-        0 => build_welcome(),
-        1 => build_theme(),
-        2 => build_wallpaper(),
-        3 => build_clock(),
-        4 => build_edge_bar(),
-        5 => build_weather(),
-        6 => build_gaming(),
-        7 => build_optional_software(),
-        8 => build_finish(),
+        0 => build_language(),
+        1 => build_welcome(),
+        2 => build_theme(),
+        3 => build_wallpaper(),
+        4 => build_clock(),
+        5 => build_edge_bar(),
+        6 => build_weather(),
+        7 => build_gaming(),
+        8 => build_optional_software(),
+        9 => build_finish(),
         _ => gtk::Label::new(Some("")).upcast(),
     };
     o.body.append(&widget);
@@ -392,6 +400,96 @@ fn refresh_step(o: &mut Onboarding) {
             dot.add_css_class("metis-onboarding-dot-active");
         }
     }
+
+    apply_onboarding_direction(&o.window);
+}
+
+fn apply_onboarding_direction(window: &gtk::Window) {
+    let dir = if metis_i18n::is_rtl() {
+        gtk::TextDirection::Rtl
+    } else {
+        gtk::TextDirection::Ltr
+    };
+    window.set_direction(dir);
+}
+
+fn build_language() -> gtk::Widget {
+    use metis_config::save_locale_config;
+    use metis_i18n::tr;
+
+    let col = step_shell();
+    let intro = gtk::Label::new(Some(&tr(
+        "Choose the language used by Metis. You can change this later in Settings.",
+    )));
+    intro.set_wrap(true);
+    intro.set_xalign(0.0);
+    intro.add_css_class("metis-onboarding-copy");
+    col.append(&intro);
+
+    let choices = metis_i18n::known_language_choices();
+    let labels: Vec<String> = choices
+        .iter()
+        .map(|(tag, name)| {
+            if tag.is_empty() {
+                tr(name)
+            } else {
+                name.clone()
+            }
+        })
+        .collect();
+    let refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+    let dd = gtk::DropDown::from_strings(&refs);
+    let cfg = metis_config::load_locale_config();
+    let selected = match cfg.locale.as_deref() {
+        None | Some("") => 0usize,
+        Some(current) => choices
+            .iter()
+            .position(|(tag, _)| {
+                !tag.is_empty()
+                    && (tag == current
+                        || current.starts_with(&format!("{tag}_"))
+                        || tag.as_str() == current.split(['_', '-']).next().unwrap_or(""))
+            })
+            .unwrap_or(0),
+    };
+    dd.set_selected(selected as u32);
+    dd.set_margin_top(12);
+    col.append(&dd);
+
+    {
+        let choices = choices.clone();
+        let labels_keep = labels;
+        dd.connect_selected_notify(move |dd| {
+            let _ = &labels_keep;
+            let idx = dd.selected() as usize;
+            let locale = choices.get(idx).and_then(|(tag, _)| {
+                if tag.is_empty() {
+                    None
+                } else {
+                    Some(tag.clone())
+                }
+            });
+            let mut cfg = metis_config::load_locale_config();
+            if cfg.locale == locale {
+                return;
+            }
+            cfg.locale = locale;
+            let _ = save_locale_config(&cfg);
+            metis_i18n::reload();
+            // Update chrome only — do not rebuild this step (would re-enter notify).
+            ONBOARDING.with(|cell| {
+                if let Some(ob) = cell.borrow().as_ref() {
+                    let o = ob.borrow_mut();
+                    apply_onboarding_direction(&o.window);
+                    o.title.set_text(&metis_i18n::tr("Language & region"));
+                    o.next_btn.set_label(&metis_i18n::tr("Next"));
+                    o.back_btn.set_label(&metis_i18n::tr("Back"));
+                }
+            });
+        });
+    }
+
+    col.upcast()
 }
 
 fn build_welcome() -> gtk::Widget {

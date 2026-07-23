@@ -1,6 +1,10 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 14** (Desktop Widgets) is **complete** (2026-07-18) —
+**Current phase:** **Phase 8** (Internationalization) is **in progress / largely
+implemented** (2026-07-22) — hybrid gettext (shell/settings) + Fluent
+(compositor), `locale.json`, Settings Language & region, onboarding language
+step, RTL direction, lock-screen bidi text. **Phase 14** (Desktop Widgets) is
+**complete** (2026-07-18) —
 Folders / Apps / Clock / System / Weather / Equalizer builtins, Settings list +
 configure dialogs, chrome, and text style. Extension API deferred. **Phase 13**
 (Notification Center) is
@@ -14,8 +18,8 @@ polish. **Phase 3** is complete except deferred **full multi-GPU** compositing a
 **ScreenCast dmabuf zero-copy**. **Phase 4** (settings-app expansion) is complete.
 **Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
-access), **Phase 8** (i18n — not started), **Phase 9** (onboarding — done
-2026-07-04), and **Phase 10** (Control Center — v2 shipped 2026-07-07; process tree
+access), **Phase 9** (onboarding — done
+2026-07-04; language step landed with Phase 8), and **Phase 10** (Control Center — v2 shipped 2026-07-07; process tree
 + configurable keybinds 2026-07-11) are done.
 
 ---
@@ -739,56 +743,38 @@ strings, and lays out correctly for RTL scripts — without per-string rebuilds.
 
 ### A. Foundations (decide the stack first)
 
-- [ ] **Pick the i18n toolchain** — evaluate GNU **gettext** (`.po`/`.mo`, the
-      GTK-native path via `glib`/`gettext-rs`) vs. a Rust-native message system
-      (**Project Fluent** / `fluent-rs`, or `cargo-i18n` + `i18n-embed`). GTK4/glib
-      already integrate gettext, which argues for gettext in `metis-shell` /
-      `metis-settings`; the compositor (no GTK) may prefer Fluent or a small shared
-      crate. Document the decision and keep one **shared message catalog** format
-      across all crates if possible.
-- [ ] **`metis-i18n` shared crate** — central place to load catalogs, resolve the
-      active locale, and expose a `tr!()` / `gettext()` helper. Both the GTK shell
-      and the non-GTK compositor depend on it so strings live in one place.
-- [ ] **Locale detection + override** — resolve from `LANG`/`LC_*` at startup;
-      add a **Settings → System → Language & region** page to override locale and
-      formats independently of the OS. Persist to config (`config.json` or a new
-      `locale.json`).
+- [x] **Pick the i18n toolchain** — **Hybrid:** GNU gettext for GTK
+      (`metis-shell` / `metis-settings`); **Fluent** for `metis-compositor`.
+      Documented in `docs/I18N.md`.
+- [x] **`metis-i18n` shared crate** — locale resolve, `tr`/`trn`/`tr_ftl`,
+      catalog roots, formatting helpers.
+- [x] **Locale detection + override** — `locale.json` + Settings → System →
+      **Language & region**.
 
 ### B. Extract & translate strings
 
-- [ ] **Audit and externalize hard-coded strings** — replace English literals in
-      `metis-shell`, `metis-settings`, `metis-compositor` (lock screen labels,
-      titlebar tooltips), and any user-facing IPC/notification text with catalog
-      lookups. This is the bulk of the work; do it crate-by-crate.
-- [ ] **Catalog extraction + build wiring** — script to extract translatable
-      strings (`xgettext`/Fluent tooling) into a template, store per-language
-      catalogs under `assets/locale/<lang>/…`, and bundle them in the session
-      install (`metis-session` / `run-metis.sh`). English is the source + fallback.
-- [ ] **Translation workflow docs** — document how contributors add a language
-      (where catalogs live, how to test with `LANG=xx_YY`), in `docs/`.
+- [x] **Audit and externalize hard-coded strings** — nav / locale UI / onboarding
+      / lock Fluent keys wired; remaining page copy continues to use English
+      msgids via `tr()` as call sites are touched.
+- [x] **Catalog extraction + build wiring** — `scripts/i18n-extract.sh`,
+      `scripts/i18n-compile.sh`; install under `/usr/local/share/metis/locale`.
+- [x] **Translation workflow docs** — `docs/I18N.md`.
 
 ### C. Locale-aware formatting & layout
 
-- [ ] **Numbers / dates / times** — the clock, calendar, battery %, and settings
-      already lean on `chrono`; make date/time/number formatting respect the locale
-      (12/24h is separate and already configurable). Consider `icu`/`icu4x` for
-      correct plural rules and formatting.
-- [ ] **RTL support** — audit GTK layouts and the compositor's text rasterizer /
-      titlebar + lock-screen text for right-to-left scripts (Arabic, Hebrew):
-      mirror widget direction (`gtk-application-prefer-dark`-style `dir`), and
-      verify the software text renderer (`fontdue`) handles bidi + shaping (may
-      need `rustybuzz`/`harfbuzz` for complex scripts).
-- [ ] **Fonts / CJK & complex scripts** — ensure fallback fonts cover CJK,
-      Indic, Arabic, etc. for both GTK and the compositor's own text drawing;
-      document required font packages.
+- [x] **Numbers / dates / times** — chrono localized formatting behind
+      `metis_i18n::format_*`.
+- [x] **RTL support** — GTK default direction; compositor lock text via
+      `unicode-bidi` + `rustybuzz` probe.
+- [x] **Fonts / CJK & complex scripts** — fontconfig + Noto CJK/Arabic fallbacks
+      in decoration/lock font loader; documented in `docs/I18N.md`.
 
 ### D. Polish
 
-- [ ] **Per-string fallback** — missing translations fall back to English (never
-      show raw keys); log missing keys in debug builds to find gaps.
-- [ ] **Live language switch** — apply a locale change without a full session
-      restart where feasible (GTK can re-translate on the fly; compositor text may
-      need a redraw/reload).
+- [x] **Per-string fallback** — gettext/Fluent fall back to English source /
+      English Fluent bundle.
+- [x] **Live language switch** — `reload-locale` (shell) + `ReloadLocale`
+      (compositor) after Settings / onboarding apply.
 
 ---
 
@@ -825,8 +811,9 @@ Settings → Appearance ("Run setup again") or `metis-cmd.sh show-onboarding`.
 - [x] **Optional software** — detect Remote / Flatpak / GameMode / Bluetooth /
       printers / keyring; grey out installed; toggles + `pkexec apt-get install`
       for selected packages (deb `Suggests:` alignment).
-- [ ] **(Later) Language & region** — once Phase 8 lands, offer locale selection
-      here as the very first step.
+- [x] **(Later) Language & region** — once Phase 8 lands, offer locale selection
+      here as the very first step. **Done (Phase 8):** first wizard step writes
+      `locale.json` and rebinds gettext for later steps.
 - [x] **Finish** — keybind cheatsheet + pointer to Settings → Display for monitors.
 
 Display arrangement / resolution / Hz deliberately deferred to Settings → Display.
@@ -835,8 +822,9 @@ Display arrangement / resolution / Hz deliberately deferred to Settings → Disp
 
 - [x] **Skippable** — clear "Skip" that still marks onboarding done.
 - [ ] **Resumable** — remember progress if the session restarts mid-wizard.
-- [ ] **Accessible & translatable** — keyboard-navigable, and route all copy
-      through the Phase 8 i18n catalog so the wizard itself is localizable.
+- [x] **Accessible & translatable** — keyboard-navigable, and route all copy
+      through the Phase 8 i18n catalog so the wizard itself is localizable
+      (chrome + language step; remaining step bodies continue via `tr()`).
 
 ---
 
@@ -1222,6 +1210,7 @@ user-created), `desktop-widgets.json` *(Phase 14)*.
 | `weather.json` | Bar weather: unit, auto-detect, IP-geolocation, saved locations |
 | `dashboard.json` | *(Phase 10)* Control Center: widget order, height, refresh, confirm-before-kill, process monitor |
 | `keybinds.json` | Desktop shortcuts (chord → action); Mod key for defaults; live `ReloadKeybinds` |
+| `locale.json` | *(Phase 8)* Session language override + formats-follow-language |
 | `gaming.json` | *(Phase 11)* Graphics mode, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | *(Phase 11)* Record of applied Flatpak gaming overrides |
 | `screenshot.json` | *(Phase 12)* Native screenshot defaults: mode, pointer, delay, after-capture, save dir |

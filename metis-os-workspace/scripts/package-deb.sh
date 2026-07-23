@@ -135,6 +135,7 @@ stage_tree() {
         "$STAGE/usr/share/icons/hicolor/48x48/apps" \
         "$STAGE/usr/share/icons/hicolor/256x256/apps" \
         "$STAGE/usr/share/metis/wallpapers" \
+        "$STAGE/usr/share/metis/locale" \
         "$STAGE/etc/pam.d"
 
     local rel="$CARGO_TARGET_DIR/release"
@@ -160,6 +161,43 @@ stage_tree() {
         install -Dm644 "$wp" "$STAGE/usr/share/metis/wallpapers/$(basename "$wp")"
     done
     shopt -u nullglob
+
+    stage_locale_catalogs
+}
+
+# gettext .mo + Fluent .ftl for Settings/shell/compositor UI languages.
+stage_locale_catalogs() {
+    local locale_src="$ASSETS_DIR/locale"
+    local locale_dst="$STAGE/usr/share/metis/locale"
+    if [[ ! -d "$locale_src" ]]; then
+        echo "ERROR: missing locale catalogs at $locale_src" >&2
+        exit 1
+    fi
+    if [[ -x "$SCRIPT_DIR/i18n-compile.sh" ]]; then
+        log "Compiling gettext catalogs (.po → .mo)…"
+        "$SCRIPT_DIR/i18n-compile.sh"
+    elif command -v msgfmt >/dev/null 2>&1; then
+        log "Compiling gettext catalogs with msgfmt…"
+        local po mo
+        while IFS= read -r -d '' po; do
+            mo="${po%.po}.mo"
+            msgfmt -o "$mo" "$po"
+        done < <(find "$locale_src" -path '*/LC_MESSAGES/*.po' -print0)
+    else
+        echo "ERROR: msgfmt not found — install gettext to compile locale catalogs" >&2
+        exit 1
+    fi
+    log "Staging locale catalogs to /usr/share/metis/locale…"
+    mkdir -p "$locale_dst"
+    cp -a "$locale_src"/. "$locale_dst/"
+    local mo_count ftl_count
+    mo_count="$(find "$locale_dst" -name 'metis.mo' | wc -l)"
+    ftl_count="$(find "$locale_dst" -name 'metis.ftl' | wc -l)"
+    if [[ "$mo_count" -lt 1 || "$ftl_count" -lt 1 ]]; then
+        echo "ERROR: staged locale tree looks empty (mo=$mo_count ftl=$ftl_count)" >&2
+        exit 1
+    fi
+    log "  catalogs: $mo_count .mo, $ftl_count .ftl"
 }
 
 # Runtime Depends for Ubuntu 24.04 (noble). Validated against typical ldd

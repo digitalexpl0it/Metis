@@ -99,6 +99,8 @@ pub enum CompositorCommand {
     ReloadGaming,
     /// Re-read `decorations.json` and re-apply per-app SSD/CSD overrides live.
     ReloadDecorations,
+    /// Re-read `locale.json` and reload Fluent compositor UI strings.
+    ReloadLocale,
     SubscribeEvents,
     /// Set the Wayland clipboard from the shell (text or image file on disk).
     SetClipboard {

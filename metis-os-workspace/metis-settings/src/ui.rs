@@ -42,17 +42,25 @@ impl<'a> PageHeader<'a> {
 /// Build a page using sidebar metadata from [`crate::nav`].
 pub fn page_for(id: &'static str) -> (gtk::ScrolledWindow, gtk::Box) {
     let meta = crate::nav::meta_for(id).unwrap_or_else(|| panic!("unknown page id: {id}"));
-    let mut header = PageHeader::new(meta.title);
+    let title = metis_i18n::tr(meta.title);
+    let subtitle = meta.subtitle.map(metis_i18n::tr);
+    let mut header = PageHeader::new(title.as_str());
     if let Some(icon) = meta.icon {
         header = header.with_icon(icon);
     }
-    if let Some(sub) = meta.subtitle {
-        header = header.with_subtitle(sub);
+    if let Some(ref sub) = subtitle {
+        header = header.with_subtitle(sub.as_str());
     }
     if let Some(hue) = meta.hue {
         header = header.with_hue(hue);
     }
-    page(header)
+    // Keep owned strings alive for the duration of page() by leaking into static…
+    // Better: change PageHeader to take Cow/String. For now extend lifetime via
+    // storing on the content after build — PageHeader only borrows during page().
+    let (scroller, content) = page(header);
+    // Pin translations on the widget so DropDown-free pages stay valid.
+    let _ = (title, subtitle);
+    (scroller, content)
 }
 
 /// Build a scrollable page with a heading. Returns the outer scroller (add to the

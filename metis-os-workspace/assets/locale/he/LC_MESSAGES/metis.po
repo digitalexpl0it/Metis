@@ -1,0 +1,267 @@
+# Metis UI translations (he).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: he\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "System default"
+msgstr "ברירת מחדל של המערכת"
+
+msgid "Language & region"
+msgstr "שפה ואזור"
+
+msgid "Language"
+msgstr "שפה"
+
+msgid "Formats follow language"
+msgstr "התבניות עוקבות אחר השפה"
+
+msgid "Apply"
+msgstr "החל"
+
+msgid "Settings"
+msgstr "הגדרות"
+
+msgid "Search"
+msgstr "חיפוש"
+
+msgid "System"
+msgstr "מערכת"
+
+msgid "Display"
+msgstr "תצוגה"
+
+msgid "Appearance"
+msgstr "מראה"
+
+msgid "Background"
+msgstr "רקע"
+
+msgid "Edge bar"
+msgstr "סרגל קצה"
+
+msgid "Network"
+msgstr "רשת"
+
+msgid "Skip"
+msgstr "דלג"
+
+msgid "Back"
+msgstr "חזרה"
+
+msgid "Next"
+msgstr "הבא"
+
+msgid "Finish"
+msgstr "סיום"
+
+msgid "Welcome to Metis"
+msgstr "ברוכים הבאים ל‑Metis"
+
+msgid "Choose your style"
+msgstr "בחר את הסגנון שלך"
+
+msgid "Pick a wallpaper"
+msgstr "בחר טפט"
+
+msgid "Clock format"
+msgstr "תבנית שעון"
+
+msgid "Weather"
+msgstr "מזג אוויר"
+
+msgid "Gaming"
+msgstr "גיימינג"
+
+msgid "Optional software"
+msgstr "תוכנה אופציונלית"
+
+msgid "You're all set"
+msgstr "הכול מוכן"
+
+msgid "Language & region for this session"
+msgstr "שפה ואזור עבור הפעלה זו"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "בחר את השפה שבה Metis ישתמש. אפשר לשנות זאת מאוחר יותר בהגדרות."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "הנפשות, אטימות שורת הכותרת וגבולות חלונות"
+
+msgid "App titlebars"
+msgstr "שורות כותרת של אפליקציות"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "חל על הגדרות Metis, סרגל הקצה, ההגדרה הראשונית ומסך הנעילה. אפליקציות אחרות עוקבות אחר שפת המערכת."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "סוללה, פרופילים והתנהגות במצב המתנה"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "כרטיס מזג אוויר של התדריך בסרגל הקצה"
+
+msgid "Calendar accounts for the briefing"
+msgstr "חשבונות יומן לתדריך"
+
+msgid "Calendars"
+msgstr "יומנים"
+
+msgid "Connectivity"
+msgstr "חיבוריות"
+
+msgid "Control Center"
+msgstr "מרכז בקרה"
+
+msgid "Desktop"
+msgstr "שולחן עבודה"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "טפט שולחן העבודה: תמונה, צבע אחיד או מעבר צבע"
+
+msgid "Desktop widgets"
+msgstr "וידג'טים לשולחן העבודה"
+
+msgid "Displays"
+msgstr "צגים"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "בקרים, מסכי מגע, Steam ורמזי GPU"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "מחוות, הקשה ללחיצה וגלילה טבעית"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "פרופיל גרפי, סידור, רזולוציה, קנה מידה ואור לילה"
+
+msgid "Input"
+msgstr "קלט"
+
+msgid "Installed printers and system print settings"
+msgstr "מדפסות מותקנות והגדרות הדפסה של המערכת"
+
+msgid "Keyboard"
+msgstr "מקלדת"
+
+msgid "Launcher apps and menu panel look"
+msgstr "אפליקציות המשגר ומראה התפריט"
+
+msgid "Metis Menu"
+msgstr "תפריט Metis"
+
+msgid "Mouse"
+msgstr "עכבר"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "וידג'טי טפט אופציונליים: תיקיות, אפליקציות, שעון ועוד"
+
+msgid "Output and input audio devices"
+msgstr "התקני שמע לקלט ופלט"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "דריסת שורות כותרת של Metis או האפליקציה לכל יישום"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "צימוד וניהול התקני Bluetooth"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "מהירות מצביע, האצה וגלילה"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "מיקום, אטימות, טשטוש, סביבות עבודה וגבול הסרגל"
+
+msgid "Power"
+msgstr "חשמל"
+
+msgid "Printers"
+msgstr "מדפסות"
+
+msgid "Remote access"
+msgstr "גישה מרחוק"
+
+msgid "Repeat rate and layout preferences"
+msgstr "קצב חזרה והעדפות פריסה"
+
+msgid "Session language and number/date formats"
+msgstr "שפת ההפעלה ותבניות מספר/תאריך"
+
+msgid "Share your logged-in session over the network"
+msgstr "שתף את ההפעלה המחוברת דרך הרשת"
+
+msgid "Sound"
+msgstr "צליל"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "לוח ניטור מערכת, קצב רענון ובקרת תהליכים"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "מצב ערכת נושא, צבעי הדגשה וגופן ממשק"
+
+msgid "Touchpad"
+msgstr "משטח מגע"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi‑Fi, Ethernet, DNS ופרוקסי"
+
+msgid "Windows"
+msgstr "חלונות"
+
+msgid "Files"
+msgstr "קבצים"
+
+msgid "Terminal"
+msgstr "מסוף"
+
+msgid "Lock"
+msgstr "נעל"
+
+msgid "Suspend"
+msgstr "השהה"
+
+msgid "Log Out"
+msgstr "התנתק"
+
+msgid "Restart"
+msgstr "הפעל מחדש"
+
+msgid "Shut Down"
+msgstr "כבה"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "חפש יישומים…"
+
+msgid "Pinned"
+msgstr "נעוצים"
+
+msgid "Right-click an app to pin it here."
+msgstr "לחץ לחיצה ימנית על אפליקציה כדי לנעוץ אותה כאן."
+
+msgid "Frequent Apps"
+msgstr "יישומים נפוצים"
+
+msgid "Search Results"
+msgstr "תוצאות חיפוש"
+
+msgid "No matching applications"
+msgstr "אין יישומים תואמים"
+
+msgid "System tray"
+msgstr "מגש המערכת"
+
+msgid "Background apps"
+msgstr "יישומי רקע"
+
+msgid "No background apps"
+msgstr "אין יישומי רקע"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "חל על ממשק ההגדרות של Metis, תפריט Metis, ההגדרה הראשונית ומסך הנעילה. תוויות רבות של דפים ווידג'טים נשארות באנגלית עד שיתורגמו. אפליקציות אחרות עוקבות אחר שפת המערכת."

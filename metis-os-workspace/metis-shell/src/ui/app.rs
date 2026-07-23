@@ -28,6 +28,14 @@ pub fn run(init: MetisInit) {
         "gtk::init() ok — building shell"
     );
 
+    // Must run after `gtk::init()` — gtk4 panics otherwise.
+    let dir = if metis_i18n::is_rtl() {
+        gtk::TextDirection::Rtl
+    } else {
+        gtk::TextDirection::Ltr
+    };
+    gtk::Widget::set_default_direction(dir);
+
     theme::install_theme();
     splash::show();
     splash::on_complete(onboarding::show_if_needed);

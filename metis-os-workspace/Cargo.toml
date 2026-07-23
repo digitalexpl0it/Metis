@@ -4,6 +4,7 @@ members = [
     "metis-grid",
     "metis-protocol",
     "metis-config",
+    "metis-i18n",
     "metis-secrets",
     "metis-compositor",
     "metis-shell",
@@ -27,6 +28,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 metis-grid = { path = "metis-grid" }
 metis-protocol = { path = "metis-protocol" }
 metis-config = { path = "metis-config" }
+metis-i18n = { path = "metis-i18n" }
 metis-gaming = { path = "metis-gaming" }
 metis-capture = { path = "metis-capture" }
 metis-secrets = { path = "metis-secrets" }

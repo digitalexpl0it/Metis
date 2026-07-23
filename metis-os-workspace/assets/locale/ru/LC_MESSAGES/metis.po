@@ -1,0 +1,267 @@
+# Metis UI translations (ru).
+msgid ""
+msgstr ""
+"Project-Id-Version: metis 0.1\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "System default"
+msgstr "Системный язык"
+
+msgid "Language & region"
+msgstr "Язык и регион"
+
+msgid "Language"
+msgstr "Язык"
+
+msgid "Formats follow language"
+msgstr "Форматы следуют языку"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Settings"
+msgstr "Параметры"
+
+msgid "Search"
+msgstr "Поиск"
+
+msgid "System"
+msgstr "Система"
+
+msgid "Display"
+msgstr "Экран"
+
+msgid "Appearance"
+msgstr "Оформление"
+
+msgid "Background"
+msgstr "Фон"
+
+msgid "Edge bar"
+msgstr "Боковая панель"
+
+msgid "Network"
+msgstr "Сеть"
+
+msgid "Skip"
+msgstr "Пропустить"
+
+msgid "Back"
+msgstr "Назад"
+
+msgid "Next"
+msgstr "Далее"
+
+msgid "Finish"
+msgstr "Готово"
+
+msgid "Welcome to Metis"
+msgstr "Добро пожаловать в Metis"
+
+msgid "Choose your style"
+msgstr "Выберите стиль"
+
+msgid "Pick a wallpaper"
+msgstr "Выберите обои"
+
+msgid "Clock format"
+msgstr "Формат часов"
+
+msgid "Weather"
+msgstr "Погода"
+
+msgid "Gaming"
+msgstr "Игры"
+
+msgid "Optional software"
+msgstr "Дополнительное ПО"
+
+msgid "You're all set"
+msgstr "Всё готово"
+
+msgid "Language & region for this session"
+msgstr "Язык и регион этой сессии"
+
+msgid "Choose the language used by Metis. You can change this later in Settings."
+msgstr "Выберите язык Metis. Позже его можно изменить в параметрах."
+
+msgid "Animations, titlebar opacity, and window borders"
+msgstr "Анимация, непрозрачность заголовка и рамки окон"
+
+msgid "App titlebars"
+msgstr "Заголовки окон приложений"
+
+msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Применяется к параметрам Metis, панели, мастеру настройки и экрану блокировки. Другие приложения используют язык системы."
+
+msgid "Battery, profiles, and idle behaviour"
+msgstr "Батарея, профили и поведение в простое"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Briefing weather card on the edge bar"
+msgstr "Карточка погоды брифинга на панели"
+
+msgid "Calendar accounts for the briefing"
+msgstr "Календари для брифинга"
+
+msgid "Calendars"
+msgstr "Календари"
+
+msgid "Connectivity"
+msgstr "Подключение"
+
+msgid "Control Center"
+msgstr "Центр управления"
+
+msgid "Desktop"
+msgstr "Рабочий стол"
+
+msgid "Desktop wallpaper: picture, solid colour, or gradient"
+msgstr "Обои: изображение, сплошной цвет или градиент"
+
+msgid "Desktop widgets"
+msgstr "Виджеты рабочего стола"
+
+msgid "Displays"
+msgstr "Экраны"
+
+msgid "Gamepads, touchscreens, Steam, and GPU hints"
+msgstr "Геймпады, сенсорные экраны, Steam и подсказки GPU"
+
+msgid "Gestures, tap-to-click, and natural scroll"
+msgstr "Жесты, касание для щелчка и естественная прокрутка"
+
+msgid "Graphics profile, arrangement, resolution, scale, and night light"
+msgstr "Графический профиль, расположение, разрешение, масштаб и ночной свет"
+
+msgid "Input"
+msgstr "Ввод"
+
+msgid "Installed printers and system print settings"
+msgstr "Установленные принтеры и параметры печати"
+
+msgid "Keyboard"
+msgstr "Клавиатура"
+
+msgid "Launcher apps and menu panel look"
+msgstr "Приложения лаунчера и вид меню"
+
+msgid "Metis Menu"
+msgstr "Меню Metis"
+
+msgid "Mouse"
+msgstr "Мышь"
+
+msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+msgstr "Дополнительные виджеты на обоях: папки, приложения, часы и другое"
+
+msgid "Output and input audio devices"
+msgstr "Устройства вывода и ввода звука"
+
+msgid "Override Metis vs app titlebars per application"
+msgstr "Переопределить заголовки Metis или приложения для каждой программы"
+
+msgid "Pair and manage Bluetooth devices"
+msgstr "Сопряжение и управление устройствами Bluetooth"
+
+msgid "Pointer speed, acceleration, and scrolling"
+msgstr "Скорость указателя, ускорение и прокрутка"
+
+msgid "Position, opacity, blur, workspaces, and the bar border"
+msgstr "Положение, непрозрачность, размытие, рабочие пространства и граница панели"
+
+msgid "Power"
+msgstr "Питание"
+
+msgid "Printers"
+msgstr "Принтеры"
+
+msgid "Remote access"
+msgstr "Удалённый доступ"
+
+msgid "Repeat rate and layout preferences"
+msgstr "Скорость повтора и раскладка"
+
+msgid "Session language and number/date formats"
+msgstr "Язык сессии и форматы чисел/даты"
+
+msgid "Share your logged-in session over the network"
+msgstr "Поделиться активным сеансом по сети"
+
+msgid "Sound"
+msgstr "Звук"
+
+msgid "System monitor panel, refresh rate, and process controls"
+msgstr "Панель монитора системы, частота обновления и управление процессами"
+
+msgid "Theme mode, accent colours, and interface font"
+msgstr "Режим темы, акцентные цвета и шрифт интерфейса"
+
+msgid "Touchpad"
+msgstr "Тачпад"
+
+msgid "Wi-Fi, Ethernet, DNS, and proxy"
+msgstr "Wi‑Fi, Ethernet, DNS и прокси"
+
+msgid "Windows"
+msgstr "Окна"
+
+msgid "Files"
+msgstr "Файлы"
+
+msgid "Terminal"
+msgstr "Терминал"
+
+msgid "Lock"
+msgstr "Заблокировать"
+
+msgid "Suspend"
+msgstr "Ждущий режим"
+
+msgid "Log Out"
+msgstr "Выйти"
+
+msgid "Restart"
+msgstr "Перезагрузить"
+
+msgid "Shut Down"
+msgstr "Выключить"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Search applications…"
+msgstr "Поиск приложений…"
+
+msgid "Pinned"
+msgstr "Закреплённые"
+
+msgid "Right-click an app to pin it here."
+msgstr "Щёлкните правой кнопкой по приложению, чтобы закрепить его здесь."
+
+msgid "Frequent Apps"
+msgstr "Частые приложения"
+
+msgid "Search Results"
+msgstr "Результаты поиска"
+
+msgid "No matching applications"
+msgstr "Нет подходящих приложений"
+
+msgid "System tray"
+msgstr "Системный лоток"
+
+msgid "Background apps"
+msgstr "Фоновые приложения"
+
+msgid "No background apps"
+msgstr "Нет фоновых приложений"
+
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Применяется к интерфейсу параметров Metis, меню Metis, мастеру настройки и экрану блокировки. Многие подписи страниц и виджетов остаются на английском, пока их не переведут. Другие приложения используют язык системы."

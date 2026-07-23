@@ -104,7 +104,7 @@ pub fn install(button: &gtk::Button) {
     center.append(&apps_scroll);
 
     let search = gtk::SearchEntry::builder()
-        .placeholder_text("Search applications…")
+        .placeholder_text(metis_i18n::tr("Search applications…"))
         .build();
     search.add_css_class("metis-menu-search");
     center.append(&search);
@@ -120,13 +120,13 @@ pub fn install(button: &gtk::Button) {
     let pinned_col = gtk::Box::new(gtk::Orientation::Vertical, 8);
     pinned_col.add_css_class("metis-menu-pinned");
     let pinned_header = gtk::Label::builder()
-        .label("Pinned")
+        .label(metis_i18n::tr("Pinned"))
         .halign(gtk::Align::Start)
         .build();
     pinned_header.add_css_class("metis-bar-section-title");
     pinned_col.append(&pinned_header);
 
-    let pinned_hint = gtk::Label::new(Some("Right-click an app to pin it here."));
+    let pinned_hint = gtk::Label::new(Some(&metis_i18n::tr("Right-click an app to pin it here.")));
     pinned_hint.add_css_class("metis-menu-empty");
     pinned_hint.set_wrap(true);
     pinned_hint.set_halign(gtk::Align::Start);
@@ -309,19 +309,35 @@ pub fn install(button: &gtk::Button) {
 }
 
 fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
+    use metis_i18n::tr;
+
     let rail = gtk::Box::new(gtk::Orientation::Vertical, 6);
     rail.add_css_class("metis-menu-rail");
 
-    rail.append(&rail_button(overlay, tip, "system-file-manager-symbolic", "Files", || {
-        launch_quick_action(launch_file_manager_snippet())
-    }));
-    rail.append(&rail_button(overlay, tip, "utilities-terminal-symbolic", "Terminal", || {
-        launch_quick_action(launch_terminal_snippet())
-    }));
-    rail.append(&rail_button(overlay, tip, "preferences-system-symbolic", "Settings", || {
-        super::super::dropdown::close_all();
-        activate_or_launch_settings();
-    }));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "system-file-manager-symbolic",
+        &tr("Files"),
+        || launch_quick_action(launch_file_manager_snippet()),
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "utilities-terminal-symbolic",
+        &tr("Terminal"),
+        || launch_quick_action(launch_terminal_snippet()),
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "preferences-system-symbolic",
+        &tr("Settings"),
+        || {
+            super::super::dropdown::close_all();
+            activate_or_launch_settings();
+        },
+    ));
 
     // Controller-friendly Steam Big Picture, shown only when Steam is installed
     // (native on PATH or Flatpak). Absent entirely on non-gaming setups.
@@ -330,7 +346,7 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
             overlay,
             tip,
             "input-gaming-symbolic",
-            "Big Picture",
+            &tr("Big Picture"),
             move || launch_quick_action(cmd.clone()),
         ));
     }
@@ -339,35 +355,65 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
     spacer.set_vexpand(true);
     rail.append(&spacer);
 
-    rail.append(&rail_button(overlay, tip, "system-lock-screen-symbolic", "Lock", || {
-        if let Err(err) = crate::compositor::lock_session() {
-            tracing::warn!(%err, "compositor lock_session failed");
-        }
-        super::super::dropdown::request_close_all();
-    }));
-    rail.append(&rail_button(overlay, tip, "weather-clear-night-symbolic", "Suspend", || {
-        run_detached("systemctl", &["suspend"]);
-        super::super::dropdown::request_close_all();
-    }));
-    rail.append(&rail_button(overlay, tip, "system-log-out-symbolic", "Log Out", || {
-        if let Err(err) = crate::compositor::end_session() {
-            tracing::warn!(%err, "compositor end_session failed — falling back to loginctl");
-            if std::env::var_os("XDG_SESSION_ID").is_some() {
-                run_detached("loginctl", &["terminate-session", "self"]);
-            } else if let Ok(user) = std::env::var("USER") {
-                run_detached("loginctl", &["terminate-user", &user]);
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "system-lock-screen-symbolic",
+        &tr("Lock"),
+        || {
+            if let Err(err) = crate::compositor::lock_session() {
+                tracing::warn!(%err, "compositor lock_session failed");
             }
-        }
-        super::super::dropdown::request_close_all();
-    }));
-    rail.append(&rail_button(overlay, tip, "system-reboot-symbolic", "Restart", || {
-        run_detached("systemctl", &["reboot"]);
-        super::super::dropdown::request_close_all();
-    }));
-    rail.append(&rail_button(overlay, tip, "system-shutdown-symbolic", "Shut Down", || {
-        run_detached("systemctl", &["poweroff"]);
-        super::super::dropdown::request_close_all();
-    }));
+            super::super::dropdown::request_close_all();
+        },
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "weather-clear-night-symbolic",
+        &tr("Suspend"),
+        || {
+            run_detached("systemctl", &["suspend"]);
+            super::super::dropdown::request_close_all();
+        },
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "system-log-out-symbolic",
+        &tr("Log Out"),
+        || {
+            if let Err(err) = crate::compositor::end_session() {
+                tracing::warn!(%err, "compositor end_session failed — falling back to loginctl");
+                if std::env::var_os("XDG_SESSION_ID").is_some() {
+                    run_detached("loginctl", &["terminate-session", "self"]);
+                } else if let Ok(user) = std::env::var("USER") {
+                    run_detached("loginctl", &["terminate-user", &user]);
+                }
+            }
+            super::super::dropdown::request_close_all();
+        },
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "system-reboot-symbolic",
+        &tr("Restart"),
+        || {
+            run_detached("systemctl", &["reboot"]);
+            super::super::dropdown::request_close_all();
+        },
+    ));
+    rail.append(&rail_button(
+        overlay,
+        tip,
+        "system-shutdown-symbolic",
+        &tr("Shut Down"),
+        || {
+            run_detached("systemctl", &["poweroff"]);
+            super::super::dropdown::request_close_all();
+        },
+    ));
 
     rail
 }
@@ -515,7 +561,7 @@ fn populate_center(
     clear_box(container);
     let q = query.trim();
     if q.is_empty() {
-        header.set_text("Frequent Apps");
+        header.set_text(&metis_i18n::tr("Frequent Apps"));
         for entry in applications::frequent_from(apps, FREQUENT_LIMIT) {
             container.append(&app_row(&entry, refresh));
         }
@@ -529,10 +575,10 @@ fn populate_center(
             '\0',
         );
     } else {
-        header.set_text("Search Results");
+        header.set_text(&metis_i18n::tr("Search Results"));
         let results = applications::search_in(apps, q);
         if results.is_empty() {
-            let empty = gtk::Label::new(Some("No matching applications"));
+            let empty = gtk::Label::new(Some(&metis_i18n::tr("No matching applications")));
             empty.add_css_class("metis-menu-empty");
             empty.set_halign(gtk::Align::Start);
             container.append(&empty);

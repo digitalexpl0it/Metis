@@ -72,6 +72,7 @@ pub struct LockState {
     /// 1 Hz repaint timer so the clock stays current while locked.
     clock_timer: Option<RegistrationToken>,
     font: Option<Font>,
+    font_data: Option<Vec<u8>>,
     font_loaded: bool,
     /// Decoded background base textures keyed by `(width, height, config-sig)`.
     /// The raw texture is kept alongside the buffer so the blur shader can sample
@@ -102,6 +103,7 @@ impl LockState {
             auth_rx: Some(auth_rx),
             clock_timer: None,
             font: None,
+            font_data: None,
             font_loaded: false,
             bg_cache: HashMap::new(),
             text_cache: HashMap::new(),
@@ -120,9 +122,8 @@ impl LockState {
         self.password.clear();
     }
 
-    /// Drop cached GPU resources (on unlock or a config reload). The textures are
-    /// reference-counted; dropping the cache releases our handles.
-    fn clear_gpu_cache(&mut self) {
+    /// Drop cached GPU resources (on unlock, config reload, or locale change).
+    pub(crate) fn clear_gpu_cache(&mut self) {
         self.bg_cache.clear();
         self.text_cache.clear();
     }
@@ -353,7 +354,7 @@ impl MetisState {
             self.unlock_session();
         } else {
             self.lock.attempts = self.lock.attempts.wrapping_add(1);
-            self.lock.status = Some("Incorrect password".to_string());
+            self.lock.status = Some(metis_i18n::tr_ftl("lock-incorrect-password"));
             self.lock.clear_password();
             tracing::warn!(attempts = self.lock.attempts, "lock: authentication failed");
             self.damaged = true;
@@ -378,7 +379,10 @@ impl MetisState {
             return Vec::new();
         }
         if !self.lock.font_loaded {
-            self.lock.font = crate::decoration::load_font();
+            if let Some((font, data)) = crate::decoration::load_font_with_data() {
+                self.lock.font = Some(font);
+                self.lock.font_data = Some(data);
+            }
             self.lock.font_loaded = true;
         }
 
@@ -424,7 +428,7 @@ impl MetisState {
             cx + (w / 2.0 - 32.0 * 0.3) + caret_gap
         } else {
             let w = self
-                .push_lock_text(renderer, &mut elems, "Enter Password", 20.0, [1.0, 1.0, 1.0, 0.5], cx, field_y)
+                .push_lock_text(renderer, &mut elems, &metis_i18n::tr_ftl("lock-enter-password"), 20.0, [1.0, 1.0, 1.0, 0.5], cx, field_y)
                 .map(|(w, _)| w as f64)
                 .unwrap_or(0.0);
             // Caret sits just left of the placeholder.
@@ -505,7 +509,11 @@ impl MetisState {
         let key = text_key(text, px, color);
         if !self.lock.text_cache.contains_key(&key) {
             let font = self.lock.font.as_ref()?;
-            let (pixels, w, h) = rasterize_text(font, text, px, color)?;
+            let (pixels, w, h) = if let Some(data) = self.lock.font_data.as_ref() {
+                crate::text_layout::rasterize_text_bidi(font, data, text, px, color)?
+            } else {
+                rasterize_text(font, text, px, color)?
+            };
             let Ok(texture) =
                 renderer.import_memory(&pixels, Fourcc::Abgr8888, (w, h).into(), false)
             else {
