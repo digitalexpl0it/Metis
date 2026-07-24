@@ -43,8 +43,9 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
             } else {
                 cfg.clock.date_format.as_str()
             };
-            time.set_text(&now.format(tf).to_string());
-            date.set_text(&now.format(df).to_string());
+            // Localized weekday/month names when formats_from_locale is on.
+            time.set_text(&metis_i18n::format_pattern(&now, tf));
+            date.set_text(&metis_i18n::format_pattern(&now, df));
             glib::ControlFlow::Continue
         }
     };

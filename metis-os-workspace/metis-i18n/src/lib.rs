@@ -21,7 +21,9 @@ use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use unic_langid::LanguageIdentifier;
 
-pub use format::{format_decimal, format_short_date, format_short_datetime, format_short_time};
+pub use format::{
+    format_decimal, format_pattern, format_short_date, format_short_datetime, format_short_time,
+};
 pub use paths::{catalog_roots, discover_installed_languages, GETTEXT_DOMAIN};
 
 static STATE: OnceCell<RwLock<I18nState>> = OnceCell::new();

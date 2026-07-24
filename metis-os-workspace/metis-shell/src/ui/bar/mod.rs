@@ -966,7 +966,7 @@ fn rebuild_for_locale() {
     crate::ui::theme::reload_stylesheet();
     crate::ui::notification_center::reload_for_locale();
     crate::ui::dashboard::reload_for_locale();
-    crate::ui::desktop_widgets::reload();
+    crate::ui::desktop_widgets::reload_for_locale();
     // Re-apply weather with freshly translated condition/hour strings.
     if let Some(snapshot) = last_weather_snapshot() {
         BARS.with(|bars| {

@@ -56,6 +56,8 @@ thread_local! {
         RefCell::new(std::collections::HashMap::new());
     /// Coalesce file-monitor / IPC reload storms (slider drags write often).
     static RELOAD_DEBOUNCE: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
+    /// Language Apply must rebuild even when desktop-widgets.json is unchanged.
+    static LOCALE_REBUILD_PENDING: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Start the desktop-widgets host (idempotent). Called once from bar startup.
@@ -71,6 +73,21 @@ pub fn init() {
 /// Re-read `desktop-widgets.json` and rebuild host surfaces.
 pub fn reload() {
     schedule_reload();
+}
+
+/// Language Apply — config identity is unchanged, so [`reload`] / `reload_from_disk`
+/// would short-circuit and leave English chrome. Force a full host rebuild.
+pub fn reload_for_locale() {
+    if !INITED.get() {
+        return;
+    }
+    LOCALE_REBUILD_PENDING.set(true);
+    if interaction_blocks_reload() || SAVE_PENDING.with(|c| c.borrow().is_some()) {
+        schedule_reload();
+        return;
+    }
+    // Skip debounce: Settings Apply should refresh cards immediately.
+    reload_from_disk();
 }
 
 /// Theme tokens changed — rebuild cards so empty chrome colours pick up the new surface/text.
@@ -199,6 +216,18 @@ fn reload_from_disk() {
 
     let cfg = load_desktop_widgets_config();
     let prev = current_cfg();
+    let force_locale = LOCALE_REBUILD_PENDING.replace(false);
+
+    // Locale Apply: same JSON identity, but construction-time `tr()` labels must
+    // be rebuilt. Do not take the geometry/chrome short-circuits below.
+    if force_locale {
+        CFG.with(|cell| *cell.borrow_mut() = cfg);
+        rebuild_hosts();
+        if let Some(snapshot) = crate::services::last_weather_snapshot() {
+            content::weather::on_snapshot(&snapshot);
+        }
+        return;
+    }
 
     // Same widgets, only positions/sizes differ → move in place (no flicker).
     if hosts_are_live() && cfg.enabled && same_widget_identity(&prev, &cfg) {

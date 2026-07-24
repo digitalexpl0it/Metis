@@ -124,7 +124,9 @@ fn rebuild_grid(flow: &gtk::FlowBox, path: &Path) {
     };
 
     if entries.is_empty() {
-        let empty = gtk::Label::new(Some("This folder is empty.\nRight-click for New Folder."));
+        let empty = gtk::Label::new(Some(&metis_i18n::tr(
+            "This folder is empty.\nRight-click for New Folder.",
+        )));
         empty.set_wrap(true);
         empty.set_xalign(0.5);
         empty.add_css_class("metis-dw-hint");
@@ -174,7 +176,9 @@ fn rebuild_list(list: &gtk::Box, path: &Path) {
     };
 
     if entries.is_empty() {
-        let empty = gtk::Label::new(Some("This folder is empty.\nRight-click for New Folder."));
+        let empty = gtk::Label::new(Some(&metis_i18n::tr(
+            "This folder is empty.\nRight-click for New Folder.",
+        )));
         empty.set_wrap(true);
         empty.set_xalign(0.5);
         empty.add_css_class("metis-dw-hint");
@@ -450,7 +454,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
             let is_dir = entry.is_dir;
             let is_desktop = entry.is_desktop;
             panel.append(&menu_button(
-                "Open",
+                &metis_i18n::tr("Open"),
                 &popover,
                 Rc::new(move || open_path(&path, is_dir, is_desktop)),
             ));
@@ -458,7 +462,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
         if !entry.is_dir {
             let path = entry.path.clone();
             panel.append(&menu_button(
-                "Open with…",
+                &metis_i18n::tr("Open with…"),
                 &popover,
                 Rc::new(move || open_with_picker(&path)),
             ));
@@ -468,7 +472,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
             let parent = parent_dir.clone();
             let old_name = entry.name.clone();
             panel.append(&menu_button(
-                "Rename…",
+                &metis_i18n::tr("Rename…"),
                 &popover,
                 Rc::new(move || prompt_rename(&parent, &path, &old_name)),
             ));
@@ -477,7 +481,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
             let path = entry.path.clone();
             let name = entry.name.clone();
             panel.append(&menu_button(
-                "Delete",
+                &metis_i18n::tr("Delete"),
                 &popover,
                 Rc::new(move || confirm_delete(&path, &name)),
             ));
@@ -485,7 +489,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
         {
             let parent = parent_dir.clone();
             panel.append(&menu_button(
-                "New Folder",
+                &metis_i18n::tr("New Folder"),
                 &popover,
                 Rc::new(move || create_new_folder(&parent)),
             ));
@@ -493,7 +497,7 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
         {
             let parent = parent_dir.clone();
             panel.append(&menu_button(
-                "Open in File Manager",
+                &metis_i18n::tr("Open in File Manager"),
                 &popover,
                 Rc::new(move || crate::services::open_in_file_manager(&parent)),
             ));
@@ -573,13 +577,13 @@ fn show_background_menu(parent: &impl IsA<gtk::Widget>, parent_dir: &Path, x: f6
 
     let dir = parent_dir.to_path_buf();
     panel.append(&menu_button(
-        "New Folder",
+        &metis_i18n::tr("New Folder"),
         &popover,
         Rc::new(move || create_new_folder(&dir)),
     ));
     let dir = parent_dir.to_path_buf();
     panel.append(&menu_button(
-        "Open in File Manager",
+        &metis_i18n::tr("Open in File Manager"),
         &popover,
         Rc::new(move || crate::services::open_in_file_manager(&dir)),
     ));

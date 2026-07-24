@@ -58,6 +58,12 @@ pub fn format_short_datetime(dt: &DateTime<Local>) -> String {
     dt.format_localized("%c", chrono_locale()).to_string()
 }
 
+/// Apply a chrono strftime-style pattern with the active Metis locale
+/// (weekday/month names, AM/PM, etc. when `formats_from_locale` is on).
+pub fn format_pattern(dt: &DateTime<Local>, pattern: &str) -> String {
+    dt.format_localized(pattern, chrono_locale()).to_string()
+}
+
 /// Format a floating number. Uses a simple locale decimal separator heuristic
 /// (comma for many European locales, point otherwise).
 pub fn format_decimal(value: f64, frac_digits: u8) -> String {
