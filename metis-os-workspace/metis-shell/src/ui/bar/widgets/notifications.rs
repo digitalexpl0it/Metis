@@ -18,7 +18,7 @@ impl NotificationsWidget {
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-notifications");
         root.add_css_class("metis-bar-sys-icon");
-        root.set_tooltip_text(Some("Notifications"));
+        root.set_tooltip_text(Some(&metis_i18n::tr("Notifications")));
 
         let icon = icons::image(names::notification(do_not_disturb()));
         let overlay = gtk::Overlay::new();

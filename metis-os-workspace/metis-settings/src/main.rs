@@ -124,22 +124,50 @@ fn normalize_launch(raw: &str) -> PageLaunch {
     PageLaunch { page, tab }
 }
 
+thread_local! {
+    /// Kept across language Apply so we rebuild content in-place (no close/reopen).
+    static SETTINGS_WINDOW: RefCell<Option<gtk::ApplicationWindow>> = const { RefCell::new(None) };
+}
+
 fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     // GTK is initialized by Application before activate — safe to set direction.
     i18n_gtk::apply_gtk_direction();
     theme::install();
 
-    // Keep GApplication alive while we tear down the old window and build a new
-    // one (closing the last window would otherwise quit the app).
-    let _hold = app.hold();
-
-    // Drop any previous Settings window so a live language switch can rebuild.
-    for win in app.windows() {
-        win.close();
-    }
+    let under_metis = std::env::var_os("METIS_SESSION").is_some();
+    let window = SETTINGS_WINDOW.with(|slot| {
+        if let Some(existing) = slot.borrow().as_ref() {
+            existing.set_title(Some(&tr("Settings")));
+            return existing.clone();
+        }
+        let window = gtk::ApplicationWindow::builder()
+            .application(app)
+            .title(tr("Settings"))
+            .default_width(960)
+            .default_height(680)
+            .decorated(!under_metis)
+            .build();
+        window.add_css_class("metis-settings-window");
+        window.connect_map(|win| {
+            apply_window_icon(win);
+        });
+        window.connect_close_request(|_| {
+            SETTINGS_WINDOW.with(|slot| {
+                *slot.borrow_mut() = None;
+            });
+            glib::Propagation::Proceed
+        });
+        apply_window_icon(&window);
+        *slot.borrow_mut() = Some(window.clone());
+        window
+    });
 
     let stack = gtk::Stack::new();
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
+    // Size to the visible page only — homogeneous stack min-width is the max of
+    // every page, which locks shrink after language Apply rebuilds all pages.
+    stack.set_hhomogeneous(false);
+    stack.set_vhomogeneous(false);
     // Soft fade between sidebar pages. Skip when the user has animations off.
     let fade_ms = if gtk::Settings::default()
         .is_some_and(|s| s.is_gtk_enable_animations())
@@ -151,20 +179,6 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.set_transition_duration(fade_ms);
     stack.set_hexpand(true);
     stack.set_vexpand(true);
-
-    let under_metis = std::env::var_os("METIS_SESSION").is_some();
-    let window = gtk::ApplicationWindow::builder()
-        .application(app)
-        .title(tr("Settings"))
-        .default_width(960)
-        .default_height(680)
-        .decorated(!under_metis)
-        .build();
-    window.add_css_class("metis-settings-window");
-    window.connect_map(|win| {
-        apply_window_icon(win);
-    });
-    apply_window_icon(&window);
 
     stack.add_titled(
         &pages::appearance::build(),
@@ -403,10 +417,31 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
         nav.select_row(Some(&row));
     }
 
+    // Swap content on the same window — language Apply must not close/reopen.
+    // Preserve the user's current size so rebuild does not grow the default and
+    // so wrapped labels cannot permanently raise the floor.
+    let (prev_w, prev_h) = (window.default_size().0, window.default_size().1);
+    let mapped_w = window.width();
+    let mapped_h = window.height();
     window.set_child(Some(&layout));
+    let keep_w = if mapped_w > 1 {
+        mapped_w
+    } else if prev_w > 0 {
+        prev_w
+    } else {
+        960
+    };
+    let keep_h = if mapped_h > 1 {
+        mapped_h
+    } else if prev_h > 0 {
+        prev_h
+    } else {
+        680
+    };
+    window.set_default_size(keep_w, keep_h);
     window.present();
 
-    // Live Language & region Apply rebuilds this window with fresh `tr()` labels.
+    // Live Language & region Apply rebuilds chrome/pages with fresh `tr()` labels.
     {
         let app = app.clone();
         i18n_gtk::register_ui_rebuild(Rc::new(move |page_id| {

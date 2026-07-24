@@ -108,6 +108,11 @@ pub fn page(header: PageHeader<'_>) -> (gtk::ScrolledWindow, gtk::Box) {
         let sublabel = gtk::Label::new(Some(sub));
         sublabel.set_xalign(0.0);
         sublabel.set_wrap(true);
+        sublabel.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+        // Wrapped labels otherwise report the full line as min-width and lock
+        // the Settings window from shrinking after a language Apply rebuild.
+        sublabel.set_width_chars(28);
+        sublabel.set_max_width_chars(56);
         sublabel.add_css_class("metis-settings-subtitle");
         titles.append(&sublabel);
     }
@@ -250,6 +255,20 @@ pub fn section(title: &str) -> (gtk::Box, gtk::Box) {
     body.add_css_class("metis-settings-section-body");
     card.append(&body);
     (card, body)
+}
+
+/// Soft helper copy under a section. Constrains wrap width so live language
+/// rebuilds cannot lock the Settings window to a huge minimum width.
+pub fn hint(text: &str) -> gtk::Label {
+    let l = gtk::Label::new(Some(text));
+    l.set_xalign(0.0);
+    l.set_wrap(true);
+    l.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+    l.set_hexpand(true);
+    l.set_width_chars(28);
+    l.set_max_width_chars(72);
+    l.add_css_class("metis-settings-hint");
+    l
 }
 
 /// Like [`section`] but with a leading symbolic icon in the header.

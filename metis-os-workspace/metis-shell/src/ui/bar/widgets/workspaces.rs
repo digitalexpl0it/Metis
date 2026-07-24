@@ -45,7 +45,7 @@ impl WorkspacesWidget {
 
         let control_btn = gtk::Button::builder()
             .has_frame(false)
-            .tooltip_text("Control Center")
+            .tooltip_text(metis_i18n::tr("Control Center"))
             .build();
         control_btn.add_css_class("metis-bar-control-center-btn");
         let icon = gtk::Image::from_icon_name("view-grid-symbolic");
@@ -101,9 +101,11 @@ impl WorkspacesWidget {
             let dot = workspace_dot(active);
             if id == 0 {
                 dot.add_css_class("metis-bar-ws-dot-idle");
-                dot.set_tooltip_text(Some("Metis desktop"));
+                dot.set_tooltip_text(Some(&metis_i18n::tr("Metis desktop")));
             } else {
-                dot.set_tooltip_text(Some(&format!("Desktop {id}")));
+                dot.set_tooltip_text(Some(
+                    &metis_i18n::tr("Desktop %1").replace("%1", &id.to_string()),
+                ));
                 let output = self.output.clone();
                 let gesture = gtk::GestureClick::new();
                 gesture.connect_pressed(move |_, _, _, _| {

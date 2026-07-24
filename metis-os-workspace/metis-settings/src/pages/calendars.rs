@@ -11,6 +11,7 @@ use gtk::prelude::*;
 use metis_config::{AccountKind, CalendarAccount, CalendarsConfig};
 
 use crate::{msauth, runtime, ui};
+use metis_i18n::tr;
 
 struct Inner {
     config: RefCell<CalendarsConfig>,
@@ -20,7 +21,7 @@ struct Inner {
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("calendars");
 
-    let (list_card, list_body) = ui::section("Accounts");
+    let (list_card, list_body) = ui::section(&tr("Accounts"));
     let list = gtk::Box::new(gtk::Orientation::Vertical, 8);
     list_body.append(&list);
     content.append(&list_card);
@@ -37,23 +38,29 @@ pub fn build() -> gtk::Widget {
 }
 
 fn build_add_form(inner: &Rc<Inner>) -> gtk::Widget {
-    let (card, body) = ui::section("Add account");
+    let (card, body) = ui::section(&tr("Add account"));
 
-    let kinds = ["CalDAV", "Thunderbird", "Microsoft 365", "Local"];
-    let kind_dd = gtk::DropDown::from_strings(&kinds);
-    body.append(&ui::row("Type", &kind_dd));
+    let kind_labels = [
+        tr("CalDAV"),
+        tr("Thunderbird"),
+        tr("Microsoft 365"),
+        tr("Local"),
+    ];
+    let kind_refs: Vec<&str> = kind_labels.iter().map(|s| s.as_str()).collect();
+    let kind_dd = gtk::DropDown::from_strings(&kind_refs);
+    body.append(&ui::row(&tr("Type"), &kind_dd));
 
-    let name = entry("Display name");
-    let url = entry("CalDAV URL (server, calendar, or principal)");
-    let username = entry("Username");
-    let tenant = entry("MS tenant (e.g. common or your tenant id)");
-    let client_id = entry("MS application (client) id");
-    let color = entry("Color (e.g. #22d3ee) — optional");
+    let name = entry(&tr("Display name"));
+    let url = entry(&tr("CalDAV URL (server, calendar, or principal)"));
+    let username = entry(&tr("Username"));
+    let tenant = entry(&tr("MS tenant (e.g. common or your tenant id)"));
+    let client_id = entry(&tr("MS application (client) id"));
+    let color = entry(&tr("Color (e.g. #22d3ee) — optional"));
     for e in [&name, &url, &username, &tenant, &client_id, &color] {
         body.append(e);
     }
 
-    let add_btn = gtk::Button::with_label("Add account");
+    let add_btn = gtk::Button::with_label(&tr("Add account"));
     add_btn.add_css_class("suggested-action");
     add_btn.set_halign(gtk::Align::End);
     body.append(&add_btn);
@@ -107,7 +114,7 @@ fn build_add_form(inner: &Rc<Inner>) -> gtk::Widget {
             };
             inner.add_account(account);
             for e in [&name, &url, &username, &tenant, &client_id, &color] {
-                e.set_text("");
+                e.set_text(&tr(""));
             }
         });
     }
@@ -154,7 +161,7 @@ impl Inner {
         }
         let accounts = self.config.borrow().accounts.clone();
         if accounts.is_empty() {
-            let empty = gtk::Label::new(Some("No calendar accounts."));
+            let empty = gtk::Label::new(Some(&tr("No calendar accounts.")));
             empty.set_xalign(0.0);
             empty.add_css_class("metis-settings-hint");
             self.list.append(&empty);
@@ -215,7 +222,7 @@ fn caldav_password_row(account: &CalendarAccount) -> gtk::Widget {
         .hexpand(true)
         .show_peek_icon(true)
         .build();
-    let save = gtk::Button::with_label("Save password");
+    let save = gtk::Button::with_label(&tr("Save password"));
     let status = gtk::Label::new(None);
     status.add_css_class("metis-settings-hint");
     status.set_xalign(0.0);
@@ -246,7 +253,7 @@ fn caldav_password_row(account: &CalendarAccount) -> gtk::Widget {
                     }
                 }
             });
-            entry.set_text("");
+            entry.set_text(&tr(""));
             poll_status(&status, shared, || runtime::send("reload-calendars"));
         });
     }
@@ -258,7 +265,7 @@ fn caldav_password_row(account: &CalendarAccount) -> gtk::Widget {
 
 fn ms_login_row(account: &CalendarAccount) -> gtk::Widget {
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    let sign_in = gtk::Button::with_label("Sign in with Microsoft");
+    let sign_in = gtk::Button::with_label(&tr("Sign in with Microsoft"));
     sign_in.set_halign(gtk::Align::Start);
     let status = gtk::Label::new(None);
     status.add_css_class("metis-settings-hint");
@@ -274,7 +281,7 @@ fn ms_login_row(account: &CalendarAccount) -> gtk::Widget {
         let status = status.clone();
         sign_in.connect_clicked(move |btn| {
             if client_id.is_empty() {
-                status.set_label("Set the application (client) id first.");
+                status.set_label(&tr("Set the application (client) id first."));
                 return;
             }
             btn.set_sensitive(false);

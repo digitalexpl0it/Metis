@@ -9,6 +9,7 @@ use gtk::prelude::*;
 
 use crate::remote::{self, RemoteSnapshot};
 use crate::ui;
+use metis_i18n::tr;
 
 struct Sections {
     enable_sw: gtk::Switch,
@@ -28,11 +29,11 @@ struct Sections {
 pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let (scroller, content) = ui::page_for("remote");
 
-    let intro = gtk::Label::new(Some(
+    let intro = gtk::Label::new(Some(&tr(
         "Session sharing lets another device view and control the Metis session \
          you are already logged into. Remote login to start a separate session \
-         will be a different option when it is available.",
-    ));
+         will be a different option when it is available."
+        )));
     intro.set_xalign(0.0);
     intro.set_wrap(true);
     intro.add_css_class("metis-settings-hint");
@@ -43,10 +44,10 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     install_banner.add_css_class("metis-settings-banner");
     install_banner.set_margin_bottom(12);
     install_banner.set_visible(false);
-    let install_text = gtk::Label::new(Some(
+    let install_text = gtk::Label::new(Some(&tr(
         "Install gnome-remote-desktop to enable desktop session sharing:\n\
-         sudo apt install gnome-remote-desktop",
-    ));
+         sudo apt install gnome-remote-desktop"
+        )));
     install_text.set_xalign(0.0);
     install_text.set_wrap(true);
     install_text.add_css_class("metis-settings-hint");
@@ -57,19 +58,19 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     password_banner.add_css_class("metis-settings-banner");
     password_banner.set_margin_bottom(12);
     password_banner.set_visible(false);
-    let pw_text = gtk::Label::new(Some(
-        "Set a password before enabling desktop session sharing.",
-    ));
+    let pw_text = gtk::Label::new(Some(&tr(
+        "Set a password before enabling desktop session sharing."
+        )));
     pw_text.set_xalign(0.0);
     pw_text.set_hexpand(true);
     pw_text.set_wrap(true);
     password_banner.append(&pw_text);
-    let set_pw_btn = gtk::Button::with_label("Set password…");
+    let set_pw_btn = gtk::Button::with_label(&tr("Set password…"));
     set_pw_btn.add_css_class("suggested-action");
     password_banner.append(&set_pw_btn);
     content.append(&password_banner);
 
-    let (share_card, share_body) = ui::section("Desktop session sharing");
+    let (share_card, share_body) = ui::section(&tr("Desktop session sharing"));
 
     let error_label = gtk::Label::new(None);
     error_label.set_xalign(0.0);
@@ -80,39 +81,39 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     share_body.append(&error_label);
 
     let (enable_row, enable_sw) =
-        ui::switch_row("Allow desktop session sharing");
+        ui::switch_row(&tr("Allow desktop session sharing"));
     share_body.append(&enable_row);
     content.append(&share_card);
 
-    let (status_card, status_body) = ui::section("Connection");
-    let status_label = gtk::Label::new(Some("Checking…"));
+    let (status_card, status_body) = ui::section(&tr("Connection"));
+    let status_label = gtk::Label::new(Some(&tr("Checking…")));
     status_label.set_xalign(0.0);
-    status_body.append(&readout_row("Status", &status_label));
+    status_body.append(&readout_row(&tr("Status"), &status_label));
 
     let address_label = gtk::Label::new(None);
     address_label.set_xalign(0.0);
     address_label.set_selectable(true);
-    status_body.append(&readout_row("Address", &address_label));
+    status_body.append(&readout_row(&tr("Address"), &address_label));
 
     let port_label = gtk::Label::new(None);
     port_label.set_xalign(0.0);
-    status_body.append(&readout_row("Port", &port_label));
+    status_body.append(&readout_row(&tr("Port"), &port_label));
 
     let username_label = gtk::Label::new(None);
     username_label.set_xalign(0.0);
-    status_body.append(&readout_row("Username", &username_label));
+    status_body.append(&readout_row(&tr("Username"), &username_label));
 
-    let change_pw_btn = gtk::Button::with_label("Change password…");
+    let change_pw_btn = gtk::Button::with_label(&tr("Change password…"));
     change_pw_btn.set_halign(gtk::Align::Start);
     change_pw_btn.set_visible(false);
 
-    let copy_btn = gtk::Button::with_label("Copy connection address");
+    let copy_btn = gtk::Button::with_label(&tr("Copy connection address"));
     copy_btn.set_halign(gtk::Align::Start);
 
-    let clients_hint = gtk::Label::new(Some(
+    let clients_hint = gtk::Label::new(Some(&tr(
         "Connect with Microsoft Remote Desktop, Remmina, or FreeRDP. \
-         Use the username and password you set above — empty credentials will not work.",
-    ));
+         Use the username and password you set above — empty credentials will not work."
+        )));
     clients_hint.set_xalign(0.0);
     clients_hint.set_wrap(true);
     clients_hint.add_css_class("metis-settings-hint");
@@ -125,24 +126,24 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     status_body.append(&actions);
     content.append(&status_card);
 
-    let (sec_card, sec_body) = ui::section("Security");
-    let hint_label = gtk::Label::new(Some(
+    let (sec_card, sec_body) = ui::section(&tr("Security"));
+    let hint_label = gtk::Label::new(Some(&tr(
         "Keep session sharing on your local network when possible. Use a strong password. \
          Sharing pauses while the session is locked (Super+L). \
-         See docs/USER_GUIDE.md for firewall setup (ufw allow 3389/tcp).",
-    ));
+         See docs/USER_GUIDE.md for firewall setup (ufw allow 3389/tcp)."
+        )));
     hint_label.set_xalign(0.0);
     hint_label.set_wrap(true);
     hint_label.add_css_class("metis-settings-hint");
     sec_body.append(&hint_label);
     content.append(&sec_card);
 
-    let (login_card, login_body) = ui::section("Remote login");
-    let login_hint = gtk::Label::new(Some(
+    let (login_card, login_body) = ui::section(&tr("Remote login"));
+    let login_hint = gtk::Label::new(Some(&tr(
         "Sign in remotely to start a new desktop session (for example xrdp) — planned \
          for a later milestone. This page only covers sharing the session you are \
-         already in.",
-    ));
+         already in."
+        )));
     login_hint.set_xalign(0.0);
     login_hint.set_wrap(true);
     login_hint.add_css_class("metis-settings-hint");
@@ -313,52 +314,43 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
     sections.toggling.set(false);
 
     if !snap.available {
-        sections.status_label.set_text("Not available");
-        sections.address_label.set_text("—");
-        sections.port_label.set_text("—");
-        sections.username_label.set_text("—");
-    } else if snap.rdp_enabled {
-        sections.status_label.set_text("Running — ready for connections");
-        sections.address_label.set_text(&remote::connection_hint(snap));
-        sections.port_label.set_text(&snap.port.to_string());
-        sections.username_label.set_text(
-            snap.username
-                .as_deref()
-                .filter(|u| !u.eq_ignore_ascii_case("(hidden)"))
-                .unwrap_or(if snap.password_set {
-                    "Use your session sharing password"
-                } else {
-                    "—"
-                }),
-        );
-    } else if snap.config_enabled && !snap.rdp_enabled {
-        sections.status_label.set_text("Starting…");
-        sections.address_label.set_text(&remote::connection_hint(snap));
-        sections.port_label.set_text(&snap.port.to_string());
-        sections.username_label.set_text(
-            snap.username
-                .as_deref()
-                .filter(|u| !u.eq_ignore_ascii_case("(hidden)"))
-                .unwrap_or(if snap.password_set {
-                    "Use your session sharing password"
-                } else {
-                    "—"
-                }),
-        );
+        sections.status_label.set_text(&tr("Not available"));
+        sections.address_label.set_text(&tr("—"));
+        sections.port_label.set_text(&tr("—"));
+        sections.username_label.set_text(&tr("—"));
     } else {
-        sections.status_label.set_text("Stopped");
-        sections.address_label.set_text(&remote::connection_hint(snap));
-        sections.port_label.set_text(&snap.port.to_string());
-        sections.username_label.set_text(
-            snap.username
-                .as_deref()
-                .filter(|u| !u.eq_ignore_ascii_case("(hidden)"))
-                .unwrap_or(if snap.password_set {
-                    "Use your session sharing password"
+        let sharing_password = tr("Use your session sharing password");
+        let dash = tr("—");
+        let username = snap
+            .username
+            .as_deref()
+            .filter(|u| !u.eq_ignore_ascii_case("(hidden)"))
+            .map(String::from)
+            .unwrap_or_else(|| {
+                if snap.password_set {
+                    sharing_password.clone()
                 } else {
-                    "—"
-                }),
-        );
+                    dash.clone()
+                }
+            });
+        if snap.rdp_enabled {
+            sections
+                .status_label
+                .set_text(&tr("Running — ready for connections"));
+            sections.address_label.set_text(&remote::connection_hint(snap));
+            sections.port_label.set_text(&snap.port.to_string());
+            sections.username_label.set_text(&username);
+        } else if snap.config_enabled && !snap.rdp_enabled {
+            sections.status_label.set_text(&tr("Starting…"));
+            sections.address_label.set_text(&remote::connection_hint(snap));
+            sections.port_label.set_text(&snap.port.to_string());
+            sections.username_label.set_text(&username);
+        } else {
+            sections.status_label.set_text(&tr("Stopped"));
+            sections.address_label.set_text(&remote::connection_hint(snap));
+            sections.port_label.set_text(&snap.port.to_string());
+            sections.username_label.set_text(&username);
+        }
     }
 
     if let Some(err) = snap
@@ -389,7 +381,7 @@ fn show_password_dialog(
     password_ui_open.set(true);
 
     let dialog = gtk::Window::builder()
-        .title("Session sharing password")
+        .title(&tr("Session sharing password"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -407,19 +399,19 @@ fn show_password_dialog(
 
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     header.set_margin_bottom(12);
-    let heading = gtk::Label::new(Some("Session sharing password"));
+    let heading = gtk::Label::new(Some(&tr("Session sharing password")));
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
     heading.add_css_class("metis-settings-section-title");
     header.append(&heading);
-    let close_btn = gtk::Button::with_label("Close");
+    let close_btn = gtk::Button::with_label(&tr("Close"));
     close_btn.add_css_class("metis-settings-secondary");
     header.append(&close_btn);
     outer.append(&header);
 
-    let hint = gtk::Label::new(Some(
-        "Choose the username and password RDP clients use to join this session.",
-    ));
+    let hint = gtk::Label::new(Some(&tr(
+        "Choose the username and password RDP clients use to join this session."
+        )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -427,7 +419,7 @@ fn show_password_dialog(
     outer.append(&hint);
 
     let user_entry = gtk::Entry::new();
-    user_entry.set_placeholder_text(Some("Username"));
+    user_entry.set_placeholder_text(Some(&tr("Username")));
     user_entry.set_hexpand(true);
     if let Ok(user) = std::env::var("USER") {
         user_entry.set_text(&user);
@@ -436,7 +428,7 @@ fn show_password_dialog(
     outer.append(&user_entry);
 
     let pass_entry = gtk::Entry::new();
-    pass_entry.set_placeholder_text(Some("Password"));
+    pass_entry.set_placeholder_text(Some(&tr("Password")));
     pass_entry.set_visibility(false);
     pass_entry.set_input_purpose(gtk::InputPurpose::Password);
     pass_entry.set_hexpand(true);
@@ -445,7 +437,7 @@ fn show_password_dialog(
     outer.append(&pass_entry);
 
     let confirm_entry = gtk::Entry::new();
-    confirm_entry.set_placeholder_text(Some("Confirm password"));
+    confirm_entry.set_placeholder_text(Some(&tr("Confirm password")));
     confirm_entry.set_visibility(false);
     confirm_entry.set_input_purpose(gtk::InputPurpose::Password);
     confirm_entry.set_hexpand(true);
@@ -464,9 +456,9 @@ fn show_password_dialog(
     let btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     btn_row.set_halign(gtk::Align::End);
     btn_row.set_margin_top(16);
-    let cancel = gtk::Button::with_label("Cancel");
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
     cancel.add_css_class("metis-settings-secondary");
-    let save = gtk::Button::with_label("Save");
+    let save = gtk::Button::with_label(&tr("Save"));
     save.add_css_class("suggested-action");
     btn_row.append(&cancel);
     btn_row.append(&save);
@@ -510,18 +502,18 @@ fn show_password_dialog(
             let pass = pass_entry.text().to_string();
             let confirm = confirm_entry.text().to_string();
             if pass != confirm {
-                err.set_text("Passwords do not match");
+                err.set_text(&tr("Passwords do not match"));
                 err.set_visible(true);
                 return;
             }
             if pass.len() < 8 {
-                err.set_text("Use at least 8 characters");
+                err.set_text(&tr("Use at least 8 characters"));
                 err.set_visible(true);
                 return;
             }
             err.set_visible(false);
             save.set_sensitive(false);
-            save.set_label("Saving…");
+            save.set_label(&tr("Saving…"));
             let save_tx = save_tx.clone();
             std::thread::spawn(move || {
                 let result = remote::set_credentials(&user, &pass);
@@ -537,7 +529,7 @@ fn show_password_dialog(
             return glib::ControlFlow::Continue;
         };
         save.set_sensitive(true);
-        save.set_label("Save");
+        save.set_label(&tr("Save"));
         match result {
             Ok(()) => {
                 let _ = cred_tx_done.send(Ok(()));

@@ -15,6 +15,7 @@ use metis_config::DecorationsOverride;
 
 use crate::apps::{self, AppEntry};
 use crate::{runtime, ui};
+use metis_i18n::tr;
 
 #[derive(Clone)]
 struct AppMeta {
@@ -34,17 +35,17 @@ pub fn build() -> gtk::Widget {
     content.set_vexpand(true);
     content.set_margin_bottom(16);
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&tr(
         "Auto uses Metis defaults. Override only when an app shows a double \
-         titlebar or is missing Metis window controls. Changes apply immediately.",
-    ));
+         titlebar or is missing Metis window controls. Changes apply immediately."
+        )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
     content.append(&hint);
 
     let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("Search applications…"));
+    search.set_placeholder_text(Some(&tr("Search applications…")));
     search.set_hexpand(true);
     content.append(&search);
 
@@ -61,7 +62,7 @@ pub fn build() -> gtk::Widget {
     }
 
     let (list_card, list_outer) =
-        ui::section_with_icon("Applications", "application-x-executable-symbolic");
+        ui::section_with_icon(&tr("Applications"), "application-x-executable-symbolic");
     list_card.set_vexpand(true);
     list_outer.set_vexpand(true);
 
@@ -173,7 +174,7 @@ pub fn build() -> gtk::Widget {
     ui::wire_vertical_scroll(&list_scroll);
     list_outer.append(&list_scroll);
 
-    let empty_label = gtk::Label::new(Some("No matching applications"));
+    let empty_label = gtk::Label::new(Some(&tr("No matching applications")));
     empty_label.add_css_class("metis-settings-hint");
     empty_label.set_xalign(0.0);
     empty_label.set_visible(false);
@@ -390,14 +391,18 @@ fn build_row_shell() -> gtk::Box {
     name.set_xalign(0.0);
     name.set_ellipsize(gtk::pango::EllipsizeMode::End);
     labels.append(&name);
-    let badge = gtk::Label::new(Some("Customized"));
+    let badge = gtk::Label::new(Some(&tr("Customized")));
     badge.set_xalign(0.0);
     badge.add_css_class("metis-settings-app-badge");
     badge.set_visible(false);
     labels.append(&badge);
     row.append(&labels);
 
-    let dd = gtk::DropDown::from_strings(&["Auto", "Metis titlebar", "App titlebar"]);
+    let dd = {
+        let __dd_labels = [tr("Auto"), tr("Metis titlebar"), tr("App titlebar")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     dd.set_valign(gtk::Align::Center);
     dd.set_halign(gtk::Align::End);
     row.append(&dd);

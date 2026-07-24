@@ -15,71 +15,74 @@ use metis_config::{
 
 use super::input_common::{self, persist};
 use crate::runtime;
+use metis_i18n::tr;
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = crate::ui::page_for("keyboard");
     let cfg = metis_config::load_input_config();
 
     let (layout_card, layout_body) =
-        input_common::section_card("Layout", "input-keyboard-symbolic");
+        input_common::section_card(&tr("Layout"), "input-keyboard-symbolic");
 
     let layout = gtk::Entry::builder()
-        .placeholder_text("Leave empty for system default, e.g. us")
+        .placeholder_text(&tr("Leave empty for system default, e.g. us"))
         .text(&cfg.keyboard.layout)
         .hexpand(true)
         .build();
-    layout_body.append(&crate::ui::row("Layout", &layout));
+    layout_body.append(&crate::ui::row(&tr("Layout"), &layout));
 
     let variant = gtk::Entry::builder()
-        .placeholder_text("Optional variant")
+        .placeholder_text(&tr("Optional variant"))
         .text(&cfg.keyboard.variant)
         .hexpand(true)
         .build();
-    layout_body.append(&crate::ui::row("Variant", &variant));
+    layout_body.append(&crate::ui::row(&tr("Variant"), &variant));
 
     let options = gtk::Entry::builder()
-        .placeholder_text("Extra xkb options, comma-separated")
+        .placeholder_text(&tr("Extra xkb options, comma-separated"))
         .text(&cfg.keyboard.options)
         .hexpand(true)
         .build();
-    layout_body.append(&crate::ui::row("Options", &options));
+    layout_body.append(&crate::ui::row(&tr("Options"), &options));
 
-    layout_body.append(&input_common::hint(
+    layout_body.append(&input_common::hint(&tr(
         "Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See \
-         /usr/share/X11/xkb/rules/base.lst on your system.",
-    ));
+         /usr/share/X11/xkb/rules/base.lst on your system."
+        )));
     content.append(&layout_card);
 
     let (typing_card, typing_body) =
-        input_common::section_card("Typing", "input-keyboard-symbolic");
+        input_common::section_card(&tr("Typing"), "input-keyboard-symbolic");
 
     let delay = gtk::Scale::with_range(gtk::Orientation::Horizontal, 200.0, 1000.0, 50.0);
     delay.set_value(cfg.keyboard.repeat_delay_ms as f64);
     delay.set_size_request(200, -1);
     delay.set_draw_value(true);
-    typing_body.append(&crate::ui::row("Repeat delay (ms)", &delay));
+    typing_body.append(&crate::ui::row(&tr("Repeat delay (ms)"), &delay));
 
     let rate = gtk::Scale::with_range(gtk::Orientation::Horizontal, 10.0, 50.0, 1.0);
     rate.set_value(cfg.keyboard.repeat_rate_hz as f64);
     rate.set_size_request(200, -1);
     rate.set_draw_value(true);
-    typing_body.append(&crate::ui::row("Repeat rate (Hz)", &rate));
+    typing_body.append(&crate::ui::row(&tr("Repeat rate (Hz)"), &rate));
 
-    let caps = gtk::DropDown::from_strings(&["Default", "Escape", "Control"]);
+    let caps = {
+        let __dd_labels = [tr("Default"), tr("Escape"), tr("Control")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     caps.set_selected(match cfg.keyboard.caps_lock {
         CapsLockBehavior::Default => 0,
         CapsLockBehavior::Escape => 1,
         CapsLockBehavior::Control => 2,
     });
-    typing_body.append(&crate::ui::row("Caps Lock", &caps));
+    typing_body.append(&crate::ui::row(&tr("Caps Lock"), &caps));
 
-    let compose = gtk::DropDown::from_strings(&[
-        "Disabled",
-        "Right Alt",
-        "Menu",
-        "Left Alt",
-        "Scroll Lock",
-    ]);
+    let compose = {
+        let __dd_labels = [tr("Disabled"), tr("Right Alt"), tr("Menu"), tr("Left Alt"), tr("Scroll Lock")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     compose.set_selected(match cfg.keyboard.compose_key {
         ComposeKey::Disabled => 0,
         ComposeKey::RightAlt => 1,
@@ -87,24 +90,24 @@ pub fn build() -> gtk::Widget {
         ComposeKey::LeftAlt => 3,
         ComposeKey::ScrollLock => 4,
     });
-    typing_body.append(&crate::ui::row("Compose key", &compose));
+    typing_body.append(&crate::ui::row(&tr("Compose key"), &compose));
 
-    let num_lock = gtk::DropDown::from_strings(&[
-        "Auto (numpad detected)",
-        "Always on",
-        "Off",
-    ]);
+    let num_lock = {
+        let __dd_labels = [tr("Auto (numpad detected)"), tr("Always on"), tr("Off")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     num_lock.set_selected(match cfg.keyboard.num_lock {
         NumLockStartup::Auto => 0,
         NumLockStartup::On => 1,
         NumLockStartup::Off => 2,
     });
-    typing_body.append(&crate::ui::row("Num Lock on login", &num_lock));
+    typing_body.append(&crate::ui::row(&tr("Num Lock on login"), &num_lock));
 
-    typing_body.append(&input_common::hint(
+    typing_body.append(&input_common::hint(&tr(
         "Auto turns Num Lock on when a keyboard with a numeric keypad is \
-         present. Keyboard settings apply live in the Metis session within ~1s.",
-    ));
+         present. Keyboard settings apply live in the Metis session within ~1s."
+        )));
     content.append(&typing_card);
 
     content.append(&build_shortcuts_section());
@@ -207,7 +210,7 @@ pub fn build() -> gtk::Widget {
 
 fn build_shortcuts_section() -> gtk::Box {
     let (card, body) =
-        input_common::section_card("Shortcuts", "preferences-desktop-keyboard-shortcuts-symbolic");
+        input_common::section_card(&tr("Shortcuts"), "preferences-desktop-keyboard-shortcuts-symbolic");
 
     let cfg = Rc::new(RefCell::new(load_keybinds_config()));
     let status = gtk::Label::new(None);
@@ -216,13 +219,17 @@ fn build_shortcuts_section() -> gtk::Box {
     status.add_css_class("metis-settings-hint");
     status.set_visible(false);
 
-    let mod_dd = gtk::DropDown::from_strings(&["Super", "Alt", "Ctrl"]);
+    let mod_dd = {
+        let __dd_labels = [tr("Super"), tr("Alt"), tr("Ctrl")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     mod_dd.set_selected(match cfg.borrow().mod_key {
         ModKey::Super => 0,
         ModKey::Alt => 1,
         ModKey::Ctrl => 2,
     });
-    body.append(&crate::ui::row("Metis modifier (defaults)", &mod_dd));
+    body.append(&crate::ui::row(&tr("Metis modifier (defaults)"), &mod_dd));
 
     {
         let cfg = cfg.clone();
@@ -244,11 +251,11 @@ fn build_shortcuts_section() -> gtk::Box {
         });
     }
 
-    body.append(&input_common::hint(
+    body.append(&input_common::hint(&tr(
         "Click Change, then press a shortcut in the field that appears, then Save. \
          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are system-only and \
-         cannot be changed.",
-    ));
+         cannot be changed."
+        )));
     body.append(&status);
 
     // Placeholder marker so rebuild can clear dynamic rows.
@@ -327,7 +334,7 @@ fn reserved_row(label: &str, chord: &Chord) -> gtk::Box {
     let chord_lbl = gtk::Label::new(Some(&chord.display()));
     chord_lbl.add_css_class("metis-keybind-chord");
     row.append(&chord_lbl);
-    let lock = gtk::Label::new(Some("System"));
+    let lock = gtk::Label::new(Some(&tr("System")));
     lock.add_css_class("metis-settings-hint");
     row.append(&lock);
     row
@@ -352,8 +359,8 @@ fn editable_row(
     chord_lbl.add_css_class("metis-keybind-chord");
     top.append(&chord_lbl);
 
-    let change = gtk::Button::with_label("Change");
-    let reset = gtk::Button::with_label("Reset");
+    let change = gtk::Button::with_label(&tr("Change"));
+    let reset = gtk::Button::with_label(&tr("Reset"));
     top.append(&change);
     top.append(&reset);
     row.append(&top);
@@ -364,14 +371,14 @@ fn editable_row(
     // Focusable entry so key events land here after Change (a Label never
     // receives shortcuts reliably).
     let listen = gtk::Entry::new();
-    listen.set_placeholder_text(Some("Press a shortcut…"));
+    listen.set_placeholder_text(Some(&tr("Press a shortcut…")));
     listen.set_editable(false);
     listen.set_can_focus(true);
     listen.set_hexpand(true);
     listen.add_css_class("metis-keybind-capture-entry");
-    let save = gtk::Button::with_label("Save");
+    let save = gtk::Button::with_label(&tr("Save"));
     save.set_sensitive(false);
-    let cancel = gtk::Button::with_label("Cancel");
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
     capture.append(&listen);
     capture.append(&save);
     capture.append(&cancel);
@@ -392,7 +399,7 @@ fn editable_row(
             capture.set_visible(false);
             change_btn.set_sensitive(true);
             reset_btn.set_sensitive(true);
-            listen.set_text("");
+            listen.set_text(&tr(""));
             *candidate.borrow_mut() = None;
             runtime::set_keybind_capture_async(false);
         })
@@ -413,8 +420,8 @@ fn editable_row(
             capture.set_visible(true);
             change_btn.set_sensitive(false);
             reset_btn.set_sensitive(false);
-            listen.set_text("");
-            listen.set_placeholder_text(Some("Press a shortcut…"));
+            listen.set_text(&tr(""));
+            listen.set_placeholder_text(Some(&tr("Press a shortcut…")));
             save.set_sensitive(false);
             *candidate.borrow_mut() = None;
             runtime::set_keybind_capture_async(true);
@@ -457,7 +464,7 @@ fn editable_row(
                 return;
             };
             if chord.is_reserved() {
-                status.set_text("That shortcut is reserved for the system and cannot be used.");
+                status.set_text(&tr("That shortcut is reserved for the system and cannot be used."));
                 status.set_visible(true);
                 return;
             }
@@ -524,7 +531,7 @@ fn editable_row(
                     status.set_visible(false);
                 }
                 Err(err) => {
-                    listen.set_text("");
+                    listen.set_text(&tr(""));
                     listen.set_placeholder_text(Some(err.as_str()));
                     save.set_sensitive(false);
                     *candidate.borrow_mut() = None;

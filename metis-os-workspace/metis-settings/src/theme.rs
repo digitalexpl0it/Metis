@@ -421,6 +421,7 @@ fn settings_css(t: &ThemeTokens) -> String {
             font-size: 13px;
             color: {muted};
             line-height: 1.35;
+            max-width: 36em;
         }}
         .metis-settings-section {{
             background-color: {surface};
@@ -552,6 +553,7 @@ fn settings_css(t: &ThemeTokens) -> String {
             color: {muted};
             font-size: 12px;
             padding: 0 16px 12px;
+            max-width: 42em;
         }}
         .metis-keybind-chord {{
             font-family: monospace;

@@ -10,12 +10,13 @@ use crate::pages::appearance_common::{
     color_dialog_button, hex_to_rgba, rgba_to_hex, set_stops, update_bar,
 };
 use crate::ui;
+use metis_i18n::tr;
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("windows");
 
     let bar = metis_config::load_bar_config();
-    let (win_card, win_body) = ui::section_with_icon("Windows", "window-new-symbolic");
+    let (win_card, win_body) = ui::section_with_icon(&tr("Windows"), "window-new-symbolic");
 
     let window_animations = gtk::Switch::new();
     window_animations.set_active(bar.window_animations);
@@ -23,15 +24,15 @@ pub fn build() -> gtk::Widget {
     window_animations.set_valign(gtk::Align::Center);
     win_body.append(&ui::row_with_icon(
         "preferences-desktop-screensaver-symbolic",
-        "Window animations",
+        &tr("Window animations"),
         &window_animations,
     ));
 
-    let anim_hint = gtk::Label::new(Some(
+    let anim_hint = gtk::Label::new(Some(&tr(
         "Minimize genie, maximize wobble, and titlebar slide effects. \
          Turn off for instant window transitions. The Compatibility graphics \
-         profile on Display also disables animations in VMs.",
-    ));
+         profile on Display also disables animations in VMs."
+        )));
     anim_hint.set_xalign(0.0);
     anim_hint.set_wrap(true);
     anim_hint.add_css_class("metis-settings-hint");
@@ -45,14 +46,14 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&window_gap);
     win_body.append(&ui::row_with_icon(
         "view-fullscreen-symbolic",
-        "Maximized window padding",
+        &tr("Maximized window padding"),
         &window_gap,
     ));
 
-    let gap_hint = gtk::Label::new(Some(
+    let gap_hint = gtk::Label::new(Some(&tr(
         "Space around maximized and edge-snapped windows. 0 is flush to the \
-         screen and bar edges; 10 is the maximum inset. Applies within ~1s.",
-    ));
+         screen and bar edges; 10 is the maximum inset. Applies within ~1s."
+        )));
     gap_hint.set_xalign(0.0);
     gap_hint.set_wrap(true);
     gap_hint.add_css_class("metis-settings-hint");
@@ -65,14 +66,14 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&titlebar_opacity);
     win_body.append(&ui::row_with_icon(
         "display-brightness-symbolic",
-        "Titlebar opacity",
+        &tr("Titlebar opacity"),
         &titlebar_opacity,
     ));
 
-    let win_hint = gtk::Label::new(Some(
+    let win_hint = gtk::Label::new(Some(&tr(
         "Dims only the window titlebar background so the wallpaper shows through; \
-         the title text and window buttons stay solid. Changes apply within ~1s.",
-    ));
+         the title text and window buttons stay solid. Changes apply within ~1s."
+        )));
     win_hint.set_xalign(0.0);
     win_hint.set_wrap(true);
     win_hint.add_css_class("metis-settings-hint");
@@ -81,7 +82,11 @@ pub fn build() -> gtk::Widget {
     // -- Title pill border (mode / width / colors) --
     let pill = bar.titlebar_pill_border.clone();
 
-    let pill_mode = gtk::DropDown::from_strings(&["Theme accent", "Solid color", "Custom gradient"]);
+    let pill_mode = {
+        let __dd_labels = [tr("Theme accent"), tr("Solid color"), tr("Custom gradient")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     pill_mode.set_selected(match pill.mode {
         metis_config::BorderMode::Accent => 0,
         metis_config::BorderMode::Solid => 1,
@@ -89,7 +94,7 @@ pub fn build() -> gtk::Widget {
     });
     win_body.append(&ui::row_with_icon(
         "view-paged-symbolic",
-        "Title pill border",
+        &tr("Title pill border"),
         &pill_mode,
     ));
 
@@ -100,7 +105,7 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&pill_width);
     win_body.append(&ui::row_with_icon(
         "display-brightness-symbolic",
-        "Pill border width",
+        &tr("Pill border width"),
         &pill_width,
     ));
 
@@ -110,7 +115,7 @@ pub fn build() -> gtk::Widget {
     pill_solid.set_rgba(&hex_to_rgba(&pill.color));
     pill_solid_box.append(&ui::row_with_icon(
         "applications-graphics-symbolic",
-        "Border color",
+        &tr("Border color"),
         &pill_solid,
     ));
     win_body.append(&pill_solid_box);
@@ -130,9 +135,9 @@ pub fn build() -> gtk::Widget {
     let pill_g1 = pill_stop(0, "#00F2FE");
     let pill_g2 = pill_stop(1, "#4FACFE");
     let pill_g3 = pill_stop(2, "#A24BFF");
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient start", &pill_g1));
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient middle", &pill_g2));
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient end", &pill_g3));
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient start"), &pill_g1));
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient middle"), &pill_g2));
+    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient end"), &pill_g3));
     win_body.append(&pill_grad_box);
 
     let pill_hint = gtk::Label::new(Some(
@@ -148,7 +153,11 @@ pub fn build() -> gtk::Widget {
     // -- Window frame border (independent of the pill: mode / thickness / colors) --
     let wb = bar.window_border.clone();
 
-    let wb_mode = gtk::DropDown::from_strings(&["Theme accent", "Solid color", "Custom gradient"]);
+    let wb_mode = {
+        let __dd_labels = [tr("Theme accent"), tr("Solid color"), tr("Custom gradient")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     wb_mode.set_selected(match wb.mode {
         metis_config::BorderMode::Accent => 0,
         metis_config::BorderMode::Solid => 1,
@@ -156,7 +165,7 @@ pub fn build() -> gtk::Widget {
     });
     win_body.append(&ui::row_with_icon(
         "window-new-symbolic",
-        "Window border",
+        &tr("Window border"),
         &wb_mode,
     ));
 
@@ -167,7 +176,7 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&wb_width);
     win_body.append(&ui::row_with_icon(
         "view-fullscreen-symbolic",
-        "Window border thickness",
+        &tr("Window border thickness"),
         &wb_width,
     ));
 
@@ -176,7 +185,7 @@ pub fn build() -> gtk::Widget {
     wb_solid.set_rgba(&hex_to_rgba(&wb.color));
     wb_solid_box.append(&ui::row_with_icon(
         "applications-graphics-symbolic",
-        "Border color",
+        &tr("Border color"),
         &wb_solid,
     ));
     win_body.append(&wb_solid_box);
@@ -191,16 +200,16 @@ pub fn build() -> gtk::Widget {
     let wb_g1 = wb_stop(0, "#00F2FE");
     let wb_g2 = wb_stop(1, "#4FACFE");
     let wb_g3 = wb_stop(2, "#A24BFF");
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient top", &wb_g1));
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient middle", &wb_g2));
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", "Gradient bottom", &wb_g3));
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient top"), &wb_g1));
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient middle"), &wb_g2));
+    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient bottom"), &wb_g3));
     win_body.append(&wb_grad_box);
 
-    let wb_hint = gtk::Label::new(Some(
+    let wb_hint = gtk::Label::new(Some(&tr(
         "The border around the whole window frame, independent of the title pill. The \
          gradient flows top→bottom; thickness also insets the window contents. \
-         Changes apply within ~1s.",
-    ));
+         Changes apply within ~1s."
+        )));
     wb_hint.set_xalign(0.0);
     wb_hint.set_wrap(true);
     wb_hint.add_css_class("metis-settings-hint");

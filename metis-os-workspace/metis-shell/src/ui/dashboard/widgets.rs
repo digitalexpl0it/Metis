@@ -6,11 +6,19 @@
 #![allow(dead_code)]
 
 use metis_config::DashboardWidgetId;
+use metis_i18n::tr;
 
 #[derive(Debug, Clone, Copy)]
 pub struct WidgetDef {
     pub id: DashboardWidgetId,
+    /// English msgid for [`Self::localized_title`].
     pub title: &'static str,
+}
+
+impl WidgetDef {
+    pub fn localized_title(&self) -> String {
+        tr(self.title)
+    }
 }
 
 /// All built-in widgets in default display order.

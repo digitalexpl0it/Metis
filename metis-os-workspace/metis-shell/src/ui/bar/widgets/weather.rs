@@ -38,7 +38,7 @@ impl WeatherWidget {
             bar_box.append(&temp_label);
         }
         root.set_child(Some(&bar_box));
-        root.set_tooltip_text(Some("Weather"));
+        root.set_tooltip_text(Some(&metis_i18n::tr("Weather")));
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(10);
@@ -125,9 +125,12 @@ impl WeatherWidget {
                     self.temp_label.set_text("");
                 }
                 icons::set_icon(&self.icon, "weather-severe-alert-symbolic");
-                let msg = snapshot.error.as_deref().unwrap_or("Weather unavailable");
-                self.root.set_tooltip_text(Some(msg));
-                self.status.set_text(msg);
+                let msg = snapshot
+                    .error
+                    .clone()
+                    .unwrap_or_else(|| metis_i18n::tr("Weather unavailable"));
+                self.root.set_tooltip_text(Some(&msg));
+                self.status.set_text(&msg);
                 self.status.set_visible(true);
             }
         }
@@ -167,11 +170,12 @@ impl WeatherWidget {
         cond.add_css_class("metis-weather-cond");
         cond.set_halign(gtk::Align::End);
         right.append(&cond);
-        let hl = gtk::Label::new(Some(&format!(
-            "H:{:.0}°{unit} L:{:.0}°{unit}",
-            p.high.round(),
-            p.low.round()
-        )));
+        let hl = gtk::Label::new(Some(
+            &metis_i18n::tr("H:%1°%2 L:%3°%2")
+                .replace("%1", &format!("{:.0}", p.high.round()))
+                .replace("%3", &format!("{:.0}", p.low.round()))
+                .replace("%2", &unit.to_string()),
+        ));
         hl.add_css_class("metis-weather-hl");
         hl.set_halign(gtk::Align::End);
         right.append(&hl);

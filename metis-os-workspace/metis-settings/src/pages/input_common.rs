@@ -4,6 +4,8 @@ use gtk::prelude::*;
 
 use metis_config::{AccelProfile, InputConfig};
 
+use metis_i18n::tr;
+
 use crate::ui;
 
 pub fn persist(cfg: &InputConfig) {
@@ -28,7 +30,9 @@ pub fn hint(text: &str) -> gtk::Label {
 }
 
 pub fn accel_profile_dropdown(current: AccelProfile) -> gtk::DropDown {
-    let dd = gtk::DropDown::from_strings(&["Adaptive", "Flat"]);
+    let __dd_labels = [tr("Adaptive"), tr("Flat")];
+    let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+    let dd = gtk::DropDown::from_strings(&__dd_refs);
     dd.set_selected(match current {
         AccelProfile::Adaptive => 0,
         AccelProfile::Flat => 1,

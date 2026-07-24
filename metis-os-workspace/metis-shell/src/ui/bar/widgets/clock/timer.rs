@@ -238,7 +238,7 @@ impl TimerPage {
             .spacing(8)
             .build();
 
-        let quick_title = section_title("Quick Start");
+        let quick_title = section_title(&metis_i18n::tr("Quick Start"));
         setup.append(&quick_title);
         let quick = gtk::FlowBox::builder()
             .selection_mode(gtk::SelectionMode::None)
@@ -250,7 +250,7 @@ impl TimerPage {
             .build();
         setup.append(&quick);
 
-        let set_title = section_title("Set Timer");
+        let set_title = section_title(&metis_i18n::tr("Set Timer"));
         setup.append(&set_title);
         let steppers = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -274,10 +274,10 @@ impl TimerPage {
             .spacing(12)
             .halign(gtk::Align::Center)
             .build();
-        let primary = gtk::Button::with_label("Start");
+        let primary = gtk::Button::with_label(&metis_i18n::tr("Start"));
         primary.add_css_class("metis-sw-btn");
         primary.add_css_class("metis-sw-btn-go");
-        let reset_btn = gtk::Button::with_label("Reset");
+        let reset_btn = gtk::Button::with_label(&metis_i18n::tr("Reset"));
         reset_btn.add_css_class("metis-sw-btn");
         reset_btn.add_css_class("metis-sw-btn-stop");
         reset_btn.set_sensitive(false);
@@ -309,16 +309,16 @@ impl TimerPage {
         wire_stepper(&inner, &s_col, Field::Seconds);
 
         for (label, secs) in [
-            ("1 m", 60u32),
-            ("2 m", 120),
-            ("3 m", 180),
-            ("5 m", 300),
-            ("15 m", 900),
-            ("30 m", 1800),
-            ("45 m", 2700),
-            ("1 h", 3600),
+            (metis_i18n::tr("1 m"), 60u32),
+            (metis_i18n::tr("2 m"), 120),
+            (metis_i18n::tr("3 m"), 180),
+            (metis_i18n::tr("5 m"), 300),
+            (metis_i18n::tr("15 m"), 900),
+            (metis_i18n::tr("30 m"), 1800),
+            (metis_i18n::tr("45 m"), 2700),
+            (metis_i18n::tr("1 h"), 3600),
         ] {
-            let btn = gtk::Button::with_label(label);
+            let btn = gtk::Button::with_label(&label);
             btn.add_css_class("metis-timer-preset");
             let inner = inner.clone();
             btn.connect_clicked(move |_| {
@@ -401,7 +401,7 @@ impl Inner {
         }
         self.running.set(true);
         self.end.set(Some(Instant::now() + remaining));
-        self.primary.set_label("Pause");
+        self.primary.set_label(&metis_i18n::tr("Pause"));
         self.reset_btn.set_sensitive(true);
         self.setup.set_visible(false);
 
@@ -444,11 +444,14 @@ impl Inner {
             self.remaining.set(Duration::ZERO);
             self.generation.set(self.generation.get().wrapping_add(1));
             self.label.set_label("00:00:00");
-            self.primary.set_label("Start");
+            self.primary.set_label(&metis_i18n::tr("Start"));
             self.reset_btn.set_sensitive(false);
             self.setup.set_visible(true);
             self.close_overlay();
-            notify("Timer finished", "Your Metis timer is up.");
+            notify(
+                &metis_i18n::tr("Timer finished"),
+                &metis_i18n::tr("Your Metis timer is up."),
+            );
             play_alarm_sound();
             return glib::ControlFlow::Break;
         }
@@ -466,7 +469,7 @@ impl Inner {
         if let Some(end) = self.end.take() {
             self.remaining.set(end.saturating_duration_since(Instant::now()));
         }
-        self.primary.set_label("Resume");
+        self.primary.set_label(&metis_i18n::tr("Resume"));
         if let Some(o) = self.overlay.borrow().as_ref() {
             o.set_paused(true);
         }
@@ -477,7 +480,7 @@ impl Inner {
         self.generation.set(self.generation.get().wrapping_add(1));
         self.end.set(None);
         self.remaining.set(Duration::ZERO);
-        self.primary.set_label("Start");
+        self.primary.set_label(&metis_i18n::tr("Start"));
         self.reset_btn.set_sensitive(false);
         self.setup.set_visible(true);
         self.close_overlay();

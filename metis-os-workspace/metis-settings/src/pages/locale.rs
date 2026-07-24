@@ -48,12 +48,9 @@ pub fn build() -> gtk::Widget {
     formats_sw.set_active(cfg.formats_from_locale);
     body.append(&formats_row);
 
-    let hint = gtk::Label::new(Some(&tr(
-        "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale.",
-    )));
-    hint.set_xalign(0.0);
-    hint.set_wrap(true);
-    hint.add_css_class("metis-settings-hint");
+    let hint = ui::hint(&tr(
+        "Applies across Metis Settings, the edge bar, Control Center, screenshots, notifications, onboarding, and the lock screen. Other apps follow the system locale.",
+    ));
     body.append(&hint);
 
     let apply = gtk::Button::with_label(&tr("Apply"));

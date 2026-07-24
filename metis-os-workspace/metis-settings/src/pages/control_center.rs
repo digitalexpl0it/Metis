@@ -13,6 +13,7 @@ use metis_config::{
 };
 
 use crate::ui;
+use metis_i18n::tr;
 
 struct WidgetToggles {
     cpu: gtk::CheckButton,
@@ -27,14 +28,14 @@ pub fn build() -> gtk::Widget {
     let cfg = load_dashboard_config();
 
     let (panel_card, panel_body) =
-        ui::section_with_icon("Control Center", "utilities-system-monitor-symbolic");
+        ui::section_with_icon(&tr("Control Center"), "utilities-system-monitor-symbolic");
 
     let enabled = gtk::Switch::new();
     enabled.set_active(cfg.enabled);
     enabled.set_halign(gtk::Align::End);
     panel_body.append(&ui::row_with_icon(
         "view-grid-symbolic",
-        "Show Control Center",
+        &tr("Show Control Center"),
         &enabled,
     ));
 
@@ -45,7 +46,7 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&max_height);
     panel_body.append(&ui::row_with_icon(
         "view-fullscreen-symbolic",
-        "Maximum panel height (%)",
+        &tr("Maximum panel height (%)"),
         &max_height,
     ));
 
@@ -56,7 +57,7 @@ pub fn build() -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&refresh);
     panel_body.append(&ui::row_with_icon(
         "view-refresh-symbolic",
-        "Refresh interval (ms)",
+        &tr("Refresh interval (ms)"),
         &refresh,
     ));
 
@@ -65,13 +66,13 @@ pub fn build() -> gtk::Widget {
     confirm_kill.set_halign(gtk::Align::End);
     panel_body.append(&ui::row_with_icon(
         "process-stop-symbolic",
-        "Confirm before ending tasks",
+        &tr("Confirm before ending tasks"),
         &confirm_kill,
     ));
 
     panel_body.append(&ui::launcher_picker(
         "utilities-system-monitor-symbolic",
-        "Process monitor",
+        &tr("Process monitor"),
         KNOWN_PROCESS_MONITORS,
         cfg.process_monitor.clone(),
         |val| {
@@ -79,11 +80,11 @@ pub fn build() -> gtk::Widget {
         },
     ));
 
-    let panel_hint = gtk::Label::new(Some(
+    let panel_hint = gtk::Label::new(Some(&tr(
         "Open Control Center from the grid icon beside workspace dots, or pull down \
          on the edge bar. Process monitor Auto-detect prefers btop/htop (in your \
-         terminal) then GUI monitors. Changes apply within about a second.",
-    ));
+         terminal) then GUI monitors. Changes apply within about a second."
+        )));
     panel_hint.set_xalign(0.0);
     panel_hint.set_wrap(true);
     panel_hint.add_css_class("metis-settings-hint");
@@ -91,7 +92,7 @@ pub fn build() -> gtk::Widget {
     content.append(&panel_card);
 
     let (widgets_card, widgets_body) =
-        ui::section_with_icon("Overview widgets", "view-app-grid-symbolic");
+        ui::section_with_icon(&tr("Overview widgets"), "view-app-grid-symbolic");
 
     let toggles = Rc::new(WidgetToggles {
         cpu: gtk::CheckButton::with_label(DashboardWidgetId::Cpu.label()),
@@ -118,10 +119,10 @@ pub fn build() -> gtk::Widget {
     }
     widgets_body.append(&widget_grid);
 
-    let widgets_hint = gtk::Label::new(Some(
+    let widgets_hint = gtk::Label::new(Some(&tr(
         "Processor, memory, storage, and network cards share the Overview tab. \
-         Disabling Processes hides the Processes tab.",
-    ));
+         Disabling Processes hides the Processes tab."
+        )));
     widgets_hint.set_xalign(0.0);
     widgets_hint.set_wrap(true);
     widgets_hint.add_css_class("metis-settings-hint");

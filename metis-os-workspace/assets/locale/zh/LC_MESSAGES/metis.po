@@ -1,267 +1,3309 @@
 # Metis UI translations (zh).
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:117
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:256
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:130
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:402
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:423
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:534
 msgid ""
 msgstr ""
 "Project-Id-Version: metis 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-23 18:18-0700\n"
 "Language: zh\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "System default"
-msgstr "系统默认"
-
-msgid "Language & region"
-msgstr "语言和区域"
-
-msgid "Language"
-msgstr "语言"
-
-msgid "Formats follow language"
-msgstr "格式跟随语言"
-
-msgid "Apply"
-msgstr "应用"
-
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:158
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:359
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:335
 msgid "Settings"
 msgstr "设置"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:285
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:106
 msgid "Search"
 msgstr "搜索"
 
-msgid "System"
-msgstr "系统"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:58
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:841
+msgid "Style"
+msgstr "样式"
 
-msgid "Display"
-msgstr "显示"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:78
+msgid "Colors"
+msgstr "颜色"
 
-msgid "Appearance"
-msgstr "外观"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:89
+msgid "Accent"
+msgstr "强调色"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:92
+msgid "Accent (secondary)"
+msgstr "强调色（次要）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:95
+msgid "Error"
+msgstr "错误"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:98
+msgid "Warning"
+msgstr "警告"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:101
+msgid "Success"
+msgstr "成功"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:104
+msgid "Info"
+msgstr "信息"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:109
+msgid "Payment"
+msgstr "支付"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:134
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1359
+msgid "Font"
+msgstr "字体"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:152
+msgid "Family & size"
+msgstr "字体族与大小"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:157
+msgid "Text color"
+msgstr "文字颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:244
+msgid "Setup"
+msgstr "设置向导"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:246
+msgid ""
+"Reopen the first-run setup wizard to walk through theme, wallpaper,          "
+"clock, edge bar, and weather again."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:253
+msgid "Run setup again"
+msgstr "重新运行设置向导"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:27
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:325
 msgid "Background"
 msgstr "背景"
 
-msgid "Edge bar"
-msgstr "边缘栏"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:358
+msgid "Picture"
+msgstr "图片"
 
-msgid "Network"
-msgstr "网络"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Solid color"
+msgstr "纯色"
 
-msgid "Skip"
-msgstr "跳过"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+msgid "Gradient"
+msgstr "渐变"
 
-msgid "Back"
-msgstr "返回"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:39
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:51
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1125
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:420
+msgid "Type"
+msgstr "类型"
 
-msgid "Next"
-msgstr "下一步"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:49
+msgid "Add Picture…"
+msgstr "添加图片…"
 
-msgid "Finish"
-msgstr "完成"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:72
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:390
+msgid "Color"
+msgstr "颜色"
 
-msgid "Welcome to Metis"
-msgstr "欢迎使用 Metis"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Top → Bottom"
+msgstr "从上到下"
 
-msgid "Choose your style"
-msgstr "选择风格"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Bottom → Top"
+msgstr "从下到上"
 
-msgid "Pick a wallpaper"
-msgstr "选择壁纸"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Left → Right"
+msgstr "从左到右"
 
-msgid "Clock format"
-msgstr "时钟格式"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Right → Left"
+msgstr "从右到左"
 
-msgid "Weather"
-msgstr "天气"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Diagonal ↘"
+msgstr "对角线 ↘"
 
-msgid "Gaming"
-msgstr "游戏"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Diagonal ↗"
+msgstr "对角线 ↗"
 
-msgid "Optional software"
-msgstr "可选软件"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:89
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:415
+msgid "Start color"
+msgstr "起始颜色"
 
-msgid "You're all set"
-msgstr "一切就绪"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:90
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:416
+msgid "End color"
+msgstr "结束颜色"
 
-msgid "Language & region for this session"
-msgstr "此会话的语言和区域"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:91
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:417
+msgid "Direction"
+msgstr "方向"
 
-msgid "Choose the language used by Metis. You can change this later in Settings."
-msgstr "选择 Metis 使用的语言。可稍后在设置中更改。"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:103
+msgid "Per-display background"
+msgstr "按显示器设置背景"
 
-msgid "Animations, titlebar opacity, and window borders"
-msgstr "动画、标题栏不透明度和窗口边框"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:105
+msgid ""
+"Pick a different picture for a specific display. Leave a display "
+"on              “Default” to use the background above."
+msgstr ""
 
-msgid "App titlebars"
-msgstr "应用标题栏"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:150
+msgid "Set…"
+msgstr "设置…"
 
-msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
-msgstr "适用于 Metis 设置、边缘栏、初始设置和锁屏。其他应用遵循系统语言。"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:152
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:813
+msgid "Clear"
+msgstr "清除"
 
-msgid "Battery, profiles, and idle behaviour"
-msgstr "电池、配置文件和空闲行为"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:311
+msgid "Lock screen"
+msgstr "锁屏"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+msgid "Use desktop wallpaper"
+msgstr "使用桌面壁纸"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:352
+msgid "Choose…"
+msgstr "选择…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:445
+msgid "Blur the background"
+msgstr "模糊背景"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:463
+msgid "Dim"
+msgstr "调暗"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:474
+msgid "Show clock"
+msgstr "显示时钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:479
+msgid "Use 24-hour clock"
+msgstr "使用 24 小时制"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:503
+msgid "Lock when the screen blanks"
+msgstr "屏幕关闭时锁定"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:516
+msgid "Lock now"
+msgstr "立即锁定"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:670
+msgid "Choose a picture"
+msgstr "选择图片"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:672
+msgid "Images"
+msgstr "图片"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:32
+msgid "Adapter"
+msgstr "适配器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:33
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:119
 msgid "Bluetooth"
 msgstr "蓝牙"
 
-msgid "Briefing weather card on the edge bar"
-msgstr "边缘栏上的简报天气卡片"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:35
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:101
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:267
+msgid "Scan for devices"
+msgstr "扫描设备"
 
-msgid "Calendar accounts for the briefing"
-msgstr "用于简报的日历账户"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:37
+msgid "Checking adapter…"
+msgstr "正在检查适配器…"
 
-msgid "Calendars"
-msgstr "日历"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:43
+msgid "Devices"
+msgstr "设备"
 
-msgid "Connectivity"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:106
+msgid "Stop scanning"
+msgstr "停止扫描"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:124
+msgid "No Bluetooth adapter found."
+msgstr "未找到蓝牙适配器。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:153
+msgid "No devices found. Tap Scan to search."
+msgstr "未找到设备。点击扫描以搜索。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:203
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:312
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:606
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:649
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:785
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:847
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:849
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:856
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:858
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:514
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:721
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:961
+msgid "Connect"
 msgstr "连接"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:213
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:594
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:651
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:959
+msgid "Disconnect"
+msgstr "断开"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:224
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:481
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:284
+msgid "Remove"
+msgstr "移除"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:239
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:308
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:465
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1523
+msgid "Connected"
+msgstr "已连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:240
+msgid "Paired"
+msgstr "已配对"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:241
+msgid "Available"
+msgstr "可用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:24
+msgid "Accounts"
+msgstr "账户"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:41
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:63
+msgid "Add account"
+msgstr "添加账户"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:44
+msgid "CalDAV"
+msgstr "CalDAV"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:45
+msgid "Thunderbird"
+msgstr "Thunderbird"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:46
+msgid "Microsoft 365"
+msgstr "Microsoft 365"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:47
+msgid "Local"
+msgstr "本地"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:53
+msgid "Display name"
+msgstr "显示名称"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:54
+msgid "CalDAV URL (server, calendar, or principal)"
+msgstr "CalDAV URL（服务器、日历或主体）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:55
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:999
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:104
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:422
+msgid "Username"
+msgstr "用户名"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:56
+msgid "MS tenant (e.g. common or your tenant id)"
+msgstr "MS 租户（例如 common 或您的租户 ID）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:57
+msgid "MS application (client) id"
+msgstr "MS 应用程序（客户端）ID"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:58
+msgid "Color (e.g. #22d3ee) — optional"
+msgstr "颜色（例如 #22d3ee）— 可选"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:164
+msgid "No calendar accounts."
+msgstr "没有日历账户。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:225
+msgid "Save password"
+msgstr "保存密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:268
+msgid "Sign in with Microsoft"
+msgstr "使用 Microsoft 登录"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:284
+msgid "Set the application (client) id first."
+msgstr "请先设置应用程序（客户端）ID。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:31
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:373
 msgid "Control Center"
 msgstr "控制中心"
 
-msgid "Desktop"
-msgstr "桌面"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:38
+msgid "Show Control Center"
+msgstr "显示控制中心"
 
-msgid "Desktop wallpaper: picture, solid colour, or gradient"
-msgstr "桌面壁纸：图片、纯色或渐变"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:49
+msgid "Maximum panel height (%)"
+msgstr "面板最大高度 (%)"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:60
+msgid "Refresh interval (ms)"
+msgstr "刷新间隔 (ms)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:69
+msgid "Confirm before ending tasks"
+msgstr "结束任务前确认"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:75
+msgid "Process monitor"
+msgstr "进程监视器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:84
+msgid ""
+"Open Control Center from the grid icon beside workspace dots, or pull "
+"down          on the edge bar. Process monitor Auto-detect prefers btop/htop "
+"(in your          terminal) then GUI monitors. Changes apply within about a "
+"second."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:95
+msgid "Overview widgets"
+msgstr "概览小部件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:123
+msgid ""
+"Processor, memory, storage, and network cards share the Overview "
+"tab.          Disabling Processes hides the Processes tab."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:40
 msgid "Desktop widgets"
 msgstr "桌面小部件"
 
-msgid "Displays"
-msgstr "显示器"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:47
+msgid "Show desktop widgets"
+msgstr "显示桌面小部件"
 
-msgid "Gamepads, touchscreens, Steam, and GPU hints"
-msgstr "手柄、触摸屏、Steam 和 GPU 提示"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:56
+msgid "Edit mode (move / resize)"
+msgstr "编辑模式（移动 / 调整大小）"
 
-msgid "Gestures, tap-to-click, and natural scroll"
-msgstr "手势、轻点点击和自然滚动"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:61
+msgid ""
+"Widgets float over the wallpaper (not classic desktop icons). Off "
+"by          default. In edit mode, drag the title bar to move and the corner "
+"handle          to resize. Chrome below is the default look; each widget can "
+"override it          from its Configure dialog."
+msgstr ""
 
-msgid "Graphics profile, arrangement, resolution, scale, and night light"
-msgstr "图形配置、排列、分辨率、缩放和夜灯"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:74
+msgid "Default look"
+msgstr "默认外观"
 
-msgid "Input"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1410
+msgid "Background opacity"
+msgstr "背景不透明度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:90
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:118
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1178
+msgid "Theme colour"
+msgstr "主题颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:102
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1462
+msgid "Background colour"
+msgstr "背景颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:114
+msgid "Border width (0 = none)"
+msgstr "边框宽度（0 = 无）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:130
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1568
+msgid "Border colour"
+msgstr "边框颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:135
+msgid ""
+"Opacity 0 clears the fill; set border width to 0 to hide the "
+"edge.              Theme colour follows the active Appearance surface / text "
+"tint."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:224
+msgid "Widgets on this desktop"
+msgstr "此桌面上的小部件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:242
+msgid "Add widget"
+msgstr "添加小部件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:249
+msgid "No widgets yet. Pick a type above and click Add widget."
+msgstr "尚无小部件。在上方选择类型并点击添加小部件。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:441
+msgid "Locked"
+msgstr "已锁定"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:459
+msgid "Configure"
+msgstr "配置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:550
+msgid "Done"
+msgstr "完成"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:655
+msgid "Show title"
+msgstr "显示标题"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:677
+msgid "~/Desktop"
+msgstr "~/Desktop"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:695
+msgid "Set path"
+msgstr "设置路径"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:739
+msgid "Import start-menu pins"
+msgstr "导入开始菜单固定项"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:763
+msgid "Follow start menu again"
+msgstr "再次跟随开始菜单"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:874
+msgid "Colour mode"
+msgstr "颜色模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:897
+msgid "Solid colour"
+msgstr "纯色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:918
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:182
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:138
+msgid "Gradient start"
+msgstr "渐变起始"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:938
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:184
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:140
+msgid "Gradient end"
+msgstr "渐变结束"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:944
+msgid "Uses the active Appearance accent and secondary colours."
+msgstr "使用当前外观的强调色和次要颜色。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1017
+msgid "Bar shape"
+msgstr "条形形状"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1039
+msgid "Bar height gradient"
+msgstr "条形高度渐变"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1065
+msgid "Peak caps"
+msgstr "峰值上限"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1086
+msgid "Peak colour"
+msgstr "峰值颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1108
+msgid "Bar reflection"
+msgstr "条形反射"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1115
+msgid "Spectrum lines use the colour mode above across the frequency range."
+msgstr "频谱线在整个频率范围内使用上述颜色模式。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1140
+msgid "Mirror wave"
+msgstr "镜像波形"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1146
+msgid "Rays radiate from the centre. Colour mode tints around the ring."
+msgstr "光线从中心向外辐射。颜色模式为环形着色。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1156
+msgid ""
+"Listens to the default audio output (PipeWire/Pulse monitor).          Play "
+"music or a movie — silent sinks show a quiet idle decay."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1227
+msgid "Text colour"
+msgstr "文字颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1235
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Theme accent"
+msgstr "主题强调色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1294
+msgid ""
+"Font picks family, weight, and size. Text colour tints labels and "
+"icons;          accent colours the System progress fills."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1311
+msgid "Theme font"
+msgstr "主题字体"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1391
+msgid "View"
+msgstr "视图"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1400
+msgid "Look overrides (optional)"
+msgstr "外观覆盖（可选）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1516
+msgid "Border width"
+msgstr "边框宽度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1620
+msgid "Clear all overrides"
+msgstr "清除所有覆盖"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:46
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:55
+msgid "Graphics"
+msgstr "图形"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Auto (recommended)"
+msgstr "自动（推荐）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Compatibility"
+msgstr "兼容性"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Normal"
+msgstr "正常"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:59
+msgid "Graphics profile"
+msgstr "图形配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:63
+msgid ""
+"Auto uses software GTK painting in virtual machines (VirtualBox, "
+"etc.)          so Settings and other GTK apps stay readable. Compatibility "
+"always          forces that soft path; Normal forces hardware/GL. Already-"
+"running apps          keep their renderer until relaunched. Compatibility "
+"also turns off          window animations."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:89
+msgid "Night light"
+msgstr "夜间模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:90
+msgid "Enable night light"
+msgstr "启用夜间模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:103
+msgid "Warmer ← drag → cooler"
+msgstr "更暖 ← 拖动 → 更冷"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:107
+msgid "Colour temperature"
+msgstr "色温"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:109
+msgid "Use schedule"
+msgstr "使用计划"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:114
+msgid "12-hour time"
+msgstr "12 小时制"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:135
+msgid "From"
+msgstr "从"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:141
+msgid "To"
+msgstr "到"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:159
+msgid ""
+"Pick a preset or type a custom time at the top of each menu. Overnight "
+"ranges          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night "
+"light only tints          inside that window."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:170
+msgid ""
+"Applies live. Drag left for a warmer evening tint (like GNOME Night "
+"Light);          drag right toward normal daylight colour."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:179
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:744
+msgid "Display mode"
+msgstr "显示模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:182
+msgid "Duplicate displays"
+msgstr "复制显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:186
+msgid "Show on"
+msgstr "显示于"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:198
+msgid ""
+"Duplicate displays requires a DRM session with two or more active "
+"monitors.          Nested dev sessions save this preference but the "
+"compositor stays in extend mode."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:207
+msgid "Arrangement"
+msgstr "排列"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:213
+msgid "Save display settings"
+msgstr "保存显示设置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:216
+msgid "Revert"
+msgstr "还原"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:221
+msgid "Compositor not reachable — start a Metis session to configure displays."
+msgstr "无法连接合成器 — 请启动 Metis 会话以配置显示器。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:599
+msgid "Detect displays"
+msgstr "检测显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:637
+msgid "Primary display"
+msgstr "主显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:645
+msgid "Set as primary display"
+msgstr "设为主显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:669
+msgid "Primary"
+msgstr "主"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:674
+msgid "Mirror source — other displays duplicate this one"
+msgstr "镜像源 — 其他显示器复制此显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:682
+msgid "Duplicating another display"
+msgstr "正在复制另一显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:691
+msgid "Applies live"
+msgstr "即时生效"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "100%"
+msgstr "100%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "125%"
+msgstr "125%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "150%"
+msgstr "150%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "175%"
+msgstr "175%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "200%"
+msgstr "200%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:701
+msgid "Scale"
+msgstr "缩放"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:705
+msgid "Active"
+msgstr "活动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:710
+msgid "Adaptive sync"
+msgstr "自适应同步"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:748
+msgid ""
+"No DRM mode list available — connect displays in a Metis session on real "
+"hardware."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:770
+msgid "Resolution & refresh"
+msgstr "分辨率与刷新率"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:789
+msgid "Rotation — coming soon"
+msgstr "旋转 — 即将推出"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:792
+msgid "Rotation"
+msgstr "旋转"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:795
+msgid "Colour profile"
+msgstr "颜色配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:811
+msgid "Choose ICC profile…"
+msgstr "选择 ICC 配置文件…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:823
+msgid ""
+"Saved to outputs.json and exposed to Wayland clients via "
+"wp_color_management_v1.          GPU colour transforms in the compositor "
+"render path are still follow-up work."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:842
+msgid "Choose ICC colour profile"
+msgstr "选择 ICC 颜色配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:847
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:381
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:784
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1036
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1208
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1376
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:459
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:163
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:199
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:512
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:719
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1733
+msgid "Cancel"
+msgstr "取消"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:848
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:138
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:268
+msgid "Open"
+msgstr "打开"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:850
+msgid "ICC profiles"
+msgstr "ICC 配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:19
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:39
+msgid "Edge bar"
+msgstr "边缘栏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Top"
+msgstr "顶部"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Bottom"
+msgstr "底部"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Left"
+msgstr "左侧"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Right"
+msgstr "右侧"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:29
+msgid "Position"
+msgstr "位置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+msgid "All displays"
+msgstr "所有显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+msgid "Primary display only"
+msgstr "仅主显示器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:41
+msgid "Show bar on"
+msgstr "显示边缘栏于"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
+msgid "Independent per display"
+msgstr "各显示器独立"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
+msgid "Linked across displays"
+msgstr "跨显示器联动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:53
+msgid ""
+"Independent: each monitor keeps its own workspaces.\n"
+"         Linked: switching a workspace moves every monitor at once."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:58
+msgid "Workspaces"
+msgstr "工作区"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Free desktop"
+msgstr "自由桌面"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Grid tiling"
+msgstr "网格平铺"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Scrolling"
+msgstr "滚动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:70
+msgid ""
+"Applies to every workspace right away.\n"
+"         Toggle the active workspace with Super + \\ (cycles free → grid → "
+"scroll)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:75
+msgid "New workspace layout"
+msgstr "新工作区布局"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
+msgid "Collapsed (popup list)"
+msgstr "折叠（弹出列表）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
+msgid "Pinned on bar"
+msgstr "固定在边缘栏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:87
+msgid ""
+"Collapsed: one tray button opens a popover with all background app icons.\n"
+"         Pinned: tray icons stay visible on the bar, left of the tray button."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:92
+msgid "System tray icons"
+msgstr "系统托盘图标"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:103
+msgid "Distance from edge"
+msgstr "距边缘距离"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:112
+msgid "Opacity"
+msgstr "不透明度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:118
+msgid "Backdrop blur"
+msgstr "背景模糊"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:125
+msgid "Blur radius"
+msgstr "模糊半径"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:128
+msgid ""
+"Blur frosts the wallpaper behind the bar — it needs a wallpaper set "
+"and          the bar opacity below 1.0 to show through. Changes apply within "
+"~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Custom gradient"
+msgstr "自定义渐变"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:149
+msgid "Bar border"
+msgstr "边缘栏边框"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:158
+msgid "Bar border thickness"
+msgstr "边缘栏边框粗细"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:167
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:118
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:188
+msgid "Border color"
+msgstr "边框颜色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:183
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:139
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:204
+msgid "Gradient middle"
+msgstr "渐变中间色"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Auto (games on discrete GPU)"
+msgstr "自动（游戏使用独立 GPU）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Desktop iGPU / games dGPU"
+msgstr "桌面 iGPU / 游戏 dGPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Always discrete GPU"
+msgstr "始终使用独立 GPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Always integrated GPU"
+msgstr "始终使用集成 GPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Off (manual only)"
+msgstr "关闭（仅手动）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:63
+msgid "Graphics mode"
+msgstr "图形模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:68
+msgid "Prefer iGPU on battery"
+msgstr "使用电池时优先 iGPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:73
+msgid "Performance profile while gaming"
+msgstr "游戏时的性能配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:78
+msgid "Auto GameMode"
+msgstr "自动游戏模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:83
+msgid "Flatpak GPU offload env"
+msgstr "Flatpak GPU 卸载环境变量"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:91
+msgid "Checking gaming health…"
+msgstr "正在检查游戏环境…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:103
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:283
+msgid "Optimize now"
+msgstr "立即优化"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:107
+msgid "Apply Flatpak gaming overrides and add you to the input group if needed"
+msgstr "应用 Flatpak 游戏覆盖设置，并在需要时将您加入 input 组"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:111
+msgid "Run gaming setup"
+msgstr "运行游戏设置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:114
+msgid "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
+msgstr "打开游戏设置向导（Flatpak、GPU 路由、启动器包装）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:121
+msgid "Health check"
+msgstr "健康检查"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:127
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:227
+msgid "Session"
+msgstr "会话"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:128
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:89
+msgid "Checking…"
+msgstr "正在检查…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:129
+msgid "Steam"
+msgstr "Steam"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:133
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1095
+msgid "GPU"
+msgstr "GPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:137
+msgid "Gamepads"
+msgstr "游戏手柄"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:144
+msgid "Touchscreens"
+msgstr "触摸屏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:235
+msgid "Optimizing…"
+msgstr "正在优化…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:363
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:382
+msgid "Gaming setup"
+msgstr "游戏设置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:387
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:426
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:407
+msgid "Close"
+msgstr "关闭"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:393
+msgid ""
+"Applies Flatpak device/socket overrides, hybrid GPU env vars for Steam/"
+"Lutris/Heroic,          and writes the Flatpak Steam launcher wrapper. Safe "
+"to re-run after updates."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:416
+msgid "Click Start to run the optimizer."
+msgstr "点击开始以运行优化器。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:428
+msgid "Start setup"
+msgstr "开始设置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:588
+msgid "Fix"
+msgstr "修复"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:589
+msgid "Install or apply this fix (may ask for your password)"
+msgstr "安装或应用此修复（可能会要求输入密码）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:607
+msgid "Copy command"
+msgstr "复制命令"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:612
+msgid "Copied"
+msgstr "已复制"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:645
+msgid "Ready for gaming — all checks passed."
+msgstr "游戏就绪 — 所有检查已通过。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:705
+msgid "Installed (native)"
+msgstr "已安装（原生）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:706
+msgid "Installed (Flatpak)"
+msgstr "已安装（Flatpak）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:707
+msgid "Not detected"
+msgstr "未检测到"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:710
+msgid "No gamepads detected"
+msgstr "未检测到游戏手柄"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:714
+msgid "No touchscreens detected"
+msgstr "未检测到触摸屏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
+msgid "Adaptive"
+msgstr "自适应"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
+msgid "Flat"
+msgstr "平面"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:25
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:32
+msgid "Layout"
+msgstr "布局"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:28
+msgid "Leave empty for system default, e.g. us"
+msgstr "留空则使用系统默认，例如 us"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:35
+msgid "Optional variant"
+msgstr "可选变体"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:39
+msgid "Variant"
+msgstr "变体"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:42
+msgid "Extra xkb options, comma-separated"
+msgstr "额外 xkb 选项，逗号分隔"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:46
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:252
+msgid "Options"
+msgstr "选项"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:49
+msgid ""
+"Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See          /usr/"
+"share/X11/xkb/rules/base.lst on your system."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:55
+msgid "Typing"
 msgstr "输入"
 
-msgid "Installed printers and system print settings"
-msgstr "已安装的打印机和系统打印设置"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:61
+msgid "Repeat delay (ms)"
+msgstr "重复延迟 (ms)"
 
-msgid "Keyboard"
-msgstr "键盘"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:67
+msgid "Repeat rate (Hz)"
+msgstr "重复速率 (Hz)"
 
-msgid "Launcher apps and menu panel look"
-msgstr "启动器应用和菜单外观"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:103
+msgid "Default"
+msgstr "默认"
 
-msgid "Metis Menu"
-msgstr "Metis 菜单"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+msgid "Escape"
+msgstr "Esc"
 
-msgid "Mouse"
-msgstr "鼠标"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+msgid "Control"
+msgstr "Ctrl"
 
-msgid "Optional wallpaper widgets: folders, apps, clock, and more"
-msgstr "可选壁纸小部件：文件夹、应用、时钟等"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:79
+msgid "Caps Lock"
+msgstr "大写锁定"
 
-msgid "Output and input audio devices"
-msgstr "输出和输入音频设备"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Disabled"
+msgstr "已禁用"
 
-msgid "Override Metis vs app titlebars per application"
-msgstr "按应用覆盖 Metis 或应用标题栏"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Right Alt"
+msgstr "右 Alt"
 
-msgid "Pair and manage Bluetooth devices"
-msgstr "配对并管理蓝牙设备"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Menu"
+msgstr "菜单"
 
-msgid "Pointer speed, acceleration, and scrolling"
-msgstr "指针速度、加速和滚动"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Left Alt"
+msgstr "左 Alt"
 
-msgid "Position, opacity, blur, workspaces, and the bar border"
-msgstr "位置、不透明度、模糊、工作区和栏边框"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Scroll Lock"
+msgstr "滚动锁定"
 
-msgid "Power"
-msgstr "电源"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:93
+msgid "Compose key"
+msgstr "Compose 键"
 
-msgid "Printers"
-msgstr "打印机"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+msgid "Auto (numpad detected)"
+msgstr "自动（检测到数字键盘）"
 
-msgid "Remote access"
-msgstr "远程访问"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+msgid "Always on"
+msgstr "始终开启"
 
-msgid "Repeat rate and layout preferences"
-msgstr "重复速率和布局偏好"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:153
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:232
+msgid "Off"
+msgstr "关闭"
 
-msgid "Session language and number/date formats"
-msgstr "会话语言及数字/日期格式"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:105
+msgid "Num Lock on login"
+msgstr "登录时开启数字锁定"
 
-msgid "Share your logged-in session over the network"
-msgstr "通过网络共享已登录会话"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:108
+msgid ""
+"Auto turns Num Lock on when a keyboard with a numeric keypad is          "
+"present. Keyboard settings apply live in the Metis session within ~1s."
+msgstr ""
 
-msgid "Sound"
-msgstr "声音"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:213
+msgid "Shortcuts"
+msgstr "快捷键"
 
-msgid "System monitor panel, refresh rate, and process controls"
-msgstr "系统监视器面板、刷新率和进程控制"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Super"
+msgstr "Super"
 
-msgid "Theme mode, accent colours, and interface font"
-msgstr "主题模式、强调色和界面字体"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Alt"
+msgstr "Alt"
 
-msgid "Touchpad"
-msgstr "触控板"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Ctrl"
+msgstr "Ctrl"
 
-msgid "Wi-Fi, Ethernet, DNS, and proxy"
-msgstr "Wi-Fi、以太网、DNS 和代理"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:232
+msgid "Metis modifier (defaults)"
+msgstr "Metis 修饰键（默认）"
 
-msgid "Windows"
-msgstr "窗口"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:255
+msgid ""
+"Click Change, then press a shortcut in the field that appears, then "
+"Save.          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are "
+"system-only and          cannot be changed."
+msgstr ""
 
-msgid "Files"
-msgstr "文件"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:337
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1798
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:268
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "System"
+msgstr "系统"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:362
+msgid "Change"
+msgstr "更改"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:363
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:148
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:280
+msgid "Reset"
+msgstr "重置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:374
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:424
+msgid "Press a shortcut…"
+msgstr "请按下快捷键…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:379
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1377
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1438
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1444
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:461
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:532
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:197
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:266
+msgid "Save"
+msgstr "保存"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:467
+msgid "That shortcut is reserved for the system and cannot be used."
+msgstr "该快捷键为系统保留，无法使用。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:16
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:45
+msgid "Language"
+msgstr "语言"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:47
+msgid "Formats follow language"
+msgstr "格式跟随语言"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:52
+msgid ""
+"Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock "
+"screen. Many page and widget labels are still English until they are "
+"translated. Other apps follow the system locale."
+msgstr ""
+"适用于 Metis 设置界面、Metis 菜单、初始设置和锁屏。许多页面和小部件标签在翻译"
+"完成前仍为英文。其他应用遵循系统语言。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:59
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1570
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1653
+msgid "Apply"
+msgstr "应用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:18
+msgid "Quick launchers"
+msgstr "快速启动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:328
 msgid "Terminal"
 msgstr "终端"
 
-msgid "Lock"
-msgstr "锁定"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:34
+msgid "File manager"
+msgstr "文件管理器"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:45
+msgid ""
+"Auto-detect uses the first installed option. Choose Custom to point at "
+"any          executable on your system."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:55
+msgid "Appearance"
+msgstr "外观"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:63
+msgid "Panel opacity"
+msgstr "面板不透明度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:70
+msgid ""
+"Opacity of the Metis menu panel and its translucent surfaces. Applies within "
+"~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:14
+msgid "Pointer"
+msgstr "指针"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:19
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:51
+msgid "Pointer speed"
+msgstr "指针速度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:26
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:58
+msgid "Acceleration"
+msgstr "加速"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:33
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:36
+msgid "Natural scrolling"
+msgstr "自然滚动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:40
+msgid "Primary button on right"
+msgstr "主按钮在右侧"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:47
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:65
+msgid "Scroll speed"
+msgstr "滚动速度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:52
+msgid ""
+"Applies to mice and other non-touchpad pointers in the Metis session "
+"(wheel,          including lists in the Metis menu). Changes apply "
+"immediately."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:64
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:68
+msgid "Wi-Fi radio"
+msgstr "Wi-Fi 无线电"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:69
+msgid "Rescan"
+msgstr "重新扫描"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:77
+msgid "Known Wi-Fi networks"
+msgstr "已知 Wi-Fi 网络"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:80
+msgid "DNS"
+msgstr "DNS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:466
+msgid "Ethernet"
+msgstr "以太网"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:92
+msgid "VPN connections"
+msgstr "VPN 连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:95
+msgid ""
+"OpenVPN import needs the NetworkManager plugin. Install with:\n"
+"             sudo apt install network-manager-openvpn"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:111
+msgid "Import…"
+msgstr "导入…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:113
+msgid "Add OpenVPN…"
+msgstr "添加 OpenVPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:114
+msgid "Add WireGuard…"
+msgstr "添加 WireGuard…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:134
+msgid ""
+"Import .ovpn / WireGuard .conf files, or add OpenVPN / WireGuard manually. "
+"Saved NetworkManager VPN profiles appear here automatically."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:140
+msgid "System proxy"
+msgstr "系统代理"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:296
+msgid "Wi-Fi is off."
+msgstr "Wi-Fi 已关闭。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:298
+msgid "No networks found."
+msgstr "未找到网络。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:339
+msgid "No saved Wi-Fi networks."
+msgstr "没有已保存的 Wi-Fi 网络。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:346
+msgid "Forget"
+msgstr "忘记"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:378
+msgid "Connect to a Wi-Fi network to override its DNS."
+msgstr "连接到 Wi-Fi 网络以覆盖其 DNS。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:394
+msgid "No Ethernet devices."
+msgstr "没有以太网设备。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:415
+msgid ""
+"No VPN profiles yet. Import an .ovpn or WireGuard .conf, or add OpenVPN / "
+"WireGuard manually."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:477
+msgid "Auto-connect"
+msgstr "自动连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:481
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:488
+msgid ""
+"Connect this VPN after login when the network is ready. Only one profile can "
+"auto-connect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:509
+msgid "Autoconnect enabled (only this profile)."
+msgstr "已启用自动连接（仅此配置文件）。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:511
+msgid "Autoconnect disabled."
+msgstr "已禁用自动连接。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:520
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:644
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:817
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:819
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:820
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:898
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:945
+msgid "Connecting…"
+msgstr "正在连接…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:528
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:676
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:838
+msgid "Connected."
+msgstr "已连接。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:574
+msgid "Edit"
+msgstr "编辑"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:620
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:646
+msgid "Delete"
+msgstr "删除"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:646
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:900
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:943
+msgid "Disconnecting…"
+msgstr "正在断开…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:678
+msgid "Disconnected."
+msgstr "已断开。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:690
+msgid "Password required — enter your VPN password."
+msgstr "需要密码 — 请输入 VPN 密码。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:726
+msgid "VPN password required, but no window is available to prompt."
+msgstr "需要 VPN 密码，但没有可用窗口进行提示。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:733
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:703
+msgid "VPN password"
+msgstr "VPN 密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:749
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:827
+msgid "VPN password required"
+msgstr "需要 VPN 密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:755
+msgid ""
+"This profile needs a password that NetworkManager does not have yet          "
+"(common after moving from another desktop). Enter it to connect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:766
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:431
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:506
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:710
+msgid "Password"
+msgstr "密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:770
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1022
+msgid "Remember password on this profile"
+msgstr "在此配置文件上记住密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:811
+msgid "Enter the VPN password."
+msgstr "请输入 VPN 密码。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:896
+msgid "Import VPN profile"
+msgstr "导入 VPN 配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:898
+msgid "VPN configs (*.ovpn, *.conf)"
+msgstr "VPN 配置 (*.ovpn, *.conf)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:911
+msgid "Importing…"
+msgstr "正在导入…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:945
+msgid "Could not open OpenVPN dialog (no parent window)."
+msgstr "无法打开 OpenVPN 对话框（无父窗口）。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:951
+msgid ""
+"OpenVPN plugin missing. Install with: sudo apt install network-manager-"
+"openvpn"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:958
+msgid "Add OpenVPN"
+msgstr "添加 OpenVPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:974
+msgid "Add OpenVPN connection"
+msgstr "添加 OpenVPN 连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:980
+msgid ""
+"Password authentication only. For provider configs with certificates, use "
+"Import… on an .ovpn file."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:993
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1002
+msgid "Password (optional)"
+msgstr "密码（可选）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:997
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1190
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1351
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:120
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1122
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:416
+msgid "Name"
+msgstr "名称"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:998
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1555
+msgid "Gateway"
+msgstr "网关"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1011
+msgid "Browse…"
+msgstr "浏览…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1015
+msgid "CA certificate (optional)"
+msgstr "CA 证书（可选）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1037
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1120
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1209
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1273
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1279
+msgid "Create"
+msgstr "创建"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1054
+msgid "Choose CA certificate"
+msgstr "选择 CA 证书"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1056
+msgid "Certificates (*.crt, *.pem)"
+msgstr "证书 (*.crt, *.pem)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1087
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1236
+msgid "Creating…"
+msgstr "正在创建…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1111
+msgid "OpenVPN profile created."
+msgstr "OpenVPN 配置文件已创建。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1147
+msgid "Could not open WireGuard dialog (no parent window)."
+msgstr "无法打开 WireGuard 对话框（无父窗口）。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1154
+msgid "Add WireGuard"
+msgstr "添加 WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1172
+msgid "Add WireGuard connection"
+msgstr "添加 WireGuard 连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1191
+msgid "Private key"
+msgstr "私钥"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1192
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1352
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1554
+msgid "Address (CIDR)"
+msgstr "地址 (CIDR)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1193
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1353
+msgid "Peer public key"
+msgstr "对端公钥"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1194
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1354
+msgid "Endpoint"
+msgstr "端点"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1195
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1355
+msgid "Allowed IPs"
+msgstr "允许的 IP"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1196
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1356
+msgid "DNS (optional)"
+msgstr "DNS（可选）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1264
+msgid "WireGuard connection created."
+msgstr "WireGuard 连接已创建。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1303
+msgid "Could not open edit dialog (no parent window)."
+msgstr "无法打开编辑对话框（无父窗口）。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1309
+msgid "Could not load WireGuard profile details."
+msgstr "无法加载 WireGuard 配置文件详情。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1316
+msgid "Edit WireGuard"
+msgstr "编辑 WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1332
+msgid "Edit WireGuard connection"
+msgstr "编辑 WireGuard 连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1359
+msgid ""
+"Private key is unchanged. Disconnect and reconnect for peer/address edits to "
+"take effect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1404
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:516
+msgid "Saving…"
+msgstr "正在保存…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1429
+msgid "WireGuard profile updated."
+msgstr "WireGuard 配置文件已更新。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1494
+msgid "DNS servers"
+msgstr "DNS 服务器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1496
+msgid "Comma-separated. Leave empty to use the DHCP-provided DNS."
+msgstr "逗号分隔。留空则使用 DHCP 提供的 DNS。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1499
+msgid "Apply DNS"
+msgstr "应用 DNS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1525
+msgid "Disconnected"
+msgstr "已断开"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1537
+msgid "No active profile for this device."
+msgstr "此设备没有活动配置文件。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
+msgid "Automatic (DHCP)"
+msgstr "自动 (DHCP)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
+msgid "Manual (static)"
+msgstr "手动（静态）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1548
+msgid "IPv4 method"
+msgstr "IPv4 方式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1561
+msgid "DNS (override)"
+msgstr "DNS（覆盖）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1599
+msgid ""
+"System proxy settings are unavailable (the GNOME proxy schema isn't "
+"installed)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "None"
+msgstr "无"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "Manual"
+msgstr "手动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "Automatic (PAC)"
+msgstr "自动 (PAC)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1615
+msgid "Proxy mode"
+msgstr "代理模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1629
+msgid "Ignore hosts"
+msgstr "忽略主机"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1636
+msgid "PAC URL"
+msgstr "PAC URL"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1650
+msgid "Applies to GLib/GTK apps via the system proxy resolver."
+msgstr "通过系统代理解析器应用于 GLib/GTK 应用。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1699
+msgid "proxy.example.com"
+msgstr "proxy.example.com"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1706
+msgid "8080"
+msgstr "8080"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1733
+msgid "Join"
+msgstr "加入"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:38
+msgid "Battery"
+msgstr "电池"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:31
+msgid "No battery detected"
+msgstr "未检测到电池"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:39
+msgid "Power mode"
+msgstr "电源模式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Power saver"
+msgstr "省电"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Balanced"
+msgstr "平衡"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Performance"
+msgstr "性能"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:45
+msgid "Profile"
+msgstr "配置文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:48
+msgid "Power saving"
+msgstr "节能"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:51
+msgid "Blank screen after (min, 0=never)"
+msgstr "关闭屏幕时间（分钟，0=永不）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:54
+msgid "Suspend after idle (min, 0=never)"
+msgstr "空闲后挂起（分钟，0=永不）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:374
 msgid "Suspend"
 msgstr "待机"
 
-msgid "Log Out"
-msgstr "注销"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Ignore"
+msgstr "忽略"
 
-msgid "Restart"
-msgstr "重新启动"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Hibernate"
+msgstr "休眠"
 
-msgid "Shut Down"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Power off"
 msgstr "关机"
 
-msgid "Big Picture"
-msgstr "Big Picture"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:60
+msgid "When lid is closed"
+msgstr "合上盖子时"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:62
+msgid "Dim on battery"
+msgstr "使用电池时调暗"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:65
+msgid "Connected devices"
+msgstr "已连接设备"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:66
+msgid "No wireless devices connected"
+msgstr "没有已连接的无线设备"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:187
+msgid "charging"
+msgstr "充电中"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:189
+msgid "discharging"
+msgstr "放电中"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:196
+msgid "No battery detected (desktop / AC-only)"
+msgstr "未检测到电池（台式机 / 仅交流电）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:256
+msgid "No battery info"
+msgstr "无电池信息"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:21
+msgid "Open printer settings…"
+msgstr "打开打印机设置…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:25
+msgid "Installed printers"
+msgstr "已安装打印机"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:72
+msgid "CUPS not available. Install cups and system-config-printer."
+msgstr "CUPS 不可用。请安装 cups 和 system-config-printer。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:80
+msgid "No default printer set"
+msgstr "未设置默认打印机"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:83
+msgid "No printers configured."
+msgstr "未配置打印机。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:33
+msgid ""
+"Session sharing lets another device view and control the Metis "
+"session          you are already logged into. Remote login to start a "
+"separate session          will be a different option when it is available."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:48
+msgid ""
+"Install gnome-remote-desktop to enable desktop session sharing:\n"
+"         sudo apt install gnome-remote-desktop"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:62
+msgid "Set a password before enabling desktop session sharing."
+msgstr "启用桌面会话共享前请设置密码。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:68
+msgid "Set password…"
+msgstr "设置密码…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:73
+msgid "Desktop session sharing"
+msgstr "桌面会话共享"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:84
+msgid "Allow desktop session sharing"
+msgstr "允许桌面会话共享"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:88
+msgid "Connection"
+msgstr "连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:91
+msgid "Status"
+msgstr "状态"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:96
+msgid "Address"
+msgstr "地址"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:100
+msgid "Port"
+msgstr "端口"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:106
+msgid "Change password…"
+msgstr "更改密码…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:110
+msgid "Copy connection address"
+msgstr "复制连接地址"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:114
+msgid ""
+"Connect with Microsoft Remote Desktop, Remmina, or FreeRDP.          Use the "
+"username and password you set above — empty credentials will not work."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:129
+msgid "Security"
+msgstr "安全"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:131
+msgid ""
+"Keep session sharing on your local network when possible. Use a strong "
+"password.          Sharing pauses while the session is locked "
+"(Super+L).          See docs/USER_GUIDE.md for firewall setup (ufw allow "
+"3389/tcp)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:141
+msgid "Remote login"
+msgstr "远程登录"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:143
+msgid ""
+"Sign in remotely to start a new desktop session (for example xrdp) — "
+"planned          for a later milestone. This page only covers sharing the "
+"session you are          already in."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:317
+msgid "Not available"
+msgstr "不可用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:318
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:319
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:320
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:323
+msgid "—"
+msgstr "—"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:322
+msgid "Use your session sharing password"
+msgstr "使用您的会话共享密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:339
+msgid "Running — ready for connections"
+msgstr "运行中 — 可接受连接"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:344
+msgid "Starting…"
+msgstr "正在启动…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:349
+msgid "Stopped"
+msgstr "已停止"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:384
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:402
+msgid "Session sharing password"
+msgstr "会话共享密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:413
+msgid "Choose the username and password RDP clients use to join this session."
+msgstr "选择 RDP 客户端加入此会话时使用的用户名和密码。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:440
+msgid "Confirm password"
+msgstr "确认密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:505
+msgid "Passwords do not match"
+msgstr "密码不匹配"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:510
+msgid "Use at least 8 characters"
+msgstr "请使用至少 8 个字符"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:28
+msgid "Output"
+msgstr "输出"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:30
+msgid "Playback device"
+msgstr "播放设备"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:33
+msgid "Volume"
+msgstr "音量"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:36
+msgid "Input"
+msgstr "输入"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:38
+msgid "Recording device"
+msgstr "录音设备"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:41
+msgid "Level"
+msgstr "电平"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:45
+msgid "Use the volume icon on the edge bar for quick mute and level control."
+msgstr "使用边缘栏上的音量图标快速静音和调节音量。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:39
+msgid ""
+"Auto uses Metis defaults. Override only when an app shows a double          "
+"titlebar or is missing Metis window controls. Changes apply immediately."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:48
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:107
 msgid "Search applications…"
 msgstr "搜索应用…"
 
-msgid "Pinned"
-msgstr "已固定"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:65
+msgid "Applications"
+msgstr "应用"
 
-msgid "Right-click an app to pin it here."
-msgstr "右键点击应用以固定到此处。"
-
-msgid "Frequent Apps"
-msgstr "常用应用"
-
-msgid "Search Results"
-msgstr "搜索结果"
-
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:177
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:581
 msgid "No matching applications"
 msgstr "没有匹配的应用"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:394
+msgid "Customized"
+msgstr "自定义"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "Auto"
+msgstr "自动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "Metis titlebar"
+msgstr "Metis 标题栏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "App titlebar"
+msgstr "应用标题栏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:15
+msgid "Touchpad"
+msgstr "触控板"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:21
+msgid "Tap to click"
+msgstr "轻触点击"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:29
+msgid "Tap and drag"
+msgstr "轻触并拖动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:44
+msgid "Disable while typing"
+msgstr "输入时禁用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:70
+msgid ""
+"These options apply when a touchpad is present in the Metis DRM session. "
+"Under          the nested dev session they are stored but not applied."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:30
+msgid "Units"
+msgstr "单位"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Automatic"
+msgstr "自动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Celsius"
+msgstr "摄氏度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Fahrenheit"
+msgstr "华氏度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:41
+msgid "Temperature unit"
+msgstr "温度单位"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:56
+msgid "Auto-detect"
+msgstr "自动检测"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:60
+msgid "Detect my location"
+msgstr "检测我的位置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:66
+msgid "Use IP geolocation (more precise)"
+msgstr "使用 IP 地理定位（更精确）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:69
+msgid "Auto-detect is used only when no locations are pinned below."
+msgstr "仅当下方没有固定位置时才使用自动检测。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:93
+msgid "Locations"
+msgstr "位置"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:103
+msgid "Search for a city…"
+msgstr "搜索城市…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:142
+msgid "Searching…"
+msgstr "正在搜索…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:167
+msgid "No matches found."
+msgstr "未找到匹配项。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:177
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:165
+msgid "Add"
+msgstr "添加"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:204
+msgid "No pinned locations (using auto-detect)."
+msgstr "没有固定位置（使用自动检测）。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:19
+msgid "Windows"
+msgstr "窗口"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:27
+msgid "Window animations"
+msgstr "窗口动画"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:32
+msgid ""
+"Minimize genie, maximize wobble, and titlebar slide effects.          Turn "
+"off for instant window transitions. The Compatibility graphics          "
+"profile on Display also disables animations in VMs."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:49
+msgid "Maximized window padding"
+msgstr "最大化窗口内边距"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:54
+msgid ""
+"Space around maximized and edge-snapped windows. 0 is flush to the          "
+"screen and bar edges; 10 is the maximum inset. Applies within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:69
+msgid "Titlebar opacity"
+msgstr "标题栏不透明度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:74
+msgid ""
+"Dims only the window titlebar background so the wallpaper shows "
+"through;          the title text and window buttons stay solid. Changes "
+"apply within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:97
+msgid "Title pill border"
+msgstr "标题胶囊边框"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:108
+msgid "Pill border width"
+msgstr "胶囊边框宽度"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:168
+msgid "Window border"
+msgstr "窗口边框"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:179
+msgid "Window border thickness"
+msgstr "窗口边框粗细"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:203
+msgid "Gradient top"
+msgstr "渐变顶部"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:205
+msgid "Gradient bottom"
+msgstr "渐变底部"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:209
+msgid ""
+"The border around the whole window frame, independent of the title pill. "
+"The          gradient flows top→bottom; thickness also insets the window "
+"contents.          Changes apply within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:45
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:541
+msgid "Alarms"
+msgstr "闹钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:52
+msgid "New alarm"
+msgstr "新建闹钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:76
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:214
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:421
+msgid "AM"
+msgstr "上午"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:91
+msgid "Repeat"
+msgstr "重复"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:99
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:105
+msgid "S"
+msgstr "日"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:100
+msgid "M"
+msgstr "一"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:101
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:103
+msgid "T"
+msgstr "二"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:102
+msgid "W"
+msgstr "三"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:104
+msgid "F"
+msgstr "五"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:130
+msgid "Sound"
+msgstr "声音"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:212
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:419
+msgid "PM"
+msgstr "下午"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:319
+msgid "No alarms"
+msgstr "没有闹钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:382
+msgid "Every day"
+msgstr "每天"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:384
+msgid "Every day  ·  %1"
+msgstr "每天  ·  %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:388
+#, fuzzy
+msgid "Sun"
+msgstr "声音"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:389
+msgid "Mon"
+msgstr "周一"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:390
+msgid "Tue"
+msgstr "周二"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:391
+msgid "Wed"
+msgstr "周三"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:392
+msgid "Thu"
+msgstr "周四"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:393
+msgid "Fri"
+msgstr "周五"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:394
+msgid "Sat"
+msgstr "周六"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:100
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:532
+msgid "Today"
+msgstr "今天"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:138
+msgid "Refresh"
+msgstr "刷新"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:160
+msgid "+ Add event"
+msgstr "+ 添加事件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:176
+msgid "Event title"
+msgstr "事件标题"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:183
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:607
+msgid "All day"
+msgstr "全天"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:465
+msgid "Su"
+msgstr "日"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:466
+msgid "Mo"
+msgstr "一"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:467
+msgid "Tu"
+msgstr "二"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:468
+msgid "We"
+msgstr "三"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:469
+msgid "Th"
+msgstr "四"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:470
+msgid "Fr"
+msgstr "五"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:471
+msgid "Sa"
+msgstr "六"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:556
+msgid "No events"
+msgstr "没有事件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:630
+msgid "Dismiss"
+msgstr "关闭"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:113
+msgid "Clock & notifications"
+msgstr "时钟与通知"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:220
+msgid "Alarm %1"
+msgstr "闹钟 %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:231
+msgid "Metis alarm"
+msgstr "Metis 闹钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:45
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:159
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:277
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:447
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:483
+#, fuzzy
+msgid "Start"
+msgstr "重新启动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:48
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:160
+msgid "Lap"
+msgstr "计次"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:125
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:404
+msgid "Pause"
+msgstr "暂停"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:147
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:472
+msgid "Resume"
+msgstr "继续"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:189
+msgid "Lap %1"
+msgstr "计次 %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:241
+msgid "Quick Start"
+msgstr "快速开始"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:253
+msgid "Set Timer"
+msgstr "设置计时器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:312
+msgid "1 m"
+msgstr "1 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:313
+msgid "2 m"
+msgstr "2 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:314
+msgid "3 m"
+msgstr "3 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:315
+msgid "5 m"
+msgstr "5 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:316
+msgid "15 m"
+msgstr "15 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:317
+msgid "30 m"
+msgstr "30 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:318
+msgid "45 m"
+msgstr "45 分钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:319
+msgid "1 h"
+msgstr "1 小时"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:452
+msgid "Timer finished"
+msgstr "计时结束"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:453
+msgid "Your Metis timer is up."
+msgstr "您的 Metis 计时器时间到。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:47
+msgid "Local Time"
+msgstr "本地时间"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:67
+msgid "Add a world clock"
+msgstr "添加世界时钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:82
+#, fuzzy
+msgid "Search city / timezone…"
+msgstr "搜索应用…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:242
+msgid "Add up to 3 world clocks"
+msgstr "最多添加 3 个世界时钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:316
+msgid "Same as local"
+msgstr "与本地相同"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:318
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:320
+msgid "%1 from local"
+msgstr "与本地相差 %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:123
+msgid "Pinned"
+msgstr "已固定"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:129
+msgid "Right-click an app to pin it here."
+msgstr "右键点击应用以固定到此处。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:321
+msgid "Files"
+msgstr "文件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:349
+msgid "Big Picture"
+msgstr "Big Picture"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:362
+msgid "Lock"
+msgstr "锁定"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:384
+msgid "Log Out"
+msgstr "注销"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:401
+msgid "Restart"
+msgstr "重新启动"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:411
+msgid "Shut Down"
+msgstr "关机"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:564
+msgid "Frequent Apps"
+msgstr "常用应用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:578
+msgid "Search Results"
+msgstr "搜索结果"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:42
+msgid "Power settings…"
+msgstr "电源设置…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:75
+msgid "Battery %1%"
+msgstr "电池 %1%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:80
+msgid "AC power"
+msgstr "交流电源"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:142
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:218
+msgid "Bluetooth on"
+msgstr "蓝牙已开启"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:144
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:214
+msgid "Bluetooth off"
+msgstr "蓝牙已关闭"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:162
+msgid "Bluetooth settings…"
+msgstr "蓝牙设置…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:216
+msgid "Connected to %1"
+msgstr "已连接到 %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:239
+msgid "On — no devices connected"
+msgstr "已开启 — 无已连接设备"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:274
+msgid "%1% (charging)"
+msgstr "%1%（充电中）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:312
+msgid "Wi-Fi is off"
+msgstr "Wi-Fi 已关闭"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:319
+msgid "No networks found"
+msgstr "未找到网络"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:378
+msgid "Connect to %1"
+msgstr "连接到 %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:432
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:156
+msgid "Network"
+msgstr "网络"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:486
+msgid "Scanning…"
+msgstr "正在扫描…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:522
+msgid "Network Settings…"
+msgstr "网络设置…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:669
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:676
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:838
+msgid "VPN"
+msgstr "VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:686
+msgid "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
+msgstr "尚无 VPN 配置文件。请在设置中导入 OpenVPN 或 WireGuard。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:714
+msgid "Remember on this profile"
+msgstr "在此配置文件上记住"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:728
+msgid "VPN Settings…"
+msgstr "VPN 设置…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:832
+msgid "Connecting VPN…"
+msgstr "正在连接 VPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:834
+msgid "Disconnecting VPN…"
+msgstr "正在断开 VPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:840
+msgid "VPN disconnected"
+msgstr "VPN 已断开"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:843
+msgid "VPN: %1"
+msgstr "VPN：%1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:872
+msgid "Password for %1"
+msgstr "%1 的密码"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:876
+msgid "Enter the VPN password to connect."
+msgstr "请输入 VPN 密码以连接。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1028
+msgid "Wi-Fi off"
+msgstr "Wi-Fi 关闭"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1030
+msgid "Offline"
+msgstr "离线"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1096
+msgid "Audio"
+msgstr "音频"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1184
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1219
+msgid "Volume %1%"
+msgstr "音量 %1%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:61
 msgid "System tray"
 msgstr "系统托盘"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:70
 msgid "Background apps"
 msgstr "后台应用"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:84
 msgid "No background apps"
 msgstr "没有后台应用"
 
-msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
-msgstr "适用于 Metis 设置界面、Metis 菜单、初始设置和锁屏。许多页面和小部件标签在翻译完成前仍为英文。其他应用遵循系统语言。"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:155
+msgid "Unlock…"
+msgstr "解锁…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:157
+msgid "Mount"
+msgstr "挂载"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:169
+msgid "Unmount"
+msgstr "卸载"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:179
+msgid "Eject"
+msgstr "弹出"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:341
+msgid "Metis Control Center"
+msgstr "Metis 控制中心"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:432
+msgid "Overview"
+msgstr "概览"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:433
+msgid "Processes"
+msgstr "进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:919
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:994
+msgid "total"
+msgstr "总计"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:921
+msgid "cores"
+msgstr "核心"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:944
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:167
+msgid "Ethernet ↓"
+msgstr "以太网 ↓"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:949
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:168
+msgid "Ethernet ↑"
+msgstr "以太网 ↑"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:954
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:169
+msgid "Wi‑Fi ↓"
+msgstr "Wi‑Fi ↓"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:959
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:170
+msgid "Wi‑Fi ↑"
+msgstr "Wi‑Fi ↑"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:968
+msgid "Firewall active"
+msgstr "防火墙已启用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:974
+msgid "Firewall inactive"
+msgstr "防火墙未启用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1055
+msgid "Σ total"
+msgstr "Σ 总计"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1123
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:418
+msgid "PID"
+msgstr "PID"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1124
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:419
+msgid "User"
+msgstr "用户"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:297
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:421
+msgid "CPU"
+msgstr "CPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1127
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:121
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:280
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:422
+msgid "Memory"
+msgstr "内存"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1226
+msgid "No matching processes"
+msgstr "没有匹配的进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1236
+msgid "Showing first 300 visible rows — refine the filter"
+msgstr "显示前 300 个可见行 — 请细化筛选条件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1427
+msgid "Collapse child processes"
+msgstr "折叠子进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1429
+msgid "Expand child processes"
+msgstr "展开子进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1506
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1593
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1738
+msgid "End task"
+msgstr "结束任务"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1508
+msgid "Cannot end processes owned by another user"
+msgstr "无法结束其他用户的进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1600
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1736
+msgid "Force quit"
+msgstr "强制退出"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1608
+msgid "End process tree"
+msgstr "结束进程树"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1615
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1735
+msgid "Force quit tree"
+msgstr "强制退出进程树"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1623
+msgid "Copy PID"
+msgstr "复制 PID"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1695
+msgid "Force quit process tree?"
+msgstr "强制退出进程树？"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1696
+msgid "Force quit?"
+msgstr "强制退出？"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1697
+msgid "End process tree?"
+msgstr "结束进程树？"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1698
+msgid "End task?"
+msgstr "结束任务？"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1703
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1709
+msgid "Send SIGKILL to process"
+msgstr "向进程发送 SIGKILL"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1704
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1715
+msgid "and its child processes"
+msgstr "及其子进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1705
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1710
+msgid "This cannot be undone."
+msgstr "此操作无法撤销。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1714
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1717
+msgid "Send SIGTERM to process"
+msgstr "向进程发送 SIGTERM"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1737
+msgid "End tree"
+msgstr "结束进程树"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1796
+msgid "Metis"
+msgstr "Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1797
+msgid "App"
+msgstr "应用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1894
+msgid "N/A"
+msgstr "不适用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:91
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:278
+msgid "Processor"
+msgstr "处理器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:139
+msgid "RAM"
+msgstr "内存"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:140
+msgid "Swap"
+msgstr "交换空间"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:187
+msgid "Download"
+msgstr "下载"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:188
+msgid "Upload"
+msgstr "上传"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:198
+msgid "Disk I/O"
+msgstr "磁盘 I/O"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:216
+msgid "Read"
+msgstr "读取"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:217
+msgid "Write"
+msgstr "写入"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:238
+msgid "Load average"
+msgstr "平均负载"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:239
+msgid "Uptime"
+msgstr "运行时间"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:243
+msgid "Storage"
+msgstr "存储"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:277
+msgid "Hostname"
+msgstr "主机名"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:279
+msgid "Cores"
+msgstr "核心数"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:281
+msgid "Kernel"
+msgstr "内核"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:381
+msgid "Search name, user, or PID…"
+msgstr "搜索名称、用户或 PID…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "All processes"
+msgstr "所有进程"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "User apps"
+msgstr "用户应用"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:390
+msgid "Open monitor"
+msgstr "打开监视器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:392
+msgid "Open the configured process monitor (Settings → Control Center)"
+msgstr "打开已配置的进程监视器（设置 → 控制中心）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:411
+msgid "Notification Center"
+msgstr "通知中心"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:460
+msgid "Events"
+msgstr "事件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:529
+msgid "Calendar"
+msgstr "日历"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:532
+msgid "World clocks"
+msgstr "世界时钟"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:537
+msgid "Stopwatch"
+msgstr "秒表"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:540
+msgid "Timer"
+msgstr "计时器"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:43
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:151
+msgid "Collapse"
+msgstr "折叠"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:47
+msgid "Notifications"
+msgstr "通知"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:54
+msgid "DND"
+msgstr "勿扰"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:64
+msgid "Clear all"
+msgstr "全部清除"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:153
+msgid "Expand"
+msgstr "展开"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:223
+msgid "No new notifications"
+msgstr "没有新通知"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:34
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:484
+msgid "Language & region"
+msgstr "语言和区域"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:35
+msgid "Welcome to Metis"
+msgstr "欢迎使用 Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:36
+msgid "Choose your style"
+msgstr "选择风格"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:37
+msgid "Pick a wallpaper"
+msgstr "选择壁纸"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:38
+msgid "Clock format"
+msgstr "时钟格式"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:40
+msgid "Weather"
+msgstr "天气"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:41
+msgid "Gaming"
+msgstr "游戏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:42
+msgid "Optional software"
+msgstr "可选软件"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:43
+msgid "You're all set"
+msgstr "一切就绪"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:168
+msgid "Skip"
+msgstr "跳过"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:210
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:369
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:486
+msgid "Back"
+msgstr "返回"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:214
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:366
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:485
+msgid "Next"
+msgstr "下一步"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:364
+msgid "Finish"
+msgstr "完成"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:422
+msgid ""
+"Choose the language used by Metis. You can change this later in Settings."
+msgstr "选择 Metis 使用的语言。可稍后在设置中更改。"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:132
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:947
+msgid "Screenshot"
+msgstr "截图"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:241
+msgid "Selection"
+msgstr "选区"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:242
+msgid "Full screen"
+msgstr "全屏"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:243
+msgid "Window"
+msgstr "窗口"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:265
+msgid "Copy"
+msgstr "复制"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:267
+msgid "Both"
+msgstr "两者"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:315
+msgid "Capture"
+msgstr "捕获"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:396
+msgid "Include pointer"
+msgstr "包含指针"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:397
+msgid "Delay (seconds)"
+msgstr "延迟（秒）"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:399
+msgid "After capture"
+msgstr "捕获后"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:679
+msgid "Select a window to capture"
+msgstr "选择要捕获的窗口"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:680
+msgid "Select an area to capture"
+msgstr "选择要捕获的区域"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:704
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:881
+msgid "Screenshot failed"
+msgstr "截图失败"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:941
+msgid "Screenshot captured"
+msgstr "截图已捕获"
+
+#~ msgid "System default"
+#~ msgstr "系统默认"
+
+#~ msgid "Display"
+#~ msgstr "显示"
+
+#~ msgid "Language & region for this session"
+#~ msgstr "此会话的语言和区域"
+
+#~ msgid "Animations, titlebar opacity, and window borders"
+#~ msgstr "动画、标题栏不透明度和窗口边框"
+
+#~ msgid "App titlebars"
+#~ msgstr "应用标题栏"
+
+#~ msgid ""
+#~ "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. "
+#~ "Other apps follow the system locale."
+#~ msgstr "适用于 Metis 设置、边缘栏、初始设置和锁屏。其他应用遵循系统语言。"
+
+#~ msgid "Battery, profiles, and idle behaviour"
+#~ msgstr "电池、配置文件和空闲行为"
+
+#~ msgid "Briefing weather card on the edge bar"
+#~ msgstr "边缘栏上的简报天气卡片"
+
+#~ msgid "Calendar accounts for the briefing"
+#~ msgstr "用于简报的日历账户"
+
+#~ msgid "Calendars"
+#~ msgstr "日历"
+
+#~ msgid "Connectivity"
+#~ msgstr "连接"
+
+#~ msgid "Desktop"
+#~ msgstr "桌面"
+
+#~ msgid "Desktop wallpaper: picture, solid colour, or gradient"
+#~ msgstr "桌面壁纸：图片、纯色或渐变"
+
+#~ msgid "Displays"
+#~ msgstr "显示器"
+
+#~ msgid "Gamepads, touchscreens, Steam, and GPU hints"
+#~ msgstr "手柄、触摸屏、Steam 和 GPU 提示"
+
+#~ msgid "Gestures, tap-to-click, and natural scroll"
+#~ msgstr "手势、轻点点击和自然滚动"
+
+#~ msgid "Graphics profile, arrangement, resolution, scale, and night light"
+#~ msgstr "图形配置、排列、分辨率、缩放和夜灯"
+
+#~ msgid "Installed printers and system print settings"
+#~ msgstr "已安装的打印机和系统打印设置"
+
+#~ msgid "Keyboard"
+#~ msgstr "键盘"
+
+#~ msgid "Launcher apps and menu panel look"
+#~ msgstr "启动器应用和菜单外观"
+
+#~ msgid "Metis Menu"
+#~ msgstr "Metis 菜单"
+
+#~ msgid "Mouse"
+#~ msgstr "鼠标"
+
+#~ msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+#~ msgstr "可选壁纸小部件：文件夹、应用、时钟等"
+
+#~ msgid "Output and input audio devices"
+#~ msgstr "输出和输入音频设备"
+
+#~ msgid "Override Metis vs app titlebars per application"
+#~ msgstr "按应用覆盖 Metis 或应用标题栏"
+
+#~ msgid "Pair and manage Bluetooth devices"
+#~ msgstr "配对并管理蓝牙设备"
+
+#~ msgid "Pointer speed, acceleration, and scrolling"
+#~ msgstr "指针速度、加速和滚动"
+
+#~ msgid "Position, opacity, blur, workspaces, and the bar border"
+#~ msgstr "位置、不透明度、模糊、工作区和栏边框"
+
+#~ msgid "Power"
+#~ msgstr "电源"
+
+#~ msgid "Printers"
+#~ msgstr "打印机"
+
+#~ msgid "Remote access"
+#~ msgstr "远程访问"
+
+#~ msgid "Repeat rate and layout preferences"
+#~ msgstr "重复速率和布局偏好"
+
+#~ msgid "Session language and number/date formats"
+#~ msgstr "会话语言及数字/日期格式"
+
+#~ msgid "Share your logged-in session over the network"
+#~ msgstr "通过网络共享已登录会话"
+
+#~ msgid "System monitor panel, refresh rate, and process controls"
+#~ msgstr "系统监视器面板、刷新率和进程控制"
+
+#~ msgid "Theme mode, accent colours, and interface font"
+#~ msgstr "主题模式、强调色和界面字体"
+
+#~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
+#~ msgstr "Wi-Fi、以太网、DNS 和代理"

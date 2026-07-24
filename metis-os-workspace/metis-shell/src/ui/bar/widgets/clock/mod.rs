@@ -110,7 +110,7 @@ impl ClockWidget {
             icon.add_css_class("metis-bar-clock-icon");
             content.append(&icon);
             content.append(&bell_wrap);
-            root.set_tooltip_text(Some("Clock & notifications"));
+            root.set_tooltip_text(Some(&metis_i18n::tr("Clock & notifications")));
         } else {
             content.append(&time_label);
             content.append(&date_label);
@@ -217,7 +217,10 @@ fn check_alarms(store: &Store) {
         .filter(|a| a.days.is_empty() || a.days.contains(&weekday))
         .map(|a| {
             let label = if a.label.is_empty() {
-                format!("Alarm {:02}:{:02}", a.hour, a.minute)
+                metis_i18n::tr("Alarm %1").replace(
+                    "%1",
+                    &format!("{:02}:{:02}", a.hour, a.minute),
+                )
             } else {
                 a.label.clone()
             };
@@ -225,7 +228,7 @@ fn check_alarms(store: &Store) {
         })
         .collect();
     for (label, sound) in due {
-        notify(&label, "Metis alarm");
+        notify(&label, &metis_i18n::tr("Metis alarm"));
         play_alarm_sound_id(sound);
     }
 }

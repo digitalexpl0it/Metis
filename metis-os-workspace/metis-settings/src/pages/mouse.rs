@@ -5,52 +5,53 @@ use gtk::prelude::*;
 use metis_config::MouseConfig;
 
 use super::input_common::{self, persist};
+use metis_i18n::tr;
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = crate::ui::page_for("mouse");
     let cfg = metis_config::load_input_config();
 
-    let (card, body) = input_common::section_card("Pointer", "input-mouse-symbolic");
+    let (card, body) = input_common::section_card(&tr("Pointer"), "input-mouse-symbolic");
 
     let speed = input_common::speed_scale(cfg.mouse.speed);
     body.append(&crate::ui::row_with_icon(
         "input-mouse-symbolic",
-        "Pointer speed",
+        &tr("Pointer speed"),
         &speed,
     ));
 
     let profile = input_common::accel_profile_dropdown(cfg.mouse.accel_profile);
     body.append(&crate::ui::row_with_icon(
         "power-profile-performance-symbolic",
-        "Acceleration",
+        &tr("Acceleration"),
         &profile,
     ));
 
     let natural = input_common::natural_scroll_switch(cfg.mouse.natural_scroll);
     body.append(&crate::ui::row_with_icon(
         "view-restore-symbolic",
-        "Natural scrolling",
+        &tr("Natural scrolling"),
         &natural,
     ));
 
     let left = input_common::left_handed_switch(cfg.mouse.left_handed);
     body.append(&crate::ui::row_with_icon(
         "object-flip-horizontal-symbolic",
-        "Primary button on right",
+        &tr("Primary button on right"),
         &left,
     ));
 
     let scroll = input_common::scroll_speed_scale(cfg.mouse.scroll_speed);
     body.append(&crate::ui::row_with_icon(
         "go-down-symbolic",
-        "Scroll speed",
+        &tr("Scroll speed"),
         &scroll,
     ));
 
-    body.append(&input_common::hint(
+    body.append(&input_common::hint(&tr(
         "Applies to mice and other non-touchpad pointers in the Metis session (wheel, \
-         including lists in the Metis menu). Changes apply immediately.",
-    ));
+         including lists in the Metis menu). Changes apply immediately."
+        )));
     content.append(&card);
 
     speed.connect_value_changed({

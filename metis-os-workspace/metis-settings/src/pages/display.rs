@@ -24,6 +24,7 @@ use crate::ui;
 
 use display_arrangement::ArrangementCanvas;
 use display_schedule::build_schedule_time_picker;
+use metis_i18n::tr;
 
 pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let (scroller, content) = ui::page_for("display");
@@ -42,12 +43,12 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let modes_cache: Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>> =
         Rc::new(RefCell::new(HashMap::new()));
 
-    let (gfx_card, gfx_body) = ui::section_with_icon("Graphics", "computer-symbolic");
-    let graphics_profile = gtk::DropDown::from_strings(&[
-        "Auto (recommended)",
-        "Compatibility",
-        "Normal",
-    ]);
+    let (gfx_card, gfx_body) = ui::section_with_icon(&tr("Graphics"), "computer-symbolic");
+    let graphics_profile = {
+        let __dd_labels = [tr("Auto (recommended)"), tr("Compatibility"), tr("Normal")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     graphics_profile.set_selected(match metis_config::load_graphics_profile() {
         metis_config::GraphicsProfile::Auto => 0,
         metis_config::GraphicsProfile::Compatibility => 1,
@@ -55,16 +56,16 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     });
     gfx_body.append(&ui::row_with_icon(
         "computer-symbolic",
-        "Graphics profile",
+        &tr("Graphics profile"),
         &graphics_profile,
     ));
-    let gfx_hint = gtk::Label::new(Some(
+    let gfx_hint = gtk::Label::new(Some(&tr(
         "Auto uses software GTK painting in virtual machines (VirtualBox, etc.) \
          so Settings and other GTK apps stay readable. Compatibility always \
          forces that soft path; Normal forces hardware/GL. Already-running apps \
          keep their renderer until relaunched. Compatibility also turns off \
-         window animations.",
-    ));
+         window animations."
+        )));
     gfx_hint.set_xalign(0.0);
     gfx_hint.set_wrap(true);
     gfx_hint.add_css_class("metis-settings-hint");
@@ -85,8 +86,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         runtime::send("reload-graphics-profile");
     });
 
-    let (global_card, global_body) = ui::section("Night light");
-    let (night_row, night) = ui::switch_row("Enable night light");
+    let (global_card, global_body) = ui::section(&tr("Night light"));
+    let (night_row, night) = ui::switch_row(&tr("Enable night light"));
     night.set_active(cfg.borrow().night_light_enabled);
     global_body.append(&night_row);
     let temp = gtk::Scale::with_range(gtk::Orientation::Horizontal, 2700.0, 6500.0, 50.0);
@@ -99,18 +100,18 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     ui::forward_wheel_to_page_scroller(&temp);
     let temp_row = gtk::Box::new(gtk::Orientation::Vertical, 4);
     temp_row.append(&temp);
-    let temp_hint = gtk::Label::new(Some("Warmer ← drag → cooler"));
+    let temp_hint = gtk::Label::new(Some(&tr("Warmer ← drag → cooler")));
     temp_hint.set_xalign(0.0);
     temp_hint.add_css_class("metis-settings-hint");
     temp_row.append(&temp_hint);
-    global_body.append(&ui::row("Colour temperature", &temp_row));
+    global_body.append(&ui::row(&tr("Colour temperature"), &temp_row));
 
-    let (schedule_row, schedule_sw) = ui::switch_row("Use schedule");
+    let (schedule_row, schedule_sw) = ui::switch_row(&tr("Use schedule"));
     schedule_sw.set_active(cfg.borrow().night_light_schedule.enabled);
     global_body.append(&schedule_row);
 
     let use_12h = Rc::new(Cell::new(cfg.borrow().night_light_schedule_12h));
-    let (format_row, format_12h_sw) = ui::switch_row("12-hour time");
+    let (format_row, format_12h_sw) = ui::switch_row(&tr("12-hour time"));
     format_12h_sw.set_active(use_12h.get());
     format_12h_sw.set_sensitive(cfg.borrow().night_light_schedule.enabled);
     global_body.append(&format_row);
@@ -131,13 +132,13 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     };
 
     let start_picker = Rc::new(build_schedule_time_picker(
-        "From",
+        &tr("From"),
         &cfg.borrow().night_light_schedule.start,
         use_12h.clone(),
         schedule_apply_start,
     ));
     let end_picker = Rc::new(build_schedule_time_picker(
-        "To",
+        &tr("To"),
         &cfg.borrow().night_light_schedule.end,
         use_12h.clone(),
         schedule_apply_end,
@@ -154,35 +155,35 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     schedule_times.append(&end_picker.root);
     global_body.append(&schedule_times);
 
-    let schedule_hint = gtk::Label::new(Some(
+    let schedule_hint = gtk::Label::new(Some(&tr(
         "Pick a preset or type a custom time at the top of each menu. Overnight ranges \
          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night light only tints \
-         inside that window.",
-    ));
+         inside that window."
+        )));
     schedule_hint.set_wrap(true);
     schedule_hint.set_xalign(0.0);
     schedule_hint.add_css_class("metis-settings-hint");
     schedule_hint.set_sensitive(cfg.borrow().night_light_schedule.enabled);
     global_body.append(&schedule_hint);
 
-    let night_note = gtk::Label::new(Some(
+    let night_note = gtk::Label::new(Some(&tr(
         "Applies live. Drag left for a warmer evening tint (like GNOME Night Light); \
-         drag right toward normal daylight colour.",
-    ));
+         drag right toward normal daylight colour."
+        )));
     night_note.set_wrap(true);
     night_note.set_xalign(0.0);
     night_note.add_css_class("metis-settings-hint");
     global_body.append(&night_note);
     content.append(&global_card);
 
-    let (mode_card, mode_body) = ui::section("Display mode");
+    let (mode_card, mode_body) = ui::section(&tr("Display mode"));
     let duplicate = gtk::Switch::new();
     duplicate.set_active(cfg.borrow().display_mode == DisplayLayoutMode::Mirror);
-    mode_body.append(&ui::row("Duplicate displays", &duplicate));
+    mode_body.append(&ui::row(&tr("Duplicate displays"), &duplicate));
 
     let source_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     source_row.set_visible(cfg.borrow().display_mode == DisplayLayoutMode::Mirror);
-    let source_label = gtk::Label::new(Some("Show on"));
+    let source_label = gtk::Label::new(Some(&tr("Show on")));
     source_label.set_xalign(0.0);
     source_row.append(&source_label);
     let source_dd = gtk::DropDown::new(
@@ -193,32 +194,32 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     source_row.append(&source_dd);
     mode_body.append(&source_row);
 
-    let mirror_hint = gtk::Label::new(Some(
+    let mirror_hint = gtk::Label::new(Some(&tr(
         "Duplicate displays requires a DRM session with two or more active monitors. \
-         Nested dev sessions save this preference but the compositor stays in extend mode.",
-    ));
+         Nested dev sessions save this preference but the compositor stays in extend mode."
+        )));
     mirror_hint.set_wrap(true);
     mirror_hint.set_xalign(0.0);
     mirror_hint.add_css_class("metis-settings-hint");
     mode_body.append(&mirror_hint);
     content.append(&mode_card);
 
-    let (arrange_card, arrange_body) = ui::section("Arrangement");
+    let (arrange_card, arrange_body) = ui::section(&tr("Arrangement"));
     content.append(&arrange_card);
 
     let detail_host = gtk::Box::new(gtk::Orientation::Vertical, 12);
     content.append(&detail_host);
 
-    let save_display_btn = gtk::Button::with_label("Save display settings");
+    let save_display_btn = gtk::Button::with_label(&tr("Save display settings"));
     save_display_btn.add_css_class("suggested-action");
     save_display_btn.set_sensitive(false);
-    let revert_display_btn = gtk::Button::with_label("Revert");
+    let revert_display_btn = gtk::Button::with_label(&tr("Revert"));
     revert_display_btn.add_css_class("metis-settings-secondary");
     revert_display_btn.set_sensitive(false);
 
-    let empty_hint = gtk::Label::new(Some(
-        "Compositor not reachable — start a Metis session to configure displays.",
-    ));
+    let empty_hint = gtk::Label::new(Some(&tr(
+        "Compositor not reachable — start a Metis session to configure displays."
+        )));
     empty_hint.set_wrap(true);
     empty_hint.set_xalign(0.0);
     empty_hint.add_css_class("metis-settings-hint");
@@ -595,7 +596,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         .spacing(8)
         .margin_top(12)
         .build();
-    let refresh_btn = gtk::Button::with_label("Detect displays");
+    let refresh_btn = gtk::Button::with_label(&tr("Detect displays"));
     refresh_btn.add_css_class("metis-settings-secondary");
     {
         let outputs = outputs.clone();
@@ -633,7 +634,7 @@ fn build_output_panel(
 
     if multi_display {
         if is_primary_output(&cfg.borrow(), out) {
-            let primary = gtk::Label::new(Some("Primary display"));
+            let primary = gtk::Label::new(Some(&tr("Primary display")));
             primary.add_css_class("metis-settings-hint");
             primary.set_xalign(0.0);
             let primary_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -641,7 +642,7 @@ fn build_output_panel(
             primary_row.append(&primary);
             body.append(&primary_row);
         } else {
-            let set_primary = gtk::Button::with_label("Set as primary display");
+            let set_primary = gtk::Button::with_label(&tr("Set as primary display"));
             set_primary.add_css_class("metis-settings-secondary");
             let cfg = cfg.clone();
             let name = out.name.clone();
@@ -665,12 +666,12 @@ fn build_output_panel(
                     }
                 });
             });
-            body.append(&ui::row("Primary", &set_primary));
+            body.append(&ui::row(&tr("Primary"), &set_primary));
         }
     }
 
     if out.mirror_source {
-        let label = gtk::Label::new(Some("Mirror source — other displays duplicate this one"));
+        let label = gtk::Label::new(Some(&tr("Mirror source — other displays duplicate this one")));
         label.add_css_class("metis-settings-hint");
         label.set_xalign(0.0);
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -678,7 +679,7 @@ fn build_output_panel(
         row.append(&label);
         body.append(&row);
     } else if out.mirrored {
-        let label = gtk::Label::new(Some("Duplicating another display"));
+        let label = gtk::Label::new(Some(&tr("Duplicating another display")));
         label.add_css_class("metis-settings-hint");
         label.set_xalign(0.0);
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -687,22 +688,26 @@ fn build_output_panel(
         body.append(&row);
     }
 
-    let (live_card, live_body) = ui::section("Applies live");
+    let (live_card, live_body) = ui::section(&tr("Applies live"));
     live_body.add_css_class("metis-display-live-section");
 
-    let scale = gtk::DropDown::from_strings(&["100%", "125%", "150%", "175%", "200%"]);
+    let scale = {
+        let __dd_labels = [tr("100%"), tr("125%"), tr("150%"), tr("175%"), tr("200%")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     let prefs = output_prefs(&cfg.borrow(), &out.name);
     scale.set_selected(scale_index(prefs.scale));
-    live_body.append(&ui::row("Scale", &scale));
+    live_body.append(&ui::row(&tr("Scale"), &scale));
 
     let enabled = gtk::Switch::new();
     enabled.set_active(out.enabled);
-    live_body.append(&ui::row("Active", &enabled));
+    live_body.append(&ui::row(&tr("Active"), &enabled));
 
     if out.vrr_available {
         let vrr = gtk::Switch::new();
         vrr.set_active(output_prefs(&cfg.borrow(), &out.name).vrr_enabled);
-        live_body.append(&ui::row("Adaptive sync", &vrr));
+        live_body.append(&ui::row(&tr("Adaptive sync"), &vrr));
         let name = out.name.clone();
         let cfg = cfg.clone();
         let outputs = outputs.clone();
@@ -736,12 +741,12 @@ fn build_output_panel(
 
     body.append(&live_card);
 
-    let (mode_card, mode_body) = ui::section("Display mode");
+    let (mode_card, mode_body) = ui::section(&tr("Display mode"));
     let (modes, current) = cached_output_modes(modes_cache, &out.name);
     if modes.is_empty() {
-        let hint = gtk::Label::new(Some(
-            "No DRM mode list available — connect displays in a Metis session on real hardware.",
-        ));
+        let hint = gtk::Label::new(Some(&tr(
+            "No DRM mode list available — connect displays in a Metis session on real hardware."
+            )));
         hint.set_wrap(true);
         hint.set_xalign(0.0);
         hint.add_css_class("metis-settings-hint");
@@ -762,7 +767,7 @@ fn build_output_panel(
         if let Some(idx) = selected {
             mode_dd.set_selected(idx as u32);
         }
-        mode_body.append(&ui::row("Resolution & refresh", &mode_dd));
+        mode_body.append(&ui::row(&tr("Resolution & refresh"), &mode_dd));
 
         let name = out.name.clone();
         let cfg = cfg.clone();
@@ -781,13 +786,13 @@ fn build_output_panel(
         });
     }
 
-    let rotation = gtk::Label::new(Some("Rotation — coming soon"));
+    let rotation = gtk::Label::new(Some(&tr("Rotation — coming soon")));
     rotation.set_xalign(0.0);
     rotation.add_css_class("metis-settings-hint");
-    mode_body.append(&ui::row("Rotation", &rotation));
+    mode_body.append(&ui::row(&tr("Rotation"), &rotation));
     body.append(&mode_card);
 
-    let (color_card, color_body) = ui::section("Colour profile");
+    let (color_card, color_body) = ui::section(&tr("Colour profile"));
     let profile_path = output_prefs(&cfg.borrow(), &out.name)
         .color_profile
         .clone()
@@ -803,9 +808,9 @@ fn build_output_panel(
     });
     color_body.append(&profile_label);
     let profile_actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    let pick_profile = gtk::Button::with_label("Choose ICC profile…");
+    let pick_profile = gtk::Button::with_label(&tr("Choose ICC profile…"));
     pick_profile.add_css_class("metis-settings-secondary");
-    let clear_profile = gtk::Button::with_label("Clear");
+    let clear_profile = gtk::Button::with_label(&tr("Clear"));
     clear_profile.add_css_class("metis-settings-secondary");
     clear_profile.set_sensitive(!profile_path.is_empty());
     profile_actions.set_margin_start(16);
@@ -814,10 +819,10 @@ fn build_output_panel(
     profile_actions.append(&pick_profile);
     profile_actions.append(&clear_profile);
     color_body.append(&profile_actions);
-    let color_hint = gtk::Label::new(Some(
+    let color_hint = gtk::Label::new(Some(&tr(
         "Saved to outputs.json and exposed to Wayland clients via wp_color_management_v1. \
-         GPU colour transforms in the compositor render path are still follow-up work.",
-    ));
+         GPU colour transforms in the compositor render path are still follow-up work."
+        )));
     color_hint.set_wrap(true);
     color_hint.set_xalign(0.0);
     color_hint.add_css_class("metis-settings-hint");
@@ -834,15 +839,15 @@ fn build_output_panel(
             let parent = parent.clone();
             move |_| {
                 let dialog = gtk::FileChooserDialog::builder()
-                    .title("Choose ICC colour profile")
+                    .title(&tr("Choose ICC colour profile"))
                     .action(gtk::FileChooserAction::Open)
                     .modal(true)
                     .transient_for(&parent)
                     .build();
-                dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-                dialog.add_button("Open", gtk::ResponseType::Accept);
+                dialog.add_button(&tr("Cancel"), gtk::ResponseType::Cancel);
+                dialog.add_button(&tr("Open"), gtk::ResponseType::Accept);
                 let filter = gtk::FileFilter::new();
-                filter.set_name(Some("ICC profiles"));
+                filter.set_name(Some(&tr("ICC profiles")));
                 filter.add_mime_type("application/vnd.iccprofile");
                 filter.add_pattern("*.icc");
                 filter.add_pattern("*.icm");

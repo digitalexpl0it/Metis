@@ -9,6 +9,7 @@ use gtk::prelude::*;
 
 use crate::sound::{self, SoundSnapshot};
 use crate::ui;
+use metis_i18n::tr;
 
 struct Sections {
     output_combo: gtk::DropDown,
@@ -24,25 +25,25 @@ struct Sections {
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("sound");
 
-    let (out_card, out_body) = ui::section("Output");
+    let (out_card, out_body) = ui::section(&tr("Output"));
     let output_combo = gtk::DropDown::new(None::<gtk::StringList>, None::<&gtk::Expression>);
-    out_body.append(&ui::row("Playback device", &output_combo));
+    out_body.append(&ui::row(&tr("Playback device"), &output_combo));
     let output_vol = gtk::Label::new(None);
     output_vol.set_halign(gtk::Align::End);
-    out_body.append(&ui::row("Volume", &output_vol));
+    out_body.append(&ui::row(&tr("Volume"), &output_vol));
     content.append(&out_card);
 
-    let (in_card, in_body) = ui::section("Input");
+    let (in_card, in_body) = ui::section(&tr("Input"));
     let input_combo = gtk::DropDown::new(None::<gtk::StringList>, None::<&gtk::Expression>);
-    in_body.append(&ui::row("Recording device", &input_combo));
+    in_body.append(&ui::row(&tr("Recording device"), &input_combo));
     let input_vol = gtk::Label::new(None);
     input_vol.set_halign(gtk::Align::End);
-    in_body.append(&ui::row("Level", &input_vol));
+    in_body.append(&ui::row(&tr("Level"), &input_vol));
     content.append(&in_card);
 
-    let hint = gtk::Label::new(Some(
-        "Use the volume icon on the edge bar for quick mute and level control.",
-    ));
+    let hint = gtk::Label::new(Some(&tr(
+        "Use the volume icon on the edge bar for quick mute and level control."
+        )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");

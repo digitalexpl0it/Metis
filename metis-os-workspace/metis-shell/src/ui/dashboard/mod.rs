@@ -16,6 +16,7 @@ use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_config::{load_bar_config, load_dashboard_config, BarPosition, DashboardWidgetId};
+use metis_i18n::tr;
 
 use crate::services::{
     format_bytes, format_rate, format_uptime, kill_process, kill_process_tree, short_kernel_version,
@@ -225,6 +226,20 @@ pub fn on_dashboard_config_changed() {
     });
 }
 
+/// Drop a built Control Center so the next open uses freshly translated chrome.
+pub fn reload_for_locale() {
+    let was_open = DASHBOARD.with(|d| {
+        d.borrow()
+            .as_ref()
+            .is_some_and(|dash| dash.open.get() || dash.current_extent.get() > 0)
+    });
+    teardown_dashboard();
+    if was_open {
+        // Reopen requires a bar shell; next toggle / pull rebuilds lazily.
+        tracing::debug!("control center torn down for locale; reopen from the edge bar");
+    }
+}
+
 pub fn attach_poll_channel(rx: Receiver<DashboardSnapshot>) {
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
         while let Ok(snapshot) = rx.try_recv() {
@@ -337,7 +352,7 @@ fn close_delta(position: BarPosition, offset_x: f64, offset_y: f64) -> f64 {
 
 fn build_dashboard(shell: &BarShell) -> Dashboard {
     let window = gtk::Window::builder()
-        .title("Metis Control Center")
+        .title(tr("Metis Control Center"))
         .decorated(false)
         .build();
     window.add_css_class("metis-dashboard-window");
@@ -369,7 +384,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         .build();
     header.add_css_class("metis-dashboard-header");
 
-    let title = gtk::Label::new(Some("Control Center"));
+    let title = gtk::Label::new(Some(&tr("Control Center")));
     title.add_css_class("metis-dashboard-title");
     title.set_halign(gtk::Align::Start);
     title.set_hexpand(false);
@@ -428,8 +443,8 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
 
     let processes = views::build_processes();
 
-    stack.add_titled(&overview_scroll, Some("overview"), "Overview");
-    stack.add_titled(&processes.widget, Some("processes"), "Processes");
+    stack.add_titled(&overview_scroll, Some("overview"), &tr("Overview"));
+    stack.add_titled(&processes.widget, Some("processes"), &tr("Processes"));
     stack.set_visible_child_name("overview");
     stack.set_vexpand(true);
     stack.set_hexpand(true);
@@ -913,9 +928,11 @@ impl Dashboard {
         *self.disk_write_hist.borrow_mut() = snapshot.disk_write_history.clone();
 
         self.overview.cpu_value.set_text(&format!(
-            "{:.0}% total · {} cores",
+            "{:.0}% {} · {} {}",
             snapshot.cpu_percent,
-            snapshot.cpu_per_core.len().max(1)
+            tr("total"),
+            snapshot.cpu_per_core.len().max(1),
+            tr("cores")
         ));
         self.overview.cpu_chart.queue_draw();
         self.sync_cpu_legend(snapshot.cpu_per_core.len());
@@ -937,32 +954,40 @@ impl Dashboard {
         self.overview.uptime_label.set_text(&format_uptime(snapshot.uptime_secs));
 
         self.overview.eth_down.set_text(&format!(
-            "Ethernet ↓ {}",
+            "{} {}",
+            tr("Ethernet ↓"),
             format_rate(snapshot.ethernet_rx_bps)
         ));
         self.overview.eth_up.set_text(&format!(
-            "Ethernet ↑ {}",
+            "{} {}",
+            tr("Ethernet ↑"),
             format_rate(snapshot.ethernet_tx_bps)
         ));
         self.overview.wifi_down.set_text(&format!(
-            "Wi‑Fi ↓ {}",
+            "{} {}",
+            tr("Wi‑Fi ↓"),
             format_rate(snapshot.wifi_rx_bps)
         ));
         self.overview.wifi_up.set_text(&format!(
-            "Wi‑Fi ↑ {}",
+            "{} {}",
+            tr("Wi‑Fi ↑"),
             format_rate(snapshot.wifi_tx_bps)
         ));
         self.overview.net_chart.queue_draw();
 
         let fw = &snapshot.firewall;
         if fw.active {
-            self.overview
-                .firewall_status
-                .set_text(&format!("Firewall active · {}", fw.backend));
+            self.overview.firewall_status.set_text(&format!(
+                "{} · {}",
+                tr("Firewall active"),
+                fw.backend
+            ));
         } else {
-            self.overview
-                .firewall_status
-                .set_text(&format!("Firewall inactive · {}", fw.backend));
+            self.overview.firewall_status.set_text(&format!(
+                "{} · {}",
+                tr("Firewall inactive"),
+                fw.backend
+            ));
         }
 
         self.overview.disk_io_value.set_text(&format!(
@@ -978,8 +1003,9 @@ impl Dashboard {
         self.overview.cpu_model.set_text(&hw.cpu_model);
         self.overview.cpu_cores.set_text(&hw.cpu_cores.to_string());
         self.overview.system_memory.set_text(&format!(
-            "{} total",
-            format_bytes(snapshot.memory_total_bytes)
+            "{} {}",
+            format_bytes(snapshot.memory_total_bytes),
+            tr("total")
         ));
         let kernel_short = short_kernel_version(&hw.kernel);
         self.overview.kernel.set_text(&kernel_short);
@@ -1040,7 +1066,7 @@ impl Dashboard {
         if core_count > 0 {
             self.overview
                 .cpu_legend
-                .append(&views::aggregate_legend_chip("Σ total"));
+                .append(&views::aggregate_legend_chip(&tr("Σ total")));
         }
     }
 
@@ -1080,7 +1106,7 @@ impl Dashboard {
 
         while slots.len() < desired {
             let (card, gauge_card) = views::build_temp_gauge_card(
-                "GPU",
+                &tr("GPU"),
                 &[
                     "video-display-symbolic",
                     "display-brightness-symbolic",
@@ -1107,12 +1133,12 @@ impl Dashboard {
         let col = *self.sort_column.borrow();
         let dir = *self.sort_direction.borrow();
         let h = &self.processes.headers;
-        set_sort_label(&h.name, "Name", col == ProcessSortColumn::Name, dir);
-        set_sort_label(&h.pid, "PID", col == ProcessSortColumn::Pid, dir);
-        set_sort_label(&h.user, "User", col == ProcessSortColumn::User, dir);
-        set_sort_label(&h.kind, "Type", col == ProcessSortColumn::Kind, dir);
-        set_sort_label(&h.cpu, "CPU", col == ProcessSortColumn::Cpu, dir);
-        set_sort_label(&h.memory, "Memory", col == ProcessSortColumn::Memory, dir);
+        set_sort_label(&h.name, &tr("Name"), col == ProcessSortColumn::Name, dir);
+        set_sort_label(&h.pid, &tr("PID"), col == ProcessSortColumn::Pid, dir);
+        set_sort_label(&h.user, &tr("User"), col == ProcessSortColumn::User, dir);
+        set_sort_label(&h.kind, &tr("Type"), col == ProcessSortColumn::Kind, dir);
+        set_sort_label(&h.cpu, &tr("CPU"), col == ProcessSortColumn::Cpu, dir);
+        set_sort_label(&h.memory, &tr("Memory"), col == ProcessSortColumn::Memory, dir);
     }
 
     fn rebuild_process_list(&self, list: &gtk::ListBox) {
@@ -1211,7 +1237,7 @@ impl Dashboard {
             shown += 1;
         }
         if shown == 0 {
-            let empty = gtk::Label::new(Some("No matching processes"));
+            let empty = gtk::Label::new(Some(&tr("No matching processes")));
             empty.add_css_class("metis-dash-muted");
             empty.set_margin_top(12);
             empty.set_margin_start(16);
@@ -1220,7 +1246,9 @@ impl Dashboard {
             row.set_child(Some(&empty));
             list.append(&row);
         } else if truncated {
-            let more = gtk::Label::new(Some("Showing first 300 visible rows — refine the filter"));
+            let more = gtk::Label::new(Some(&tr(
+                "Showing first 300 visible rows — refine the filter",
+            )));
             more.add_css_class("metis-dash-muted");
             more.set_margin_top(8);
             more.set_margin_start(16);
@@ -1409,11 +1437,12 @@ fn process_row(entry: &ProcessTreeEntry) -> gtk::ListBoxRow {
         });
         toggle.add_css_class("flat");
         toggle.add_css_class("metis-dash-proc-expand");
-        toggle.set_tooltip_text(Some(if expanded {
-            "Collapse child processes"
+        let expand_tooltip = if expanded {
+            tr("Collapse child processes")
         } else {
-            "Expand child processes"
-        }));
+            tr("Expand child processes")
+        };
+        toggle.set_tooltip_text(Some(&expand_tooltip));
         let pid_toggle = proc.pid;
         toggle.connect_clicked(move |_| {
             DASHBOARD.with(|d| {
@@ -1458,7 +1487,7 @@ fn process_row(entry: &ProcessTreeEntry) -> gtk::ListBoxRow {
     user.set_halign(gtk::Align::Start);
     user.set_ellipsize(gtk::pango::EllipsizeMode::End);
 
-    let kind = gtk::Label::new(Some(class_label(proc.class)));
+    let kind = gtk::Label::new(Some(&class_label(proc.class)));
     kind.add_css_class("metis-dash-muted");
     kind.set_halign(gtk::Align::Start);
 
@@ -1487,11 +1516,12 @@ fn process_row(entry: &ProcessTreeEntry) -> gtk::ListBoxRow {
     let kill = gtk::Button::from_icon_name("process-stop-symbolic");
     kill.add_css_class("flat");
     kill.set_sensitive(proc.killable);
-    kill.set_tooltip_text(if proc.killable {
-        Some("End task")
+    let kill_tooltip = if proc.killable {
+        tr("End task")
     } else {
-        Some("Cannot end processes owned by another user")
-    });
+        tr("Cannot end processes owned by another user")
+    };
+    kill.set_tooltip_text(Some(&kill_tooltip));
     let pid_val = proc.pid;
     kill.connect_clicked(move |btn| {
         let cfg = load_dashboard_config();
@@ -1574,14 +1604,14 @@ fn show_process_context_menu(
     header.set_margin_top(4);
     panel.append(&header);
 
-    append_process_menu_item(&panel, "End task", {
+    append_process_menu_item(&panel, &tr("End task"), {
         let anchor = anchor.clone();
         move || {
             dismiss_process_context_menu();
             confirm_kill_process(&anchor, pid, false, false);
         }
     });
-    append_process_menu_item(&panel, "Force quit", {
+    append_process_menu_item(&panel, &tr("Force quit"), {
         let anchor = anchor.clone();
         move || {
             dismiss_process_context_menu();
@@ -1589,14 +1619,14 @@ fn show_process_context_menu(
         }
     });
     if has_children {
-        append_process_menu_item(&panel, "End process tree", {
+        append_process_menu_item(&panel, &tr("End process tree"), {
             let anchor = anchor.clone();
             move || {
                 dismiss_process_context_menu();
                 confirm_kill_process(&anchor, pid, false, true);
             }
         });
-        append_process_menu_item(&panel, "Force quit tree", {
+        append_process_menu_item(&panel, &tr("Force quit tree"), {
             let anchor = anchor.clone();
             move || {
                 dismiss_process_context_menu();
@@ -1604,7 +1634,7 @@ fn show_process_context_menu(
             }
         });
     }
-    append_process_menu_item(&panel, &format!("Copy PID ({pid})"), move || {
+    append_process_menu_item(&panel, &format!("{} ({pid})", tr("Copy PID")), move || {
         copy_text_to_clipboard(&pid.to_string());
         dismiss_process_context_menu();
     });
@@ -1676,21 +1706,32 @@ fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool, t
     panel.set_width_request(260);
 
     let title = match (force, tree) {
-        (true, true) => "Force quit process tree?",
-        (true, false) => "Force quit?",
-        (false, true) => "End process tree?",
-        (false, false) => "End task?",
+        (true, true) => tr("Force quit process tree?"),
+        (true, false) => tr("Force quit?"),
+        (false, true) => tr("End process tree?"),
+        (false, false) => tr("End task?"),
     };
     let body = match (force, tree) {
         (true, true) => format!(
-            "Send SIGKILL to process {pid} and its child processes? This cannot be undone."
+            "{} {pid} {}? {}",
+            tr("Send SIGKILL to process"),
+            tr("and its child processes"),
+            tr("This cannot be undone.")
         ),
-        (true, false) => format!("Send SIGKILL to process {pid}? This cannot be undone."),
-        (false, true) => format!("Send SIGTERM to process {pid} and its child processes?"),
-        (false, false) => format!("Send SIGTERM to process {pid}?"),
+        (true, false) => format!(
+            "{} {pid}? {}",
+            tr("Send SIGKILL to process"),
+            tr("This cannot be undone.")
+        ),
+        (false, true) => format!(
+            "{} {pid} {}?",
+            tr("Send SIGTERM to process"),
+            tr("and its child processes")
+        ),
+        (false, false) => format!("{} {pid}?", tr("Send SIGTERM to process")),
     };
 
-    let t = gtk::Label::new(Some(title));
+    let t = gtk::Label::new(Some(&title));
     t.set_xalign(0.0);
     t.add_css_class("metis-dash-popover-title");
     panel.append(&t);
@@ -1703,14 +1744,14 @@ fn confirm_kill_process(anchor: &impl IsA<gtk::Widget>, pid: u32, force: bool, t
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     actions.set_halign(gtk::Align::End);
     actions.set_margin_top(4);
-    let cancel = gtk::Button::with_label("Cancel");
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
     let ok_label = match (force, tree) {
-        (true, true) => "Force quit tree",
-        (true, false) => "Force quit",
-        (false, true) => "End tree",
-        (false, false) => "End task",
+        (true, true) => tr("Force quit tree"),
+        (true, false) => tr("Force quit"),
+        (false, true) => tr("End tree"),
+        (false, false) => tr("End task"),
     };
-    let ok = gtk::Button::with_label(ok_label);
+    let ok = gtk::Button::with_label(&ok_label);
     if force {
         ok.add_css_class("destructive-action");
     }
@@ -1764,11 +1805,11 @@ fn copy_text_to_clipboard(text: &str) {
     clipboard.set_text(text);
 }
 
-fn class_label(class: ProcessClass) -> &'static str {
+fn class_label(class: ProcessClass) -> String {
     match class {
-        ProcessClass::Metis => "Metis",
-        ProcessClass::UserApp => "App",
-        ProcessClass::System => "System",
+        ProcessClass::Metis => tr("Metis"),
+        ProcessClass::UserApp => tr("App"),
+        ProcessClass::System => tr("System"),
     }
 }
 
@@ -1864,7 +1905,7 @@ fn terminal_exec_program_snippet(chosen: Option<&str>, program: &str) -> String 
 fn set_temp_label(label: &gtk::Label, temp: Option<f32>) {
     match temp {
         Some(c) => label.set_text(&format!("{c:.0}°C")),
-        None => label.set_text("N/A"),
+        None => label.set_text(&tr("N/A")),
     }
 }
 

@@ -35,11 +35,11 @@ impl BatteryWidget {
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(8);
-        let status = gtk::Label::new(Some("Battery"));
+        let status = gtk::Label::new(Some(&metis_i18n::tr("Battery")));
         status.set_xalign(0.0);
         status.add_css_class("metis-bar-section-title");
         panel.append(&status);
-        let settings_btn = gtk::Button::with_label("Power settings…");
+        let settings_btn = gtk::Button::with_label(&metis_i18n::tr("Power settings…"));
         settings_btn.connect_clicked(|_| {
             if let Err(err) = crate::compositor::launch_program("metis-settings --page power") {
                 tracing::warn!(%err, "failed to open power settings");
@@ -71,11 +71,13 @@ impl BatteryWidget {
         if let Some(pct) = percent {
             self.label.set_text(&format!("{pct}%"));
             self.label.set_visible(true);
-            self.root
-                .set_tooltip_text(Some(&format!("Battery {pct}%")));
+            self.root.set_tooltip_text(Some(
+                &metis_i18n::tr("Battery %1%").replace("%1", &pct.to_string()),
+            ));
         } else {
             self.label.set_visible(false);
-            self.root.set_tooltip_text(Some("AC power"));
+            self.root
+                .set_tooltip_text(Some(&metis_i18n::tr("AC power")));
         }
         icons::set_icon(
             &self.icon,
@@ -114,7 +116,7 @@ impl BluetoothWidget {
 
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let title = gtk::Label::builder()
-            .label("Bluetooth")
+            .label(metis_i18n::tr("Bluetooth"))
             .halign(gtk::Align::Start)
             .hexpand(true)
             .build();
@@ -136,10 +138,10 @@ impl BluetoothWidget {
                     bump_suppress(&suppress_until);
                     crate::services::bluetooth_set_powered(state);
                     icons::set_icon(&icon, names::bluetooth(state, false));
-                    root.set_tooltip_text(Some(if state {
-                        "Bluetooth on"
+                    root.set_tooltip_text(Some(&if state {
+                        metis_i18n::tr("Bluetooth on")
                     } else {
-                        "Bluetooth off"
+                        metis_i18n::tr("Bluetooth off")
                     }));
                 }
                 glib::Propagation::Proceed
@@ -148,7 +150,7 @@ impl BluetoothWidget {
         header.append(&power_switch);
         panel.append(&header);
 
-        let status_label = gtk::Label::new(Some("Off"));
+        let status_label = gtk::Label::new(Some(&metis_i18n::tr("Off")));
         status_label.set_xalign(0.0);
         status_label.add_css_class("metis-net-status");
         panel.append(&status_label);
@@ -157,7 +159,7 @@ impl BluetoothWidget {
         device_list.add_css_class("metis-bt-device-list");
         panel.append(&device_list);
 
-        let settings_btn = gtk::Button::with_label("Bluetooth settings…");
+        let settings_btn = gtk::Button::with_label(&metis_i18n::tr("Bluetooth settings…"));
         settings_btn.connect_clicked(|_| {
             if let Err(err) = crate::compositor::launch_program("metis-settings --page bluetooth")
             {
@@ -209,11 +211,11 @@ impl BluetoothWidget {
             );
 
             let tip = if !status.powered {
-                "Bluetooth off".to_string()
+                metis_i18n::tr("Bluetooth off")
             } else if let Some(name) = &status.device_name {
-                format!("Connected to {name}")
+                metis_i18n::tr("Connected to %1").replace("%1", name)
             } else {
-                "Bluetooth on".to_string()
+                metis_i18n::tr("Bluetooth on")
             };
             self.root.set_tooltip_text(Some(&tip));
         }
@@ -227,13 +229,14 @@ impl BluetoothWidget {
         }
 
         if !status.powered {
-            self.status_label.set_text("Off");
+            self.status_label.set_text(&metis_i18n::tr("Off"));
             self.status_label.set_visible(true);
             self.device_list.set_visible(false);
             return;
         }
         if status.devices.is_empty() {
-            self.status_label.set_text("On — no devices connected");
+            self.status_label
+                .set_text(&metis_i18n::tr("On — no devices connected"));
             self.status_label.set_visible(true);
             self.device_list.set_visible(false);
             return;
@@ -268,7 +271,7 @@ fn build_bt_device_row(dev: &BluetoothDevice) -> gtk::Box {
         }
         row.append(&batt_icon);
         let text = if charging {
-            format!("{pct}% (charging)")
+            metis_i18n::tr("%1% (charging)").replace("%1", &pct.to_string())
         } else {
             format!("{pct}%")
         };
@@ -306,13 +309,14 @@ impl NetInner {
             self.list.remove(&child);
         }
         if !self.wifi_enabled.get() {
-            self.status_label.set_text("Wi-Fi is off");
+            self.status_label.set_text(&metis_i18n::tr("Wi-Fi is off"));
             self.status_label.set_visible(true);
             return;
         }
         let wifi = self.wifi.borrow();
         if wifi.is_empty() {
-            self.status_label.set_text("No networks found");
+            self.status_label
+                .set_text(&metis_i18n::tr("No networks found"));
             self.status_label.set_visible(true);
             return;
         }
@@ -371,7 +375,7 @@ impl NetInner {
         if net.secured {
             self.selected_ssid.replace(Some(net.ssid.clone()));
             self.connect_title
-                .set_text(&format!("Connect to {}", net.ssid));
+                .set_text(&metis_i18n::tr("Connect to %1").replace("%1", &net.ssid));
             self.password_entry.set_text("");
             self.connect_box.set_visible(true);
             self.password_entry.grab_focus();
@@ -425,7 +429,7 @@ impl NetworkWidget {
         // ---- Header: title, Wi-Fi radio toggle, refresh ----
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let title = gtk::Label::builder()
-            .label("Network")
+            .label(metis_i18n::tr("Network"))
             .halign(gtk::Align::Start)
             .hexpand(true)
             .build();
@@ -459,7 +463,7 @@ impl NetworkWidget {
         eth_row.add_css_class("metis-net-eth-row");
         let eth_icon = icons::image("network-wired-symbolic");
         eth_row.append(&eth_icon);
-        let eth_label = gtk::Label::new(Some("Ethernet"));
+        let eth_label = gtk::Label::new(Some(&metis_i18n::tr("Ethernet")));
         eth_label.set_halign(gtk::Align::Start);
         eth_label.set_hexpand(true);
         eth_label.set_ellipsize(gtk::pango::EllipsizeMode::End);
@@ -479,7 +483,7 @@ impl NetworkWidget {
         scroll.add_css_class("metis-net-scroll");
         panel.append(&scroll);
 
-        let status_label = gtk::Label::new(Some("Scanning…"));
+        let status_label = gtk::Label::new(Some(&metis_i18n::tr("Scanning…")));
         status_label.add_css_class("metis-net-status");
         status_label.set_halign(gtk::Align::Start);
         panel.append(&status_label);
@@ -499,15 +503,15 @@ impl NetworkWidget {
         connect_box.append(&connect_title);
         let password_entry = gtk::Entry::builder()
             .visibility(false)
-            .placeholder_text("Password")
+            .placeholder_text(metis_i18n::tr("Password"))
             .build();
         password_entry.add_css_class("metis-net-password");
         connect_box.append(&password_entry);
         let btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         btn_row.set_halign(gtk::Align::End);
-        let cancel_btn = gtk::Button::with_label("Cancel");
+        let cancel_btn = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
         cancel_btn.add_css_class("metis-net-cancel");
-        let connect_btn = gtk::Button::with_label("Connect");
+        let connect_btn = gtk::Button::with_label(&metis_i18n::tr("Connect"));
         connect_btn.add_css_class("metis-net-connect-btn");
         btn_row.append(&cancel_btn);
         btn_row.append(&connect_btn);
@@ -515,7 +519,7 @@ impl NetworkWidget {
         panel.append(&connect_box);
 
         // ---- Footer: open the full Network settings page ----
-        let settings_btn = gtk::Button::with_label("Network Settings…");
+        let settings_btn = gtk::Button::with_label(&metis_i18n::tr("Network Settings…"));
         settings_btn.add_css_class("metis-net-settings-btn");
         settings_btn.set_halign(gtk::Align::Start);
         settings_btn.connect_clicked(|_| {
@@ -662,14 +666,14 @@ impl VpnWidget {
         face.append(&check);
 
         root.set_child(Some(&face));
-        root.set_tooltip_text(Some("VPN"));
+        root.set_tooltip_text(Some(&metis_i18n::tr("VPN")));
 
         let panel = super::super::dropdown::build_panel();
         panel.set_spacing(10);
         panel.set_width_request(280);
 
         let title = gtk::Label::builder()
-            .label("VPN")
+            .label(metis_i18n::tr("VPN"))
             .halign(gtk::Align::Start)
             .build();
         title.add_css_class("metis-bar-section-title");
@@ -678,9 +682,9 @@ impl VpnWidget {
         let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
         panel.append(&list);
 
-        let empty_label = gtk::Label::new(Some(
+        let empty_label = gtk::Label::new(Some(&metis_i18n::tr(
             "No VPN profiles yet. Import OpenVPN or WireGuard in Settings.",
-        ));
+        )));
         empty_label.set_wrap(true);
         empty_label.set_xalign(0.0);
         empty_label.add_css_class("metis-net-status");
@@ -696,32 +700,32 @@ impl VpnWidget {
         let password_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
         password_box.add_css_class("metis-net-connect");
         password_box.set_visible(false);
-        let password_title = gtk::Label::new(Some("VPN password"));
+        let password_title = gtk::Label::new(Some(&metis_i18n::tr("VPN password")));
         password_title.set_halign(gtk::Align::Start);
         password_title.add_css_class("metis-net-connect-title");
         password_box.append(&password_title);
         let password_entry = gtk::PasswordEntry::builder()
             .show_peek_icon(true)
             .hexpand(true)
-            .placeholder_text("Password")
+            .placeholder_text(metis_i18n::tr("Password"))
             .build();
         password_entry.add_css_class("metis-net-password");
         password_box.append(&password_entry);
-        let remember = gtk::CheckButton::with_label("Remember on this profile");
+        let remember = gtk::CheckButton::with_label(&metis_i18n::tr("Remember on this profile"));
         remember.set_active(true);
         password_box.append(&remember);
         let pw_btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         pw_btn_row.set_halign(gtk::Align::End);
-        let pw_cancel = gtk::Button::with_label("Cancel");
+        let pw_cancel = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
         pw_cancel.add_css_class("metis-net-cancel");
-        let pw_connect = gtk::Button::with_label("Connect");
+        let pw_connect = gtk::Button::with_label(&metis_i18n::tr("Connect"));
         pw_connect.add_css_class("metis-net-connect-btn");
         pw_btn_row.append(&pw_cancel);
         pw_btn_row.append(&pw_connect);
         password_box.append(&pw_btn_row);
         panel.append(&password_box);
 
-        let settings_btn = gtk::Button::with_label("VPN Settings…");
+        let settings_btn = gtk::Button::with_label(&metis_i18n::tr("VPN Settings…"));
         settings_btn.add_css_class("metis-net-settings-btn");
         settings_btn.set_halign(gtk::Align::Start);
         settings_btn.connect_clicked(|_| {
@@ -820,23 +824,23 @@ impl VpnWidget {
             .collect();
         let pending = feedback.pending_target.is_some();
         let tooltip = if feedback.needs_password.is_some() {
-            "VPN password required".into()
+            metis_i18n::tr("VPN password required")
         } else if let Some(err) = feedback.last_error.as_deref() {
             err.to_string()
         } else if pending {
             if feedback.connecting {
-                "Connecting VPN…".into()
+                metis_i18n::tr("Connecting VPN…")
             } else {
-                "Disconnecting VPN…".into()
+                metis_i18n::tr("Disconnecting VPN…")
             }
         } else if active.is_empty() {
             if vpn.is_empty() {
-                "VPN".into()
+                metis_i18n::tr("VPN")
             } else {
-                "VPN disconnected".into()
+                metis_i18n::tr("VPN disconnected")
             }
         } else {
-            format!("VPN: {}", active.join(", "))
+            metis_i18n::tr("VPN: %1").replace("%1", &active.join(", "))
         };
         self.root.set_tooltip_text(Some(&tooltip));
 
@@ -865,11 +869,11 @@ impl VpnWidget {
                 .map(|v| v.name.as_str())
                 .unwrap_or(target);
             self.password_title
-                .set_text(&format!("Password for {label}"));
+                .set_text(&metis_i18n::tr("Password for %1").replace("%1", label));
             *self.password_target.borrow_mut() = Some(target.to_string());
             self.password_box.set_visible(true);
             self.status_label
-                .set_text("Enter the VPN password to connect.");
+                .set_text(&metis_i18n::tr("Enter the VPN password to connect."));
             self.status_label.set_visible(true);
             let entry = self.password_entry.clone();
             glib::idle_add_local_once(move || {
@@ -890,10 +894,10 @@ impl VpnWidget {
                 self.status_label.set_text(err);
                 self.status_label.set_visible(true);
             } else if pending {
-                self.status_label.set_text(if feedback.connecting {
-                    "Connecting…"
+                self.status_label.set_text(&if feedback.connecting {
+                    metis_i18n::tr("Connecting…")
                 } else {
-                    "Disconnecting…"
+                    metis_i18n::tr("Disconnecting…")
                 });
                 self.status_label.set_visible(true);
             } else if !self.password_box.is_visible() {
@@ -935,10 +939,10 @@ fn build_vpn_row(profile: &VpnStatus) -> gtk::Box {
         let spinner = gtk::Spinner::new();
         spinner.start();
         row.append(&spinner);
-        let label = gtk::Label::new(Some(if profile.active {
-            "Disconnecting…"
+        let label = gtk::Label::new(Some(&if profile.active {
+            metis_i18n::tr("Disconnecting…")
         } else {
-            "Connecting…"
+            metis_i18n::tr("Connecting…")
         }));
         label.add_css_class("metis-net-status");
         row.append(&label);
@@ -952,9 +956,9 @@ fn build_vpn_row(profile: &VpnStatus) -> gtk::Box {
     }
 
     let action = if profile.active {
-        gtk::Button::with_label("Disconnect")
+        gtk::Button::with_label(&metis_i18n::tr("Disconnect"))
     } else {
-        gtk::Button::with_label("Connect")
+        gtk::Button::with_label(&metis_i18n::tr("Connect"))
     };
     action.add_css_class("metis-net-vpn-btn");
     action.set_valign(gtk::Align::Center);
@@ -1021,9 +1025,9 @@ fn network_tooltip(eth: &EthernetStatus, wifi: &[WifiNetwork], wifi_enabled: boo
         return eth.label.clone();
     }
     if !wifi_enabled {
-        return "Wi-Fi off".into();
+        return metis_i18n::tr("Wi-Fi off");
     }
-    "Offline".into()
+    metis_i18n::tr("Offline")
 }
 
 fn network_signature(
@@ -1089,7 +1093,7 @@ impl VolumeWidget {
         panel.set_width_request(260);
 
         let title = gtk::Label::builder()
-            .label("Audio")
+            .label(metis_i18n::tr("Audio"))
             .halign(gtk::Align::Start)
             .build();
         title.add_css_class("metis-bar-section-title");
@@ -1176,8 +1180,9 @@ impl VolumeWidget {
             self.last_out.set((percent, muted));
             self.output.percent.set(percent);
             self.output.muted.set(muted);
-            self.root
-                .set_tooltip_text(Some(&format!("Volume {percent}%")));
+            self.root.set_tooltip_text(Some(
+                &metis_i18n::tr("Volume %1%").replace("%1", &percent.to_string()),
+            ));
             self.updating.set(true);
             self.output
                 .scale
@@ -1210,8 +1215,9 @@ impl VolumeWidget {
         self.last_out.set((percent, muted));
         self.output.percent.set(percent);
         self.output.muted.set(muted);
-        self.root
-            .set_tooltip_text(Some(&format!("Volume {percent}%")));
+        self.root.set_tooltip_text(Some(
+            &metis_i18n::tr("Volume %1%").replace("%1", &percent.to_string()),
+        ));
         self.updating.set(true);
         self.output
             .scale

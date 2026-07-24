@@ -1,20 +1,882 @@
 # Metis UI translations (English source / template).
-# msgid strings are English; msgstr stays empty for en (identity).
 msgid ""
 msgstr ""
 "Project-Id-Version: metis 0.1\n"
-"Report-Msgid-Bugs-To: \n"
 "Language: en\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "System default"
-msgstr "System default"
+msgid "Settings"
+msgstr "Settings"
 
-msgid "Language & region"
-msgstr "Language & region"
+msgid "Search"
+msgstr "Search"
+
+msgid "Style"
+msgstr "Style"
+
+msgid "Colors"
+msgstr "Colors"
+
+msgid "Accent"
+msgstr "Accent"
+
+msgid "Accent (secondary)"
+msgstr "Accent (secondary)"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Warning"
+msgstr "Warning"
+
+msgid "Success"
+msgstr "Success"
+
+msgid "Info"
+msgstr "Info"
+
+msgid "Payment"
+msgstr "Payment"
+
+msgid "Font"
+msgstr "Font"
+
+msgid "Family & size"
+msgstr "Family & size"
+
+msgid "Text color"
+msgstr "Text color"
+
+msgid "Setup"
+msgstr "Setup"
+
+msgid "Reopen the first-run setup wizard to walk through theme, wallpaper,          clock, edge bar, and weather again."
+msgstr "Reopen the first-run setup wizard to walk through theme, wallpaper,          clock, edge bar, and weather again."
+
+msgid "Run setup again"
+msgstr "Run setup again"
+
+msgid "Background"
+msgstr "Background"
+
+msgid "Picture"
+msgstr "Picture"
+
+msgid "Solid color"
+msgstr "Solid color"
+
+msgid "Gradient"
+msgstr "Gradient"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Add Picture…"
+msgstr "Add Picture…"
+
+msgid "Color"
+msgstr "Color"
+
+msgid "Top → Bottom"
+msgstr "Top → Bottom"
+
+msgid "Bottom → Top"
+msgstr "Bottom → Top"
+
+msgid "Left → Right"
+msgstr "Left → Right"
+
+msgid "Right → Left"
+msgstr "Right → Left"
+
+msgid "Diagonal ↘"
+msgstr "Diagonal ↘"
+
+msgid "Diagonal ↗"
+msgstr "Diagonal ↗"
+
+msgid "Start color"
+msgstr "Start color"
+
+msgid "End color"
+msgstr "End color"
+
+msgid "Direction"
+msgstr "Direction"
+
+msgid "Per-display background"
+msgstr "Per-display background"
+
+msgid "Pick a different picture for a specific display. Leave a display on              “Default” to use the background above."
+msgstr "Pick a different picture for a specific display. Leave a display on              “Default” to use the background above."
+
+msgid "Set…"
+msgstr "Set…"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "Lock screen"
+msgstr "Lock screen"
+
+msgid "Use desktop wallpaper"
+msgstr "Use desktop wallpaper"
+
+msgid "Choose…"
+msgstr "Choose…"
+
+msgid "Blur the background"
+msgstr "Blur the background"
+
+msgid "Dim"
+msgstr "Dim"
+
+msgid "Show clock"
+msgstr "Show clock"
+
+msgid "Use 24-hour clock"
+msgstr "Use 24-hour clock"
+
+msgid "Lock when the screen blanks"
+msgstr "Lock when the screen blanks"
+
+msgid "Lock now"
+msgstr "Lock now"
+
+msgid "Choose a picture"
+msgstr "Choose a picture"
+
+msgid "Images"
+msgstr "Images"
+
+msgid "Adapter"
+msgstr "Adapter"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Scan for devices"
+msgstr "Scan for devices"
+
+msgid "Checking adapter…"
+msgstr "Checking adapter…"
+
+msgid "Devices"
+msgstr "Devices"
+
+msgid "Stop scanning"
+msgstr "Stop scanning"
+
+msgid "No Bluetooth adapter found."
+msgstr "No Bluetooth adapter found."
+
+msgid "No devices found. Tap Scan to search."
+msgstr "No devices found. Tap Scan to search."
+
+msgid "Connect"
+msgstr "Connect"
+
+msgid "Disconnect"
+msgstr "Disconnect"
+
+msgid "Remove"
+msgstr "Remove"
+
+msgid "Connected"
+msgstr "Connected"
+
+msgid "Paired"
+msgstr "Paired"
+
+msgid "Available"
+msgstr "Available"
+
+msgid "Accounts"
+msgstr "Accounts"
+
+msgid "Add account"
+msgstr "Add account"
+
+msgid "CalDAV"
+msgstr "CalDAV"
+
+msgid "Thunderbird"
+msgstr "Thunderbird"
+
+msgid "Microsoft 365"
+msgstr "Microsoft 365"
+
+msgid "Local"
+msgstr "Local"
+
+msgid "Display name"
+msgstr "Display name"
+
+msgid "CalDAV URL (server, calendar, or principal)"
+msgstr "CalDAV URL (server, calendar, or principal)"
+
+msgid "Username"
+msgstr "Username"
+
+msgid "MS tenant (e.g. common or your tenant id)"
+msgstr "MS tenant (e.g. common or your tenant id)"
+
+msgid "MS application (client) id"
+msgstr "MS application (client) id"
+
+msgid "Color (e.g. #22d3ee) — optional"
+msgstr "Color (e.g. #22d3ee) — optional"
+
+msgid "No calendar accounts."
+msgstr "No calendar accounts."
+
+msgid "Save password"
+msgstr "Save password"
+
+msgid "Sign in with Microsoft"
+msgstr "Sign in with Microsoft"
+
+msgid "Set the application (client) id first."
+msgstr "Set the application (client) id first."
+
+msgid "Control Center"
+msgstr "Control Center"
+
+msgid "Show Control Center"
+msgstr "Show Control Center"
+
+msgid "Maximum panel height (%)"
+msgstr "Maximum panel height (%)"
+
+msgid "Refresh interval (ms)"
+msgstr "Refresh interval (ms)"
+
+msgid "Confirm before ending tasks"
+msgstr "Confirm before ending tasks"
+
+msgid "Process monitor"
+msgstr "Process monitor"
+
+msgid "Open Control Center from the grid icon beside workspace dots, or pull down          on the edge bar. Process monitor Auto-detect prefers btop/htop (in your          terminal) then GUI monitors. Changes apply within about a second."
+msgstr "Open Control Center from the grid icon beside workspace dots, or pull down          on the edge bar. Process monitor Auto-detect prefers btop/htop (in your          terminal) then GUI monitors. Changes apply within about a second."
+
+msgid "Overview widgets"
+msgstr "Overview widgets"
+
+msgid "Processor, memory, storage, and network cards share the Overview tab.          Disabling Processes hides the Processes tab."
+msgstr "Processor, memory, storage, and network cards share the Overview tab.          Disabling Processes hides the Processes tab."
+
+msgid "Desktop widgets"
+msgstr "Desktop widgets"
+
+msgid "Show desktop widgets"
+msgstr "Show desktop widgets"
+
+msgid "Edit mode (move / resize)"
+msgstr "Edit mode (move / resize)"
+
+msgid "Widgets float over the wallpaper (not classic desktop icons). Off by          default. In edit mode, drag the title bar to move and the corner handle          to resize. Chrome below is the default look; each widget can override it          from its Configure dialog."
+msgstr "Widgets float over the wallpaper (not classic desktop icons). Off by          default. In edit mode, drag the title bar to move and the corner handle          to resize. Chrome below is the default look; each widget can override it          from its Configure dialog."
+
+msgid "Default look"
+msgstr "Default look"
+
+msgid "Background opacity"
+msgstr "Background opacity"
+
+msgid "Theme colour"
+msgstr "Theme colour"
+
+msgid "Background colour"
+msgstr "Background colour"
+
+msgid "Border width (0 = none)"
+msgstr "Border width (0 = none)"
+
+msgid "Border colour"
+msgstr "Border colour"
+
+msgid "Opacity 0 clears the fill; set border width to 0 to hide the edge.              Theme colour follows the active Appearance surface / text tint."
+msgstr "Opacity 0 clears the fill; set border width to 0 to hide the edge.              Theme colour follows the active Appearance surface / text tint."
+
+msgid "Widgets on this desktop"
+msgstr "Widgets on this desktop"
+
+msgid "Add widget"
+msgstr "Add widget"
+
+msgid "No widgets yet. Pick a type above and click Add widget."
+msgstr "No widgets yet. Pick a type above and click Add widget."
+
+msgid "Locked"
+msgstr "Locked"
+
+msgid "Configure"
+msgstr "Configure"
+
+msgid "Done"
+msgstr "Done"
+
+msgid "Show title"
+msgstr "Show title"
+
+msgid "~/Desktop"
+msgstr "~/Desktop"
+
+msgid "Set path"
+msgstr "Set path"
+
+msgid "Import start-menu pins"
+msgstr "Import start-menu pins"
+
+msgid "Follow start menu again"
+msgstr "Follow start menu again"
+
+msgid "Colour mode"
+msgstr "Colour mode"
+
+msgid "Solid colour"
+msgstr "Solid colour"
+
+msgid "Gradient start"
+msgstr "Gradient start"
+
+msgid "Gradient end"
+msgstr "Gradient end"
+
+msgid "Uses the active Appearance accent and secondary colours."
+msgstr "Uses the active Appearance accent and secondary colours."
+
+msgid "Bar shape"
+msgstr "Bar shape"
+
+msgid "Bar height gradient"
+msgstr "Bar height gradient"
+
+msgid "Peak caps"
+msgstr "Peak caps"
+
+msgid "Peak colour"
+msgstr "Peak colour"
+
+msgid "Bar reflection"
+msgstr "Bar reflection"
+
+msgid "Spectrum lines use the colour mode above across the frequency range."
+msgstr "Spectrum lines use the colour mode above across the frequency range."
+
+msgid "Mirror wave"
+msgstr "Mirror wave"
+
+msgid "Rays radiate from the centre. Colour mode tints around the ring."
+msgstr "Rays radiate from the centre. Colour mode tints around the ring."
+
+msgid "Listens to the default audio output (PipeWire/Pulse monitor).          Play music or a movie — silent sinks show a quiet idle decay."
+msgstr "Listens to the default audio output (PipeWire/Pulse monitor).          Play music or a movie — silent sinks show a quiet idle decay."
+
+msgid "Text colour"
+msgstr "Text colour"
+
+msgid "Theme accent"
+msgstr "Theme accent"
+
+msgid "Font picks family, weight, and size. Text colour tints labels and icons;          accent colours the System progress fills."
+msgstr "Font picks family, weight, and size. Text colour tints labels and icons;          accent colours the System progress fills."
+
+msgid "Theme font"
+msgstr "Theme font"
+
+msgid "View"
+msgstr "View"
+
+msgid "Look overrides (optional)"
+msgstr "Look overrides (optional)"
+
+msgid "Border width"
+msgstr "Border width"
+
+msgid "Clear all overrides"
+msgstr "Clear all overrides"
+
+msgid "Graphics"
+msgstr "Graphics"
+
+msgid "Auto (recommended)"
+msgstr "Auto (recommended)"
+
+msgid "Compatibility"
+msgstr "Compatibility"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Graphics profile"
+msgstr "Graphics profile"
+
+msgid "Auto uses software GTK painting in virtual machines (VirtualBox, etc.)          so Settings and other GTK apps stay readable. Compatibility always          forces that soft path; Normal forces hardware/GL. Already-running apps          keep their renderer until relaunched. Compatibility also turns off          window animations."
+msgstr "Auto uses software GTK painting in virtual machines (VirtualBox, etc.)          so Settings and other GTK apps stay readable. Compatibility always          forces that soft path; Normal forces hardware/GL. Already-running apps          keep their renderer until relaunched. Compatibility also turns off          window animations."
+
+msgid "Night light"
+msgstr "Night light"
+
+msgid "Enable night light"
+msgstr "Enable night light"
+
+msgid "Warmer ← drag → cooler"
+msgstr "Warmer ← drag → cooler"
+
+msgid "Colour temperature"
+msgstr "Colour temperature"
+
+msgid "Use schedule"
+msgstr "Use schedule"
+
+msgid "12-hour time"
+msgstr "12-hour time"
+
+msgid "From"
+msgstr "From"
+
+msgid "To"
+msgstr "To"
+
+msgid "Pick a preset or type a custom time at the top of each menu. Overnight ranges          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night light only tints          inside that window."
+msgstr "Pick a preset or type a custom time at the top of each menu. Overnight ranges          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night light only tints          inside that window."
+
+msgid "Applies live. Drag left for a warmer evening tint (like GNOME Night Light);          drag right toward normal daylight colour."
+msgstr "Applies live. Drag left for a warmer evening tint (like GNOME Night Light);          drag right toward normal daylight colour."
+
+msgid "Display mode"
+msgstr "Display mode"
+
+msgid "Duplicate displays"
+msgstr "Duplicate displays"
+
+msgid "Show on"
+msgstr "Show on"
+
+msgid "Duplicate displays requires a DRM session with two or more active monitors.          Nested dev sessions save this preference but the compositor stays in extend mode."
+msgstr "Duplicate displays requires a DRM session with two or more active monitors.          Nested dev sessions save this preference but the compositor stays in extend mode."
+
+msgid "Arrangement"
+msgstr "Arrangement"
+
+msgid "Save display settings"
+msgstr "Save display settings"
+
+msgid "Revert"
+msgstr "Revert"
+
+msgid "Compositor not reachable — start a Metis session to configure displays."
+msgstr "Compositor not reachable — start a Metis session to configure displays."
+
+msgid "Detect displays"
+msgstr "Detect displays"
+
+msgid "Primary display"
+msgstr "Primary display"
+
+msgid "Set as primary display"
+msgstr "Set as primary display"
+
+msgid "Primary"
+msgstr "Primary"
+
+msgid "Mirror source — other displays duplicate this one"
+msgstr "Mirror source — other displays duplicate this one"
+
+msgid "Duplicating another display"
+msgstr "Duplicating another display"
+
+msgid "Applies live"
+msgstr "Applies live"
+
+msgid "100%"
+msgstr "100%"
+
+msgid "125%"
+msgstr "125%"
+
+msgid "150%"
+msgstr "150%"
+
+msgid "175%"
+msgstr "175%"
+
+msgid "200%"
+msgstr "200%"
+
+msgid "Scale"
+msgstr "Scale"
+
+msgid "Active"
+msgstr "Active"
+
+msgid "Adaptive sync"
+msgstr "Adaptive sync"
+
+msgid "No DRM mode list available — connect displays in a Metis session on real hardware."
+msgstr "No DRM mode list available — connect displays in a Metis session on real hardware."
+
+msgid "Resolution & refresh"
+msgstr "Resolution & refresh"
+
+msgid "Rotation — coming soon"
+msgstr "Rotation — coming soon"
+
+msgid "Rotation"
+msgstr "Rotation"
+
+msgid "Colour profile"
+msgstr "Colour profile"
+
+msgid "Choose ICC profile…"
+msgstr "Choose ICC profile…"
+
+msgid "Saved to outputs.json and exposed to Wayland clients via wp_color_management_v1.          GPU colour transforms in the compositor render path are still follow-up work."
+msgstr "Saved to outputs.json and exposed to Wayland clients via wp_color_management_v1.          GPU colour transforms in the compositor render path are still follow-up work."
+
+msgid "Choose ICC colour profile"
+msgstr "Choose ICC colour profile"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Open"
+msgstr "Open"
+
+msgid "ICC profiles"
+msgstr "ICC profiles"
+
+msgid "Edge bar"
+msgstr "Edge bar"
+
+msgid "Top"
+msgstr "Top"
+
+msgid "Bottom"
+msgstr "Bottom"
+
+msgid "Left"
+msgstr "Left"
+
+msgid "Right"
+msgstr "Right"
+
+msgid "Position"
+msgstr "Position"
+
+msgid "All displays"
+msgstr "All displays"
+
+msgid "Primary display only"
+msgstr "Primary display only"
+
+msgid "Show bar on"
+msgstr "Show bar on"
+
+msgid "Independent per display"
+msgstr "Independent per display"
+
+msgid "Linked across displays"
+msgstr "Linked across displays"
+
+msgid "Independent: each monitor keeps its own workspaces.\n         Linked: switching a workspace moves every monitor at once."
+msgstr "Independent: each monitor keeps its own workspaces.\n         Linked: switching a workspace moves every monitor at once."
+
+msgid "Workspaces"
+msgstr "Workspaces"
+
+msgid "Free desktop"
+msgstr "Free desktop"
+
+msgid "Grid tiling"
+msgstr "Grid tiling"
+
+msgid "Scrolling"
+msgstr "Scrolling"
+
+msgid "Applies to every workspace right away.\n         Toggle the active workspace with Super + \\ (cycles free → grid → scroll)."
+msgstr "Applies to every workspace right away.\n         Toggle the active workspace with Super + \\ (cycles free → grid → scroll)."
+
+msgid "New workspace layout"
+msgstr "New workspace layout"
+
+msgid "Collapsed (popup list)"
+msgstr "Collapsed (popup list)"
+
+msgid "Pinned on bar"
+msgstr "Pinned on bar"
+
+msgid "Collapsed: one tray button opens a popover with all background app icons.\n         Pinned: tray icons stay visible on the bar, left of the tray button."
+msgstr "Collapsed: one tray button opens a popover with all background app icons.\n         Pinned: tray icons stay visible on the bar, left of the tray button."
+
+msgid "System tray icons"
+msgstr "System tray icons"
+
+msgid "Distance from edge"
+msgstr "Distance from edge"
+
+msgid "Opacity"
+msgstr "Opacity"
+
+msgid "Backdrop blur"
+msgstr "Backdrop blur"
+
+msgid "Blur radius"
+msgstr "Blur radius"
+
+msgid "Blur frosts the wallpaper behind the bar — it needs a wallpaper set and          the bar opacity below 1.0 to show through. Changes apply within ~1s."
+msgstr "Blur frosts the wallpaper behind the bar — it needs a wallpaper set and          the bar opacity below 1.0 to show through. Changes apply within ~1s."
+
+msgid "Custom gradient"
+msgstr "Custom gradient"
+
+msgid "Bar border"
+msgstr "Bar border"
+
+msgid "Bar border thickness"
+msgstr "Bar border thickness"
+
+msgid "Border color"
+msgstr "Border color"
+
+msgid "Gradient middle"
+msgstr "Gradient middle"
+
+msgid "Auto (games on discrete GPU)"
+msgstr "Auto (games on discrete GPU)"
+
+msgid "Desktop iGPU / games dGPU"
+msgstr "Desktop iGPU / games dGPU"
+
+msgid "Always discrete GPU"
+msgstr "Always discrete GPU"
+
+msgid "Always integrated GPU"
+msgstr "Always integrated GPU"
+
+msgid "Off (manual only)"
+msgstr "Off (manual only)"
+
+msgid "Graphics mode"
+msgstr "Graphics mode"
+
+msgid "Prefer iGPU on battery"
+msgstr "Prefer iGPU on battery"
+
+msgid "Performance profile while gaming"
+msgstr "Performance profile while gaming"
+
+msgid "Auto GameMode"
+msgstr "Auto GameMode"
+
+msgid "Flatpak GPU offload env"
+msgstr "Flatpak GPU offload env"
+
+msgid "Checking gaming health…"
+msgstr "Checking gaming health…"
+
+msgid "Optimize now"
+msgstr "Optimize now"
+
+msgid "Apply Flatpak gaming overrides and add you to the input group if needed"
+msgstr "Apply Flatpak gaming overrides and add you to the input group if needed"
+
+msgid "Run gaming setup"
+msgstr "Run gaming setup"
+
+msgid "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
+msgstr "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
+
+msgid "Health check"
+msgstr "Health check"
+
+msgid "Session"
+msgstr "Session"
+
+msgid "Checking…"
+msgstr "Checking…"
+
+msgid "Steam"
+msgstr "Steam"
+
+msgid "GPU"
+msgstr "GPU"
+
+msgid "Gamepads"
+msgstr "Gamepads"
+
+msgid "Touchscreens"
+msgstr "Touchscreens"
+
+msgid "Optimizing…"
+msgstr "Optimizing…"
+
+msgid "Gaming setup"
+msgstr "Gaming setup"
+
+msgid "Close"
+msgstr "Close"
+
+msgid "Applies Flatpak device/socket overrides, hybrid GPU env vars for Steam/Lutris/Heroic,          and writes the Flatpak Steam launcher wrapper. Safe to re-run after updates."
+msgstr "Applies Flatpak device/socket overrides, hybrid GPU env vars for Steam/Lutris/Heroic,          and writes the Flatpak Steam launcher wrapper. Safe to re-run after updates."
+
+msgid "Click Start to run the optimizer."
+msgstr "Click Start to run the optimizer."
+
+msgid "Start setup"
+msgstr "Start setup"
+
+msgid "Fix"
+msgstr "Fix"
+
+msgid "Install or apply this fix (may ask for your password)"
+msgstr "Install or apply this fix (may ask for your password)"
+
+msgid "Copy command"
+msgstr "Copy command"
+
+msgid "Copied"
+msgstr "Copied"
+
+msgid "Ready for gaming — all checks passed."
+msgstr "Ready for gaming — all checks passed."
+
+msgid "Installed (native)"
+msgstr "Installed (native)"
+
+msgid "Installed (Flatpak)"
+msgstr "Installed (Flatpak)"
+
+msgid "Not detected"
+msgstr "Not detected"
+
+msgid "No gamepads detected"
+msgstr "No gamepads detected"
+
+msgid "No touchscreens detected"
+msgstr "No touchscreens detected"
+
+msgid "Adaptive"
+msgstr "Adaptive"
+
+msgid "Flat"
+msgstr "Flat"
+
+msgid "Layout"
+msgstr "Layout"
+
+msgid "Leave empty for system default, e.g. us"
+msgstr "Leave empty for system default, e.g. us"
+
+msgid "Optional variant"
+msgstr "Optional variant"
+
+msgid "Variant"
+msgstr "Variant"
+
+msgid "Extra xkb options, comma-separated"
+msgstr "Extra xkb options, comma-separated"
+
+msgid "Options"
+msgstr "Options"
+
+msgid "Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See          /usr/share/X11/xkb/rules/base.lst on your system."
+msgstr "Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See          /usr/share/X11/xkb/rules/base.lst on your system."
+
+msgid "Typing"
+msgstr "Typing"
+
+msgid "Repeat delay (ms)"
+msgstr "Repeat delay (ms)"
+
+msgid "Repeat rate (Hz)"
+msgstr "Repeat rate (Hz)"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "Escape"
+msgstr "Escape"
+
+msgid "Control"
+msgstr "Control"
+
+msgid "Caps Lock"
+msgstr "Caps Lock"
+
+msgid "Disabled"
+msgstr "Disabled"
+
+msgid "Right Alt"
+msgstr "Right Alt"
+
+msgid "Menu"
+msgstr "Menu"
+
+msgid "Left Alt"
+msgstr "Left Alt"
+
+msgid "Scroll Lock"
+msgstr "Scroll Lock"
+
+msgid "Compose key"
+msgstr "Compose key"
+
+msgid "Auto (numpad detected)"
+msgstr "Auto (numpad detected)"
+
+msgid "Always on"
+msgstr "Always on"
+
+msgid "Off"
+msgstr "Off"
+
+msgid "Num Lock on login"
+msgstr "Num Lock on login"
+
+msgid "Auto turns Num Lock on when a keyboard with a numeric keypad is          present. Keyboard settings apply live in the Metis session within ~1s."
+msgstr "Auto turns Num Lock on when a keyboard with a numeric keypad is          present. Keyboard settings apply live in the Metis session within ~1s."
+
+msgid "Shortcuts"
+msgstr "Shortcuts"
+
+msgid "Super"
+msgstr "Super"
+
+msgid "Alt"
+msgstr "Alt"
+
+msgid "Ctrl"
+msgstr "Ctrl"
+
+msgid "Metis modifier (defaults)"
+msgstr "Metis modifier (defaults)"
+
+msgid "Click Change, then press a shortcut in the field that appears, then Save.          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are system-only and          cannot be changed."
+msgstr "Click Change, then press a shortcut in the field that appears, then Save.          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are system-only and          cannot be changed."
+
+msgid "System"
+msgstr "System"
+
+msgid "Change"
+msgstr "Change"
+
+msgid "Reset"
+msgstr "Reset"
+
+msgid "Press a shortcut…"
+msgstr "Press a shortcut…"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "That shortcut is reserved for the system and cannot be used."
+msgstr "That shortcut is reserved for the system and cannot be used."
 
 msgid "Language"
 msgstr "Language"
@@ -22,38 +884,998 @@ msgstr "Language"
 msgid "Formats follow language"
 msgstr "Formats follow language"
 
+msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgstr "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+
 msgid "Apply"
 msgstr "Apply"
 
-msgid "System"
-msgstr "System"
+msgid "Quick launchers"
+msgstr "Quick launchers"
 
-msgid "Display"
-msgstr "Display"
+msgid "Terminal"
+msgstr "Terminal"
+
+msgid "File manager"
+msgstr "File manager"
+
+msgid "Auto-detect uses the first installed option. Choose Custom to point at any          executable on your system."
+msgstr "Auto-detect uses the first installed option. Choose Custom to point at any          executable on your system."
 
 msgid "Appearance"
 msgstr "Appearance"
 
-msgid "Background"
-msgstr "Background"
+msgid "Panel opacity"
+msgstr "Panel opacity"
 
-msgid "Edge bar"
-msgstr "Edge bar"
+msgid "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s."
+msgstr "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s."
+
+msgid "Pointer"
+msgstr "Pointer"
+
+msgid "Pointer speed"
+msgstr "Pointer speed"
+
+msgid "Acceleration"
+msgstr "Acceleration"
+
+msgid "Natural scrolling"
+msgstr "Natural scrolling"
+
+msgid "Primary button on right"
+msgstr "Primary button on right"
+
+msgid "Scroll speed"
+msgstr "Scroll speed"
+
+msgid "Applies to mice and other non-touchpad pointers in the Metis session (wheel,          including lists in the Metis menu). Changes apply immediately."
+msgstr "Applies to mice and other non-touchpad pointers in the Metis session (wheel,          including lists in the Metis menu). Changes apply immediately."
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "Wi-Fi radio"
+msgstr "Wi-Fi radio"
+
+msgid "Rescan"
+msgstr "Rescan"
+
+msgid "Known Wi-Fi networks"
+msgstr "Known Wi-Fi networks"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "Ethernet"
+msgstr "Ethernet"
+
+msgid "VPN connections"
+msgstr "VPN connections"
+
+msgid "OpenVPN import needs the NetworkManager plugin. Install with:\n             sudo apt install network-manager-openvpn"
+msgstr "OpenVPN import needs the NetworkManager plugin. Install with:\n             sudo apt install network-manager-openvpn"
+
+msgid "Import…"
+msgstr "Import…"
+
+msgid "Add OpenVPN…"
+msgstr "Add OpenVPN…"
+
+msgid "Add WireGuard…"
+msgstr "Add WireGuard…"
+
+msgid "Import .ovpn / WireGuard .conf files, or add OpenVPN / WireGuard manually. Saved NetworkManager VPN profiles appear here automatically."
+msgstr "Import .ovpn / WireGuard .conf files, or add OpenVPN / WireGuard manually. Saved NetworkManager VPN profiles appear here automatically."
+
+msgid "System proxy"
+msgstr "System proxy"
+
+msgid "Wi-Fi is off."
+msgstr "Wi-Fi is off."
+
+msgid "No networks found."
+msgstr "No networks found."
+
+msgid "No saved Wi-Fi networks."
+msgstr "No saved Wi-Fi networks."
+
+msgid "Forget"
+msgstr "Forget"
+
+msgid "Connect to a Wi-Fi network to override its DNS."
+msgstr "Connect to a Wi-Fi network to override its DNS."
+
+msgid "No Ethernet devices."
+msgstr "No Ethernet devices."
+
+msgid "No VPN profiles yet. Import an .ovpn or WireGuard .conf, or add OpenVPN / WireGuard manually."
+msgstr "No VPN profiles yet. Import an .ovpn or WireGuard .conf, or add OpenVPN / WireGuard manually."
+
+msgid " · Connected"
+msgstr " · Connected"
+
+msgid "Auto-connect"
+msgstr "Auto-connect"
+
+msgid "Connect this VPN after login when the network is ready. Only one profile can auto-connect."
+msgstr "Connect this VPN after login when the network is ready. Only one profile can auto-connect."
+
+msgid "Autoconnect enabled (only this profile)."
+msgstr "Autoconnect enabled (only this profile)."
+
+msgid "Autoconnect disabled."
+msgstr "Autoconnect disabled."
+
+msgid "Connecting…"
+msgstr "Connecting…"
+
+msgid "Connected."
+msgstr "Connected."
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Disconnecting…"
+msgstr "Disconnecting…"
+
+msgid "Disconnected."
+msgstr "Disconnected."
+
+msgid "Password required — enter your VPN password."
+msgstr "Password required — enter your VPN password."
+
+msgid "VPN password required, but no window is available to prompt."
+msgstr "VPN password required, but no window is available to prompt."
+
+msgid "VPN password"
+msgstr "VPN password"
+
+msgid "VPN password required"
+msgstr "VPN password required"
+
+msgid "This profile needs a password that NetworkManager does not have yet          (common after moving from another desktop). Enter it to connect."
+msgstr "This profile needs a password that NetworkManager does not have yet          (common after moving from another desktop). Enter it to connect."
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Remember password on this profile"
+msgstr "Remember password on this profile"
+
+msgid "Enter the VPN password."
+msgstr "Enter the VPN password."
+
+msgid "Import VPN profile"
+msgstr "Import VPN profile"
+
+msgid "VPN configs (*.ovpn, *.conf)"
+msgstr "VPN configs (*.ovpn, *.conf)"
+
+msgid "Importing…"
+msgstr "Importing…"
+
+msgid "Could not open OpenVPN dialog (no parent window)."
+msgstr "Could not open OpenVPN dialog (no parent window)."
+
+msgid "OpenVPN plugin missing. Install with: sudo apt install network-manager-openvpn"
+msgstr "OpenVPN plugin missing. Install with: sudo apt install network-manager-openvpn"
+
+msgid "Add OpenVPN"
+msgstr "Add OpenVPN"
+
+msgid "Add OpenVPN connection"
+msgstr "Add OpenVPN connection"
+
+msgid "Password authentication only. For provider configs with certificates, use Import… on an .ovpn file."
+msgstr "Password authentication only. For provider configs with certificates, use Import… on an .ovpn file."
+
+msgid "Password (optional)"
+msgstr "Password (optional)"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "Gateway"
+msgstr "Gateway"
+
+msgid "Browse…"
+msgstr "Browse…"
+
+msgid "CA certificate (optional)"
+msgstr "CA certificate (optional)"
+
+msgid "Create"
+msgstr "Create"
+
+msgid "Choose CA certificate"
+msgstr "Choose CA certificate"
+
+msgid "Certificates (*.crt, *.pem)"
+msgstr "Certificates (*.crt, *.pem)"
+
+msgid "Creating…"
+msgstr "Creating…"
+
+msgid "OpenVPN profile created."
+msgstr "OpenVPN profile created."
+
+msgid "Could not open WireGuard dialog (no parent window)."
+msgstr "Could not open WireGuard dialog (no parent window)."
+
+msgid "Add WireGuard"
+msgstr "Add WireGuard"
+
+msgid "Add WireGuard connection"
+msgstr "Add WireGuard connection"
+
+msgid "Private key"
+msgstr "Private key"
+
+msgid "Address (CIDR)"
+msgstr "Address (CIDR)"
+
+msgid "Peer public key"
+msgstr "Peer public key"
+
+msgid "Endpoint"
+msgstr "Endpoint"
+
+msgid "Allowed IPs"
+msgstr "Allowed IPs"
+
+msgid "DNS (optional)"
+msgstr "DNS (optional)"
+
+msgid "WireGuard connection created."
+msgstr "WireGuard connection created."
+
+msgid "Could not open edit dialog (no parent window)."
+msgstr "Could not open edit dialog (no parent window)."
+
+msgid "Could not load WireGuard profile details."
+msgstr "Could not load WireGuard profile details."
+
+msgid "Edit WireGuard"
+msgstr "Edit WireGuard"
+
+msgid "Edit WireGuard connection"
+msgstr "Edit WireGuard connection"
+
+msgid "Private key is unchanged. Disconnect and reconnect for peer/address edits to take effect."
+msgstr "Private key is unchanged. Disconnect and reconnect for peer/address edits to take effect."
+
+msgid "Saving…"
+msgstr "Saving…"
+
+msgid "WireGuard profile updated."
+msgstr "WireGuard profile updated."
+
+msgid "DNS servers"
+msgstr "DNS servers"
+
+msgid "Comma-separated. Leave empty to use the DHCP-provided DNS."
+msgstr "Comma-separated. Leave empty to use the DHCP-provided DNS."
+
+msgid "Apply DNS"
+msgstr "Apply DNS"
+
+msgid "Disconnected"
+msgstr "Disconnected"
+
+msgid "No active profile for this device."
+msgstr "No active profile for this device."
+
+msgid "Automatic (DHCP)"
+msgstr "Automatic (DHCP)"
+
+msgid "Manual (static)"
+msgstr "Manual (static)"
+
+msgid "IPv4 method"
+msgstr "IPv4 method"
+
+msgid "DNS (override)"
+msgstr "DNS (override)"
+
+msgid "System proxy settings are unavailable (the GNOME proxy schema isn't installed)."
+msgstr "System proxy settings are unavailable (the GNOME proxy schema isn't installed)."
+
+msgid "None"
+msgstr "None"
+
+msgid "Manual"
+msgstr "Manual"
+
+msgid "Automatic (PAC)"
+msgstr "Automatic (PAC)"
+
+msgid "Proxy mode"
+msgstr "Proxy mode"
+
+msgid "Ignore hosts"
+msgstr "Ignore hosts"
+
+msgid "PAC URL"
+msgstr "PAC URL"
+
+msgid "Applies to GLib/GTK apps via the system proxy resolver."
+msgstr "Applies to GLib/GTK apps via the system proxy resolver."
+
+msgid "proxy.example.com"
+msgstr "proxy.example.com"
+
+msgid "8080"
+msgstr "8080"
+
+msgid "Join"
+msgstr "Join"
+
+msgid "Battery"
+msgstr "Battery"
+
+msgid "No battery detected"
+msgstr "No battery detected"
+
+msgid "Power mode"
+msgstr "Power mode"
+
+msgid "Power saver"
+msgstr "Power saver"
+
+msgid "Balanced"
+msgstr "Balanced"
+
+msgid "Performance"
+msgstr "Performance"
+
+msgid "Profile"
+msgstr "Profile"
+
+msgid "Power saving"
+msgstr "Power saving"
+
+msgid "Blank screen after (min, 0=never)"
+msgstr "Blank screen after (min, 0=never)"
+
+msgid "Suspend after idle (min, 0=never)"
+msgstr "Suspend after idle (min, 0=never)"
+
+msgid "Suspend"
+msgstr "Suspend"
+
+msgid "Ignore"
+msgstr "Ignore"
+
+msgid "Hibernate"
+msgstr "Hibernate"
+
+msgid "Power off"
+msgstr "Power off"
+
+msgid "When lid is closed"
+msgstr "When lid is closed"
+
+msgid "Dim on battery"
+msgstr "Dim on battery"
+
+msgid "Connected devices"
+msgstr "Connected devices"
+
+msgid "No wireless devices connected"
+msgstr "No wireless devices connected"
+
+msgid "charging"
+msgstr "charging"
+
+msgid "discharging"
+msgstr "discharging"
+
+msgid "No battery detected (desktop / AC-only)"
+msgstr "No battery detected (desktop / AC-only)"
+
+msgid "No battery info"
+msgstr "No battery info"
+
+msgid "Open printer settings…"
+msgstr "Open printer settings…"
+
+msgid "Installed printers"
+msgstr "Installed printers"
+
+msgid "CUPS not available. Install cups and system-config-printer."
+msgstr "CUPS not available. Install cups and system-config-printer."
+
+msgid "No default printer set"
+msgstr "No default printer set"
+
+msgid "No printers configured."
+msgstr "No printers configured."
+
+msgid "Session sharing lets another device view and control the Metis session          you are already logged into. Remote login to start a separate session          will be a different option when it is available."
+msgstr "Session sharing lets another device view and control the Metis session          you are already logged into. Remote login to start a separate session          will be a different option when it is available."
+
+msgid "Install gnome-remote-desktop to enable desktop session sharing:\n         sudo apt install gnome-remote-desktop"
+msgstr "Install gnome-remote-desktop to enable desktop session sharing:\n         sudo apt install gnome-remote-desktop"
+
+msgid "Set a password before enabling desktop session sharing."
+msgstr "Set a password before enabling desktop session sharing."
+
+msgid "Set password…"
+msgstr "Set password…"
+
+msgid "Desktop session sharing"
+msgstr "Desktop session sharing"
+
+msgid "Allow desktop session sharing"
+msgstr "Allow desktop session sharing"
+
+msgid "Connection"
+msgstr "Connection"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Address"
+msgstr "Address"
+
+msgid "Port"
+msgstr "Port"
+
+msgid "Change password…"
+msgstr "Change password…"
+
+msgid "Copy connection address"
+msgstr "Copy connection address"
+
+msgid "Connect with Microsoft Remote Desktop, Remmina, or FreeRDP.          Use the username and password you set above — empty credentials will not work."
+msgstr "Connect with Microsoft Remote Desktop, Remmina, or FreeRDP.          Use the username and password you set above — empty credentials will not work."
+
+msgid "Security"
+msgstr "Security"
+
+msgid "Keep session sharing on your local network when possible. Use a strong password.          Sharing pauses while the session is locked (Super+L).          See docs/USER_GUIDE.md for firewall setup (ufw allow 3389/tcp)."
+msgstr "Keep session sharing on your local network when possible. Use a strong password.          Sharing pauses while the session is locked (Super+L).          See docs/USER_GUIDE.md for firewall setup (ufw allow 3389/tcp)."
+
+msgid "Remote login"
+msgstr "Remote login"
+
+msgid "Sign in remotely to start a new desktop session (for example xrdp) — planned          for a later milestone. This page only covers sharing the session you are          already in."
+msgstr "Sign in remotely to start a new desktop session (for example xrdp) — planned          for a later milestone. This page only covers sharing the session you are          already in."
+
+msgid "Not available"
+msgstr "Not available"
+
+msgid "—"
+msgstr "—"
+
+msgid "Use your session sharing password"
+msgstr "Use your session sharing password"
+
+msgid "Running — ready for connections"
+msgstr "Running — ready for connections"
+
+msgid "Starting…"
+msgstr "Starting…"
+
+msgid "Stopped"
+msgstr "Stopped"
+
+msgid "Session sharing password"
+msgstr "Session sharing password"
+
+msgid "Choose the username and password RDP clients use to join this session."
+msgstr "Choose the username and password RDP clients use to join this session."
+
+msgid "Confirm password"
+msgstr "Confirm password"
+
+msgid "Passwords do not match"
+msgstr "Passwords do not match"
+
+msgid "Use at least 8 characters"
+msgstr "Use at least 8 characters"
+
+msgid "Output"
+msgstr "Output"
+
+msgid "Playback device"
+msgstr "Playback device"
+
+msgid "Volume"
+msgstr "Volume"
+
+msgid "Input"
+msgstr "Input"
+
+msgid "Recording device"
+msgstr "Recording device"
+
+msgid "Level"
+msgstr "Level"
+
+msgid "Use the volume icon on the edge bar for quick mute and level control."
+msgstr "Use the volume icon on the edge bar for quick mute and level control."
+
+msgid "Auto uses Metis defaults. Override only when an app shows a double          titlebar or is missing Metis window controls. Changes apply immediately."
+msgstr "Auto uses Metis defaults. Override only when an app shows a double          titlebar or is missing Metis window controls. Changes apply immediately."
+
+msgid "Search applications…"
+msgstr "Search applications…"
+
+msgid "Applications"
+msgstr "Applications"
+
+msgid "No matching applications"
+msgstr "No matching applications"
+
+msgid "Customized"
+msgstr "Customized"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Metis titlebar"
+msgstr "Metis titlebar"
+
+msgid "App titlebar"
+msgstr "App titlebar"
+
+msgid "Touchpad"
+msgstr "Touchpad"
+
+msgid "Tap to click"
+msgstr "Tap to click"
+
+msgid "Tap and drag"
+msgstr "Tap and drag"
+
+msgid "Disable while typing"
+msgstr "Disable while typing"
+
+msgid "These options apply when a touchpad is present in the Metis DRM session. Under          the nested dev session they are stored but not applied."
+msgstr "These options apply when a touchpad is present in the Metis DRM session. Under          the nested dev session they are stored but not applied."
+
+msgid "Units"
+msgstr "Units"
+
+msgid "Automatic"
+msgstr "Automatic"
+
+msgid "Celsius"
+msgstr "Celsius"
+
+msgid "Fahrenheit"
+msgstr "Fahrenheit"
+
+msgid "Temperature unit"
+msgstr "Temperature unit"
+
+msgid "Auto-detect"
+msgstr "Auto-detect"
+
+msgid "Detect my location"
+msgstr "Detect my location"
+
+msgid "Use IP geolocation (more precise)"
+msgstr "Use IP geolocation (more precise)"
+
+msgid "Auto-detect is used only when no locations are pinned below."
+msgstr "Auto-detect is used only when no locations are pinned below."
+
+msgid "Locations"
+msgstr "Locations"
+
+msgid "Search for a city…"
+msgstr "Search for a city…"
+
+msgid "Searching…"
+msgstr "Searching…"
+
+msgid "No matches found."
+msgstr "No matches found."
+
+msgid "Add"
+msgstr "Add"
+
+msgid "No pinned locations (using auto-detect)."
+msgstr "No pinned locations (using auto-detect)."
+
+msgid "Windows"
+msgstr "Windows"
+
+msgid "Window animations"
+msgstr "Window animations"
+
+msgid "Minimize genie, maximize wobble, and titlebar slide effects.          Turn off for instant window transitions. The Compatibility graphics          profile on Display also disables animations in VMs."
+msgstr "Minimize genie, maximize wobble, and titlebar slide effects.          Turn off for instant window transitions. The Compatibility graphics          profile on Display also disables animations in VMs."
+
+msgid "Maximized window padding"
+msgstr "Maximized window padding"
+
+msgid "Space around maximized and edge-snapped windows. 0 is flush to the          screen and bar edges; 10 is the maximum inset. Applies within ~1s."
+msgstr "Space around maximized and edge-snapped windows. 0 is flush to the          screen and bar edges; 10 is the maximum inset. Applies within ~1s."
+
+msgid "Titlebar opacity"
+msgstr "Titlebar opacity"
+
+msgid "Dims only the window titlebar background so the wallpaper shows through;          the title text and window buttons stay solid. Changes apply within ~1s."
+msgstr "Dims only the window titlebar background so the wallpaper shows through;          the title text and window buttons stay solid. Changes apply within ~1s."
+
+msgid "Title pill border"
+msgstr "Title pill border"
+
+msgid "Pill border width"
+msgstr "Pill border width"
+
+msgid "Window border"
+msgstr "Window border"
+
+msgid "Window border thickness"
+msgstr "Window border thickness"
+
+msgid "Gradient top"
+msgstr "Gradient top"
+
+msgid "Gradient bottom"
+msgstr "Gradient bottom"
+
+msgid "The border around the whole window frame, independent of the title pill. The          gradient flows top→bottom; thickness also insets the window contents.          Changes apply within ~1s."
+msgstr "The border around the whole window frame, independent of the title pill. The          gradient flows top→bottom; thickness also insets the window contents.          Changes apply within ~1s."
+
+msgid "Pinned"
+msgstr "Pinned"
+
+msgid "Right-click an app to pin it here."
+msgstr "Right-click an app to pin it here."
+
+msgid "Files"
+msgstr "Files"
+
+msgid "Big Picture"
+msgstr "Big Picture"
+
+msgid "Lock"
+msgstr "Lock"
+
+msgid "Log Out"
+msgstr "Log Out"
+
+msgid "Restart"
+msgstr "Restart"
+
+msgid "Shut Down"
+msgstr "Shut Down"
+
+msgid "Frequent Apps"
+msgstr "Frequent Apps"
+
+msgid "Search Results"
+msgstr "Search Results"
+
+msgid "Power settings…"
+msgstr "Power settings…"
+
+msgid "Battery %1%"
+msgstr "Battery %1%"
+
+msgid "AC power"
+msgstr "AC power"
+
+msgid "Bluetooth on"
+msgstr "Bluetooth on"
+
+msgid "Bluetooth off"
+msgstr "Bluetooth off"
+
+msgid "Bluetooth settings…"
+msgstr "Bluetooth settings…"
+
+msgid "Connected to %1"
+msgstr "Connected to %1"
+
+msgid "On — no devices connected"
+msgstr "On — no devices connected"
+
+msgid "%1% (charging)"
+msgstr "%1% (charging)"
+
+msgid "Wi-Fi is off"
+msgstr "Wi-Fi is off"
+
+msgid "No networks found"
+msgstr "No networks found"
+
+msgid "Connect to %1"
+msgstr "Connect to %1"
 
 msgid "Network"
 msgstr "Network"
 
-msgid "Skip"
-msgstr "Skip"
+msgid "Scanning…"
+msgstr "Scanning…"
 
-msgid "Back"
-msgstr "Back"
+msgid "Network Settings…"
+msgstr "Network Settings…"
 
-msgid "Next"
-msgstr "Next"
+msgid "VPN"
+msgstr "VPN"
 
-msgid "Finish"
-msgstr "Finish"
+msgid "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
+msgstr "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
+
+msgid "Remember on this profile"
+msgstr "Remember on this profile"
+
+msgid "VPN Settings…"
+msgstr "VPN Settings…"
+
+msgid "Connecting VPN…"
+msgstr "Connecting VPN…"
+
+msgid "Disconnecting VPN…"
+msgstr "Disconnecting VPN…"
+
+msgid "VPN disconnected"
+msgstr "VPN disconnected"
+
+msgid "VPN: %1"
+msgstr "VPN: %1"
+
+msgid "Password for %1"
+msgstr "Password for %1"
+
+msgid "Enter the VPN password to connect."
+msgstr "Enter the VPN password to connect."
+
+msgid "Wi-Fi off"
+msgstr "Wi-Fi off"
+
+msgid "Offline"
+msgstr "Offline"
+
+msgid "Audio"
+msgstr "Audio"
+
+msgid "Volume %1%"
+msgstr "Volume %1%"
+
+msgid "System tray"
+msgstr "System tray"
+
+msgid "Background apps"
+msgstr "Background apps"
+
+msgid "No background apps"
+msgstr "No background apps"
+
+msgid "Unlock…"
+msgstr "Unlock…"
+
+msgid "Mount"
+msgstr "Mount"
+
+msgid "Unmount"
+msgstr "Unmount"
+
+msgid "Eject"
+msgstr "Eject"
+
+msgid "Metis Control Center"
+msgstr "Metis Control Center"
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "Processes"
+msgstr "Processes"
+
+msgid "total"
+msgstr "total"
+
+msgid "cores"
+msgstr "cores"
+
+msgid "Ethernet ↓"
+msgstr "Ethernet ↓"
+
+msgid "Ethernet ↑"
+msgstr "Ethernet ↑"
+
+msgid "Wi‑Fi ↓"
+msgstr "Wi‑Fi ↓"
+
+msgid "Wi‑Fi ↑"
+msgstr "Wi‑Fi ↑"
+
+msgid "Firewall active"
+msgstr "Firewall active"
+
+msgid "Firewall inactive"
+msgstr "Firewall inactive"
+
+msgid "Σ total"
+msgstr "Σ total"
+
+msgid "PID"
+msgstr "PID"
+
+msgid "User"
+msgstr "User"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "Memory"
+msgstr "Memory"
+
+msgid "No matching processes"
+msgstr "No matching processes"
+
+msgid "Showing first 300 visible rows — refine the filter"
+msgstr "Showing first 300 visible rows — refine the filter"
+
+msgid "Collapse child processes"
+msgstr "Collapse child processes"
+
+msgid "Expand child processes"
+msgstr "Expand child processes"
+
+msgid "End task"
+msgstr "End task"
+
+msgid "Cannot end processes owned by another user"
+msgstr "Cannot end processes owned by another user"
+
+msgid "Force quit"
+msgstr "Force quit"
+
+msgid "End process tree"
+msgstr "End process tree"
+
+msgid "Force quit tree"
+msgstr "Force quit tree"
+
+msgid "Copy PID"
+msgstr "Copy PID"
+
+msgid "Force quit process tree?"
+msgstr "Force quit process tree?"
+
+msgid "Force quit?"
+msgstr "Force quit?"
+
+msgid "End process tree?"
+msgstr "End process tree?"
+
+msgid "End task?"
+msgstr "End task?"
+
+msgid "Send SIGKILL to process"
+msgstr "Send SIGKILL to process"
+
+msgid "and its child processes"
+msgstr "and its child processes"
+
+msgid "This cannot be undone."
+msgstr "This cannot be undone."
+
+msgid "Send SIGTERM to process"
+msgstr "Send SIGTERM to process"
+
+msgid "End tree"
+msgstr "End tree"
+
+msgid "Metis"
+msgstr "Metis"
+
+msgid "App"
+msgstr "App"
+
+msgid "N/A"
+msgstr "N/A"
+
+msgid "Processor"
+msgstr "Processor"
+
+msgid "RAM"
+msgstr "RAM"
+
+msgid "Swap"
+msgstr "Swap"
+
+msgid "Download"
+msgstr "Download"
+
+msgid "Upload"
+msgstr "Upload"
+
+msgid "Disk I/O"
+msgstr "Disk I/O"
+
+msgid "Read"
+msgstr "Read"
+
+msgid "Write"
+msgstr "Write"
+
+msgid "Load average"
+msgstr "Load average"
+
+msgid "Uptime"
+msgstr "Uptime"
+
+msgid "Storage"
+msgstr "Storage"
+
+msgid "Hostname"
+msgstr "Hostname"
+
+msgid "Cores"
+msgstr "Cores"
+
+msgid "Kernel"
+msgstr "Kernel"
+
+msgid "Search name, user, or PID…"
+msgstr "Search name, user, or PID…"
+
+msgid "All processes"
+msgstr "All processes"
+
+msgid "User apps"
+msgstr "User apps"
+
+msgid "Open monitor"
+msgstr "Open monitor"
+
+msgid "Open the configured process monitor (Settings → Control Center)"
+msgstr "Open the configured process monitor (Settings → Control Center)"
+
+msgid "Notification Center"
+msgstr "Notification Center"
+
+msgid "Events"
+msgstr "Events"
+
+msgid "Calendar"
+msgstr "Calendar"
+
+msgid "World clocks"
+msgstr "World clocks"
+
+msgid "Stopwatch"
+msgstr "Stopwatch"
+
+msgid "Timer"
+msgstr "Timer"
+
+msgid "Alarms"
+msgstr "Alarms"
+
+msgid "Collapse"
+msgstr "Collapse"
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "DND"
+msgstr "DND"
+
+msgid "Clear all"
+msgstr "Clear all"
+
+msgid "Expand"
+msgstr "Expand"
+
+msgid "No new notifications"
+msgstr "No new notifications"
+
+msgid "Language & region"
+msgstr "Language & region"
 
 msgid "Welcome to Metis"
 msgstr "Welcome to Metis"
@@ -79,191 +1901,62 @@ msgstr "Optional software"
 msgid "You're all set"
 msgstr "You're all set"
 
-msgid "Language & region for this session"
-msgstr "Language & region for this session"
+msgid "Skip"
+msgstr "Skip"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Finish"
+msgstr "Finish"
 
 msgid "Choose the language used by Metis. You can change this later in Settings."
 msgstr "Choose the language used by Metis. You can change this later in Settings."
 
-msgid "Animations, titlebar opacity, and window borders"
-msgstr "Animations, titlebar opacity, and window borders"
+msgid "Screenshot"
+msgstr "Screenshot"
 
-msgid "App titlebars"
-msgstr "App titlebars"
+msgid "Selection"
+msgstr "Selection"
 
-msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
-msgstr "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
+msgid "Full screen"
+msgstr "Full screen"
 
-msgid "Battery, profiles, and idle behaviour"
-msgstr "Battery, profiles, and idle behaviour"
+msgid "Window"
+msgstr "Window"
 
-msgid "Bluetooth"
-msgstr "Bluetooth"
+msgid "Copy"
+msgstr "Copy"
 
-msgid "Briefing weather card on the edge bar"
-msgstr "Briefing weather card on the edge bar"
+msgid "Both"
+msgstr "Both"
 
-msgid "Calendar accounts for the briefing"
-msgstr "Calendar accounts for the briefing"
+msgid "Capture"
+msgstr "Capture"
 
-msgid "Calendars"
-msgstr "Calendars"
+msgid "Include pointer"
+msgstr "Include pointer"
 
-msgid "Connectivity"
-msgstr "Connectivity"
+msgid "Delay (seconds)"
+msgstr "Delay (seconds)"
 
-msgid "Control Center"
-msgstr "Control Center"
+msgid "After capture"
+msgstr "After capture"
 
-msgid "Desktop"
-msgstr "Desktop"
+msgid "Select a window to capture"
+msgstr "Select a window to capture"
 
-msgid "Desktop wallpaper: picture, solid colour, or gradient"
-msgstr "Desktop wallpaper: picture, solid colour, or gradient"
+msgid "Select an area to capture"
+msgstr "Select an area to capture"
 
-msgid "Desktop widgets"
-msgstr "Desktop widgets"
+msgid "Screenshot failed"
+msgstr "Screenshot failed"
 
-msgid "Displays"
-msgstr "Displays"
+msgid "Screenshot captured"
+msgstr "Screenshot captured"
 
-msgid "Gamepads, touchscreens, Steam, and GPU hints"
-msgstr "Gamepads, touchscreens, Steam, and GPU hints"
-
-msgid "Gestures, tap-to-click, and natural scroll"
-msgstr "Gestures, tap-to-click, and natural scroll"
-
-msgid "Graphics profile, arrangement, resolution, scale, and night light"
-msgstr "Graphics profile, arrangement, resolution, scale, and night light"
-
-msgid "Input"
-msgstr "Input"
-
-msgid "Installed printers and system print settings"
-msgstr "Installed printers and system print settings"
-
-msgid "Keyboard"
-msgstr "Keyboard"
-
-msgid "Launcher apps and menu panel look"
-msgstr "Launcher apps and menu panel look"
-
-msgid "Metis Menu"
-msgstr "Metis Menu"
-
-msgid "Mouse"
-msgstr "Mouse"
-
-msgid "Optional wallpaper widgets: folders, apps, clock, and more"
-msgstr "Optional wallpaper widgets: folders, apps, clock, and more"
-
-msgid "Output and input audio devices"
-msgstr "Output and input audio devices"
-
-msgid "Override Metis vs app titlebars per application"
-msgstr "Override Metis vs app titlebars per application"
-
-msgid "Pair and manage Bluetooth devices"
-msgstr "Pair and manage Bluetooth devices"
-
-msgid "Pointer speed, acceleration, and scrolling"
-msgstr "Pointer speed, acceleration, and scrolling"
-
-msgid "Position, opacity, blur, workspaces, and the bar border"
-msgstr "Position, opacity, blur, workspaces, and the bar border"
-
-msgid "Power"
-msgstr "Power"
-
-msgid "Printers"
-msgstr "Printers"
-
-msgid "Remote access"
-msgstr "Remote access"
-
-msgid "Repeat rate and layout preferences"
-msgstr "Repeat rate and layout preferences"
-
-msgid "Session language and number/date formats"
-msgstr "Session language and number/date formats"
-
-msgid "Share your logged-in session over the network"
-msgstr "Share your logged-in session over the network"
-
-msgid "Sound"
-msgstr "Sound"
-
-msgid "System monitor panel, refresh rate, and process controls"
-msgstr "System monitor panel, refresh rate, and process controls"
-
-msgid "Theme mode, accent colours, and interface font"
-msgstr "Theme mode, accent colours, and interface font"
-
-msgid "Touchpad"
-msgstr "Touchpad"
-
-msgid "Wi-Fi, Ethernet, DNS, and proxy"
-msgstr "Wi-Fi, Ethernet, DNS, and proxy"
-
-msgid "Windows"
-msgstr "Windows"
-
-msgid "Settings"
-msgstr "Settings"
-
-msgid "Search"
-msgstr "Search"
-
-msgid "Files"
-msgstr "Files"
-
-msgid "Terminal"
-msgstr "Terminal"
-
-msgid "Lock"
-msgstr "Lock"
-
-msgid "Suspend"
-msgstr "Suspend"
-
-msgid "Log Out"
-msgstr "Log Out"
-
-msgid "Restart"
-msgstr "Restart"
-
-msgid "Shut Down"
-msgstr "Shut Down"
-
-msgid "Big Picture"
-msgstr "Big Picture"
-
-msgid "Search applications…"
-msgstr "Search applications…"
-
-msgid "Pinned"
-msgstr "Pinned"
-
-msgid "Right-click an app to pin it here."
-msgstr "Right-click an app to pin it here."
-
-msgid "Frequent Apps"
-msgstr "Frequent Apps"
-
-msgid "Search Results"
-msgstr "Search Results"
-
-msgid "No matching applications"
-msgstr "No matching applications"
-
-msgid "System tray"
-msgstr "System tray"
-
-msgid "Background apps"
-msgstr "Background apps"
-
-msgid "No background apps"
-msgstr "No background apps"
-
-msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
-msgstr "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
+msgid "Applies across Metis Settings, the edge bar, Control Center, screenshots, notifications, onboarding, and the lock screen. Other apps follow the system locale."
+msgstr "Applies across Metis Settings, the edge bar, Control Center, screenshots, notifications, onboarding, and the lock screen. Other apps follow the system locale."

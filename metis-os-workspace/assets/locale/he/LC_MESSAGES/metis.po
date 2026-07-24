@@ -1,267 +1,3312 @@
 # Metis UI translations (he).
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:117
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:256
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:130
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:402
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:423
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:534
 msgid ""
 msgstr ""
 "Project-Id-Version: metis 0.1\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-23 18:18-0700\n"
 "Language: he\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "System default"
-msgstr "ברירת מחדל של המערכת"
-
-msgid "Language & region"
-msgstr "שפה ואזור"
-
-msgid "Language"
-msgstr "שפה"
-
-msgid "Formats follow language"
-msgstr "התבניות עוקבות אחר השפה"
-
-msgid "Apply"
-msgstr "החל"
-
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:158
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:359
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:335
 msgid "Settings"
 msgstr "הגדרות"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:285
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:106
 msgid "Search"
 msgstr "חיפוש"
 
-msgid "System"
-msgstr "מערכת"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:58
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:841
+msgid "Style"
+msgstr "סגנון"
 
-msgid "Display"
-msgstr "תצוגה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:78
+msgid "Colors"
+msgstr "צבעים"
 
-msgid "Appearance"
-msgstr "מראה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:89
+msgid "Accent"
+msgstr "הדגשה"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:92
+msgid "Accent (secondary)"
+msgstr "הדגשה (משנית)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:95
+msgid "Error"
+msgstr "שגיאה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:98
+msgid "Warning"
+msgstr "אזהרה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:101
+msgid "Success"
+msgstr "הצלחה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:104
+msgid "Info"
+msgstr "מידע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:109
+msgid "Payment"
+msgstr "תשלום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:134
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1359
+msgid "Font"
+msgstr "גופן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:152
+msgid "Family & size"
+msgstr "משפחה וגודל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:157
+msgid "Text color"
+msgstr "צבע טקסט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:244
+msgid "Setup"
+msgstr "הגדרה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:246
+msgid ""
+"Reopen the first-run setup wizard to walk through theme, wallpaper,          "
+"clock, edge bar, and weather again."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:253
+msgid "Run setup again"
+msgstr "הפעל הגדרה מחדש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:27
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:325
 msgid "Background"
 msgstr "רקע"
 
-msgid "Edge bar"
-msgstr "סרגל קצה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:358
+msgid "Picture"
+msgstr "תמונה"
 
-msgid "Network"
-msgstr "רשת"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Solid color"
+msgstr "צבע אחיד"
 
-msgid "Skip"
-msgstr "דלג"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+msgid "Gradient"
+msgstr "מעבר צבע"
 
-msgid "Back"
-msgstr "חזרה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:39
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:51
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1125
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:420
+msgid "Type"
+msgstr "סוג"
 
-msgid "Next"
-msgstr "הבא"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:49
+msgid "Add Picture…"
+msgstr "הוסף תמונה…"
 
-msgid "Finish"
-msgstr "סיום"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:72
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:390
+msgid "Color"
+msgstr "צבע"
 
-msgid "Welcome to Metis"
-msgstr "ברוכים הבאים ל‑Metis"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Top → Bottom"
+msgstr "למעלה → למטה"
 
-msgid "Choose your style"
-msgstr "בחר את הסגנון שלך"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Bottom → Top"
+msgstr "למטה → למעלה"
 
-msgid "Pick a wallpaper"
-msgstr "בחר טפט"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Left → Right"
+msgstr "שמאל → ימין"
 
-msgid "Clock format"
-msgstr "תבנית שעון"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Right → Left"
+msgstr "ימין → שמאל"
 
-msgid "Weather"
-msgstr "מזג אוויר"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Diagonal ↘"
+msgstr "אלכסון ↘"
 
-msgid "Gaming"
-msgstr "גיימינג"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
+msgid "Diagonal ↗"
+msgstr "אלכסון ↗"
 
-msgid "Optional software"
-msgstr "תוכנה אופציונלית"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:89
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:415
+msgid "Start color"
+msgstr "צבע התחלה"
 
-msgid "You're all set"
-msgstr "הכול מוכן"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:90
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:416
+msgid "End color"
+msgstr "צבע סיום"
 
-msgid "Language & region for this session"
-msgstr "שפה ואזור עבור הפעלה זו"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:91
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:417
+msgid "Direction"
+msgstr "כיוון"
 
-msgid "Choose the language used by Metis. You can change this later in Settings."
-msgstr "בחר את השפה שבה Metis ישתמש. אפשר לשנות זאת מאוחר יותר בהגדרות."
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:103
+msgid "Per-display background"
+msgstr "רקע לכל תצוגה"
 
-msgid "Animations, titlebar opacity, and window borders"
-msgstr "הנפשות, אטימות שורת הכותרת וגבולות חלונות"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:105
+msgid ""
+"Pick a different picture for a specific display. Leave a display "
+"on              “Default” to use the background above."
+msgstr ""
 
-msgid "App titlebars"
-msgstr "שורות כותרת של אפליקציות"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:150
+msgid "Set…"
+msgstr "הגדר…"
 
-msgid "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. Other apps follow the system locale."
-msgstr "חל על הגדרות Metis, סרגל הקצה, ההגדרה הראשונית ומסך הנעילה. אפליקציות אחרות עוקבות אחר שפת המערכת."
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:152
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:813
+msgid "Clear"
+msgstr "נקה"
 
-msgid "Battery, profiles, and idle behaviour"
-msgstr "סוללה, פרופילים והתנהגות במצב המתנה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:311
+msgid "Lock screen"
+msgstr "מסך נעילה"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
+msgid "Use desktop wallpaper"
+msgstr "השתמש בטפט שולחן העבודה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:352
+msgid "Choose…"
+msgstr "בחר…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:445
+msgid "Blur the background"
+msgstr "טשטש את הרקע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:463
+msgid "Dim"
+msgstr "עמעום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:474
+msgid "Show clock"
+msgstr "הצג שעון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:479
+msgid "Use 24-hour clock"
+msgstr "השתמש בשעון 24 שעות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:503
+msgid "Lock when the screen blanks"
+msgstr "נעל כשהמסך כבה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:516
+msgid "Lock now"
+msgstr "נעל עכשיו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:670
+msgid "Choose a picture"
+msgstr "בחר תמונה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:672
+msgid "Images"
+msgstr "תמונות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:32
+msgid "Adapter"
+msgstr "מתאם"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:33
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:119
 msgid "Bluetooth"
 msgstr "Bluetooth"
 
-msgid "Briefing weather card on the edge bar"
-msgstr "כרטיס מזג אוויר של התדריך בסרגל הקצה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:35
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:101
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:267
+msgid "Scan for devices"
+msgstr "סרוק מכשירים"
 
-msgid "Calendar accounts for the briefing"
-msgstr "חשבונות יומן לתדריך"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:37
+msgid "Checking adapter…"
+msgstr "בודק מתאם…"
 
-msgid "Calendars"
-msgstr "יומנים"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:43
+msgid "Devices"
+msgstr "מכשירים"
 
-msgid "Connectivity"
-msgstr "חיבוריות"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:106
+msgid "Stop scanning"
+msgstr "עצור סריקה"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:124
+msgid "No Bluetooth adapter found."
+msgstr "לא נמצא מתאם Bluetooth."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:153
+msgid "No devices found. Tap Scan to search."
+msgstr "לא נמצאו מכשירים. הקש סרוק לחיפוש."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:203
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:312
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:606
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:649
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:785
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:847
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:849
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:856
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:858
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:514
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:721
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:961
+msgid "Connect"
+msgstr "התחבר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:213
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:594
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:651
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:959
+msgid "Disconnect"
+msgstr "נתק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:224
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:481
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:284
+msgid "Remove"
+msgstr "הסר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:239
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:308
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:465
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1523
+msgid "Connected"
+msgstr "מחובר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:240
+msgid "Paired"
+msgstr "מזווג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:241
+msgid "Available"
+msgstr "זמין"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:24
+msgid "Accounts"
+msgstr "חשבונות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:41
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:63
+msgid "Add account"
+msgstr "הוסף חשבון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:44
+msgid "CalDAV"
+msgstr "CalDAV"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:45
+msgid "Thunderbird"
+msgstr "Thunderbird"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:46
+msgid "Microsoft 365"
+msgstr "Microsoft 365"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:47
+msgid "Local"
+msgstr "מקומי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:53
+msgid "Display name"
+msgstr "שם תצוגה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:54
+msgid "CalDAV URL (server, calendar, or principal)"
+msgstr "כתובת CalDAV (שרת, לוח שנה או principal)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:55
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:999
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:104
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:422
+msgid "Username"
+msgstr "שם משתמש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:56
+msgid "MS tenant (e.g. common or your tenant id)"
+msgstr "דייר MS (למשל common או מזהה הדייר שלך)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:57
+msgid "MS application (client) id"
+msgstr "מזהה יישום (לקוח) MS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:58
+msgid "Color (e.g. #22d3ee) — optional"
+msgstr "צבע (למשל #22d3ee) — אופציונלי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:164
+msgid "No calendar accounts."
+msgstr "אין חשבונות לוח שנה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:225
+msgid "Save password"
+msgstr "שמור סיסמה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:268
+msgid "Sign in with Microsoft"
+msgstr "היכנס עם Microsoft"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:284
+msgid "Set the application (client) id first."
+msgstr "הגדר תחילה את מזהה היישום (לקוח)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:31
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:373
 msgid "Control Center"
 msgstr "מרכז בקרה"
 
-msgid "Desktop"
-msgstr "שולחן עבודה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:38
+msgid "Show Control Center"
+msgstr "הצג מרכז בקרה"
 
-msgid "Desktop wallpaper: picture, solid colour, or gradient"
-msgstr "טפט שולחן העבודה: תמונה, צבע אחיד או מעבר צבע"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:49
+msgid "Maximum panel height (%)"
+msgstr "גובה מקסימלי של לוח (%)"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:60
+msgid "Refresh interval (ms)"
+msgstr "מרווח רענון (ms)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:69
+msgid "Confirm before ending tasks"
+msgstr "אשר לפני סיום משימות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:75
+msgid "Process monitor"
+msgstr "מוניטור תהליכים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:84
+msgid ""
+"Open Control Center from the grid icon beside workspace dots, or pull "
+"down          on the edge bar. Process monitor Auto-detect prefers btop/htop "
+"(in your          terminal) then GUI monitors. Changes apply within about a "
+"second."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:95
+msgid "Overview widgets"
+msgstr "וידג'טים של סקירה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:123
+msgid ""
+"Processor, memory, storage, and network cards share the Overview "
+"tab.          Disabling Processes hides the Processes tab."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:40
 msgid "Desktop widgets"
 msgstr "וידג'טים לשולחן העבודה"
 
-msgid "Displays"
-msgstr "צגים"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:47
+msgid "Show desktop widgets"
+msgstr "הצג וידג'טים לשולחן העבודה"
 
-msgid "Gamepads, touchscreens, Steam, and GPU hints"
-msgstr "בקרים, מסכי מגע, Steam ורמזי GPU"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:56
+msgid "Edit mode (move / resize)"
+msgstr "מצב עריכה (הזז / שנה גודל)"
 
-msgid "Gestures, tap-to-click, and natural scroll"
-msgstr "מחוות, הקשה ללחיצה וגלילה טבעית"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:61
+msgid ""
+"Widgets float over the wallpaper (not classic desktop icons). Off "
+"by          default. In edit mode, drag the title bar to move and the corner "
+"handle          to resize. Chrome below is the default look; each widget can "
+"override it          from its Configure dialog."
+msgstr ""
 
-msgid "Graphics profile, arrangement, resolution, scale, and night light"
-msgstr "פרופיל גרפי, סידור, רזולוציה, קנה מידה ואור לילה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:74
+msgid "Default look"
+msgstr "מראה ברירת מחדל"
 
-msgid "Input"
-msgstr "קלט"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1410
+msgid "Background opacity"
+msgstr "שקיפות רקע"
 
-msgid "Installed printers and system print settings"
-msgstr "מדפסות מותקנות והגדרות הדפסה של המערכת"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:90
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:118
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1178
+msgid "Theme colour"
+msgstr "צבע ערכת נושא"
 
-msgid "Keyboard"
-msgstr "מקלדת"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:102
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1462
+msgid "Background colour"
+msgstr "צבע רקע"
 
-msgid "Launcher apps and menu panel look"
-msgstr "אפליקציות המשגר ומראה התפריט"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:114
+msgid "Border width (0 = none)"
+msgstr "רוחב מסגרת (0 = ללא)"
 
-msgid "Metis Menu"
-msgstr "תפריט Metis"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:130
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1568
+msgid "Border colour"
+msgstr "צבע מסגרת"
 
-msgid "Mouse"
-msgstr "עכבר"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:135
+msgid ""
+"Opacity 0 clears the fill; set border width to 0 to hide the "
+"edge.              Theme colour follows the active Appearance surface / text "
+"tint."
+msgstr ""
 
-msgid "Optional wallpaper widgets: folders, apps, clock, and more"
-msgstr "וידג'טי טפט אופציונליים: תיקיות, אפליקציות, שעון ועוד"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:224
+msgid "Widgets on this desktop"
+msgstr "וידג'טים בשולחן עבודה זה"
 
-msgid "Output and input audio devices"
-msgstr "התקני שמע לקלט ופלט"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:242
+msgid "Add widget"
+msgstr "הוסף וידג'ט"
 
-msgid "Override Metis vs app titlebars per application"
-msgstr "דריסת שורות כותרת של Metis או האפליקציה לכל יישום"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:249
+msgid "No widgets yet. Pick a type above and click Add widget."
+msgstr "אין וידג'טים עדיין. בחר סוג למעלה ולחץ הוסף וידג'ט."
 
-msgid "Pair and manage Bluetooth devices"
-msgstr "צימוד וניהול התקני Bluetooth"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:441
+msgid "Locked"
+msgstr "נעול"
 
-msgid "Pointer speed, acceleration, and scrolling"
-msgstr "מהירות מצביע, האצה וגלילה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:459
+msgid "Configure"
+msgstr "הגדר"
 
-msgid "Position, opacity, blur, workspaces, and the bar border"
-msgstr "מיקום, אטימות, טשטוש, סביבות עבודה וגבול הסרגל"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:550
+msgid "Done"
+msgstr "סיום"
 
-msgid "Power"
-msgstr "חשמל"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:655
+msgid "Show title"
+msgstr "הצג כותרת"
 
-msgid "Printers"
-msgstr "מדפסות"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:677
+msgid "~/Desktop"
+msgstr "~/Desktop"
 
-msgid "Remote access"
-msgstr "גישה מרחוק"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:695
+msgid "Set path"
+msgstr "הגדר נתיב"
 
-msgid "Repeat rate and layout preferences"
-msgstr "קצב חזרה והעדפות פריסה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:739
+msgid "Import start-menu pins"
+msgstr "ייבא נעיצות מתפריט התחלה"
 
-msgid "Session language and number/date formats"
-msgstr "שפת ההפעלה ותבניות מספר/תאריך"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:763
+msgid "Follow start menu again"
+msgstr "עקוב שוב אחר תפריט התחלה"
 
-msgid "Share your logged-in session over the network"
-msgstr "שתף את ההפעלה המחוברת דרך הרשת"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:874
+msgid "Colour mode"
+msgstr "מצב צבע"
 
-msgid "Sound"
-msgstr "צליל"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:897
+msgid "Solid colour"
+msgstr "צבע אחיד"
 
-msgid "System monitor panel, refresh rate, and process controls"
-msgstr "לוח ניטור מערכת, קצב רענון ובקרת תהליכים"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:918
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:182
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:138
+msgid "Gradient start"
+msgstr "התחלת מעבר צבע"
 
-msgid "Theme mode, accent colours, and interface font"
-msgstr "מצב ערכת נושא, צבעי הדגשה וגופן ממשק"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:938
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:184
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:140
+msgid "Gradient end"
+msgstr "סיום מעבר צבע"
 
-msgid "Touchpad"
-msgstr "משטח מגע"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:944
+msgid "Uses the active Appearance accent and secondary colours."
+msgstr "משתמש בצבעי ההדגשה והמשניים הפעילים של המראה."
 
-msgid "Wi-Fi, Ethernet, DNS, and proxy"
-msgstr "Wi‑Fi, Ethernet, DNS ופרוקסי"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1017
+msgid "Bar shape"
+msgstr "צורת פס"
 
-msgid "Windows"
-msgstr "חלונות"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1039
+msgid "Bar height gradient"
+msgstr "מעבר גובה פס"
 
-msgid "Files"
-msgstr "קבצים"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1065
+msgid "Peak caps"
+msgstr "כיפות שיא"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1086
+msgid "Peak colour"
+msgstr "צבע שיא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1108
+msgid "Bar reflection"
+msgstr "השתקפות פס"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1115
+msgid "Spectrum lines use the colour mode above across the frequency range."
+msgstr "קווי הספקטרום משתמשים במצב הצבע למעלה בטווח התדרים."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1140
+msgid "Mirror wave"
+msgstr "גל מראה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1146
+msgid "Rays radiate from the centre. Colour mode tints around the ring."
+msgstr "קרניים מקרינות מהמרכז. מצב הצבע מצבע סביב הטבעת."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1156
+msgid ""
+"Listens to the default audio output (PipeWire/Pulse monitor).          Play "
+"music or a movie — silent sinks show a quiet idle decay."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1227
+msgid "Text colour"
+msgstr "צבע טקסט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1235
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Theme accent"
+msgstr "הדגשת ערכת נושא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1294
+msgid ""
+"Font picks family, weight, and size. Text colour tints labels and "
+"icons;          accent colours the System progress fills."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1311
+msgid "Theme font"
+msgstr "גופן ערכת נושא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1391
+msgid "View"
+msgstr "תצוגה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1400
+msgid "Look overrides (optional)"
+msgstr "עקיפות מראה (אופציונלי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1516
+msgid "Border width"
+msgstr "רוחב מסגרת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1620
+msgid "Clear all overrides"
+msgstr "נקה את כל העקיפות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:46
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:55
+msgid "Graphics"
+msgstr "גרפיקה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Auto (recommended)"
+msgstr "אוטומטי (מומלץ)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Compatibility"
+msgstr "תאימות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
+msgid "Normal"
+msgstr "רגיל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:59
+msgid "Graphics profile"
+msgstr "פרופיל גרפיקה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:63
+msgid ""
+"Auto uses software GTK painting in virtual machines (VirtualBox, "
+"etc.)          so Settings and other GTK apps stay readable. Compatibility "
+"always          forces that soft path; Normal forces hardware/GL. Already-"
+"running apps          keep their renderer until relaunched. Compatibility "
+"also turns off          window animations."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:89
+msgid "Night light"
+msgstr "אור לילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:90
+msgid "Enable night light"
+msgstr "הפעל אור לילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:103
+msgid "Warmer ← drag → cooler"
+msgstr "חם יותר ← גרור → קר יותר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:107
+msgid "Colour temperature"
+msgstr "טמפרטורת צבע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:109
+msgid "Use schedule"
+msgstr "השתמש בלוח זמנים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:114
+msgid "12-hour time"
+msgstr "שעון 12 שעות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:135
+msgid "From"
+msgstr "מ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:141
+msgid "To"
+msgstr "עד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:159
+msgid ""
+"Pick a preset or type a custom time at the top of each menu. Overnight "
+"ranges          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night "
+"light only tints          inside that window."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:170
+msgid ""
+"Applies live. Drag left for a warmer evening tint (like GNOME Night "
+"Light);          drag right toward normal daylight colour."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:179
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:744
+msgid "Display mode"
+msgstr "מצב תצוגה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:182
+msgid "Duplicate displays"
+msgstr "שכפל תצוגות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:186
+msgid "Show on"
+msgstr "הצג ב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:198
+msgid ""
+"Duplicate displays requires a DRM session with two or more active "
+"monitors.          Nested dev sessions save this preference but the "
+"compositor stays in extend mode."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:207
+msgid "Arrangement"
+msgstr "סידור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:213
+msgid "Save display settings"
+msgstr "שמור הגדרות תצוגה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:216
+msgid "Revert"
+msgstr "שחזר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:221
+msgid "Compositor not reachable — start a Metis session to configure displays."
+msgstr "הקומפוזיטור לא נגיש — הפעל הפעלת Metis כדי להגדיר תצוגות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:599
+msgid "Detect displays"
+msgstr "זהה תצוגות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:637
+msgid "Primary display"
+msgstr "תצוגה ראשית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:645
+msgid "Set as primary display"
+msgstr "הגדר כתצוגה ראשית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:669
+msgid "Primary"
+msgstr "ראשי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:674
+msgid "Mirror source — other displays duplicate this one"
+msgstr "מקור שיקוף — תצוגות אחרות משכפלות תצוגה זו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:682
+msgid "Duplicating another display"
+msgstr "משכפל תצוגה אחרת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:691
+msgid "Applies live"
+msgstr "חל מיד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "100%"
+msgstr "100%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "125%"
+msgstr "125%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "150%"
+msgstr "150%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "175%"
+msgstr "175%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
+msgid "200%"
+msgstr "200%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:701
+msgid "Scale"
+msgstr "קנה מידה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:705
+msgid "Active"
+msgstr "פעיל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:710
+msgid "Adaptive sync"
+msgstr "סנכרון אדפטיבי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:748
+msgid ""
+"No DRM mode list available — connect displays in a Metis session on real "
+"hardware."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:770
+msgid "Resolution & refresh"
+msgstr "רזולוציה ורענון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:789
+msgid "Rotation — coming soon"
+msgstr "סיבוב — בקרוב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:792
+msgid "Rotation"
+msgstr "סיבוב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:795
+msgid "Colour profile"
+msgstr "פרופיל צבע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:811
+msgid "Choose ICC profile…"
+msgstr "בחר פרופיל ICC…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:823
+msgid ""
+"Saved to outputs.json and exposed to Wayland clients via "
+"wp_color_management_v1.          GPU colour transforms in the compositor "
+"render path are still follow-up work."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:842
+msgid "Choose ICC colour profile"
+msgstr "בחר פרופיל צבע ICC"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:847
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:381
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:784
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1036
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1208
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1376
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:459
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:163
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:199
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:512
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:719
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1733
+msgid "Cancel"
+msgstr "ביטול"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:848
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:138
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:268
+msgid "Open"
+msgstr "פתח"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:850
+msgid "ICC profiles"
+msgstr "פרופילי ICC"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:19
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:39
+msgid "Edge bar"
+msgstr "סרגל קצה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Top"
+msgstr "למעלה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Bottom"
+msgstr "למטה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Left"
+msgstr "שמאל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+msgid "Right"
+msgstr "ימין"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:29
+msgid "Position"
+msgstr "מיקום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+msgid "All displays"
+msgstr "כל התצוגות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+msgid "Primary display only"
+msgstr "תצוגה ראשית בלבד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:41
+msgid "Show bar on"
+msgstr "הצג סרגל ב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
+msgid "Independent per display"
+msgstr "עצמאי לכל תצוגה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
+msgid "Linked across displays"
+msgstr "מקושר בין תצוגות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:53
+msgid ""
+"Independent: each monitor keeps its own workspaces.\n"
+"         Linked: switching a workspace moves every monitor at once."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:58
+msgid "Workspaces"
+msgstr "סביבות עבודה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Free desktop"
+msgstr "שולחן עבודה חופשי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Grid tiling"
+msgstr "ריצוף רשת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
+msgid "Scrolling"
+msgstr "גלילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:70
+msgid ""
+"Applies to every workspace right away.\n"
+"         Toggle the active workspace with Super + \\ (cycles free → grid → "
+"scroll)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:75
+msgid "New workspace layout"
+msgstr "פריסת סביבת עבודה חדשה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
+msgid "Collapsed (popup list)"
+msgstr "מכווץ (רשימה קופצת)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
+msgid "Pinned on bar"
+msgstr "נעוץ בסרגל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:87
+msgid ""
+"Collapsed: one tray button opens a popover with all background app icons.\n"
+"         Pinned: tray icons stay visible on the bar, left of the tray button."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:92
+msgid "System tray icons"
+msgstr "סמלי מגש המערכת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:103
+msgid "Distance from edge"
+msgstr "מרחק מהקצה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:112
+msgid "Opacity"
+msgstr "שקיפות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:118
+msgid "Backdrop blur"
+msgstr "טשטוש רקע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:125
+msgid "Blur radius"
+msgstr "רדיוס טשטוש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:128
+msgid ""
+"Blur frosts the wallpaper behind the bar — it needs a wallpaper set "
+"and          the bar opacity below 1.0 to show through. Changes apply within "
+"~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
+msgid "Custom gradient"
+msgstr "מעבר צבע מותאם"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:149
+msgid "Bar border"
+msgstr "מסגרת סרגל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:158
+msgid "Bar border thickness"
+msgstr "עובי מסגרת סרגל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:167
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:118
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:188
+msgid "Border color"
+msgstr "צבע מסגרת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:183
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:139
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:204
+msgid "Gradient middle"
+msgstr "אמצע מעבר צבע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Auto (games on discrete GPU)"
+msgstr "אוטומטי (משחקים על GPU נפרד)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Desktop iGPU / games dGPU"
+msgstr "שולחן עבודה iGPU / משחקים dGPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Always discrete GPU"
+msgstr "תמיד GPU נפרד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Always integrated GPU"
+msgstr "תמיד GPU משולב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
+msgid "Off (manual only)"
+msgstr "כבוי (ידני בלבד)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:63
+msgid "Graphics mode"
+msgstr "מצב גרפיקה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:68
+msgid "Prefer iGPU on battery"
+msgstr "העדף iGPU על סוללה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:73
+msgid "Performance profile while gaming"
+msgstr "פרופיל ביצועים במשחק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:78
+msgid "Auto GameMode"
+msgstr "GameMode אוטומטי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:83
+msgid "Flatpak GPU offload env"
+msgstr "משתני סביבה Flatpak GPU offload"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:91
+msgid "Checking gaming health…"
+msgstr "בודק מצב גיימינג…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:103
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:283
+msgid "Optimize now"
+msgstr "בצע אופטימיזציה עכשיו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:107
+msgid "Apply Flatpak gaming overrides and add you to the input group if needed"
+msgstr "החל עקיפות גיימינג Flatpak והוסף אותך לקבוצת הקלט במידת הצורך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:111
+msgid "Run gaming setup"
+msgstr "הפעל הגדרת גיימינג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:114
+msgid "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
+msgstr "פתח את אשף הגדרת הגיימינג (Flatpak, ניתוב GPU, עטיפות מפעיל)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:121
+msgid "Health check"
+msgstr "בדיקת תקינות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:127
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:227
+msgid "Session"
+msgstr "הפעלה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:128
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:89
+msgid "Checking…"
+msgstr "בודק…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:129
+msgid "Steam"
+msgstr "Steam"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:133
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1095
+msgid "GPU"
+msgstr "GPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:137
+msgid "Gamepads"
+msgstr "בקרי משחק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:144
+msgid "Touchscreens"
+msgstr "מסכי מגע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:235
+msgid "Optimizing…"
+msgstr "מבצע אופטימיזציה…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:363
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:382
+msgid "Gaming setup"
+msgstr "הגדרת גיימינג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:387
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:426
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:407
+msgid "Close"
+msgstr "סגור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:393
+msgid ""
+"Applies Flatpak device/socket overrides, hybrid GPU env vars for Steam/"
+"Lutris/Heroic,          and writes the Flatpak Steam launcher wrapper. Safe "
+"to re-run after updates."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:416
+msgid "Click Start to run the optimizer."
+msgstr "לחץ התחל להפעלת האופטימייזר."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:428
+msgid "Start setup"
+msgstr "התחל הגדרה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:588
+msgid "Fix"
+msgstr "תקן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:589
+msgid "Install or apply this fix (may ask for your password)"
+msgstr "התקן או החל תיקון זה (עשוי לבקש את הסיסמה שלך)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:607
+msgid "Copy command"
+msgstr "העתק פקודה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:612
+msgid "Copied"
+msgstr "הועתק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:645
+msgid "Ready for gaming — all checks passed."
+msgstr "מוכן לגיימינג — כל הבדיקות עברו."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:705
+msgid "Installed (native)"
+msgstr "מותקן (מקומי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:706
+msgid "Installed (Flatpak)"
+msgstr "מותקן (Flatpak)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:707
+msgid "Not detected"
+msgstr "לא זוהה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:710
+msgid "No gamepads detected"
+msgstr "לא זוהו בקרי משחק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:714
+msgid "No touchscreens detected"
+msgstr "לא זוהו מסכי מגע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
+msgid "Adaptive"
+msgstr "אדפטיבי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
+msgid "Flat"
+msgstr "שטוח"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:25
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:32
+msgid "Layout"
+msgstr "פריסה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:28
+msgid "Leave empty for system default, e.g. us"
+msgstr "השאר ריק לברירת מחדל של המערכת, למשל us"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:35
+msgid "Optional variant"
+msgstr "גרסה אופציונלית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:39
+msgid "Variant"
+msgstr "גרסה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:42
+msgid "Extra xkb options, comma-separated"
+msgstr "אפשרויות xkb נוספות, מופרדות בפסיק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:46
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:252
+msgid "Options"
+msgstr "אפשרויות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:49
+msgid ""
+"Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See          /usr/"
+"share/X11/xkb/rules/base.lst on your system."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:55
+msgid "Typing"
+msgstr "הקלדה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:61
+msgid "Repeat delay (ms)"
+msgstr "השהיית חזרה (ms)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:67
+msgid "Repeat rate (Hz)"
+msgstr "קצב חזרה (Hz)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:103
+msgid "Default"
+msgstr "ברירת מחדל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+msgid "Escape"
+msgstr "Escape"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
+msgid "Control"
+msgstr "Control"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:79
+msgid "Caps Lock"
+msgstr "Caps Lock"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Disabled"
+msgstr "מושבת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Right Alt"
+msgstr "Alt ימני"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Menu"
+msgstr "תפריט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Left Alt"
+msgstr "Alt שמאלי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
+msgid "Scroll Lock"
+msgstr "Scroll Lock"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:93
+msgid "Compose key"
+msgstr "מקש Compose"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+msgid "Auto (numpad detected)"
+msgstr "אוטומטי (לוח מספרים זוהה)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+msgid "Always on"
+msgstr "תמיד פועל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:153
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:232
+msgid "Off"
+msgstr "כבוי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:105
+msgid "Num Lock on login"
+msgstr "Num Lock בכניסה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:108
+msgid ""
+"Auto turns Num Lock on when a keyboard with a numeric keypad is          "
+"present. Keyboard settings apply live in the Metis session within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:213
+msgid "Shortcuts"
+msgstr "קיצורי דרך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Super"
+msgstr "Super"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Alt"
+msgstr "Alt"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
+msgid "Ctrl"
+msgstr "Ctrl"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:232
+msgid "Metis modifier (defaults)"
+msgstr "מקש משנה Metis (ברירות מחדל)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:255
+msgid ""
+"Click Change, then press a shortcut in the field that appears, then "
+"Save.          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are "
+"system-only and          cannot be changed."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:337
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1798
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:268
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "System"
+msgstr "מערכת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:362
+msgid "Change"
+msgstr "שנה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:363
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:148
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:280
+msgid "Reset"
+msgstr "איפוס"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:374
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:424
+msgid "Press a shortcut…"
+msgstr "לחץ קיצור דרך…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:379
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1377
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1438
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1444
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:461
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:532
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:197
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:266
+msgid "Save"
+msgstr "שמור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:467
+msgid "That shortcut is reserved for the system and cannot be used."
+msgstr "קיצור דרך זה שמור למערכת ולא ניתן לשימוש."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:16
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:45
+msgid "Language"
+msgstr "שפה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:47
+msgid "Formats follow language"
+msgstr "התבניות עוקבות אחר השפה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:52
+msgid ""
+"Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock "
+"screen. Many page and widget labels are still English until they are "
+"translated. Other apps follow the system locale."
+msgstr ""
+"חל על ממשק ההגדרות של Metis, תפריט Metis, ההגדרה הראשונית ומסך הנעילה. "
+"תוויות רבות של דפים ווידג'טים נשארות באנגלית עד שיתורגמו. אפליקציות אחרות "
+"עוקבות אחר שפת המערכת."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:59
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1570
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1653
+msgid "Apply"
+msgstr "החל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:18
+msgid "Quick launchers"
+msgstr "מפעילים מהירים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:328
 msgid "Terminal"
 msgstr "מסוף"
 
-msgid "Lock"
-msgstr "נעל"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:34
+msgid "File manager"
+msgstr "מנהל קבצים"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:45
+msgid ""
+"Auto-detect uses the first installed option. Choose Custom to point at "
+"any          executable on your system."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:55
+msgid "Appearance"
+msgstr "מראה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:63
+msgid "Panel opacity"
+msgstr "שקיפות לוח"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:70
+msgid ""
+"Opacity of the Metis menu panel and its translucent surfaces. Applies within "
+"~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:14
+msgid "Pointer"
+msgstr "סמן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:19
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:51
+msgid "Pointer speed"
+msgstr "מהירות סמן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:26
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:58
+msgid "Acceleration"
+msgstr "האצה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:33
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:36
+msgid "Natural scrolling"
+msgstr "גלילה טבעית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:40
+msgid "Primary button on right"
+msgstr "לחצן ראשי מימין"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:47
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:65
+msgid "Scroll speed"
+msgstr "מהירות גלילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:52
+msgid ""
+"Applies to mice and other non-touchpad pointers in the Metis session "
+"(wheel,          including lists in the Metis menu). Changes apply "
+"immediately."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:64
+msgid "Wi-Fi"
+msgstr "Wi‑Fi"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:68
+msgid "Wi-Fi radio"
+msgstr "רדיו Wi‑Fi"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:69
+msgid "Rescan"
+msgstr "סרוק מחדש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:77
+msgid "Known Wi-Fi networks"
+msgstr "רשתות Wi‑Fi ידועות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:80
+msgid "DNS"
+msgstr "DNS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:86
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:466
+msgid "Ethernet"
+msgstr "Ethernet"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:92
+msgid "VPN connections"
+msgstr "חיבורי VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:95
+msgid ""
+"OpenVPN import needs the NetworkManager plugin. Install with:\n"
+"             sudo apt install network-manager-openvpn"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:111
+msgid "Import…"
+msgstr "ייבא…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:113
+msgid "Add OpenVPN…"
+msgstr "הוסף OpenVPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:114
+msgid "Add WireGuard…"
+msgstr "הוסף WireGuard…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:134
+msgid ""
+"Import .ovpn / WireGuard .conf files, or add OpenVPN / WireGuard manually. "
+"Saved NetworkManager VPN profiles appear here automatically."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:140
+msgid "System proxy"
+msgstr "פרוקסי מערכת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:296
+msgid "Wi-Fi is off."
+msgstr "Wi‑Fi כבוי."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:298
+msgid "No networks found."
+msgstr "לא נמצאו רשתות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:339
+msgid "No saved Wi-Fi networks."
+msgstr "אין רשתות Wi‑Fi שמורות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:346
+msgid "Forget"
+msgstr "שכח"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:378
+msgid "Connect to a Wi-Fi network to override its DNS."
+msgstr "התחבר לרשת Wi‑Fi כדי לעקוף את ה‑DNS שלה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:394
+msgid "No Ethernet devices."
+msgstr "אין מכשירי Ethernet."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:415
+msgid ""
+"No VPN profiles yet. Import an .ovpn or WireGuard .conf, or add OpenVPN / "
+"WireGuard manually."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:477
+msgid "Auto-connect"
+msgstr "התחברות אוטומטית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:481
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:488
+msgid ""
+"Connect this VPN after login when the network is ready. Only one profile can "
+"auto-connect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:509
+msgid "Autoconnect enabled (only this profile)."
+msgstr "התחברות אוטומטית מופעלת (פרופיל זה בלבד)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:511
+msgid "Autoconnect disabled."
+msgstr "התחברות אוטומטית מושבתת."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:520
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:644
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:817
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:819
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:820
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:898
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:945
+msgid "Connecting…"
+msgstr "מתחבר…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:528
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:676
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:838
+msgid "Connected."
+msgstr "מחובר."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:574
+msgid "Edit"
+msgstr "ערוך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:620
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:646
+msgid "Delete"
+msgstr "מחק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:646
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:900
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:943
+msgid "Disconnecting…"
+msgstr "מתנתק…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:678
+msgid "Disconnected."
+msgstr "מנותק."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:690
+msgid "Password required — enter your VPN password."
+msgstr "נדרשת סיסמה — הזן את סיסמת ה‑VPN שלך."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:726
+msgid "VPN password required, but no window is available to prompt."
+msgstr "נדרשת סיסמת VPN, אך אין חלון זמין לבקשה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:733
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:703
+msgid "VPN password"
+msgstr "סיסמת VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:749
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:827
+msgid "VPN password required"
+msgstr "נדרשת סיסמת VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:755
+msgid ""
+"This profile needs a password that NetworkManager does not have yet          "
+"(common after moving from another desktop). Enter it to connect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:766
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:431
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:506
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:710
+msgid "Password"
+msgstr "סיסמה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:770
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1022
+msgid "Remember password on this profile"
+msgstr "זכור סיסמה בפרופיל זה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:811
+msgid "Enter the VPN password."
+msgstr "הזן את סיסמת ה‑VPN."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:896
+msgid "Import VPN profile"
+msgstr "ייבא פרופיל VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:898
+msgid "VPN configs (*.ovpn, *.conf)"
+msgstr "תצורות VPN (*.ovpn, *.conf)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:911
+msgid "Importing…"
+msgstr "מייבא…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:945
+msgid "Could not open OpenVPN dialog (no parent window)."
+msgstr "לא ניתן לפתוח דיאלוג OpenVPN (אין חלון אב)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:951
+msgid ""
+"OpenVPN plugin missing. Install with: sudo apt install network-manager-"
+"openvpn"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:958
+msgid "Add OpenVPN"
+msgstr "הוסף OpenVPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:974
+msgid "Add OpenVPN connection"
+msgstr "הוסף חיבור OpenVPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:980
+msgid ""
+"Password authentication only. For provider configs with certificates, use "
+"Import… on an .ovpn file."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:993
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1002
+msgid "Password (optional)"
+msgstr "סיסמה (אופציונלי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:997
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1190
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1351
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:120
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1122
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:416
+msgid "Name"
+msgstr "שם"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:998
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1555
+msgid "Gateway"
+msgstr "שער"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1011
+msgid "Browse…"
+msgstr "עיון…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1015
+msgid "CA certificate (optional)"
+msgstr "אישור CA (אופציונלי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1037
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1120
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1209
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1273
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1279
+msgid "Create"
+msgstr "צור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1054
+msgid "Choose CA certificate"
+msgstr "בחר אישור CA"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1056
+msgid "Certificates (*.crt, *.pem)"
+msgstr "אישורים (*.crt, *.pem)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1087
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1236
+msgid "Creating…"
+msgstr "יוצר…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1111
+msgid "OpenVPN profile created."
+msgstr "פרופיל OpenVPN נוצר."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1147
+msgid "Could not open WireGuard dialog (no parent window)."
+msgstr "לא ניתן לפתוח דיאלוג WireGuard (אין חלון אב)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1154
+msgid "Add WireGuard"
+msgstr "הוסף WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1172
+msgid "Add WireGuard connection"
+msgstr "הוסף חיבור WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1191
+msgid "Private key"
+msgstr "מפתח פרטי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1192
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1352
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1554
+msgid "Address (CIDR)"
+msgstr "כתובת (CIDR)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1193
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1353
+msgid "Peer public key"
+msgstr "מפתח ציבורי של עמית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1194
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1354
+msgid "Endpoint"
+msgstr "נקודת קצה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1195
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1355
+msgid "Allowed IPs"
+msgstr "כתובות IP מותרות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1196
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1356
+msgid "DNS (optional)"
+msgstr "DNS (אופציונלי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1264
+msgid "WireGuard connection created."
+msgstr "חיבור WireGuard נוצר."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1303
+msgid "Could not open edit dialog (no parent window)."
+msgstr "לא ניתן לפתוח דיאלוג עריכה (אין חלון אב)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1309
+msgid "Could not load WireGuard profile details."
+msgstr "לא ניתן לטעון פרטי פרופיל WireGuard."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1316
+msgid "Edit WireGuard"
+msgstr "ערוך WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1332
+msgid "Edit WireGuard connection"
+msgstr "ערוך חיבור WireGuard"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1359
+msgid ""
+"Private key is unchanged. Disconnect and reconnect for peer/address edits to "
+"take effect."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1404
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:516
+msgid "Saving…"
+msgstr "שומר…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1429
+msgid "WireGuard profile updated."
+msgstr "פרופיל WireGuard עודכן."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1494
+msgid "DNS servers"
+msgstr "שרתי DNS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1496
+msgid "Comma-separated. Leave empty to use the DHCP-provided DNS."
+msgstr "מופרד בפסיקים. השאר ריק לשימוש ב‑DNS שסופק על ידי DHCP."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1499
+msgid "Apply DNS"
+msgstr "החל DNS"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1525
+msgid "Disconnected"
+msgstr "מנותק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1537
+msgid "No active profile for this device."
+msgstr "אין פרופיל פעיל למכשיר זה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
+msgid "Automatic (DHCP)"
+msgstr "אוטומטי (DHCP)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
+msgid "Manual (static)"
+msgstr "ידני (סטטי)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1548
+msgid "IPv4 method"
+msgstr "שיטת IPv4"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1561
+msgid "DNS (override)"
+msgstr "DNS (עקיפה)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1599
+msgid ""
+"System proxy settings are unavailable (the GNOME proxy schema isn't "
+"installed)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "None"
+msgstr "ללא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "Manual"
+msgstr "ידני"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
+msgid "Automatic (PAC)"
+msgstr "אוטומטי (PAC)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1615
+msgid "Proxy mode"
+msgstr "מצב פרוקסי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1629
+msgid "Ignore hosts"
+msgstr "התעלם ממארחים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1636
+msgid "PAC URL"
+msgstr "כתובת PAC"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1650
+msgid "Applies to GLib/GTK apps via the system proxy resolver."
+msgstr "חל על יישומי GLib/GTK דרך מפענח הפרוקסי של המערכת."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1699
+msgid "proxy.example.com"
+msgstr "proxy.example.com"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1706
+msgid "8080"
+msgstr "8080"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1733
+msgid "Join"
+msgstr "הצטרף"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:30
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:38
+msgid "Battery"
+msgstr "סוללה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:31
+msgid "No battery detected"
+msgstr "לא זוהתה סוללה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:39
+msgid "Power mode"
+msgstr "מצב צריכת חשמל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Power saver"
+msgstr "חיסכון בחשמל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Balanced"
+msgstr "מאוזן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
+msgid "Performance"
+msgstr "ביצועים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:45
+msgid "Profile"
+msgstr "פרופיל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:48
+msgid "Power saving"
+msgstr "חיסכון בחשמל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:51
+msgid "Blank screen after (min, 0=never)"
+msgstr "כיבוי מסך אחרי (דק', 0=לעולם לא)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:54
+msgid "Suspend after idle (min, 0=never)"
+msgstr "השהיה אחרי חוסר פעילות (דק', 0=לעולם לא)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:374
 msgid "Suspend"
 msgstr "השהה"
 
-msgid "Log Out"
-msgstr "התנתק"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Ignore"
+msgstr "התעלם"
 
-msgid "Restart"
-msgstr "הפעל מחדש"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Hibernate"
+msgstr "תרדמת"
 
-msgid "Shut Down"
-msgstr "כבה"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
+msgid "Power off"
+msgstr "כיבוי"
 
-msgid "Big Picture"
-msgstr "Big Picture"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:60
+msgid "When lid is closed"
+msgstr "כשהמכסה סגור"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:62
+msgid "Dim on battery"
+msgstr "עמעום על סוללה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:65
+msgid "Connected devices"
+msgstr "מכשירים מחוברים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:66
+msgid "No wireless devices connected"
+msgstr "אין מכשירים אלחוטיים מחוברים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:187
+msgid "charging"
+msgstr "טוען"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:189
+msgid "discharging"
+msgstr "מתרוקן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:196
+msgid "No battery detected (desktop / AC-only)"
+msgstr "לא זוהתה סוללה (מחשב שולחני / חשמל בלבד)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:256
+msgid "No battery info"
+msgstr "אין מידע על סוללה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:21
+msgid "Open printer settings…"
+msgstr "פתח הגדרות מדפסת…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:25
+msgid "Installed printers"
+msgstr "מדפסות מותקנות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:72
+msgid "CUPS not available. Install cups and system-config-printer."
+msgstr "CUPS לא זמין. התקן cups ו‑system-config-printer."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:80
+msgid "No default printer set"
+msgstr "לא הוגדרה מדפסת ברירת מחדל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:83
+msgid "No printers configured."
+msgstr "לא הוגדרו מדפסות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:33
+msgid ""
+"Session sharing lets another device view and control the Metis "
+"session          you are already logged into. Remote login to start a "
+"separate session          will be a different option when it is available."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:48
+msgid ""
+"Install gnome-remote-desktop to enable desktop session sharing:\n"
+"         sudo apt install gnome-remote-desktop"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:62
+msgid "Set a password before enabling desktop session sharing."
+msgstr "הגדר סיסמה לפני הפעלת שיתוף הפעלת שולחן עבודה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:68
+msgid "Set password…"
+msgstr "הגדר סיסמה…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:73
+msgid "Desktop session sharing"
+msgstr "שיתוף הפעלת שולחן עבודה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:84
+msgid "Allow desktop session sharing"
+msgstr "אפשר שיתוף הפעלת שולחן עבודה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:88
+msgid "Connection"
+msgstr "חיבור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:91
+msgid "Status"
+msgstr "מצב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:96
+msgid "Address"
+msgstr "כתובת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:100
+msgid "Port"
+msgstr "יציאה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:106
+msgid "Change password…"
+msgstr "שנה סיסמה…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:110
+msgid "Copy connection address"
+msgstr "העתק כתובת חיבור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:114
+msgid ""
+"Connect with Microsoft Remote Desktop, Remmina, or FreeRDP.          Use the "
+"username and password you set above — empty credentials will not work."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:129
+msgid "Security"
+msgstr "אבטחה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:131
+msgid ""
+"Keep session sharing on your local network when possible. Use a strong "
+"password.          Sharing pauses while the session is locked "
+"(Super+L).          See docs/USER_GUIDE.md for firewall setup (ufw allow "
+"3389/tcp)."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:141
+msgid "Remote login"
+msgstr "כניסה מרחוק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:143
+msgid ""
+"Sign in remotely to start a new desktop session (for example xrdp) — "
+"planned          for a later milestone. This page only covers sharing the "
+"session you are          already in."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:317
+msgid "Not available"
+msgstr "לא זמין"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:318
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:319
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:320
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:323
+msgid "—"
+msgstr "—"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:322
+msgid "Use your session sharing password"
+msgstr "השתמש בסיסמת שיתוף ההפעלה שלך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:339
+msgid "Running — ready for connections"
+msgstr "פועל — מוכן לחיבורים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:344
+msgid "Starting…"
+msgstr "מתחיל…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:349
+msgid "Stopped"
+msgstr "עצור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:384
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:402
+msgid "Session sharing password"
+msgstr "סיסמת שיתוף הפעלה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:413
+msgid "Choose the username and password RDP clients use to join this session."
+msgstr "בחר את שם המשתמש והסיסמה שבהם לקוחות RDP משתמשים להצטרפות להפעלה זו."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:440
+msgid "Confirm password"
+msgstr "אשר סיסמה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:505
+msgid "Passwords do not match"
+msgstr "הסיסמאות אינן תואמות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:510
+msgid "Use at least 8 characters"
+msgstr "השתמש בלפחות 8 תווים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:28
+msgid "Output"
+msgstr "פלט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:30
+msgid "Playback device"
+msgstr "מכשיר השמעה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:33
+msgid "Volume"
+msgstr "עוצמת קול"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:36
+msgid "Input"
+msgstr "קלט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:38
+msgid "Recording device"
+msgstr "מכשיר הקלטה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:41
+msgid "Level"
+msgstr "רמה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:45
+msgid "Use the volume icon on the edge bar for quick mute and level control."
+msgstr "השתמש בסמל עוצמת הקול בסרגל הקצה לשקט מהיר ושליטה ברמה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:39
+msgid ""
+"Auto uses Metis defaults. Override only when an app shows a double          "
+"titlebar or is missing Metis window controls. Changes apply immediately."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:48
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:107
 msgid "Search applications…"
 msgstr "חפש יישומים…"
 
-msgid "Pinned"
-msgstr "נעוצים"
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:65
+msgid "Applications"
+msgstr "יישומים"
 
-msgid "Right-click an app to pin it here."
-msgstr "לחץ לחיצה ימנית על אפליקציה כדי לנעוץ אותה כאן."
-
-msgid "Frequent Apps"
-msgstr "יישומים נפוצים"
-
-msgid "Search Results"
-msgstr "תוצאות חיפוש"
-
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:177
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:581
 msgid "No matching applications"
 msgstr "אין יישומים תואמים"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:394
+msgid "Customized"
+msgstr "מותאם אישית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "Auto"
+msgstr "אוטומטי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "Metis titlebar"
+msgstr "סרגל כותרת Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
+msgid "App titlebar"
+msgstr "סרגל כותרת יישום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:15
+msgid "Touchpad"
+msgstr "משטח מגע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:21
+msgid "Tap to click"
+msgstr "הקשה ללחיצה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:29
+msgid "Tap and drag"
+msgstr "הקשה וגרירה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:44
+msgid "Disable while typing"
+msgstr "השבת בעת הקלדה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:70
+msgid ""
+"These options apply when a touchpad is present in the Metis DRM session. "
+"Under          the nested dev session they are stored but not applied."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:30
+msgid "Units"
+msgstr "יחידות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Automatic"
+msgstr "אוטומטי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Celsius"
+msgstr "צלזיוס"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
+msgid "Fahrenheit"
+msgstr "פרנהייט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:41
+msgid "Temperature unit"
+msgstr "יחידת טמפרטורה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:56
+msgid "Auto-detect"
+msgstr "זיהוי אוטומטי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:60
+msgid "Detect my location"
+msgstr "זהה את מיקומי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:66
+msgid "Use IP geolocation (more precise)"
+msgstr "השתמש בגיאולוקציה לפי IP (מדויק יותר)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:69
+msgid "Auto-detect is used only when no locations are pinned below."
+msgstr "זיהוי אוטומטי משמש רק כשאין מיקומים נעוצים למטה."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:93
+msgid "Locations"
+msgstr "מיקומים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:103
+msgid "Search for a city…"
+msgstr "חפש עיר…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:142
+msgid "Searching…"
+msgstr "מחפש…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:167
+msgid "No matches found."
+msgstr "לא נמצאו התאמות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:177
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:165
+msgid "Add"
+msgstr "הוסף"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:204
+msgid "No pinned locations (using auto-detect)."
+msgstr "אין מיקומים נעוצים (משתמש בזיהוי אוטומטי)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:19
+msgid "Windows"
+msgstr "חלונות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:27
+msgid "Window animations"
+msgstr "אנימציות חלון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:32
+msgid ""
+"Minimize genie, maximize wobble, and titlebar slide effects.          Turn "
+"off for instant window transitions. The Compatibility graphics          "
+"profile on Display also disables animations in VMs."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:49
+msgid "Maximized window padding"
+msgstr "ריווח חלון מוגדל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:54
+msgid ""
+"Space around maximized and edge-snapped windows. 0 is flush to the          "
+"screen and bar edges; 10 is the maximum inset. Applies within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:69
+msgid "Titlebar opacity"
+msgstr "שקיפות סרגל כותרת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:74
+msgid ""
+"Dims only the window titlebar background so the wallpaper shows "
+"through;          the title text and window buttons stay solid. Changes "
+"apply within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:97
+msgid "Title pill border"
+msgstr "מסגרת כדור כותרת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:108
+msgid "Pill border width"
+msgstr "רוחב מסגרת כדור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:168
+msgid "Window border"
+msgstr "מסגרת חלון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:179
+msgid "Window border thickness"
+msgstr "עובי מסגרת חלון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:203
+msgid "Gradient top"
+msgstr "עליון מעבר צבע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:205
+msgid "Gradient bottom"
+msgstr "תחתון מעבר צבע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:209
+msgid ""
+"The border around the whole window frame, independent of the title pill. "
+"The          gradient flows top→bottom; thickness also insets the window "
+"contents.          Changes apply within ~1s."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:45
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:541
+msgid "Alarms"
+msgstr "התראות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:52
+msgid "New alarm"
+msgstr "התראה חדשה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:76
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:214
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:421
+msgid "AM"
+msgstr "AM"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:91
+msgid "Repeat"
+msgstr "חזרה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:99
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:105
+msgid "S"
+msgstr "א"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:100
+msgid "M"
+msgstr "ב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:101
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:103
+msgid "T"
+msgstr "ג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:102
+msgid "W"
+msgstr "ד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:104
+msgid "F"
+msgstr "ו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:130
+msgid "Sound"
+msgstr "צליל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:212
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:419
+msgid "PM"
+msgstr "PM"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:319
+msgid "No alarms"
+msgstr "אין התראות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:382
+msgid "Every day"
+msgstr "כל יום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:384
+msgid "Every day  ·  %1"
+msgstr "כל יום  ·  %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:388
+#, fuzzy
+msgid "Sun"
+msgstr "צליל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:389
+msgid "Mon"
+msgstr "ב'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:390
+msgid "Tue"
+msgstr "ג'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:391
+msgid "Wed"
+msgstr "ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:392
+msgid "Thu"
+msgstr "ה'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:393
+msgid "Fri"
+msgstr "ו'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:394
+msgid "Sat"
+msgstr "ש'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:100
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:532
+msgid "Today"
+msgstr "היום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:138
+msgid "Refresh"
+msgstr "רענן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:160
+msgid "+ Add event"
+msgstr "+ הוסף אירוע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:176
+msgid "Event title"
+msgstr "כותרת אירוע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:183
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:607
+msgid "All day"
+msgstr "כל היום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:465
+msgid "Su"
+msgstr "א"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:466
+msgid "Mo"
+msgstr "ב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:467
+msgid "Tu"
+msgstr "ג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:468
+msgid "We"
+msgstr "ד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:469
+msgid "Th"
+msgstr "ה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:470
+msgid "Fr"
+msgstr "ו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:471
+msgid "Sa"
+msgstr "ש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:556
+msgid "No events"
+msgstr "אין אירועים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:630
+msgid "Dismiss"
+msgstr "סגור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:113
+msgid "Clock & notifications"
+msgstr "שעון והתראות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:220
+msgid "Alarm %1"
+msgstr "התראה %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:231
+msgid "Metis alarm"
+msgstr "התראת Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:45
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:159
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:277
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:447
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:483
+#, fuzzy
+msgid "Start"
+msgstr "הפעל מחדש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:48
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:160
+msgid "Lap"
+msgstr "הקפה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:125
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:404
+msgid "Pause"
+msgstr "השהה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:147
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:472
+msgid "Resume"
+msgstr "המשך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:189
+msgid "Lap %1"
+msgstr "הקפה %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:241
+msgid "Quick Start"
+msgstr "התחלה מהירה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:253
+msgid "Set Timer"
+msgstr "הגדר טיימר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:312
+msgid "1 m"
+msgstr "1 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:313
+msgid "2 m"
+msgstr "2 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:314
+msgid "3 m"
+msgstr "3 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:315
+msgid "5 m"
+msgstr "5 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:316
+msgid "15 m"
+msgstr "15 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:317
+msgid "30 m"
+msgstr "30 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:318
+msgid "45 m"
+msgstr "45 ד'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:319
+msgid "1 h"
+msgstr "1 ש'"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:452
+msgid "Timer finished"
+msgstr "הטיימר הסתיים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:453
+msgid "Your Metis timer is up."
+msgstr "טיימר Metis שלך הסתיים."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:47
+msgid "Local Time"
+msgstr "שעון מקומי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:67
+msgid "Add a world clock"
+msgstr "הוסף שעון עולמי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:82
+#, fuzzy
+msgid "Search city / timezone…"
+msgstr "חפש יישומים…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:242
+msgid "Add up to 3 world clocks"
+msgstr "הוסף עד 3 שעונים עולמיים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:316
+msgid "Same as local"
+msgstr "זהה למקומי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:318
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:320
+msgid "%1 from local"
+msgstr "%1 מהמקומי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:123
+msgid "Pinned"
+msgstr "נעוצים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:129
+msgid "Right-click an app to pin it here."
+msgstr "לחץ לחיצה ימנית על אפליקציה כדי לנעוץ אותה כאן."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:321
+msgid "Files"
+msgstr "קבצים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:349
+msgid "Big Picture"
+msgstr "Big Picture"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:362
+msgid "Lock"
+msgstr "נעל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:384
+msgid "Log Out"
+msgstr "התנתק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:401
+msgid "Restart"
+msgstr "הפעל מחדש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:411
+msgid "Shut Down"
+msgstr "כבה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:564
+msgid "Frequent Apps"
+msgstr "יישומים נפוצים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:578
+msgid "Search Results"
+msgstr "תוצאות חיפוש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:42
+msgid "Power settings…"
+msgstr "הגדרות חשמל…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:75
+msgid "Battery %1%"
+msgstr "סוללה %1%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:80
+msgid "AC power"
+msgstr "חשמל מהרשת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:142
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:218
+msgid "Bluetooth on"
+msgstr "Bluetooth פועל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:144
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:214
+msgid "Bluetooth off"
+msgstr "Bluetooth כבוי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:162
+msgid "Bluetooth settings…"
+msgstr "הגדרות Bluetooth…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:216
+msgid "Connected to %1"
+msgstr "מחובר ל‑%1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:239
+msgid "On — no devices connected"
+msgstr "פועל — אין מכשירים מחוברים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:274
+msgid "%1% (charging)"
+msgstr "%1% (טוען)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:312
+msgid "Wi-Fi is off"
+msgstr "Wi‑Fi כבוי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:319
+msgid "No networks found"
+msgstr "לא נמצאו רשתות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:378
+msgid "Connect to %1"
+msgstr "התחבר ל‑%1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:432
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:156
+msgid "Network"
+msgstr "רשת"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:486
+msgid "Scanning…"
+msgstr "סורק…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:522
+msgid "Network Settings…"
+msgstr "הגדרות רשת…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:669
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:676
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:838
+msgid "VPN"
+msgstr "VPN"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:686
+msgid "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
+msgstr "אין עדיין פרופילי VPN. ייבא OpenVPN או WireGuard בהגדרות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:714
+msgid "Remember on this profile"
+msgstr "זכור בפרופיל זה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:728
+msgid "VPN Settings…"
+msgstr "הגדרות VPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:832
+msgid "Connecting VPN…"
+msgstr "מתחבר ל‑VPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:834
+msgid "Disconnecting VPN…"
+msgstr "מתנתק מ‑VPN…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:840
+msgid "VPN disconnected"
+msgstr "VPN מנותק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:843
+msgid "VPN: %1"
+msgstr "VPN: %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:872
+msgid "Password for %1"
+msgstr "סיסמה עבור %1"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:876
+msgid "Enter the VPN password to connect."
+msgstr "הזן את סיסמת ה‑VPN להתחברות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1028
+msgid "Wi-Fi off"
+msgstr "Wi‑Fi כבוי"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1030
+msgid "Offline"
+msgstr "לא מקוון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1096
+msgid "Audio"
+msgstr "שמע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1184
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1219
+msgid "Volume %1%"
+msgstr "עוצמת קול %1%"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:61
 msgid "System tray"
 msgstr "מגש המערכת"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:70
 msgid "Background apps"
 msgstr "יישומי רקע"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:84
 msgid "No background apps"
 msgstr "אין יישומי רקע"
 
-msgid "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock screen. Many page and widget labels are still English until they are translated. Other apps follow the system locale."
-msgstr "חל על ממשק ההגדרות של Metis, תפריט Metis, ההגדרה הראשונית ומסך הנעילה. תוויות רבות של דפים ווידג'טים נשארות באנגלית עד שיתורגמו. אפליקציות אחרות עוקבות אחר שפת המערכת."
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:155
+msgid "Unlock…"
+msgstr "בטל נעילה…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:157
+msgid "Mount"
+msgstr "טען"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:169
+msgid "Unmount"
+msgstr "פרוק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:179
+msgid "Eject"
+msgstr "הוצא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:341
+msgid "Metis Control Center"
+msgstr "מרכז בקרה Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:432
+msgid "Overview"
+msgstr "סקירה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:433
+msgid "Processes"
+msgstr "תהליכים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:919
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:994
+msgid "total"
+msgstr "סה\"כ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:921
+msgid "cores"
+msgstr "ליבות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:944
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:167
+msgid "Ethernet ↓"
+msgstr "Ethernet ↓"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:949
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:168
+msgid "Ethernet ↑"
+msgstr "Ethernet ↑"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:954
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:169
+msgid "Wi‑Fi ↓"
+msgstr "Wi‑Fi ↓"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:959
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:170
+msgid "Wi‑Fi ↑"
+msgstr "Wi‑Fi ↑"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:968
+msgid "Firewall active"
+msgstr "חומת אש פעילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:974
+msgid "Firewall inactive"
+msgstr "חומת אש לא פעילה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1055
+msgid "Σ total"
+msgstr "Σ סה\"כ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1123
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:418
+msgid "PID"
+msgstr "PID"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1124
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:419
+msgid "User"
+msgstr "משתמש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:297
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:421
+msgid "CPU"
+msgstr "CPU"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1127
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:121
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:280
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:422
+msgid "Memory"
+msgstr "זיכרון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1226
+msgid "No matching processes"
+msgstr "אין תהליכים תואמים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1236
+msgid "Showing first 300 visible rows — refine the filter"
+msgstr "מציג 300 שורות ראשונות — צמצם את המסנן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1427
+msgid "Collapse child processes"
+msgstr "כווץ תהליכי משנה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1429
+msgid "Expand child processes"
+msgstr "הרחב תהליכי משנה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1506
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1593
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1738
+msgid "End task"
+msgstr "סיים משימה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1508
+msgid "Cannot end processes owned by another user"
+msgstr "לא ניתן לסיים תהליכים בבעלות משתמש אחר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1600
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1736
+msgid "Force quit"
+msgstr "סגירה כפויה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1608
+msgid "End process tree"
+msgstr "סיים עץ תהליכים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1615
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1735
+msgid "Force quit tree"
+msgstr "סגירה כפויה של עץ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1623
+msgid "Copy PID"
+msgstr "העתק PID"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1695
+msgid "Force quit process tree?"
+msgstr "לסגור בכפייה את עץ התהליכים?"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1696
+msgid "Force quit?"
+msgstr "לסגור בכפייה?"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1697
+msgid "End process tree?"
+msgstr "לסיים את עץ התהליכים?"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1698
+msgid "End task?"
+msgstr "לסיים את המשימה?"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1703
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1709
+msgid "Send SIGKILL to process"
+msgstr "שלח SIGKILL לתהליך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1704
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1715
+msgid "and its child processes"
+msgstr "ולתהליכי המשנה שלו"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1705
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1710
+msgid "This cannot be undone."
+msgstr "לא ניתן לבטל פעולה זו."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1714
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1717
+msgid "Send SIGTERM to process"
+msgstr "שלח SIGTERM לתהליך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1737
+msgid "End tree"
+msgstr "סיים עץ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1796
+msgid "Metis"
+msgstr "Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1797
+msgid "App"
+msgstr "יישום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1894
+msgid "N/A"
+msgstr "לא זמין"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:91
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:278
+msgid "Processor"
+msgstr "מעבד"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:139
+msgid "RAM"
+msgstr "RAM"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:140
+msgid "Swap"
+msgstr "Swap"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:187
+msgid "Download"
+msgstr "הורדה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:188
+msgid "Upload"
+msgstr "העלאה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:198
+msgid "Disk I/O"
+msgstr "קלט/פלט דיסק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:216
+msgid "Read"
+msgstr "קריאה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:217
+msgid "Write"
+msgstr "כתיבה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:238
+msgid "Load average"
+msgstr "עומס ממוצע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:239
+msgid "Uptime"
+msgstr "זמן פעילות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:243
+msgid "Storage"
+msgstr "אחסון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:277
+msgid "Hostname"
+msgstr "שם מארח"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:279
+msgid "Cores"
+msgstr "ליבות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:281
+msgid "Kernel"
+msgstr "ליבה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:381
+msgid "Search name, user, or PID…"
+msgstr "חפש שם, משתמש או PID…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "All processes"
+msgstr "כל התהליכים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
+msgid "User apps"
+msgstr "יישומי משתמש"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:390
+msgid "Open monitor"
+msgstr "פתח מוניטור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:392
+msgid "Open the configured process monitor (Settings → Control Center)"
+msgstr "פתח את מוניטור התהליכים המוגדר (הגדרות → מרכז בקרה)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:411
+msgid "Notification Center"
+msgstr "מרכז התראות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:460
+msgid "Events"
+msgstr "אירועים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:529
+msgid "Calendar"
+msgstr "לוח שנה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:532
+msgid "World clocks"
+msgstr "שעונים עולמיים"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:537
+msgid "Stopwatch"
+msgstr "שעון עצר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:540
+msgid "Timer"
+msgstr "טיימר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:43
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:151
+msgid "Collapse"
+msgstr "כווץ"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:47
+msgid "Notifications"
+msgstr "התראות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:54
+msgid "DND"
+msgstr "נא לא להפריע"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:64
+msgid "Clear all"
+msgstr "נקה הכל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:153
+msgid "Expand"
+msgstr "הרחב"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:223
+msgid "No new notifications"
+msgstr "אין התראות חדשות"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:34
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:484
+msgid "Language & region"
+msgstr "שפה ואזור"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:35
+msgid "Welcome to Metis"
+msgstr "ברוכים הבאים ל‑Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:36
+msgid "Choose your style"
+msgstr "בחר את הסגנון שלך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:37
+msgid "Pick a wallpaper"
+msgstr "בחר טפט"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:38
+msgid "Clock format"
+msgstr "תבנית שעון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:40
+msgid "Weather"
+msgstr "מזג אוויר"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:41
+msgid "Gaming"
+msgstr "גיימינג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:42
+msgid "Optional software"
+msgstr "תוכנה אופציונלית"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:43
+msgid "You're all set"
+msgstr "הכול מוכן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:168
+msgid "Skip"
+msgstr "דלג"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:210
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:369
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:486
+msgid "Back"
+msgstr "חזרה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:214
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:366
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:485
+msgid "Next"
+msgstr "הבא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:364
+msgid "Finish"
+msgstr "סיום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:422
+msgid ""
+"Choose the language used by Metis. You can change this later in Settings."
+msgstr "בחר את השפה שבה Metis ישתמש. אפשר לשנות זאת מאוחר יותר בהגדרות."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:132
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:947
+msgid "Screenshot"
+msgstr "צילום מסך"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:241
+msgid "Selection"
+msgstr "בחירה"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:242
+msgid "Full screen"
+msgstr "מסך מלא"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:243
+msgid "Window"
+msgstr "חלון"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:265
+msgid "Copy"
+msgstr "העתק"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:267
+msgid "Both"
+msgstr "שניהם"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:315
+msgid "Capture"
+msgstr "צלם"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:396
+msgid "Include pointer"
+msgstr "כלול סמן"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:397
+msgid "Delay (seconds)"
+msgstr "השהיה (שניות)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:399
+msgid "After capture"
+msgstr "לאחר הצילום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:679
+msgid "Select a window to capture"
+msgstr "בחר חלון לצילום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:680
+msgid "Select an area to capture"
+msgstr "בחר אזור לצילום"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:704
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:881
+msgid "Screenshot failed"
+msgstr "צילום המסך נכשל"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:941
+msgid "Screenshot captured"
+msgstr "צילום המסך בוצע"
+
+#~ msgid "System default"
+#~ msgstr "ברירת מחדל של המערכת"
+
+#~ msgid "Display"
+#~ msgstr "תצוגה"
+
+#~ msgid "Language & region for this session"
+#~ msgstr "שפה ואזור עבור הפעלה זו"
+
+#~ msgid "Animations, titlebar opacity, and window borders"
+#~ msgstr "הנפשות, אטימות שורת הכותרת וגבולות חלונות"
+
+#~ msgid "App titlebars"
+#~ msgstr "שורות כותרת של אפליקציות"
+
+#~ msgid ""
+#~ "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. "
+#~ "Other apps follow the system locale."
+#~ msgstr ""
+#~ "חל על הגדרות Metis, סרגל הקצה, ההגדרה הראשונית ומסך הנעילה. אפליקציות "
+#~ "אחרות עוקבות אחר שפת המערכת."
+
+#~ msgid "Battery, profiles, and idle behaviour"
+#~ msgstr "סוללה, פרופילים והתנהגות במצב המתנה"
+
+#~ msgid "Briefing weather card on the edge bar"
+#~ msgstr "כרטיס מזג אוויר של התדריך בסרגל הקצה"
+
+#~ msgid "Calendar accounts for the briefing"
+#~ msgstr "חשבונות יומן לתדריך"
+
+#~ msgid "Calendars"
+#~ msgstr "יומנים"
+
+#~ msgid "Connectivity"
+#~ msgstr "חיבוריות"
+
+#~ msgid "Desktop"
+#~ msgstr "שולחן עבודה"
+
+#~ msgid "Desktop wallpaper: picture, solid colour, or gradient"
+#~ msgstr "טפט שולחן העבודה: תמונה, צבע אחיד או מעבר צבע"
+
+#~ msgid "Displays"
+#~ msgstr "צגים"
+
+#~ msgid "Gamepads, touchscreens, Steam, and GPU hints"
+#~ msgstr "בקרים, מסכי מגע, Steam ורמזי GPU"
+
+#~ msgid "Gestures, tap-to-click, and natural scroll"
+#~ msgstr "מחוות, הקשה ללחיצה וגלילה טבעית"
+
+#~ msgid "Graphics profile, arrangement, resolution, scale, and night light"
+#~ msgstr "פרופיל גרפי, סידור, רזולוציה, קנה מידה ואור לילה"
+
+#~ msgid "Installed printers and system print settings"
+#~ msgstr "מדפסות מותקנות והגדרות הדפסה של המערכת"
+
+#~ msgid "Keyboard"
+#~ msgstr "מקלדת"
+
+#~ msgid "Launcher apps and menu panel look"
+#~ msgstr "אפליקציות המשגר ומראה התפריט"
+
+#~ msgid "Metis Menu"
+#~ msgstr "תפריט Metis"
+
+#~ msgid "Mouse"
+#~ msgstr "עכבר"
+
+#~ msgid "Optional wallpaper widgets: folders, apps, clock, and more"
+#~ msgstr "וידג'טי טפט אופציונליים: תיקיות, אפליקציות, שעון ועוד"
+
+#~ msgid "Output and input audio devices"
+#~ msgstr "התקני שמע לקלט ופלט"
+
+#~ msgid "Override Metis vs app titlebars per application"
+#~ msgstr "דריסת שורות כותרת של Metis או האפליקציה לכל יישום"
+
+#~ msgid "Pair and manage Bluetooth devices"
+#~ msgstr "צימוד וניהול התקני Bluetooth"
+
+#~ msgid "Pointer speed, acceleration, and scrolling"
+#~ msgstr "מהירות מצביע, האצה וגלילה"
+
+#~ msgid "Position, opacity, blur, workspaces, and the bar border"
+#~ msgstr "מיקום, אטימות, טשטוש, סביבות עבודה וגבול הסרגל"
+
+#~ msgid "Power"
+#~ msgstr "חשמל"
+
+#~ msgid "Printers"
+#~ msgstr "מדפסות"
+
+#~ msgid "Remote access"
+#~ msgstr "גישה מרחוק"
+
+#~ msgid "Repeat rate and layout preferences"
+#~ msgstr "קצב חזרה והעדפות פריסה"
+
+#~ msgid "Session language and number/date formats"
+#~ msgstr "שפת ההפעלה ותבניות מספר/תאריך"
+
+#~ msgid "Share your logged-in session over the network"
+#~ msgstr "שתף את ההפעלה המחוברת דרך הרשת"
+
+#~ msgid "System monitor panel, refresh rate, and process controls"
+#~ msgstr "לוח ניטור מערכת, קצב רענון ובקרת תהליכים"
+
+#~ msgid "Theme mode, accent colours, and interface font"
+#~ msgstr "מצב ערכת נושא, צבעי הדגשה וגופן ממשק"
+
+#~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
+#~ msgstr "Wi‑Fi, Ethernet, DNS ופרוקסי"

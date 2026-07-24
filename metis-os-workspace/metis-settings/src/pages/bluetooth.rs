@@ -9,6 +9,7 @@ use gtk::prelude::*;
 
 use crate::bluetooth::{self, BluetoothSnapshot, DeviceState};
 use crate::ui;
+use metis_i18n::tr;
 
 struct Sections {
     powered: gtk::Switch,
@@ -28,18 +29,18 @@ struct Sections {
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("bluetooth");
 
-    let (adapter_card, adapter_body) = ui::section("Adapter");
-    let (power_row, powered) = ui::switch_row("Bluetooth");
+    let (adapter_card, adapter_body) = ui::section(&tr("Adapter"));
+    let (power_row, powered) = ui::switch_row(&tr("Bluetooth"));
     adapter_body.append(&power_row);
-    let scan_btn = gtk::Button::with_label("Scan for devices");
+    let scan_btn = gtk::Button::with_label(&tr("Scan for devices"));
     adapter_body.append(&scan_btn);
-    let status = gtk::Label::new(Some("Checking adapter…"));
+    let status = gtk::Label::new(Some(&tr("Checking adapter…")));
     status.set_xalign(0.0);
     status.add_css_class("metis-settings-hint");
     adapter_body.append(&status);
     content.append(&adapter_card);
 
-    let (dev_card, dev_body) = ui::section("Devices");
+    let (dev_card, dev_body) = ui::section(&tr("Devices"));
     let list = gtk::Box::new(gtk::Orientation::Vertical, 6);
     list.add_css_class("metis-settings-list");
     dev_body.append(&list);
@@ -97,12 +98,12 @@ pub fn build() -> gtk::Widget {
             move |_| {
                 if sections.scanning.get() {
                     sections.scanning.set(false);
-                    sections.scan_btn.set_label("Scan for devices");
+                    sections.scan_btn.set_label(&tr("Scan for devices"));
                     std::thread::spawn(|| bluetooth::stop_scan());
                     schedule_refresh(&refresh, 600);
                 } else {
                     sections.scanning.set(true);
-                    sections.scan_btn.set_label("Stop scanning");
+                    sections.scan_btn.set_label(&tr("Stop scanning"));
                     std::thread::spawn(|| bluetooth::start_scan());
                     schedule_refresh(&refresh, 1500);
                     schedule_auto_stop_scan(&sections, &refresh, 30_000);
@@ -120,7 +121,7 @@ fn render(sections: &Sections, snap: &BluetoothSnapshot, refresh: &Rc<impl Fn() 
         sections.powered.set_sensitive(false);
         sections.scan_btn.set_sensitive(false);
         sections.power_pending.set(false);
-        sections.status.set_text("No Bluetooth adapter found.");
+        sections.status.set_text(&tr("No Bluetooth adapter found."));
         clear_list(&sections.list);
         sections.last_devices.borrow_mut().clear();
         return;
@@ -149,7 +150,7 @@ fn render(sections: &Sections, snap: &BluetoothSnapshot, refresh: &Rc<impl Fn() 
     *sections.last_devices.borrow_mut() = snap.devices.clone();
     clear_list(&sections.list);
     if snap.devices.is_empty() {
-        let empty = gtk::Label::new(Some("No devices found. Tap Scan to search."));
+        let empty = gtk::Label::new(Some(&tr("No devices found. Tap Scan to search.")));
         empty.set_xalign(0.0);
         empty.add_css_class("metis-settings-hint");
         sections.list.append(&empty);
@@ -199,7 +200,7 @@ fn device_row(dev: &crate::bluetooth::BtDevice, refresh: &Rc<impl Fn() + 'static
     row.append(&text);
 
     if dev.state != DeviceState::Connected {
-        let connect = gtk::Button::with_label("Connect");
+        let connect = gtk::Button::with_label(&tr("Connect"));
         let addr = dev.address.clone();
         let refresh = refresh.clone();
         connect.connect_clicked(move |_| {
@@ -209,7 +210,7 @@ fn device_row(dev: &crate::bluetooth::BtDevice, refresh: &Rc<impl Fn() + 'static
         });
         row.append(&connect);
     } else {
-        let disconnect = gtk::Button::with_label("Disconnect");
+        let disconnect = gtk::Button::with_label(&tr("Disconnect"));
         let addr = dev.address.clone();
         let refresh = refresh.clone();
         disconnect.connect_clicked(move |_| {
@@ -220,7 +221,7 @@ fn device_row(dev: &crate::bluetooth::BtDevice, refresh: &Rc<impl Fn() + 'static
         row.append(&disconnect);
     }
 
-    let remove = gtk::Button::with_label("Remove");
+    let remove = gtk::Button::with_label(&tr("Remove"));
     remove.add_css_class("destructive-action");
     let addr = dev.address.clone();
     let refresh = refresh.clone();
@@ -233,11 +234,11 @@ fn device_row(dev: &crate::bluetooth::BtDevice, refresh: &Rc<impl Fn() + 'static
     row
 }
 
-fn state_label(s: &DeviceState) -> &'static str {
+fn state_label(s: &DeviceState) -> String {
     match s {
-        DeviceState::Connected => "Connected",
-        DeviceState::Paired => "Paired",
-        DeviceState::Available => "Available",
+        DeviceState::Connected => tr("Connected"),
+        DeviceState::Paired => tr("Paired"),
+        DeviceState::Available => tr("Available"),
     }
 }
 
@@ -263,7 +264,7 @@ fn schedule_auto_stop_scan(
         if sections.scanning.get() {
             std::thread::spawn(|| bluetooth::stop_scan());
             sections.scanning.set(false);
-            sections.scan_btn.set_label("Scan for devices");
+            sections.scan_btn.set_label(&tr("Scan for devices"));
             refresh();
         }
     });

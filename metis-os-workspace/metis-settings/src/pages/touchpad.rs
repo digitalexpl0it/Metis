@@ -6,18 +6,19 @@ use gtk::prelude::*;
 use metis_config::TouchpadConfig;
 
 use super::input_common::{self, persist};
+use metis_i18n::tr;
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = crate::ui::page_for("touchpad");
     let cfg = metis_config::load_input_config();
 
-    let (card, body) = input_common::section_card("Touchpad", "input-touchpad-symbolic");
+    let (card, body) = input_common::section_card(&tr("Touchpad"), "input-touchpad-symbolic");
 
     let tap = gtk::Switch::new();
     tap.set_active(cfg.touchpad.tap_to_click);
     body.append(&crate::ui::row_with_icon(
         "input-touchpad-symbolic",
-        "Tap to click",
+        &tr("Tap to click"),
         &tap,
     ));
 
@@ -25,14 +26,14 @@ pub fn build() -> gtk::Widget {
     drag.set_active(cfg.touchpad.tap_and_drag);
     body.append(&crate::ui::row_with_icon(
         "object-select-symbolic",
-        "Tap and drag",
+        &tr("Tap and drag"),
         &drag,
     ));
 
     let natural = input_common::natural_scroll_switch(cfg.touchpad.natural_scroll);
     body.append(&crate::ui::row_with_icon(
         "view-restore-symbolic",
-        "Natural scrolling",
+        &tr("Natural scrolling"),
         &natural,
     ));
 
@@ -40,35 +41,35 @@ pub fn build() -> gtk::Widget {
     dwt.set_active(cfg.touchpad.disable_while_typing);
     body.append(&crate::ui::row_with_icon(
         "input-keyboard-symbolic",
-        "Disable while typing",
+        &tr("Disable while typing"),
         &dwt,
     ));
 
     let speed = input_common::speed_scale(cfg.touchpad.speed);
     body.append(&crate::ui::row_with_icon(
         "input-mouse-symbolic",
-        "Pointer speed",
+        &tr("Pointer speed"),
         &speed,
     ));
 
     let profile = input_common::accel_profile_dropdown(cfg.touchpad.accel_profile);
     body.append(&crate::ui::row_with_icon(
         "power-profile-performance-symbolic",
-        "Acceleration",
+        &tr("Acceleration"),
         &profile,
     ));
 
     let scroll = input_common::scroll_speed_scale(cfg.touchpad.scroll_speed);
     body.append(&crate::ui::row_with_icon(
         "go-down-symbolic",
-        "Scroll speed",
+        &tr("Scroll speed"),
         &scroll,
     ));
 
-    body.append(&input_common::hint(
+    body.append(&input_common::hint(&tr(
         "These options apply when a touchpad is present in the Metis DRM session. Under \
-         the nested dev session they are stored but not applied.",
-    ));
+         the nested dev session they are stored but not applied."
+        )));
     content.append(&card);
 
     speed.connect_value_changed({

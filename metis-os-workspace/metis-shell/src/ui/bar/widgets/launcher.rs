@@ -18,7 +18,7 @@ impl LauncherWidget {
         let root = gtk::Button::builder().has_frame(false).build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-launcher");
-        root.set_tooltip_text(Some("Metis"));
+        root.set_tooltip_text(Some(&metis_i18n::tr("Metis")));
 
         let image = gtk::Image::new();
         image.add_css_class("metis-bar-launcher-icon");

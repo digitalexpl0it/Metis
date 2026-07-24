@@ -25,6 +25,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `package-deb.sh` and release CI ship them under `/usr/share/metis/locale`.
 - **Metis Menu / tray chrome** — rail actions and menu section labels use
   `tr()` so `reload-locale` can switch them (Settings nav was already covered).
+- **Shell + Settings UI externalized** — Control Center, screenshots,
+  notification center, bar sys/VPN/volumes, clock widgets, and Settings page
+  bodies wrap user-facing strings with `tr()`; **all shipped language catalogs**
+  (`es`/`fr`/`de`/`pt`/`it`/`nl`/`pl`/`ru`/`ja`/`zh`/`ko`/`ar`/`he`) filled for
+  the expanded msgid set (`metis-shell`, `metis-settings`, `assets/locale`).
 
 ### Added
 

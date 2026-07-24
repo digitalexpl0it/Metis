@@ -534,6 +534,10 @@ fn watch_compositor_dismiss() {
                     let _ = crate::compositor::reload_gaming_config();
                 }
                 "reload-locale" => {
+                    // Must recreate widgets — gettext reload alone leaves construction-time
+                    // labels/tooltips in the old language. Do not go through
+                    // `rebuild_from_config()`: that short-circuits to live geometry when
+                    // bar.json is unchanged.
                     metis_i18n::reload();
                     let dir = if metis_i18n::is_rtl() {
                         gtk::TextDirection::Rtl
@@ -541,7 +545,7 @@ fn watch_compositor_dismiss() {
                         gtk::TextDirection::Ltr
                     };
                     gtk::Widget::set_default_direction(dir);
-                    rebuild_from_config();
+                    rebuild_for_locale();
                 }
                 "optimize-gaming" => {
                     std::thread::spawn(|| {
@@ -946,6 +950,22 @@ fn apply_bars_live(config: Rc<RefCell<BarConfig>>) {
         }
     });
     refresh_taskbars();
+}
+
+/// Force-recreate edge-bar chrome (and dependent overlays) after a language change.
+fn rebuild_for_locale() {
+    if crate::ui::onboarding::is_active() {
+        tracing::debug!("locale bar rebuild deferred — onboarding active");
+        return;
+    }
+    let config = BARS.with(|bars| bars.borrow().first().map(|h| h.config.clone()));
+    let Some(config) = config else {
+        return;
+    };
+    rebuild_bars_in_place(config);
+    crate::ui::theme::reload_stylesheet();
+    crate::ui::notification_center::reload_for_locale();
+    crate::ui::dashboard::reload_for_locale();
 }
 
 /// Tear down all bars and rebuild from scratch for the current monitor set —

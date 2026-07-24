@@ -42,14 +42,14 @@ impl AlarmsPage {
             .spacing(8)
             .build();
         let title = gtk::Label::builder()
-            .label("Alarms")
+            .label(metis_i18n::tr("Alarms"))
             .halign(gtk::Align::Start)
             .hexpand(true)
             .build();
         title.add_css_class("metis-bar-section-title");
         let add_btn = gtk::Button::from_icon_name("list-add-symbolic");
         add_btn.add_css_class("metis-cal-add-btn");
-        add_btn.set_tooltip_text(Some("New alarm"));
+        add_btn.set_tooltip_text(Some(&metis_i18n::tr("New alarm")));
         header.append(&title);
         header.append(&add_btn);
         root.append(&header);
@@ -73,7 +73,7 @@ impl AlarmsPage {
             .build();
         let (hour_col, hour_lbl) = stepper("12");
         let (minute_col, minute_lbl) = stepper("00");
-        let ampm_btn = gtk::Button::with_label("AM");
+        let ampm_btn = gtk::Button::with_label(&metis_i18n::tr("AM"));
         ampm_btn.add_css_class("metis-alarm-ampm");
         ampm_btn.set_valign(gtk::Align::Center);
         time_row.append(&hour_col);
@@ -88,14 +88,25 @@ impl AlarmsPage {
             .spacing(6)
             .build();
         repeat.add_css_class("metis-alarm-section");
-        repeat.append(&caption("Repeat"));
+        repeat.append(&caption(&metis_i18n::tr("Repeat")));
         let days_row = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .spacing(6)
             .halign(gtk::Align::Center)
             .build();
         let mut day_btns = Vec::new();
-        for (idx, label) in ["S", "M", "T", "W", "T", "F", "S"].iter().enumerate() {
+        for (idx, label) in [
+            metis_i18n::tr("S"),
+            metis_i18n::tr("M"),
+            metis_i18n::tr("T"),
+            metis_i18n::tr("W"),
+            metis_i18n::tr("T"),
+            metis_i18n::tr("F"),
+            metis_i18n::tr("S"),
+        ]
+        .iter()
+        .enumerate()
+        {
             let b = gtk::ToggleButton::with_label(label);
             b.add_css_class("metis-alarm-day");
             days_row.append(&b);
@@ -106,7 +117,7 @@ impl AlarmsPage {
 
         // Name.
         let name_entry = gtk::Entry::builder()
-            .placeholder_text("Name")
+            .placeholder_text(metis_i18n::tr("Name"))
             .build();
         form.append(&name_entry);
 
@@ -116,7 +127,7 @@ impl AlarmsPage {
             .orientation(gtk::Orientation::Vertical)
             .spacing(6)
             .build();
-        sound_box.append(&caption("Sound"));
+        sound_box.append(&caption(&metis_i18n::tr("Sound")));
         let sound_seg = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .spacing(0)
@@ -126,7 +137,7 @@ impl AlarmsPage {
         let mut sound_btns: Vec<gtk::ToggleButton> = Vec::new();
         let mut sound_group: Option<gtk::ToggleButton> = None;
         for (i, s) in ALARM_SOUNDS.iter().enumerate() {
-            let b = gtk::ToggleButton::with_label(s.label);
+            let b = gtk::ToggleButton::with_label(&metis_i18n::tr(s.label));
             b.add_css_class("metis-alarm-sound-btn");
             b.set_hexpand(true);
             if let Some(ref leader) = sound_group {
@@ -149,9 +160,9 @@ impl AlarmsPage {
             .spacing(8)
             .halign(gtk::Align::End)
             .build();
-        let cancel_btn = gtk::Button::with_label("Cancel");
+        let cancel_btn = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
         cancel_btn.add_css_class("metis-clock-btn");
-        let save_btn = gtk::Button::with_label("Add");
+        let save_btn = gtk::Button::with_label(&metis_i18n::tr("Add"));
         save_btn.add_css_class("metis-cal-add-btn");
         actions.append(&cancel_btn);
         actions.append(&save_btn);
@@ -197,7 +208,12 @@ impl AlarmsPage {
             let inner = inner.clone();
             ampm_btn.connect_clicked(move |_| {
                 inner.pm.set(!inner.pm.get());
-                inner.ampm_btn.set_label(if inner.pm.get() { "PM" } else { "AM" });
+                let label = if inner.pm.get() {
+                    metis_i18n::tr("PM")
+                } else {
+                    metis_i18n::tr("AM")
+                };
+                inner.ampm_btn.set_label(&label);
             });
         }
         {
@@ -300,7 +316,7 @@ impl Inner {
         }
         let alarms = self.store.borrow().alarms.clone();
         if alarms.is_empty() {
-            let empty = gtk::Label::builder().label("No alarms").build();
+            let empty = gtk::Label::builder().label(metis_i18n::tr("No alarms")).build();
             empty.add_css_class("metis-cal-empty");
             self.list.append(&empty);
             return;
@@ -363,17 +379,25 @@ impl Inner {
 fn subtitle(alarm: &Alarm) -> String {
     if alarm.days.is_empty() {
         if alarm.label.is_empty() {
-            "Every day".to_string()
+            metis_i18n::tr("Every day")
         } else {
-            format!("Every day  ·  {}", alarm.label)
+            metis_i18n::tr("Every day  ·  %1").replace("%1", &alarm.label)
         }
     } else {
-        let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        let names = [
+            metis_i18n::tr("Sun"),
+            metis_i18n::tr("Mon"),
+            metis_i18n::tr("Tue"),
+            metis_i18n::tr("Wed"),
+            metis_i18n::tr("Thu"),
+            metis_i18n::tr("Fri"),
+            metis_i18n::tr("Sat"),
+        ];
         let mut sorted = alarm.days.clone();
         sorted.sort_unstable();
         let days = sorted
             .iter()
-            .filter_map(|d| names.get(*d as usize).copied())
+            .filter_map(|d| names.get(*d as usize).map(String::as_str))
             .collect::<Vec<_>>()
             .join(", ");
         if alarm.label.is_empty() {
@@ -385,11 +409,16 @@ fn subtitle(alarm: &Alarm) -> String {
 }
 
 fn fmt_time(hour: u8, minute: u8) -> String {
-    let (h12, suffix) = match hour {
-        0 => (12, "AM"),
-        1..=11 => (hour, "AM"),
-        12 => (12, "PM"),
-        _ => (hour - 12, "PM"),
+    let (h12, pm) = match hour {
+        0 => (12, false),
+        1..=11 => (hour, false),
+        12 => (12, true),
+        _ => (hour - 12, true),
+    };
+    let suffix = if pm {
+        metis_i18n::tr("PM")
+    } else {
+        metis_i18n::tr("AM")
     };
     format!("{h12:02}:{minute:02} {suffix}")
 }

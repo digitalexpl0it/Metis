@@ -11,6 +11,7 @@ use metis_gaming::health::{auto_fix_item, run_health_check, HealthCheck, HealthS
 
 use crate::gaming::{GamingSnapshot, InputDevice, SteamInstall};
 use crate::ui;
+use metis_i18n::tr;
 
 /// Background thread → GTK main thread (widgets are not `Send`).
 enum GamingUiEvent {
@@ -51,37 +52,35 @@ pub fn build() -> gtk::Widget {
     let seeding = Rc::new(RefCell::new(true));
 
     let (mode_card, mode_body) =
-        ui::section_with_icon("Graphics", "video-display-symbolic");
+        ui::section_with_icon(&tr("Graphics"), "video-display-symbolic");
 
-    let graphics_mode = gtk::DropDown::from_strings(&[
-        "Auto (games on discrete GPU)",
-        "Desktop iGPU / games dGPU",
-        "Always discrete GPU",
-        "Always integrated GPU",
-        "Off (manual only)",
-    ]);
+    let graphics_mode = {
+        let __dd_labels = [tr("Auto (games on discrete GPU)"), tr("Desktop iGPU / games dGPU"), tr("Always discrete GPU"), tr("Always integrated GPU"), tr("Off (manual only)")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     graphics_mode.set_selected(graphics_mode_to_index(cfg.graphics_mode));
-    mode_body.append(&ui::row("Graphics mode", &graphics_mode));
+    mode_body.append(&ui::row(&tr("Graphics mode"), &graphics_mode));
 
     let on_battery = gtk::Switch::new();
     on_battery.set_active(cfg.on_battery_prefer_igpu);
     on_battery.set_halign(gtk::Align::End);
-    mode_body.append(&ui::row("Prefer iGPU on battery", &on_battery));
+    mode_body.append(&ui::row(&tr("Prefer iGPU on battery"), &on_battery));
 
     let auto_perf = gtk::Switch::new();
     auto_perf.set_active(cfg.auto_performance_profile);
     auto_perf.set_halign(gtk::Align::End);
-    mode_body.append(&ui::row("Performance profile while gaming", &auto_perf));
+    mode_body.append(&ui::row(&tr("Performance profile while gaming"), &auto_perf));
 
     let auto_gamemode = gtk::Switch::new();
     auto_gamemode.set_active(cfg.auto_gamemode);
     auto_gamemode.set_halign(gtk::Align::End);
-    mode_body.append(&ui::row("Auto GameMode", &auto_gamemode));
+    mode_body.append(&ui::row(&tr("Auto GameMode"), &auto_gamemode));
 
     let flatpak_gpu = gtk::Switch::new();
     flatpak_gpu.set_active(cfg.flatpak_gpu_env);
     flatpak_gpu.set_halign(gtk::Align::End);
-    mode_body.append(&ui::row("Flatpak GPU offload env", &flatpak_gpu));
+    mode_body.append(&ui::row(&tr("Flatpak GPU offload env"), &flatpak_gpu));
 
     let status_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     status_box.add_css_class("metis-settings-gaming-status");
@@ -89,7 +88,7 @@ pub fn build() -> gtk::Widget {
     let status_icon = gtk::Image::from_icon_name("dialog-information-symbolic");
     status_icon.add_css_class("metis-settings-gaming-status-icon");
     status_icon.set_pixel_size(18);
-    let status_text = gtk::Label::new(Some("Checking gaming health…"));
+    let status_text = gtk::Label::new(Some(&tr("Checking gaming health…")));
     status_text.set_xalign(0.0);
     status_text.set_hexpand(true);
     status_text.set_wrap(true);
@@ -101,48 +100,48 @@ pub fn build() -> gtk::Widget {
     let actions = gtk::Box::new(gtk::Orientation::Vertical, 8);
     actions.add_css_class("metis-settings-actions");
 
-    let optimize_btn = gtk::Button::with_label("Optimize now");
+    let optimize_btn = gtk::Button::with_label(&tr("Optimize now"));
     optimize_btn.add_css_class("suggested-action");
     optimize_btn.set_halign(gtk::Align::Start);
-    optimize_btn.set_tooltip_text(Some(
-        "Apply Flatpak gaming overrides and add you to the input group if needed",
-    ));
+    optimize_btn.set_tooltip_text(Some(&tr(
+        "Apply Flatpak gaming overrides and add you to the input group if needed"
+        )));
     actions.append(&optimize_btn);
 
-    let setup_btn = gtk::Button::with_label("Run gaming setup");
+    let setup_btn = gtk::Button::with_label(&tr("Run gaming setup"));
     setup_btn.set_halign(gtk::Align::Start);
-    setup_btn.set_tooltip_text(Some(
-        "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)",
-    ));
+    setup_btn.set_tooltip_text(Some(&tr(
+        "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
+        )));
     actions.append(&setup_btn);
     mode_body.append(&actions);
 
     content.append(&mode_card);
 
-    let (health_card, health_body) = ui::section("Health check");
+    let (health_card, health_body) = ui::section(&tr("Health check"));
     let health_list = gtk::Box::new(gtk::Orientation::Vertical, 6);
     health_body.append(&health_list);
     content.append(&health_card);
 
     let (session_card, session_body) =
-        ui::section_with_icon("Session", "applications-games-symbolic");
-    let steam = value_label("Checking…");
-    session_body.append(&readout_row("Steam", &steam));
-    let gpu = value_label("");
+        ui::section_with_icon(&tr("Session"), "applications-games-symbolic");
+    let steam = value_label(&tr("Checking…"));
+    session_body.append(&readout_row(&tr("Steam"), &steam));
+    let gpu = value_label(&tr(""));
     gpu.set_wrap(true);
     gpu.add_css_class("metis-settings-hint");
-    session_body.append(&readout_row("GPU", &gpu));
+    session_body.append(&readout_row(&tr("GPU"), &gpu));
     content.append(&session_card);
 
     let (pad_card, pad_body) =
-        ui::section_with_icon("Gamepads", "input-gamepad-symbolic");
+        ui::section_with_icon(&tr("Gamepads"), "input-gamepad-symbolic");
     let gamepad_list = gtk::Box::new(gtk::Orientation::Vertical, 6);
     gamepad_list.add_css_class("metis-settings-list");
     pad_body.append(&gamepad_list);
     content.append(&pad_card);
 
     let (touch_card, touch_body) =
-        ui::section_with_icon("Touchscreens", "input-touchpad-symbolic");
+        ui::section_with_icon(&tr("Touchscreens"), "input-touchpad-symbolic");
     let touch_list = gtk::Box::new(gtk::Orientation::Vertical, 6);
     touch_list.add_css_class("metis-settings-list");
     touch_body.append(&touch_list);
@@ -233,7 +232,7 @@ pub fn build() -> gtk::Widget {
         let ui_tx = ui_tx.clone();
         optimize_btn.connect_clicked(move |btn| {
             btn.set_sensitive(false);
-            btn.set_label("Optimizing…");
+            btn.set_label(&tr("Optimizing…"));
             let ui_tx = ui_tx.clone();
             std::thread::spawn(move || {
                 let summary = run_optimize_pass();
@@ -281,7 +280,7 @@ pub fn build() -> gtk::Widget {
                     }
                     GamingUiEvent::OptimizeDone { summary } => {
                         sections.optimize_btn.set_sensitive(true);
-                        sections.optimize_btn.set_label("Optimize now");
+                        sections.optimize_btn.set_label(&tr("Optimize now"));
                         sections.status_text.set_text(&summary);
                         spawn_health_check(ui_tx_poll.clone());
                     }
@@ -361,7 +360,7 @@ fn show_gaming_setup_dialog(
     }
 
     let win = gtk::Window::builder()
-        .title("Gaming setup")
+        .title(&tr("Gaming setup"))
         .transient_for(parent)
         .modal(true)
         .decorated(false)
@@ -380,20 +379,20 @@ fn show_gaming_setup_dialog(
 
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     header.set_margin_bottom(12);
-    let heading = gtk::Label::new(Some("Gaming setup"));
+    let heading = gtk::Label::new(Some(&tr("Gaming setup")));
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
     heading.add_css_class("metis-settings-section-title");
     header.append(&heading);
-    let header_close = gtk::Button::with_label("Close");
+    let header_close = gtk::Button::with_label(&tr("Close"));
     header_close.add_css_class("metis-settings-secondary");
     header.append(&header_close);
     outer.append(&header);
 
-    let intro = gtk::Label::new(Some(
+    let intro = gtk::Label::new(Some(&tr(
         "Applies Flatpak device/socket overrides, hybrid GPU env vars for Steam/Lutris/Heroic, \
-         and writes the Flatpak Steam launcher wrapper. Safe to re-run after updates.",
-    ));
+         and writes the Flatpak Steam launcher wrapper. Safe to re-run after updates."
+        )));
     intro.set_xalign(0.0);
     intro.set_wrap(true);
     intro.add_css_class("metis-settings-hint");
@@ -414,7 +413,7 @@ fn show_gaming_setup_dialog(
     }
     outer.append(&steps);
 
-    let status = gtk::Label::new(Some("Click Start to run the optimizer."));
+    let status = gtk::Label::new(Some(&tr("Click Start to run the optimizer.")));
     status.set_xalign(0.0);
     status.set_wrap(true);
     status.add_css_class("metis-settings-value");
@@ -424,9 +423,9 @@ fn show_gaming_setup_dialog(
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     actions.set_halign(gtk::Align::End);
     actions.set_margin_top(16);
-    let close_btn = gtk::Button::with_label("Close");
+    let close_btn = gtk::Button::with_label(&tr("Close"));
     close_btn.add_css_class("metis-settings-secondary");
-    let start_btn = gtk::Button::with_label("Start setup");
+    let start_btn = gtk::Button::with_label(&tr("Start setup"));
     start_btn.add_css_class("suggested-action");
     actions.append(&close_btn);
     actions.append(&start_btn);
@@ -586,8 +585,8 @@ fn apply_health_check(
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         actions.set_valign(gtk::Align::Center);
         if item.auto_fixable {
-            let fix = gtk::Button::with_label("Fix");
-            fix.set_tooltip_text(Some("Install or apply this fix (may ask for your password)"));
+            let fix = gtk::Button::with_label(&tr("Fix"));
+            fix.set_tooltip_text(Some(&tr("Install or apply this fix (may ask for your password)")));
             let fix_id = item.id.to_string();
             let ui_tx = ui_tx.clone();
             fix.connect_clicked(move |btn| {
@@ -605,12 +604,12 @@ fn apply_health_check(
             actions.append(&fix);
         }
         if let Some(hint) = item.fix_hint.as_ref() {
-            let copy = gtk::Button::with_label("Copy command");
+            let copy = gtk::Button::with_label(&tr("Copy command"));
             let hint = hint.clone();
             copy.set_tooltip_text(Some(hint.as_str()));
             copy.connect_clicked(move |btn| {
                 btn.clipboard().set_text(&hint);
-                btn.set_label("Copied");
+                btn.set_label(&tr("Copied"));
             });
             actions.append(&copy);
         }
@@ -643,15 +642,15 @@ fn update_health_summary(sections: &Rc<Sections>, check: &HealthCheck) {
             .set_from_icon_name(Some("emblem-ok-symbolic"));
         sections
             .status_text
-            .set_text("Ready for gaming — all checks passed.");
+            .set_text(&tr("Ready for gaming — all checks passed."));
         sections.status_box.add_css_class("metis-settings-gaming-status-ok");
     } else if issues == 0 {
         sections
             .status_icon
             .set_from_icon_name(Some("dialog-information-symbolic"));
-        sections.status_text.set_text(&format!(
+        sections.status_text.set_text(&tr(&format!(
             "Mostly ready — {infos} optional improvement(s) below."
-        ));
+        )));
         sections.status_box.add_css_class("metis-settings-gaming-status-warn");
     } else {
         let auto = check.items.iter().any(|i| {
@@ -661,13 +660,13 @@ fn update_health_summary(sections: &Rc<Sections>, check: &HealthCheck) {
             .status_icon
             .set_from_icon_name(Some("dialog-warning-symbolic"));
         if auto {
-            sections.status_text.set_text(&format!(
+            sections.status_text.set_text(&tr(&format!(
                 "{issues} issue(s) found — use Fix to install, or Copy command to run it yourself."
-            ));
+            )));
         } else {
-            sections.status_text.set_text(&format!(
+            sections.status_text.set_text(&tr(&format!(
                 "{issues} issue(s) found — use Copy command on each row (these need a manual step)."
-            ));
+            )));
         }
         sections.status_box.add_css_class("metis-settings-gaming-status-warn");
     }
@@ -702,17 +701,17 @@ fn readout_row(title: &str, value: &gtk::Label) -> gtk::Box {
 }
 
 fn apply_snapshot(sections: &Rc<Sections>, snapshot: &GamingSnapshot) {
-    sections.steam.set_text(match snapshot.steam {
-        SteamInstall::Native => "Installed (native)",
-        SteamInstall::Flatpak => "Installed (Flatpak)",
-        SteamInstall::None => "Not detected",
+    sections.steam.set_text(&match snapshot.steam {
+        SteamInstall::Native => tr("Installed (native)"),
+        SteamInstall::Flatpak => tr("Installed (Flatpak)"),
+        SteamInstall::None => tr("Not detected"),
     });
     sections.gpu.set_text(&snapshot.gpu_hint);
-    rebuild_device_list(&sections.gamepad_list, &snapshot.gamepads, "No gamepads detected");
+    rebuild_device_list(&sections.gamepad_list, &snapshot.gamepads, &tr("No gamepads detected"));
     rebuild_device_list(
         &sections.touch_list,
         &snapshot.touchscreens,
-        "No touchscreens detected",
+        &tr("No touchscreens detected"),
     );
 }
 

@@ -25,6 +25,7 @@ use metis_config::{
 
 use crate::pages::appearance_common::{color_dialog_button, hex_to_rgba, rgba_to_hex};
 use crate::ui;
+use metis_i18n::tr;
 
 /// Coalesce slider writes so dragging opacity doesn't storm the shell with
 /// full config reloads / atomic renames.
@@ -36,14 +37,14 @@ pub fn build() -> gtk::Widget {
     let chrome_debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
     let (panel_card, panel_body) =
-        ui::section_with_icon("Desktop widgets", "view-grid-symbolic");
+        ui::section_with_icon(&tr("Desktop widgets"), "view-grid-symbolic");
 
     let enabled = gtk::Switch::new();
     enabled.set_active(cfg.borrow().enabled);
     enabled.set_halign(gtk::Align::End);
     panel_body.append(&ui::row_with_icon(
         "preferences-desktop-wallpaper-symbolic",
-        "Show desktop widgets",
+        &tr("Show desktop widgets"),
         &enabled,
     ));
 
@@ -52,16 +53,16 @@ pub fn build() -> gtk::Widget {
     edit_mode.set_halign(gtk::Align::End);
     panel_body.append(&ui::row_with_icon(
         "document-edit-symbolic",
-        "Edit mode (move / resize)",
+        &tr("Edit mode (move / resize)"),
         &edit_mode,
     ));
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&tr(
         "Widgets float over the wallpaper (not classic desktop icons). Off by \
          default. In edit mode, drag the title bar to move and the corner handle \
          to resize. Chrome below is the default look; each widget can override it \
-         from its Configure dialog.",
-    ));
+         from its Configure dialog."
+        )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -70,7 +71,7 @@ pub fn build() -> gtk::Widget {
 
     // ---- Global chrome defaults ----
     let (chrome_card, chrome_body) =
-        ui::section_with_icon("Default look", "preferences-color-symbolic");
+        ui::section_with_icon(&tr("Default look"), "preferences-color-symbolic");
     {
         let chrome = cfg.borrow().chrome.clone();
 
@@ -82,11 +83,11 @@ pub fn build() -> gtk::Widget {
         ui::forward_wheel_to_page_scroller(&opacity);
         chrome_body.append(&ui::row_with_icon(
             "preferences-color-symbolic",
-            "Background opacity",
+            &tr("Background opacity"),
             &opacity,
         ));
 
-        let bg_theme = gtk::CheckButton::with_label("Theme colour");
+        let bg_theme = gtk::CheckButton::with_label(&tr("Theme colour"));
         bg_theme.set_active(chrome.background_color.is_empty());
         let bg_color = color_dialog_button();
         if !chrome.background_color.is_empty() {
@@ -98,7 +99,7 @@ pub fn build() -> gtk::Widget {
         bg_row.append(&bg_color);
         chrome_body.append(&ui::row_with_icon(
             "color-select-symbolic",
-            "Background colour",
+            &tr("Background colour"),
             &bg_row,
         ));
 
@@ -110,11 +111,11 @@ pub fn build() -> gtk::Widget {
         ui::forward_wheel_to_page_scroller(&border_w);
         chrome_body.append(&ui::row_with_icon(
             "object-select-symbolic",
-            "Border width (0 = none)",
+            &tr("Border width (0 = none)"),
             &border_w,
         ));
 
-        let border_theme = gtk::CheckButton::with_label("Theme colour");
+        let border_theme = gtk::CheckButton::with_label(&tr("Theme colour"));
         border_theme.set_active(chrome.border_color.is_empty());
         let border_color = color_dialog_button();
         if !chrome.border_color.is_empty() {
@@ -126,14 +127,14 @@ pub fn build() -> gtk::Widget {
         border_row.append(&border_color);
         chrome_body.append(&ui::row_with_icon(
             "color-select-symbolic",
-            "Border colour",
+            &tr("Border colour"),
             &border_row,
         ));
 
-        let chrome_hint = gtk::Label::new(Some(
+        let chrome_hint = gtk::Label::new(Some(&tr(
             "Opacity 0 clears the fill; set border width to 0 to hide the edge. \
-             Theme colour follows the active Appearance surface / text tint.",
-        ));
+             Theme colour follows the active Appearance surface / text tint."
+            )));
         chrome_hint.set_xalign(0.0);
         chrome_hint.set_wrap(true);
         chrome_hint.add_css_class("metis-settings-hint");
@@ -220,7 +221,7 @@ pub fn build() -> gtk::Widget {
 
     // ---- Compact instance list ----
     let (list_card, list_body) =
-        ui::section_with_icon("Widgets on this desktop", "view-list-symbolic");
+        ui::section_with_icon(&tr("Widgets on this desktop"), "view-list-symbolic");
 
     let add_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     add_row.set_halign(gtk::Align::Fill);
@@ -238,15 +239,15 @@ pub fn build() -> gtk::Widget {
         .unwrap_or(0) as u32;
     kind_dd.set_selected(folders_idx);
     kind_dd.set_hexpand(true);
-    let add_btn = gtk::Button::with_label("Add widget");
+    let add_btn = gtk::Button::with_label(&tr("Add widget"));
     add_btn.add_css_class("suggested-action");
     add_row.append(&kind_dd);
     add_row.append(&add_btn);
     list_body.append(&add_row);
 
-    let empty = gtk::Label::new(Some(
-        "No widgets yet. Pick a type above and click Add widget.",
-    ));
+    let empty = gtk::Label::new(Some(&tr(
+        "No widgets yet. Pick a type above and click Add widget."
+        )));
     empty.set_xalign(0.0);
     empty.add_css_class("metis-settings-hint");
     list_body.append(&empty);
@@ -437,7 +438,7 @@ fn instance_row(
     text.append(&subtitle);
     row.append(&text);
 
-    let locked = gtk::CheckButton::with_label("Locked");
+    let locked = gtk::CheckButton::with_label(&tr("Locked"));
     locked.set_active(inst.locked);
     locked.set_valign(gtk::Align::Center);
     let id = inst.id.clone();
@@ -455,7 +456,7 @@ fn instance_row(
     row.append(&locked);
 
     let configure = gtk::Button::from_icon_name("preferences-system-symbolic");
-    configure.set_tooltip_text(Some("Configure"));
+    configure.set_tooltip_text(Some(&tr("Configure")));
     configure.add_css_class("flat");
     configure.add_css_class("metis-widget-configure-btn");
     configure.set_valign(gtk::Align::Center);
@@ -477,7 +478,7 @@ fn instance_row(
     }
     row.append(&configure);
 
-    let remove = gtk::Button::with_label("Remove");
+    let remove = gtk::Button::with_label(&tr("Remove"));
     remove.add_css_class("destructive-action");
     remove.set_valign(gtk::Align::Center);
     let id = inst.id.clone();
@@ -546,7 +547,7 @@ fn open_configure_dialog(
     heading.set_hexpand(true);
     heading.add_css_class("metis-settings-section-title");
     header.append(&heading);
-    let close_btn = gtk::Button::with_label("Done");
+    let close_btn = gtk::Button::with_label(&tr("Done"));
     close_btn.add_css_class("suggested-action");
     header.append(&close_btn);
     outer.append(&header);
@@ -651,7 +652,7 @@ fn fill_configure_body(
     body.append(&geo);
 
     {
-        let show_title = gtk::CheckButton::with_label("Show title");
+        let show_title = gtk::CheckButton::with_label(&tr("Show title"));
         show_title.set_active(inst.show_title);
         let id = inst.id.clone();
         {
@@ -673,7 +674,7 @@ fn fill_configure_body(
             let path_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
             let path_entry = gtk::Entry::new();
             path_entry.set_text(&inst.path);
-            path_entry.set_placeholder_text(Some("~/Desktop"));
+            path_entry.set_placeholder_text(Some(&tr("~/Desktop")));
             path_entry.set_hexpand(true);
             let id = inst.id.clone();
             {
@@ -691,7 +692,7 @@ fn fill_configure_body(
                     });
                 });
             }
-            let apply = gtk::Button::with_label("Set path");
+            let apply = gtk::Button::with_label(&tr("Set path"));
             let id = inst.id.clone();
             {
                 let cfg = cfg.clone();
@@ -735,7 +736,7 @@ fn fill_configure_body(
             body.append(&view_mode_row(inst, cfg.clone()));
 
             let btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-            let import = gtk::Button::with_label("Import start-menu pins");
+            let import = gtk::Button::with_label(&tr("Import start-menu pins"));
             let id = inst.id.clone();
             {
                 let cfg = cfg.clone();
@@ -759,7 +760,7 @@ fn fill_configure_body(
             btn_row.append(&import);
 
             if !inst.pins.is_empty() {
-                let clear = gtk::Button::with_label("Follow start menu again");
+                let clear = gtk::Button::with_label(&tr("Follow start menu again"));
                 let id = inst.id.clone();
                 {
                     let cfg = cfg.clone();
@@ -837,7 +838,7 @@ fn equalizer_options(
                 }
             });
         }
-        col.append(&ui::row_with_icon("multimedia-equalizer-symbolic", "Style", &dd));
+        col.append(&ui::row_with_icon("multimedia-equalizer-symbolic", &tr("Style"), &dd));
     }
 
     // Colour mode — rebuild so solid / gradient pickers show correctly.
@@ -870,7 +871,7 @@ fn equalizer_options(
         }
         col.append(&ui::row_with_icon(
             "preferences-color-symbolic",
-            "Colour mode",
+            &tr("Colour mode"),
             &dd,
         ));
     }
@@ -893,7 +894,7 @@ fn equalizer_options(
             }
             col.append(&ui::row_with_icon(
                 "color-select-symbolic",
-                "Solid colour",
+                &tr("Solid colour"),
                 &color,
             ));
         }
@@ -914,7 +915,7 @@ fn equalizer_options(
             }
             col.append(&ui::row_with_icon(
                 "color-select-symbolic",
-                "Gradient start",
+                &tr("Gradient start"),
                 &start,
             ));
 
@@ -934,14 +935,14 @@ fn equalizer_options(
             }
             col.append(&ui::row_with_icon(
                 "color-select-symbolic",
-                "Gradient end",
+                &tr("Gradient end"),
                 &end,
             ));
         }
         EqualizerColorMode::Theme => {
-            let hint = gtk::Label::new(Some(
-                "Uses the active Appearance accent and secondary colours.",
-            ));
+            let hint = gtk::Label::new(Some(&tr(
+                "Uses the active Appearance accent and secondary colours."
+                )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1013,7 +1014,7 @@ fn equalizer_options(
                 }
                 col.append(&ui::row_with_icon(
                     "view-list-bullet-symbolic",
-                    "Bar shape",
+                    &tr("Bar shape"),
                     &dd,
                 ));
             }
@@ -1035,7 +1036,7 @@ fn equalizer_options(
                 }
                 col.append(&ui::row_with_icon(
                     "color-select-symbolic",
-                    "Bar height gradient",
+                    &tr("Bar height gradient"),
                     &sw,
                 ));
             }
@@ -1061,7 +1062,7 @@ fn equalizer_options(
                 }
                 col.append(&ui::row_with_icon(
                     "go-top-symbolic",
-                    "Peak caps",
+                    &tr("Peak caps"),
                     &sw,
                 ));
             }
@@ -1082,7 +1083,7 @@ fn equalizer_options(
                 }
                 col.append(&ui::row_with_icon(
                     "color-select-symbolic",
-                    "Peak colour",
+                    &tr("Peak colour"),
                     &color,
                 ));
             }
@@ -1104,15 +1105,15 @@ fn equalizer_options(
                 }
                 col.append(&ui::row_with_icon(
                     "object-flip-vertical-symbolic",
-                    "Bar reflection",
+                    &tr("Bar reflection"),
                     &sw,
                 ));
             }
         }
         EqualizerVizStyle::SpectrumLines => {
-            let hint = gtk::Label::new(Some(
-                "Spectrum lines use the colour mode above across the frequency range.",
-            ));
+            let hint = gtk::Label::new(Some(&tr(
+                "Spectrum lines use the colour mode above across the frequency range."
+                )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1136,14 +1137,14 @@ fn equalizer_options(
             }
             col.append(&ui::row_with_icon(
                 "object-flip-vertical-symbolic",
-                "Mirror wave",
+                &tr("Mirror wave"),
                 &sw,
             ));
         }
         EqualizerVizStyle::Radial => {
-            let hint = gtk::Label::new(Some(
-                "Rays radiate from the centre. Colour mode tints around the ring.",
-            ));
+            let hint = gtk::Label::new(Some(&tr(
+                "Rays radiate from the centre. Colour mode tints around the ring."
+                )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1151,10 +1152,10 @@ fn equalizer_options(
         }
     }
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&tr(
         "Listens to the default audio output (PipeWire/Pulse monitor). \
-         Play music or a movie — silent sinks show a quiet idle decay.",
-    ));
+         Play music or a movie — silent sinks show a quiet idle decay."
+        )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");
@@ -1174,7 +1175,7 @@ fn text_style_options(
     // Text colour
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let use_theme = gtk::CheckButton::with_label("Theme colour");
+        let use_theme = gtk::CheckButton::with_label(&tr("Theme colour"));
         use_theme.set_active(inst.text_color.trim().is_empty());
         let color = color_dialog_button();
         if !inst.text_color.trim().is_empty() {
@@ -1223,7 +1224,7 @@ fn text_style_options(
         row.append(&color);
         col.append(&ui::row_with_icon(
             "color-select-symbolic",
-            "Text colour",
+            &tr("Text colour"),
             &row,
         ));
     }
@@ -1231,7 +1232,7 @@ fn text_style_options(
     // Accent (progress bars on System; optional highlight elsewhere).
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let use_theme = gtk::CheckButton::with_label("Theme accent");
+        let use_theme = gtk::CheckButton::with_label(&tr("Theme accent"));
         use_theme.set_active(inst.accent_color.trim().is_empty());
         let color = color_dialog_button();
         if !inst.accent_color.trim().is_empty() {
@@ -1289,10 +1290,10 @@ fn text_style_options(
         ));
     }
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&tr(
         "Font picks family, weight, and size. Text colour tints labels and icons; \
-         accent colours the System progress fills.",
-    ));
+         accent colours the System progress fills."
+        )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");
@@ -1307,7 +1308,7 @@ fn font_row(
 ) -> gtk::Widget {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
 
-    let use_theme = gtk::CheckButton::with_label("Theme font");
+    let use_theme = gtk::CheckButton::with_label(&tr("Theme font"));
     use_theme.set_active(inst.font.trim().is_empty());
 
     let font_btn = gtk::FontDialogButton::new(Some(gtk::FontDialog::new()));
@@ -1355,7 +1356,7 @@ fn font_row(
 
     row.append(&use_theme);
     row.append(&font_btn);
-    ui::row_with_icon("font-x-generic-symbolic", "Font", &row).upcast()
+    ui::row_with_icon("font-x-generic-symbolic", &tr("Font"), &row).upcast()
 }
 
 fn view_mode_row(
@@ -1387,7 +1388,7 @@ fn view_mode_row(
         });
     }
 
-    ui::row_with_icon("view-grid-symbolic", "View", &dd).upcast()
+    ui::row_with_icon("view-grid-symbolic", &tr("View"), &dd).upcast()
 }
 
 fn instance_chrome_overrides(
@@ -1396,7 +1397,7 @@ fn instance_chrome_overrides(
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
     rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
 ) -> gtk::Widget {
-    let expander = gtk::Expander::new(Some("Look overrides (optional)"));
+    let expander = gtk::Expander::new(Some(&tr("Look overrides (optional)")));
     expander.set_expanded(!inst.chrome.is_empty());
     let body = gtk::Box::new(gtk::Orientation::Vertical, 6);
     body.set_margin_top(6);
@@ -1406,7 +1407,7 @@ fn instance_chrome_overrides(
 
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let enable = gtk::CheckButton::with_label("Background opacity");
+        let enable = gtk::CheckButton::with_label(&tr("Background opacity"));
         enable.set_active(inst.chrome.background_opacity.is_some());
         let scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.01);
         scale.set_value(inst.chrome.background_opacity.unwrap_or(0.4) as f64);
@@ -1458,7 +1459,7 @@ fn instance_chrome_overrides(
 
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let enable = gtk::CheckButton::with_label("Background colour");
+        let enable = gtk::CheckButton::with_label(&tr("Background colour"));
         let has = inst
             .chrome
             .background_color
@@ -1512,7 +1513,7 @@ fn instance_chrome_overrides(
 
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let enable = gtk::CheckButton::with_label("Border width");
+        let enable = gtk::CheckButton::with_label(&tr("Border width"));
         enable.set_active(inst.chrome.border_width.is_some());
         let scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 12.0, 0.5);
         scale.set_value(inst.chrome.border_width.unwrap_or(1.0) as f64);
@@ -1564,7 +1565,7 @@ fn instance_chrome_overrides(
 
     {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let enable = gtk::CheckButton::with_label("Border colour");
+        let enable = gtk::CheckButton::with_label(&tr("Border colour"));
         let has = inst
             .chrome
             .border_color
@@ -1616,7 +1617,7 @@ fn instance_chrome_overrides(
         body.append(&row);
     }
 
-    let clear = gtk::Button::with_label("Clear all overrides");
+    let clear = gtk::Button::with_label(&tr("Clear all overrides"));
     {
         let cfg = cfg.clone();
         let id = id.clone();

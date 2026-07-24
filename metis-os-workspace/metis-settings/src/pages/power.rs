@@ -11,6 +11,7 @@ use metis_config::{LidCloseAction, PowerConfig, PowerProfile};
 use crate::bluetooth::{self, BluetoothSnapshot, DeviceState};
 use crate::power::{self, PowerSnapshot};
 use crate::ui;
+use metis_i18n::tr;
 
 struct Sections {
     battery_label: gtk::Label,
@@ -26,8 +27,8 @@ struct Sections {
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("power");
 
-    let (bat_card, bat_body) = ui::section("Battery");
-    let battery_label = gtk::Label::new(Some("No battery detected"));
+    let (bat_card, bat_body) = ui::section(&tr("Battery"));
+    let battery_label = gtk::Label::new(Some(&tr("No battery detected")));
     battery_label.set_xalign(0.0);
     let battery_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     battery_row.add_css_class("metis-settings-row");
@@ -35,26 +36,34 @@ pub fn build() -> gtk::Widget {
     bat_body.append(&battery_row);
     content.append(&bat_card);
 
-    let (prof_card, prof_body) = ui::section("Power mode");
-    let profile = gtk::DropDown::from_strings(&["Power saver", "Balanced", "Performance"]);
-    prof_body.append(&ui::row("Profile", &profile));
+    let (prof_card, prof_body) = ui::section(&tr("Power mode"));
+    let profile = {
+        let __dd_labels = [tr("Power saver"), tr("Balanced"), tr("Performance")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
+    prof_body.append(&ui::row(&tr("Profile"), &profile));
     content.append(&prof_card);
 
-    let (idle_card, idle_body) = ui::section("Power saving");
+    let (idle_card, idle_body) = ui::section(&tr("Power saving"));
     let blank = gtk::SpinButton::with_range(0.0, 120.0, 1.0);
     blank.set_digits(0);
-    idle_body.append(&ui::row("Blank screen after (min, 0=never)", &blank));
+    idle_body.append(&ui::row(&tr("Blank screen after (min, 0=never)"), &blank));
     let suspend = gtk::SpinButton::with_range(0.0, 240.0, 1.0);
     suspend.set_digits(0);
-    idle_body.append(&ui::row("Suspend after idle (min, 0=never)", &suspend));
-    let lid = gtk::DropDown::from_strings(&["Suspend", "Ignore", "Hibernate", "Power off"]);
-    idle_body.append(&ui::row("When lid is closed", &lid));
+    idle_body.append(&ui::row(&tr("Suspend after idle (min, 0=never)"), &suspend));
+    let lid = {
+        let __dd_labels = [tr("Suspend"), tr("Ignore"), tr("Hibernate"), tr("Power off")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
+    idle_body.append(&ui::row(&tr("When lid is closed"), &lid));
     let dim = gtk::Switch::new();
-    idle_body.append(&ui::row("Dim on battery", &dim));
+    idle_body.append(&ui::row(&tr("Dim on battery"), &dim));
     content.append(&idle_card);
 
-    let (dev_card, devices_body) = ui::section("Connected devices");
-    let devices_empty = gtk::Label::new(Some("No wireless devices connected"));
+    let (dev_card, devices_body) = ui::section(&tr("Connected devices"));
+    let devices_empty = gtk::Label::new(Some(&tr("No wireless devices connected")));
     devices_empty.set_xalign(0.0);
     devices_empty.add_css_class("metis-settings-hint");
     content.append(&dev_card);
@@ -174,13 +183,17 @@ pub fn build() -> gtk::Widget {
 fn render(sections: &Sections, snap: &PowerSnapshot, apply_config: bool) {
     if snap.battery.present {
         let pct = snap.battery.percent.unwrap_or(0);
-        let charge = if snap.battery.charging { "charging" } else { "discharging" };
+        let charge = if snap.battery.charging {
+            tr("charging")
+        } else {
+            tr("discharging")
+        };
         sections.battery_label.set_text(&format!(
             "{pct}% · {charge} · {}",
             snap.battery.status
         ));
     } else {
-        sections.battery_label.set_text("No battery detected (desktop / AC-only)");
+        sections.battery_label.set_text(&tr("No battery detected (desktop / AC-only)"));
     }
     if !apply_config {
         return;
@@ -240,7 +253,7 @@ fn render_devices(sections: &Sections, bt: &BluetoothSnapshot) {
                 row
             }
             None => {
-                let value = gtk::Label::new(Some("No battery info"));
+                let value = gtk::Label::new(Some(&tr("No battery info")));
                 value.add_css_class("metis-settings-hint");
                 ui::row_with_icon("bluetooth-active-symbolic", &dev.name, &value)
             }

@@ -40,18 +40,18 @@ impl NotificationsCard {
         let collapse_btn = gtk::ToggleButton::new();
         collapse_btn.set_icon_name("pan-down-symbolic");
         collapse_btn.add_css_class("metis-nc-collapse");
-        collapse_btn.set_tooltip_text(Some("Collapse"));
+        collapse_btn.set_tooltip_text(Some(&metis_i18n::tr("Collapse")));
         collapse_btn.set_active(true);
 
         let title = gtk::Label::builder()
-            .label("Notifications")
+            .label(metis_i18n::tr("Notifications"))
             .hexpand(true)
             .halign(gtk::Align::Start)
             .build();
         title.add_css_class("metis-nc-card-title");
 
         let dnd_label = gtk::Label::builder()
-            .label("DND")
+            .label(metis_i18n::tr("DND"))
             .halign(gtk::Align::End)
             .build();
         dnd_label.add_css_class("metis-notif-dnd-label");
@@ -61,7 +61,7 @@ impl NotificationsCard {
         dnd_switch.set_valign(gtk::Align::Center);
         dnd_switch.add_css_class("metis-nc-switch");
 
-        let clear_btn = gtk::Button::with_label("Clear all");
+        let clear_btn = gtk::Button::with_label(&metis_i18n::tr("Clear all"));
         clear_btn.add_css_class("metis-notif-clear");
         clear_btn.add_css_class("metis-nc-btn");
 
@@ -147,10 +147,10 @@ impl NotificationsCard {
                 } else {
                     "pan-end-symbolic"
                 });
-                collapse_btn.set_tooltip_text(Some(if expanded {
-                    "Collapse"
+                collapse_btn.set_tooltip_text(Some(&if expanded {
+                    metis_i18n::tr("Collapse")
                 } else {
-                    "Expand"
+                    metis_i18n::tr("Expand")
                 }));
             }
         });
@@ -220,7 +220,7 @@ fn fill_list(list: &gtk::Box, entries: &[NotificationEntry]) {
     }
     if entries.is_empty() {
         let empty = gtk::Label::builder()
-            .label("No new notifications")
+            .label(metis_i18n::tr("No new notifications"))
             .halign(gtk::Align::Start)
             .build();
         empty.add_css_class("metis-notif-empty");

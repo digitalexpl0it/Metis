@@ -97,7 +97,7 @@ impl CalendarPage {
         title.add_css_class("metis-cal-title");
         let next_month = nav_button("\u{203A}");
         let next_year = nav_button("\u{00BB}");
-        let today_btn = gtk::Button::builder().label("Today").build();
+        let today_btn = gtk::Button::builder().label(metis_i18n::tr("Today")).build();
         today_btn.add_css_class("metis-cal-today-btn");
         nav.append(&prev_year);
         nav.append(&prev_month);
@@ -135,7 +135,7 @@ impl CalendarPage {
         events_title.add_css_class("metis-bar-section-title");
         let refresh_btn = gtk::Button::from_icon_name("view-refresh-symbolic");
         refresh_btn.add_css_class("metis-cal-event-action");
-        refresh_btn.set_tooltip_text(Some("Refresh"));
+        refresh_btn.set_tooltip_text(Some(&metis_i18n::tr("Refresh")));
         events_header.append(&events_title);
         events_header.append(&refresh_btn);
         right.append(&events_header);
@@ -157,7 +157,7 @@ impl CalendarPage {
         events_scroll.add_css_class("metis-cal-events-scroll");
         right.append(&events_scroll);
 
-        let add_btn = gtk::Button::builder().label("+ Add event").build();
+        let add_btn = gtk::Button::builder().label(metis_i18n::tr("+ Add event")).build();
         add_btn.add_css_class("metis-cal-add-btn");
         add_btn.set_halign(gtk::Align::Start);
         right.append(&add_btn);
@@ -173,14 +173,14 @@ impl CalendarPage {
             .build();
         form.add_css_class("metis-cal-form");
         let title_entry = gtk::Entry::builder()
-            .placeholder_text("Event title")
+            .placeholder_text(metis_i18n::tr("Event title"))
             .build();
         form.append(&title_entry);
         let time_row = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .spacing(6)
             .build();
-        let all_day_check = gtk::CheckButton::with_label("All day");
+        let all_day_check = gtk::CheckButton::with_label(&metis_i18n::tr("All day"));
         let hour_spin = gtk::SpinButton::with_range(0.0, 23.0, 1.0);
         hour_spin.set_value(9.0);
         let min_spin = gtk::SpinButton::with_range(0.0, 59.0, 1.0);
@@ -194,9 +194,9 @@ impl CalendarPage {
             .spacing(6)
             .halign(gtk::Align::End)
             .build();
-        let save_btn = gtk::Button::with_label("Save");
+        let save_btn = gtk::Button::with_label(&metis_i18n::tr("Save"));
         save_btn.add_css_class("metis-cal-add-btn");
-        let cancel_btn = gtk::Button::with_label("Cancel");
+        let cancel_btn = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
         cancel_btn.add_css_class("metis-clock-btn");
         form_actions.append(&cancel_btn);
         form_actions.append(&save_btn);
@@ -461,9 +461,17 @@ impl Inner {
             self.grid.remove(&child);
         }
 
-        for (i, wd) in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-            .iter()
-            .enumerate()
+        for (i, wd) in [
+            metis_i18n::tr("Su"),
+            metis_i18n::tr("Mo"),
+            metis_i18n::tr("Tu"),
+            metis_i18n::tr("We"),
+            metis_i18n::tr("Th"),
+            metis_i18n::tr("Fr"),
+            metis_i18n::tr("Sa"),
+        ]
+        .iter()
+        .enumerate()
         {
             let label = gtk::Label::new(Some(wd));
             label.add_css_class("metis-cal-weekday");
@@ -521,7 +529,7 @@ impl Inner {
         let sel = *self.selected.borrow();
         let today = Local::now().date_naive();
         let title = if sel == today {
-            "Today".to_string()
+            metis_i18n::tr("Today")
         } else {
             sel.format("%a, %b %-d").to_string()
         };
@@ -545,7 +553,7 @@ impl Inner {
 
         if day_events.is_empty() {
             let empty = gtk::Label::builder()
-                .label("No events")
+                .label(metis_i18n::tr("No events"))
                 .halign(gtk::Align::Start)
                 .build();
             empty.add_css_class("metis-cal-empty");
@@ -596,7 +604,7 @@ impl Inner {
         text.append(&title);
 
         let when = if ev.all_day {
-            "All day".to_string()
+            metis_i18n::tr("All day")
         } else if let Some(t) = ev.start {
             t.format("%-I:%M %p").to_string()
         } else {
@@ -619,7 +627,7 @@ impl Inner {
 
         let dismiss = gtk::Button::from_icon_name("window-close-symbolic");
         dismiss.add_css_class("metis-cal-event-action");
-        dismiss.set_tooltip_text(Some("Dismiss"));
+        dismiss.set_tooltip_text(Some(&metis_i18n::tr("Dismiss")));
         dismiss.set_valign(gtk::Align::Center);
         {
             let ev = ev.clone();
@@ -635,7 +643,7 @@ impl Inner {
         if ev.can_delete {
             let delete = gtk::Button::from_icon_name("user-trash-symbolic");
             delete.add_css_class("metis-cal-event-action");
-            delete.set_tooltip_text(Some("Delete"));
+            delete.set_tooltip_text(Some(&metis_i18n::tr("Delete")));
             delete.set_valign(gtk::Align::Center);
             let ev = ev.clone();
             let cb = self.cb.borrow().on_delete.clone();

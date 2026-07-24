@@ -1,85 +1,92 @@
-# Metis UI translations (ja).
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the metis package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:117
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:256
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:130
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:402
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:423
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:534
+#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: metis 0.1\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-23 18:18-0700\n"
-"Language: ja\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:158
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:359
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:335
 msgid "Settings"
-msgstr "設定"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:285
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:106
 msgid "Search"
-msgstr "検索"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:58
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:841
 msgid "Style"
-msgstr "スタイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:78
 msgid "Colors"
-msgstr "色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:89
 msgid "Accent"
-msgstr "アクセント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:92
 msgid "Accent (secondary)"
-msgstr "アクセント（セカンダリ）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:95
 msgid "Error"
-msgstr "エラー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:98
 msgid "Warning"
-msgstr "警告"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:101
 msgid "Success"
-msgstr "成功"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:104
 msgid "Info"
-msgstr "情報"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:109
 msgid "Payment"
-msgstr "支払い"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:134
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1359
 msgid "Font"
-msgstr "フォント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:152
 msgid "Family & size"
-msgstr "ファミリーとサイズ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:157
 msgid "Text color"
-msgstr "文字色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:244
 msgid "Setup"
-msgstr "セットアップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:246
 msgid ""
@@ -89,18 +96,18 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/appearance.rs:253
 msgid "Run setup again"
-msgstr "セットアップを再実行"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:27
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:325
 msgid "Background"
-msgstr "背景"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:358
 msgid "Picture"
-msgstr "画像"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
@@ -108,77 +115,77 @@ msgstr "画像"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
 msgid "Solid color"
-msgstr "単色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:30
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
 msgid "Gradient"
-msgstr "グラデーション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:39
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:51
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1125
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:420
 msgid "Type"
-msgstr "種類"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:49
 msgid "Add Picture…"
-msgstr "画像を追加…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:72
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:390
 msgid "Color"
-msgstr "色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Top → Bottom"
-msgstr "上 → 下"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Bottom → Top"
-msgstr "下 → 上"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Left → Right"
-msgstr "左 → 右"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Right → Left"
-msgstr "右 → 左"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Diagonal ↘"
-msgstr "斜め ↘"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:84
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:410
 msgid "Diagonal ↗"
-msgstr "斜め ↗"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:89
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:415
 msgid "Start color"
-msgstr "開始色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:90
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:416
 msgid "End color"
-msgstr "終了色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:91
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:417
 msgid "Direction"
-msgstr "方向"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:103
 msgid "Per-display background"
-msgstr "ディスプレイごとの背景"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:105
 msgid ""
@@ -188,91 +195,91 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:150
 msgid "Set…"
-msgstr "設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:152
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:813
 msgid "Clear"
-msgstr "クリア"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:311
 msgid "Lock screen"
-msgstr "ロック画面"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:315
 msgid "Use desktop wallpaper"
-msgstr "デスクトップの壁紙を使用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:352
 msgid "Choose…"
-msgstr "選択…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:445
 msgid "Blur the background"
-msgstr "背景をぼかす"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:463
 msgid "Dim"
-msgstr "暗くする"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:474
 msgid "Show clock"
-msgstr "時計を表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:479
 msgid "Use 24-hour clock"
-msgstr "24時間表示を使用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:503
 msgid "Lock when the screen blanks"
-msgstr "画面が消灯したらロック"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:516
 msgid "Lock now"
-msgstr "今すぐロック"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:670
 msgid "Choose a picture"
-msgstr "画像を選択"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:672
 msgid "Images"
-msgstr "画像"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:32
 msgid "Adapter"
-msgstr "アダプター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:33
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:119
 msgid "Bluetooth"
-msgstr "Bluetooth"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:35
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:101
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:267
 msgid "Scan for devices"
-msgstr "デバイスをスキャン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:37
 msgid "Checking adapter…"
-msgstr "アダプターを確認中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:43
 msgid "Devices"
-msgstr "デバイス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:106
 msgid "Stop scanning"
-msgstr "スキャンを停止"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:124
 msgid "No Bluetooth adapter found."
-msgstr "Bluetooth アダプターが見つかりません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:153
 msgid "No devices found. Tap Scan to search."
-msgstr "デバイスが見つかりません。スキャンをタップして検索してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:203
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:312
@@ -287,128 +294,128 @@ msgstr "デバイスが見つかりません。スキャンをタップして検
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:721
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:961
 msgid "Connect"
-msgstr "接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:213
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:594
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:651
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:959
 msgid "Disconnect"
-msgstr "切断"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:224
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:481
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:284
 msgid "Remove"
-msgstr "削除"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:239
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:308
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:465
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1523
 msgid "Connected"
-msgstr "接続済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:240
 msgid "Paired"
-msgstr "ペアリング済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/bluetooth.rs:241
 msgid "Available"
-msgstr "利用可能"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:24
 msgid "Accounts"
-msgstr "アカウント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:41
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:63
 msgid "Add account"
-msgstr "アカウントを追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:44
 msgid "CalDAV"
-msgstr "CalDAV"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:45
 msgid "Thunderbird"
-msgstr "Thunderbird"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:46
 msgid "Microsoft 365"
-msgstr "Microsoft 365"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:47
 msgid "Local"
-msgstr "ローカル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:53
 msgid "Display name"
-msgstr "表示名"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:54
 msgid "CalDAV URL (server, calendar, or principal)"
-msgstr "CalDAV URL（サーバー、カレンダー、またはプリンシパル）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:55
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:999
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:104
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:422
 msgid "Username"
-msgstr "ユーザー名"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:56
 msgid "MS tenant (e.g. common or your tenant id)"
-msgstr "MS テナント（例: common またはテナント ID）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:57
 msgid "MS application (client) id"
-msgstr "MS アプリケーション（クライアント）ID"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:58
 msgid "Color (e.g. #22d3ee) — optional"
-msgstr "色（例: #22d3ee）— 任意"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:164
 msgid "No calendar accounts."
-msgstr "カレンダーアカウントがありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:225
 msgid "Save password"
-msgstr "パスワードを保存"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:268
 msgid "Sign in with Microsoft"
-msgstr "Microsoft でサインイン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:284
 msgid "Set the application (client) id first."
-msgstr "先にアプリケーション（クライアント）ID を設定してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:31
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:373
 msgid "Control Center"
-msgstr "コントロールセンター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:38
 msgid "Show Control Center"
-msgstr "コントロールセンターを表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:49
 msgid "Maximum panel height (%)"
-msgstr "パネルの最大高さ（%）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:60
 msgid "Refresh interval (ms)"
-msgstr "更新間隔（ms）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:69
 msgid "Confirm before ending tasks"
-msgstr "タスク終了前に確認"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:75
 msgid "Process monitor"
-msgstr "プロセスモニター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:84
 msgid ""
@@ -420,7 +427,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:95
 msgid "Overview widgets"
-msgstr "概要ウィジェット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:123
 msgid ""
@@ -430,15 +437,15 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:40
 msgid "Desktop widgets"
-msgstr "デスクトップウィジェット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:47
 msgid "Show desktop widgets"
-msgstr "デスクトップウィジェットを表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:56
 msgid "Edit mode (move / resize)"
-msgstr "編集モード（移動 / サイズ変更）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:61
 msgid ""
@@ -450,32 +457,32 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:74
 msgid "Default look"
-msgstr "デフォルトの外観"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:86
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1410
 msgid "Background opacity"
-msgstr "背景の不透明度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:90
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:118
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1178
 msgid "Theme colour"
-msgstr "テーマ色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:102
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1462
 msgid "Background colour"
-msgstr "背景色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:114
 msgid "Border width (0 = none)"
-msgstr "枠線の幅（0 = なし）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:130
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1568
 msgid "Border colour"
-msgstr "枠線の色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:135
 msgid ""
@@ -486,103 +493,103 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:224
 msgid "Widgets on this desktop"
-msgstr "このデスクトップのウィジェット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:242
 msgid "Add widget"
-msgstr "ウィジェットを追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:249
 msgid "No widgets yet. Pick a type above and click Add widget."
-msgstr "ウィジェットがありません。上で種類を選び「ウィジェットを追加」をクリックしてください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:441
 msgid "Locked"
-msgstr "ロック済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:459
 msgid "Configure"
-msgstr "設定"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:550
 msgid "Done"
-msgstr "完了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:655
 msgid "Show title"
-msgstr "タイトルを表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:677
 msgid "~/Desktop"
-msgstr "~/Desktop"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:695
 msgid "Set path"
-msgstr "パスを設定"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:739
 msgid "Import start-menu pins"
-msgstr "スタートメニューのピンをインポート"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:763
 msgid "Follow start menu again"
-msgstr "スタートメニューに再追従"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:874
 msgid "Colour mode"
-msgstr "色モード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:897
 msgid "Solid colour"
-msgstr "単色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:918
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:182
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:138
 msgid "Gradient start"
-msgstr "グラデーション開始"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:938
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:184
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:140
 msgid "Gradient end"
-msgstr "グラデーション終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:944
 msgid "Uses the active Appearance accent and secondary colours."
-msgstr "有効な外観のアクセント色とセカンダリ色を使用します。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1017
 msgid "Bar shape"
-msgstr "バーの形状"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1039
 msgid "Bar height gradient"
-msgstr "バー高さグラデーション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1065
 msgid "Peak caps"
-msgstr "ピークキャップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1086
 msgid "Peak colour"
-msgstr "ピーク色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1108
 msgid "Bar reflection"
-msgstr "バー反射"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1115
 msgid "Spectrum lines use the colour mode above across the frequency range."
-msgstr "スペクトル線は上記の色モードを周波数範囲全体に適用します。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1140
 msgid "Mirror wave"
-msgstr "ミラーウェーブ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1146
 msgid "Rays radiate from the centre. Colour mode tints around the ring."
-msgstr "光線が中心から放射されます。色モードでリング周辺に色付けします。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1156
 msgid ""
@@ -592,14 +599,14 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1227
 msgid "Text colour"
-msgstr "文字色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1235
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:140
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
 msgid "Theme accent"
-msgstr "テーマアクセント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1294
 msgid ""
@@ -609,44 +616,44 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1311
 msgid "Theme font"
-msgstr "テーマフォント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1391
 msgid "View"
-msgstr "表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1400
 msgid "Look overrides (optional)"
-msgstr "外観の上書き（任意）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1516
 msgid "Border width"
-msgstr "枠線の幅"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1620
 msgid "Clear all overrides"
-msgstr "すべての上書きをクリア"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:46
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:55
 msgid "Graphics"
-msgstr "グラフィックス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
 msgid "Auto (recommended)"
-msgstr "自動（推奨）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
 msgid "Compatibility"
-msgstr "互換性"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:48
 msgid "Normal"
-msgstr "標準"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:59
 msgid "Graphics profile"
-msgstr "グラフィックスプロファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:63
 msgid ""
@@ -659,35 +666,35 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:89
 msgid "Night light"
-msgstr "ナイトライト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:90
 msgid "Enable night light"
-msgstr "ナイトライトを有効化"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:103
 msgid "Warmer ← drag → cooler"
-msgstr "暖色 ← ドラッグ → 寒色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:107
 msgid "Colour temperature"
-msgstr "色温度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:109
 msgid "Use schedule"
-msgstr "スケジュールを使用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:114
 msgid "12-hour time"
-msgstr "12時間表示"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:135
 msgid "From"
-msgstr "開始"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:141
 msgid "To"
-msgstr "終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:159
 msgid ""
@@ -705,15 +712,15 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:179
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:744
 msgid "Display mode"
-msgstr "ディスプレイモード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:182
 msgid "Duplicate displays"
-msgstr "ディスプレイを複製"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:186
 msgid "Show on"
-msgstr "表示先"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:198
 msgid ""
@@ -724,79 +731,79 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:207
 msgid "Arrangement"
-msgstr "配置"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:213
 msgid "Save display settings"
-msgstr "ディスプレイ設定を保存"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:216
 msgid "Revert"
-msgstr "元に戻す"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:221
 msgid "Compositor not reachable — start a Metis session to configure displays."
-msgstr "コンポジターに接続できません — Metis セッションを開始してディスプレイを設定してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:599
 msgid "Detect displays"
-msgstr "ディスプレイを検出"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:637
 msgid "Primary display"
-msgstr "プライマリディスプレイ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:645
 msgid "Set as primary display"
-msgstr "プライマリディスプレイに設定"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:669
 msgid "Primary"
-msgstr "プライマリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:674
 msgid "Mirror source — other displays duplicate this one"
-msgstr "ミラーソース — 他のディスプレイはこれを複製します"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:682
 msgid "Duplicating another display"
-msgstr "別のディスプレイを複製中"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:691
 msgid "Applies live"
-msgstr "即時適用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
 msgid "100%"
-msgstr "100%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
 msgid "125%"
-msgstr "125%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
 msgid "150%"
-msgstr "150%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
 msgid "175%"
-msgstr "175%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:695
 msgid "200%"
-msgstr "200%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:701
 msgid "Scale"
-msgstr "スケール"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:705
 msgid "Active"
-msgstr "有効"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:710
 msgid "Adaptive sync"
-msgstr "アダプティブ同期"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:748
 msgid ""
@@ -806,23 +813,23 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:770
 msgid "Resolution & refresh"
-msgstr "解像度とリフレッシュレート"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:789
 msgid "Rotation — coming soon"
-msgstr "回転 — 近日公開"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:792
 msgid "Rotation"
-msgstr "回転"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:795
 msgid "Colour profile"
-msgstr "カラープロファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:811
 msgid "Choose ICC profile…"
-msgstr "ICC プロファイルを選択…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:823
 msgid ""
@@ -833,7 +840,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:842
 msgid "Choose ICC colour profile"
-msgstr "ICC カラープロファイルを選択"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:847
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:381
@@ -848,62 +855,62 @@ msgstr "ICC カラープロファイルを選択"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:719
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1733
 msgid "Cancel"
-msgstr "キャンセル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:848
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:138
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:268
 msgid "Open"
-msgstr "開く"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:850
 msgid "ICC profiles"
-msgstr "ICC プロファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:19
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:39
 msgid "Edge bar"
-msgstr "エッジバー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
 msgid "Top"
-msgstr "上"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
 msgid "Bottom"
-msgstr "下"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
 msgid "Left"
-msgstr "左"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
 msgid "Right"
-msgstr "右"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:29
 msgid "Position"
-msgstr "位置"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
 msgid "All displays"
-msgstr "すべてのディスプレイ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
 msgid "Primary display only"
-msgstr "プライマリディスプレイのみ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:41
 msgid "Show bar on"
-msgstr "バーの表示先"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
 msgid "Independent per display"
-msgstr "ディスプレイごとに独立"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:47
 msgid "Linked across displays"
-msgstr "ディスプレイ間でリンク"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:53
 msgid ""
@@ -913,19 +920,19 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:58
 msgid "Workspaces"
-msgstr "ワークスペース"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
 msgid "Free desktop"
-msgstr "フリーデスクトップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
 msgid "Grid tiling"
-msgstr "グリッドタイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:64
 msgid "Scrolling"
-msgstr "スクロール"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:70
 msgid ""
@@ -936,15 +943,15 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:75
 msgid "New workspace layout"
-msgstr "新しいワークスペースレイアウト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
 msgid "Collapsed (popup list)"
-msgstr "折りたたみ（ポップアップリスト）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:81
 msgid "Pinned on bar"
-msgstr "バーにピン留め"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:87
 msgid ""
@@ -954,23 +961,23 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:92
 msgid "System tray icons"
-msgstr "システムトレイアイコン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:103
 msgid "Distance from edge"
-msgstr "端からの距離"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:112
 msgid "Opacity"
-msgstr "不透明度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:118
 msgid "Backdrop blur"
-msgstr "背景ぼかし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:125
 msgid "Blur radius"
-msgstr "ぼかし半径"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:128
 msgid ""
@@ -983,134 +990,134 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:86
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:157
 msgid "Custom gradient"
-msgstr "カスタムグラデーション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:149
 msgid "Bar border"
-msgstr "バーの枠線"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:158
 msgid "Bar border thickness"
-msgstr "バー枠線の太さ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:167
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:118
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:188
 msgid "Border color"
-msgstr "枠線の色"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:183
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:139
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:204
 msgid "Gradient middle"
-msgstr "グラデーション中間"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
 msgid "Auto (games on discrete GPU)"
-msgstr "自動（ゲームはディスクリート GPU）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
 msgid "Desktop iGPU / games dGPU"
-msgstr "デスクトップ iGPU / ゲーム dGPU"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
 msgid "Always discrete GPU"
-msgstr "常にディスクリート GPU"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
 msgid "Always integrated GPU"
-msgstr "常に統合 GPU"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:58
 msgid "Off (manual only)"
-msgstr "オフ（手動のみ）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:63
 msgid "Graphics mode"
-msgstr "グラフィックスモード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:68
 msgid "Prefer iGPU on battery"
-msgstr "バッテリー時は iGPU を優先"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:73
 msgid "Performance profile while gaming"
-msgstr "ゲーム中のパフォーマンスプロファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:78
 msgid "Auto GameMode"
-msgstr "自動ゲームモード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:83
 msgid "Flatpak GPU offload env"
-msgstr "Flatpak GPU オフロード環境"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:91
 msgid "Checking gaming health…"
-msgstr "ゲーム環境を確認中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:103
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:283
 msgid "Optimize now"
-msgstr "今すぐ最適化"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:107
 msgid "Apply Flatpak gaming overrides and add you to the input group if needed"
-msgstr "Flatpak ゲーム設定を適用し、必要に応じて input グループに追加します"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:111
 msgid "Run gaming setup"
-msgstr "ゲームセットアップを実行"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:114
 msgid "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
-msgstr "ゲームセットアップウィザードを開く（Flatpak、GPU ルーティング、ランチャーラッパー）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:121
 msgid "Health check"
-msgstr "ヘルスチェック"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:127
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:227
 msgid "Session"
-msgstr "セッション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:128
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:89
 msgid "Checking…"
-msgstr "確認中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:129
 msgid "Steam"
-msgstr "Steam"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:133
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1095
 msgid "GPU"
-msgstr "GPU"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:137
 msgid "Gamepads"
-msgstr "ゲームパッド"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:144
 msgid "Touchscreens"
-msgstr "タッチスクリーン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:235
 msgid "Optimizing…"
-msgstr "最適化中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:363
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:382
 msgid "Gaming setup"
-msgstr "ゲームセットアップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:387
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:426
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:407
 msgid "Close"
-msgstr "閉じる"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:393
 msgid ""
@@ -1121,85 +1128,85 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:416
 msgid "Click Start to run the optimizer."
-msgstr "開始をクリックして最適化を実行してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:428
 msgid "Start setup"
-msgstr "セットアップ開始"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:588
 msgid "Fix"
-msgstr "修正"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:589
 msgid "Install or apply this fix (may ask for your password)"
-msgstr "この修正をインストールまたは適用（パスワードの入力が求められる場合があります）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:607
 msgid "Copy command"
-msgstr "コマンドをコピー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:612
 msgid "Copied"
-msgstr "コピーしました"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:645
 msgid "Ready for gaming — all checks passed."
-msgstr "ゲーム準備完了 — すべてのチェックに合格しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:705
 msgid "Installed (native)"
-msgstr "インストール済み（ネイティブ）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:706
 msgid "Installed (Flatpak)"
-msgstr "インストール済み（Flatpak）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:707
 msgid "Not detected"
-msgstr "検出されませんでした"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:710
 msgid "No gamepads detected"
-msgstr "ゲームパッドが検出されませんでした"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:714
 msgid "No touchscreens detected"
-msgstr "タッチスクリーンが検出されませんでした"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
 msgid "Adaptive"
-msgstr "アダプティブ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/input_common.rs:33
 msgid "Flat"
-msgstr "フラット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:25
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:32
 msgid "Layout"
-msgstr "レイアウト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:28
 msgid "Leave empty for system default, e.g. us"
-msgstr "空欄の場合はシステムデフォルト（例: us）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:35
 msgid "Optional variant"
-msgstr "任意のバリアント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:39
 msgid "Variant"
-msgstr "バリアント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:42
 msgid "Extra xkb options, comma-separated"
-msgstr "追加 xkb オプション（カンマ区切り）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:46
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:252
 msgid "Options"
-msgstr "オプション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:49
 msgid ""
@@ -1209,74 +1216,74 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:55
 msgid "Typing"
-msgstr "入力"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:61
 msgid "Repeat delay (ms)"
-msgstr "リピート遅延（ms）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:67
 msgid "Repeat rate (Hz)"
-msgstr "リピート速度（Hz）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:103
 msgid "Default"
-msgstr "デフォルト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
 msgid "Escape"
-msgstr "Escape"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:70
 msgid "Control"
-msgstr "Control"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:79
 msgid "Caps Lock"
-msgstr "Caps Lock"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
 msgid "Disabled"
-msgstr "無効"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
 msgid "Right Alt"
-msgstr "右 Alt"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
 msgid "Menu"
-msgstr "Menu"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
 msgid "Left Alt"
-msgstr "左 Alt"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:82
 msgid "Scroll Lock"
-msgstr "Scroll Lock"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:93
 msgid "Compose key"
-msgstr "Compose キー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
 msgid "Auto (numpad detected)"
-msgstr "自動（テンキー検出時）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
 msgid "Always on"
-msgstr "常にオン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:96
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:153
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:232
 msgid "Off"
-msgstr "オフ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:105
 msgid "Num Lock on login"
-msgstr "ログイン時の Num Lock"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:108
 msgid ""
@@ -1286,23 +1293,23 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:213
 msgid "Shortcuts"
-msgstr "ショートカット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
 msgid "Super"
-msgstr "Super"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
 msgid "Alt"
-msgstr "Alt"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:223
 msgid "Ctrl"
-msgstr "Ctrl"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:232
 msgid "Metis modifier (defaults)"
-msgstr "Metis 修飾キー（デフォルト）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:255
 msgid ""
@@ -1316,22 +1323,22 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:268
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
 msgid "System"
-msgstr "システム"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:362
 msgid "Change"
-msgstr "変更"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:363
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:148
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:280
 msgid "Reset"
-msgstr "リセット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:374
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:424
 msgid "Press a shortcut…"
-msgstr "ショートカットを押してください…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:379
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1377
@@ -1342,20 +1349,20 @@ msgstr "ショートカットを押してください…"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:197
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:266
 msgid "Save"
-msgstr "保存"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:467
 msgid "That shortcut is reserved for the system and cannot be used."
-msgstr "そのショートカットはシステム用に予約されており使用できません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:16
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:45
 msgid "Language"
-msgstr "言語"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:47
 msgid "Formats follow language"
-msgstr "書式は言語に合わせる"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:52
 msgid ""
@@ -1363,28 +1370,25 @@ msgid ""
 "screen. Many page and widget labels are still English until they are "
 "translated. Other apps follow the system locale."
 msgstr ""
-"Metis 設定の画面、Metis メニュー、初期設定、ロック画面に適用されます。多くの"
-"ページやウィジェットのラベルは翻訳されるまで英語のままです。他のアプリはシス"
-"テムの言語に従います。"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:59
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1570
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1653
 msgid "Apply"
-msgstr "適用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:18
 msgid "Quick launchers"
-msgstr "クイックランチャー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:22
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:328
 msgid "Terminal"
-msgstr "ターミナル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:34
 msgid "File manager"
-msgstr "ファイルマネージャー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:45
 msgid ""
@@ -1394,11 +1398,11 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:55
 msgid "Appearance"
-msgstr "外観"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:63
 msgid "Panel opacity"
-msgstr "パネルの不透明度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/menu.rs:70
 msgid ""
@@ -1408,31 +1412,31 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:14
 msgid "Pointer"
-msgstr "ポインター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:19
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:51
 msgid "Pointer speed"
-msgstr "ポインター速度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:26
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:58
 msgid "Acceleration"
-msgstr "加速"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:33
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:36
 msgid "Natural scrolling"
-msgstr "ナチュラルスクロール"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:40
 msgid "Primary button on right"
-msgstr "主ボタンを右に"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:47
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:65
 msgid "Scroll speed"
-msgstr "スクロール速度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/mouse.rs:52
 msgid ""
@@ -1443,32 +1447,32 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:64
 msgid "Wi-Fi"
-msgstr "Wi-Fi"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:68
 msgid "Wi-Fi radio"
-msgstr "Wi-Fi 無線"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:69
 msgid "Rescan"
-msgstr "再スキャン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:77
 msgid "Known Wi-Fi networks"
-msgstr "既知の Wi-Fi ネットワーク"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:80
 msgid "DNS"
-msgstr "DNS"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:86
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:466
 msgid "Ethernet"
-msgstr "Ethernet"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:92
 msgid "VPN connections"
-msgstr "VPN 接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:95
 msgid ""
@@ -1478,15 +1482,15 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:111
 msgid "Import…"
-msgstr "インポート…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:113
 msgid "Add OpenVPN…"
-msgstr "OpenVPN を追加…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:114
 msgid "Add WireGuard…"
-msgstr "WireGuard を追加…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:134
 msgid ""
@@ -1496,31 +1500,31 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:140
 msgid "System proxy"
-msgstr "システムプロキシ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:296
 msgid "Wi-Fi is off."
-msgstr "Wi-Fi はオフです。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:298
 msgid "No networks found."
-msgstr "ネットワークが見つかりません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:339
 msgid "No saved Wi-Fi networks."
-msgstr "保存された Wi-Fi ネットワークがありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:346
 msgid "Forget"
-msgstr "削除"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:378
 msgid "Connect to a Wi-Fi network to override its DNS."
-msgstr "DNS を上書きするには Wi-Fi ネットワークに接続してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:394
 msgid "No Ethernet devices."
-msgstr "Ethernet デバイスがありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:415
 msgid ""
@@ -1530,7 +1534,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:477
 msgid "Auto-connect"
-msgstr "自動接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:481
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:488
@@ -1541,11 +1545,11 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:509
 msgid "Autoconnect enabled (only this profile)."
-msgstr "自動接続を有効化しました（このプロファイルのみ）。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:511
 msgid "Autoconnect disabled."
-msgstr "自動接続を無効化しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:520
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:644
@@ -1555,50 +1559,50 @@ msgstr "自動接続を無効化しました。"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:898
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:945
 msgid "Connecting…"
-msgstr "接続中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:528
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:676
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:838
 msgid "Connected."
-msgstr "接続しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:574
 msgid "Edit"
-msgstr "編集"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:620
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:646
 msgid "Delete"
-msgstr "削除"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:646
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:900
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:943
 msgid "Disconnecting…"
-msgstr "切断中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:678
 msgid "Disconnected."
-msgstr "切断しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:690
 msgid "Password required — enter your VPN password."
-msgstr "パスワードが必要です — VPN パスワードを入力してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:726
 msgid "VPN password required, but no window is available to prompt."
-msgstr "VPN パスワードが必要ですが、入力用のウィンドウがありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:733
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:703
 msgid "VPN password"
-msgstr "VPN パスワード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:749
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:827
 msgid "VPN password required"
-msgstr "VPN パスワードが必要です"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:755
 msgid ""
@@ -1611,32 +1615,32 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:506
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:710
 msgid "Password"
-msgstr "パスワード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:770
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1022
 msgid "Remember password on this profile"
-msgstr "このプロファイルでパスワードを記憶"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:811
 msgid "Enter the VPN password."
-msgstr "VPN パスワードを入力してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:896
 msgid "Import VPN profile"
-msgstr "VPN プロファイルをインポート"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:898
 msgid "VPN configs (*.ovpn, *.conf)"
-msgstr "VPN 設定（*.ovpn, *.conf）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:911
 msgid "Importing…"
-msgstr "インポート中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:945
 msgid "Could not open OpenVPN dialog (no parent window)."
-msgstr "OpenVPN ダイアログを開けませんでした（親ウィンドウがありません）。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:951
 msgid ""
@@ -1646,11 +1650,11 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:958
 msgid "Add OpenVPN"
-msgstr "OpenVPN を追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:974
 msgid "Add OpenVPN connection"
-msgstr "OpenVPN 接続を追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:980
 msgid ""
@@ -1661,7 +1665,7 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:993
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1002
 msgid "Password (optional)"
-msgstr "パスワード（任意）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:997
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1190
@@ -1670,20 +1674,20 @@ msgstr "パスワード（任意）"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1122
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:416
 msgid "Name"
-msgstr "名前"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:998
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1555
 msgid "Gateway"
-msgstr "ゲートウェイ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1011
 msgid "Browse…"
-msgstr "参照…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1015
 msgid "CA certificate (optional)"
-msgstr "CA 証明書（任意）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1037
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1120
@@ -1692,86 +1696,86 @@ msgstr "CA 証明書（任意）"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1273
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1279
 msgid "Create"
-msgstr "作成"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1054
 msgid "Choose CA certificate"
-msgstr "CA 証明書を選択"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1056
 msgid "Certificates (*.crt, *.pem)"
-msgstr "証明書（*.crt, *.pem）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1087
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1236
 msgid "Creating…"
-msgstr "作成中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1111
 msgid "OpenVPN profile created."
-msgstr "OpenVPN プロファイルを作成しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1147
 msgid "Could not open WireGuard dialog (no parent window)."
-msgstr "WireGuard ダイアログを開けませんでした（親ウィンドウがありません）。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1154
 msgid "Add WireGuard"
-msgstr "WireGuard を追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1172
 msgid "Add WireGuard connection"
-msgstr "WireGuard 接続を追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1191
 msgid "Private key"
-msgstr "秘密鍵"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1192
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1352
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1554
 msgid "Address (CIDR)"
-msgstr "アドレス（CIDR）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1193
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1353
 msgid "Peer public key"
-msgstr "ピア公開鍵"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1194
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1354
 msgid "Endpoint"
-msgstr "エンドポイント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1195
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1355
 msgid "Allowed IPs"
-msgstr "許可 IP"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1196
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1356
 msgid "DNS (optional)"
-msgstr "DNS（任意）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1264
 msgid "WireGuard connection created."
-msgstr "WireGuard 接続を作成しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1303
 msgid "Could not open edit dialog (no parent window)."
-msgstr "編集ダイアログを開けませんでした（親ウィンドウがありません）。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1309
 msgid "Could not load WireGuard profile details."
-msgstr "WireGuard プロファイルの詳細を読み込めませんでした。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1316
 msgid "Edit WireGuard"
-msgstr "WireGuard を編集"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1332
 msgid "Edit WireGuard connection"
-msgstr "WireGuard 接続を編集"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1359
 msgid ""
@@ -1782,47 +1786,47 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1404
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:516
 msgid "Saving…"
-msgstr "保存中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1429
 msgid "WireGuard profile updated."
-msgstr "WireGuard プロファイルを更新しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1494
 msgid "DNS servers"
-msgstr "DNS サーバー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1496
 msgid "Comma-separated. Leave empty to use the DHCP-provided DNS."
-msgstr "カンマ区切り。空欄の場合は DHCP 提供の DNS を使用します。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1499
 msgid "Apply DNS"
-msgstr "DNS を適用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1525
 msgid "Disconnected"
-msgstr "未接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1537
 msgid "No active profile for this device."
-msgstr "このデバイスに有効なプロファイルがありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
 msgid "Automatic (DHCP)"
-msgstr "自動（DHCP）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1542
 msgid "Manual (static)"
-msgstr "手動（固定）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1548
 msgid "IPv4 method"
-msgstr "IPv4 方式"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1561
 msgid "DNS (override)"
-msgstr "DNS（上書き）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1599
 msgid ""
@@ -1832,153 +1836,153 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
 msgid "None"
-msgstr "なし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
 msgid "Manual"
-msgstr "手動"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1605
 msgid "Automatic (PAC)"
-msgstr "自動（PAC）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1615
 msgid "Proxy mode"
-msgstr "プロキシモード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1629
 msgid "Ignore hosts"
-msgstr "除外ホスト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1636
 msgid "PAC URL"
-msgstr "PAC URL"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1650
 msgid "Applies to GLib/GTK apps via the system proxy resolver."
-msgstr "システムプロキシリゾルバー経由で GLib/GTK アプリに適用されます。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1699
 msgid "proxy.example.com"
-msgstr "proxy.example.com"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1706
 msgid "8080"
-msgstr "8080"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1733
 msgid "Join"
-msgstr "参加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:30
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:38
 msgid "Battery"
-msgstr "バッテリー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:31
 msgid "No battery detected"
-msgstr "バッテリーが検出されませんでした"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:39
 msgid "Power mode"
-msgstr "電源モード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
 msgid "Power saver"
-msgstr "省電力"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
 msgid "Balanced"
-msgstr "バランス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:41
 msgid "Performance"
-msgstr "パフォーマンス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:45
 msgid "Profile"
-msgstr "プロファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:48
 msgid "Power saving"
-msgstr "省電力"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:51
 msgid "Blank screen after (min, 0=never)"
-msgstr "画面消灯まで（分、0=しない）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:54
 msgid "Suspend after idle (min, 0=never)"
-msgstr "アイドル後サスペンド（分、0=しない）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:374
 msgid "Suspend"
-msgstr "サスペンド"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
 msgid "Ignore"
-msgstr "無視"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
 msgid "Hibernate"
-msgstr "休止"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:56
 msgid "Power off"
-msgstr "電源オフ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:60
 msgid "When lid is closed"
-msgstr "フタを閉じたとき"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:62
 msgid "Dim on battery"
-msgstr "バッテリー時に暗くする"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:65
 msgid "Connected devices"
-msgstr "接続済みデバイス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:66
 msgid "No wireless devices connected"
-msgstr "接続されたワイヤレスデバイスがありません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:187
 msgid "charging"
-msgstr "充電中"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:189
 msgid "discharging"
-msgstr "放電中"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:196
 msgid "No battery detected (desktop / AC-only)"
-msgstr "バッテリー未検出（デスクトップ / AC のみ）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/power.rs:256
 msgid "No battery info"
-msgstr "バッテリー情報なし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:21
 msgid "Open printer settings…"
-msgstr "プリンター設定を開く…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:25
 msgid "Installed printers"
-msgstr "インストール済みプリンター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:72
 msgid "CUPS not available. Install cups and system-config-printer."
-msgstr "CUPS が利用できません。cups と system-config-printer をインストールしてください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:80
 msgid "No default printer set"
-msgstr "デフォルトプリンターが設定されていません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/printers.rs:83
 msgid "No printers configured."
-msgstr "プリンターが設定されていません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:33
 msgid ""
@@ -1995,43 +1999,43 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:62
 msgid "Set a password before enabling desktop session sharing."
-msgstr "デスクトップセッション共有を有効にする前にパスワードを設定してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:68
 msgid "Set password…"
-msgstr "パスワードを設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:73
 msgid "Desktop session sharing"
-msgstr "デスクトップセッション共有"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:84
 msgid "Allow desktop session sharing"
-msgstr "デスクトップセッション共有を許可"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:88
 msgid "Connection"
-msgstr "接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:91
 msgid "Status"
-msgstr "状態"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:96
 msgid "Address"
-msgstr "アドレス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:100
 msgid "Port"
-msgstr "ポート"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:106
 msgid "Change password…"
-msgstr "パスワードを変更…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:110
 msgid "Copy connection address"
-msgstr "接続アドレスをコピー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:114
 msgid ""
@@ -2041,7 +2045,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:129
 msgid "Security"
-msgstr "セキュリティ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:131
 msgid ""
@@ -2053,7 +2057,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:141
 msgid "Remote login"
-msgstr "リモートログイン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:143
 msgid ""
@@ -2064,79 +2068,79 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:317
 msgid "Not available"
-msgstr "利用不可"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:318
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:319
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:320
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:323
 msgid "—"
-msgstr "—"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:322
 msgid "Use your session sharing password"
-msgstr "セッション共有パスワードを使用"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:339
 msgid "Running — ready for connections"
-msgstr "実行中 — 接続待機中"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:344
 msgid "Starting…"
-msgstr "起動中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:349
 msgid "Stopped"
-msgstr "停止"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:384
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:402
 msgid "Session sharing password"
-msgstr "セッション共有パスワード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:413
 msgid "Choose the username and password RDP clients use to join this session."
-msgstr "RDP クライアントがこのセッションに参加するためのユーザー名とパスワードを設定してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:440
 msgid "Confirm password"
-msgstr "パスワード確認"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:505
 msgid "Passwords do not match"
-msgstr "パスワードが一致しません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:510
 msgid "Use at least 8 characters"
-msgstr "8 文字以上を使用してください"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:28
 msgid "Output"
-msgstr "出力"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:30
 msgid "Playback device"
-msgstr "再生デバイス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:33
 msgid "Volume"
-msgstr "音量"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:36
 msgid "Input"
-msgstr "入力"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:38
 msgid "Recording device"
-msgstr "録音デバイス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:41
 msgid "Level"
-msgstr "レベル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:45
 msgid "Use the volume icon on the edge bar for quick mute and level control."
-msgstr "エッジバーの音量アイコンでミュートと音量を素早く調整できます。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:39
 msgid ""
@@ -2147,48 +2151,48 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:48
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:107
 msgid "Search applications…"
-msgstr "アプリを検索…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:65
 msgid "Applications"
-msgstr "アプリケーション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:177
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:581
 msgid "No matching applications"
-msgstr "一致するアプリがありません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:394
 msgid "Customized"
-msgstr "カスタマイズ済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
 msgid "Auto"
-msgstr "自動"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
 msgid "Metis titlebar"
-msgstr "Metis タイトルバー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:402
 msgid "App titlebar"
-msgstr "アプリタイトルバー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:15
 msgid "Touchpad"
-msgstr "タッチパッド"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:21
 msgid "Tap to click"
-msgstr "タップでクリック"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:29
 msgid "Tap and drag"
-msgstr "タップしてドラッグ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:44
 msgid "Disable while typing"
-msgstr "入力中は無効"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/touchpad.rs:70
 msgid ""
@@ -2198,72 +2202,72 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:30
 msgid "Units"
-msgstr "単位"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
 msgid "Automatic"
-msgstr "自動"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
 msgid "Celsius"
-msgstr "摂氏"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:32
 msgid "Fahrenheit"
-msgstr "華氏"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:41
 msgid "Temperature unit"
-msgstr "温度単位"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:56
 msgid "Auto-detect"
-msgstr "自動検出"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:60
 msgid "Detect my location"
-msgstr "位置情報を検出"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:66
 msgid "Use IP geolocation (more precise)"
-msgstr "IP 位置情報を使用（より正確）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:69
 msgid "Auto-detect is used only when no locations are pinned below."
-msgstr "下にピン留めされた場所がない場合のみ自動検出を使用します。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:93
 msgid "Locations"
-msgstr "場所"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:103
 msgid "Search for a city…"
-msgstr "都市を検索…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:142
 msgid "Searching…"
-msgstr "検索中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:167
 msgid "No matches found."
-msgstr "一致する結果がありません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:177
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:165
 msgid "Add"
-msgstr "追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:204
 msgid "No pinned locations (using auto-detect)."
-msgstr "ピン留めされた場所がありません（自動検出を使用中）。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:19
 msgid "Windows"
-msgstr "ウィンドウ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:27
 msgid "Window animations"
-msgstr "ウィンドウアニメーション"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:32
 msgid ""
@@ -2274,7 +2278,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:49
 msgid "Maximized window padding"
-msgstr "最大化ウィンドウの余白"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:54
 msgid ""
@@ -2284,7 +2288,7 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:69
 msgid "Titlebar opacity"
-msgstr "タイトルバーの不透明度"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:74
 msgid ""
@@ -2295,27 +2299,27 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:97
 msgid "Title pill border"
-msgstr "タイトルピルの枠線"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:108
 msgid "Pill border width"
-msgstr "ピル枠線の幅"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:168
 msgid "Window border"
-msgstr "ウィンドウ枠線"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:179
 msgid "Window border thickness"
-msgstr "ウィンドウ枠線の太さ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:203
 msgid "Gradient top"
-msgstr "グラデーション上"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:205
 msgid "Gradient bottom"
-msgstr "グラデーション下"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/windows.rs:209
 msgid ""
@@ -2327,986 +2331,868 @@ msgstr ""
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:45
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:541
 msgid "Alarms"
-msgstr "アラーム"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:52
 msgid "New alarm"
-msgstr "新しいアラーム"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:76
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:214
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:421
 msgid "AM"
-msgstr "AM"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:91
 msgid "Repeat"
-msgstr "繰り返し"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:99
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:105
 msgid "S"
-msgstr "日"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:100
 msgid "M"
-msgstr "月"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:101
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:103
 msgid "T"
-msgstr "火"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:102
 msgid "W"
-msgstr "水"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:104
 msgid "F"
-msgstr "金"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:130
 msgid "Sound"
-msgstr "サウンド"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:212
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:419
 msgid "PM"
-msgstr "PM"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:319
 msgid "No alarms"
-msgstr "アラームなし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:382
 msgid "Every day"
-msgstr "毎日"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:384
 msgid "Every day  ·  %1"
-msgstr "毎日  ·  %1"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:388
-#, fuzzy
 msgid "Sun"
-msgstr "サウンド"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:389
 msgid "Mon"
-msgstr "月"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:390
 msgid "Tue"
-msgstr "火"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:391
 msgid "Wed"
-msgstr "水"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:392
 msgid "Thu"
-msgstr "木"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:393
 msgid "Fri"
-msgstr "金"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:394
 msgid "Sat"
-msgstr "土"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:100
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:532
 msgid "Today"
-msgstr "今日"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:138
 msgid "Refresh"
-msgstr "更新"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:160
 msgid "+ Add event"
-msgstr "+ イベントを追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:176
 msgid "Event title"
-msgstr "イベントタイトル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:183
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:607
 msgid "All day"
-msgstr "終日"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:465
 msgid "Su"
-msgstr "日"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:466
 msgid "Mo"
-msgstr "月"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:467
 msgid "Tu"
-msgstr "火"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:468
 msgid "We"
-msgstr "水"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:469
 msgid "Th"
-msgstr "木"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:470
 msgid "Fr"
-msgstr "金"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:471
 msgid "Sa"
-msgstr "土"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:556
 msgid "No events"
-msgstr "イベントなし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:630
 msgid "Dismiss"
-msgstr "閉じる"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:113
 msgid "Clock & notifications"
-msgstr "時計と通知"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:220
 msgid "Alarm %1"
-msgstr "アラーム %1"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/mod.rs:231
 msgid "Metis alarm"
-msgstr "Metis アラーム"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:45
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:159
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:277
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:447
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:483
-#, fuzzy
 msgid "Start"
-msgstr "再起動"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:48
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:126
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:160
 msgid "Lap"
-msgstr "ラップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:125
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:404
 msgid "Pause"
-msgstr "一時停止"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:147
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:472
 msgid "Resume"
-msgstr "再開"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/stopwatch.rs:189
 msgid "Lap %1"
-msgstr "ラップ %1"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:241
 msgid "Quick Start"
-msgstr "クイックスタート"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:253
 msgid "Set Timer"
-msgstr "タイマーを設定"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:312
 msgid "1 m"
-msgstr "1 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:313
 msgid "2 m"
-msgstr "2 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:314
 msgid "3 m"
-msgstr "3 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:315
 msgid "5 m"
-msgstr "5 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:316
 msgid "15 m"
-msgstr "15 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:317
 msgid "30 m"
-msgstr "30 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:318
 msgid "45 m"
-msgstr "45 分"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:319
 msgid "1 h"
-msgstr "1 時間"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:452
 msgid "Timer finished"
-msgstr "タイマー終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:453
 msgid "Your Metis timer is up."
-msgstr "Metis タイマーが終了しました。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:47
 msgid "Local Time"
-msgstr "現地時間"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:67
 msgid "Add a world clock"
-msgstr "世界時計を追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:82
-#, fuzzy
 msgid "Search city / timezone…"
-msgstr "アプリを検索…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:242
 msgid "Add up to 3 world clocks"
-msgstr "世界時計を最大 3 つ追加"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:316
 msgid "Same as local"
-msgstr "現地と同じ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:318
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:320
 msgid "%1 from local"
-msgstr "現地から %1"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:123
 msgid "Pinned"
-msgstr "ピン留め"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:129
 msgid "Right-click an app to pin it here."
-msgstr "アプリを右クリックしてここにピン留めします。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:321
 msgid "Files"
-msgstr "ファイル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:349
 msgid "Big Picture"
-msgstr "Big Picture"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:362
 msgid "Lock"
-msgstr "ロック"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:384
 msgid "Log Out"
-msgstr "ログアウト"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:401
 msgid "Restart"
-msgstr "再起動"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:411
 msgid "Shut Down"
-msgstr "シャットダウン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:564
 msgid "Frequent Apps"
-msgstr "よく使うアプリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:578
 msgid "Search Results"
-msgstr "検索結果"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:42
 msgid "Power settings…"
-msgstr "電源設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:75
 msgid "Battery %1%"
-msgstr "バッテリー %1%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:80
 msgid "AC power"
-msgstr "AC 電源"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:142
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:218
 msgid "Bluetooth on"
-msgstr "Bluetooth オン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:144
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:214
 msgid "Bluetooth off"
-msgstr "Bluetooth オフ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:162
 msgid "Bluetooth settings…"
-msgstr "Bluetooth 設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:216
 msgid "Connected to %1"
-msgstr "%1 に接続済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:239
 msgid "On — no devices connected"
-msgstr "オン — 接続されたデバイスなし"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:274
 msgid "%1% (charging)"
-msgstr "%1%（充電中）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:312
 msgid "Wi-Fi is off"
-msgstr "Wi-Fi オフ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:319
 msgid "No networks found"
-msgstr "ネットワークが見つかりません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:378
 msgid "Connect to %1"
-msgstr "%1 に接続"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:432
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:156
 msgid "Network"
-msgstr "ネットワーク"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:486
 msgid "Scanning…"
-msgstr "スキャン中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:522
 msgid "Network Settings…"
-msgstr "ネットワーク設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:669
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:676
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:838
 msgid "VPN"
-msgstr "VPN"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:686
 msgid "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
-msgstr "VPN プロファイルがありません。設定で OpenVPN または WireGuard をインポートしてください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:714
 msgid "Remember on this profile"
-msgstr "このプロファイルで記憶"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:728
 msgid "VPN Settings…"
-msgstr "VPN 設定…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:832
 msgid "Connecting VPN…"
-msgstr "VPN 接続中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:834
 msgid "Disconnecting VPN…"
-msgstr "VPN 切断中…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:840
 msgid "VPN disconnected"
-msgstr "VPN 切断済み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:843
 msgid "VPN: %1"
-msgstr "VPN: %1"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:872
 msgid "Password for %1"
-msgstr "%1 のパスワード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:876
 msgid "Enter the VPN password to connect."
-msgstr "接続するには VPN パスワードを入力してください。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1028
 msgid "Wi-Fi off"
-msgstr "Wi-Fi オフ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1030
 msgid "Offline"
-msgstr "オフライン"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1096
 msgid "Audio"
-msgstr "オーディオ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1184
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:1219
 msgid "Volume %1%"
-msgstr "音量 %1%"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:61
 msgid "System tray"
-msgstr "システムトレイ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:70
 msgid "Background apps"
-msgstr "バックグラウンドアプリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/tray.rs:84
 msgid "No background apps"
-msgstr "バックグラウンドアプリはありません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:155
 msgid "Unlock…"
-msgstr "ロック解除…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:157
 msgid "Mount"
-msgstr "マウント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:169
 msgid "Unmount"
-msgstr "アンマウント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:179
 msgid "Eject"
-msgstr "取り出し"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:341
 msgid "Metis Control Center"
-msgstr "Metis コントロールセンター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:432
 msgid "Overview"
-msgstr "概要"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:433
 msgid "Processes"
-msgstr "プロセス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:919
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:994
 msgid "total"
-msgstr "合計"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:921
 msgid "cores"
-msgstr "コア"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:944
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:167
 msgid "Ethernet ↓"
-msgstr "Ethernet ↓"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:949
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:168
 msgid "Ethernet ↑"
-msgstr "Ethernet ↑"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:954
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:169
 msgid "Wi‑Fi ↓"
-msgstr "Wi‑Fi ↓"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:959
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:170
 msgid "Wi‑Fi ↑"
-msgstr "Wi‑Fi ↑"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:968
 msgid "Firewall active"
-msgstr "ファイアウォール有効"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:974
 msgid "Firewall inactive"
-msgstr "ファイアウォール無効"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1055
 msgid "Σ total"
-msgstr "Σ 合計"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1123
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:418
 msgid "PID"
-msgstr "PID"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1124
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:419
 msgid "User"
-msgstr "ユーザー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1126
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:297
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:421
 msgid "CPU"
-msgstr "CPU"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1127
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:121
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:280
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:422
 msgid "Memory"
-msgstr "メモリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1226
 msgid "No matching processes"
-msgstr "一致するプロセスがありません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1236
 msgid "Showing first 300 visible rows — refine the filter"
-msgstr "最初の 300 行を表示中 — フィルターを絞り込んでください"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1427
 msgid "Collapse child processes"
-msgstr "子プロセスを折りたたむ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1429
 msgid "Expand child processes"
-msgstr "子プロセスを展開"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1506
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1593
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1738
 msgid "End task"
-msgstr "タスクを終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1508
 msgid "Cannot end processes owned by another user"
-msgstr "他のユーザーのプロセスは終了できません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1600
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1736
 msgid "Force quit"
-msgstr "強制終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1608
 msgid "End process tree"
-msgstr "プロセスツリーを終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1615
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1735
 msgid "Force quit tree"
-msgstr "ツリーを強制終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1623
 msgid "Copy PID"
-msgstr "PID をコピー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1695
 msgid "Force quit process tree?"
-msgstr "プロセスツリーを強制終了しますか？"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1696
 msgid "Force quit?"
-msgstr "強制終了しますか？"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1697
 msgid "End process tree?"
-msgstr "プロセスツリーを終了しますか？"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1698
 msgid "End task?"
-msgstr "タスクを終了しますか？"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1703
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1709
 msgid "Send SIGKILL to process"
-msgstr "プロセスに SIGKILL を送信"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1704
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1715
 msgid "and its child processes"
-msgstr "およびその子プロセス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1705
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1710
 msgid "This cannot be undone."
-msgstr "この操作は元に戻せません。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1714
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1717
 msgid "Send SIGTERM to process"
-msgstr "プロセスに SIGTERM を送信"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1737
 msgid "End tree"
-msgstr "ツリーを終了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1796
 msgid "Metis"
-msgstr "Metis"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1797
 msgid "App"
-msgstr "アプリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1894
 msgid "N/A"
-msgstr "N/A"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:91
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:278
 msgid "Processor"
-msgstr "プロセッサ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:139
 msgid "RAM"
-msgstr "RAM"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:140
 msgid "Swap"
-msgstr "スワップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:187
 msgid "Download"
-msgstr "ダウンロード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:188
 msgid "Upload"
-msgstr "アップロード"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:198
 msgid "Disk I/O"
-msgstr "ディスク I/O"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:216
 msgid "Read"
-msgstr "読み取り"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:217
 msgid "Write"
-msgstr "書き込み"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:238
 msgid "Load average"
-msgstr "ロードアベレージ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:239
 msgid "Uptime"
-msgstr "稼働時間"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:243
 msgid "Storage"
-msgstr "ストレージ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:277
 msgid "Hostname"
-msgstr "ホスト名"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:279
 msgid "Cores"
-msgstr "コア数"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:281
 msgid "Kernel"
-msgstr "カーネル"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:381
 msgid "Search name, user, or PID…"
-msgstr "名前、ユーザー、または PID を検索…"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
 msgid "All processes"
-msgstr "すべてのプロセス"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
 msgid "User apps"
-msgstr "ユーザーアプリ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:390
 msgid "Open monitor"
-msgstr "モニターを開く"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:392
 msgid "Open the configured process monitor (Settings → Control Center)"
-msgstr "設定済みのプロセスモニターを開く（設定 → コントロールセンター）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:411
 msgid "Notification Center"
-msgstr "通知センター"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:460
 msgid "Events"
-msgstr "イベント"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:529
 msgid "Calendar"
-msgstr "カレンダー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:532
 msgid "World clocks"
-msgstr "世界時計"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:537
 msgid "Stopwatch"
-msgstr "ストップウォッチ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:540
 msgid "Timer"
-msgstr "タイマー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:43
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:151
 msgid "Collapse"
-msgstr "折りたたむ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:47
 msgid "Notifications"
-msgstr "通知"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:54
 msgid "DND"
-msgstr "DND"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:64
 msgid "Clear all"
-msgstr "すべてクリア"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:153
 msgid "Expand"
-msgstr "展開"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:223
 msgid "No new notifications"
-msgstr "新しい通知はありません"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:34
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:484
 msgid "Language & region"
-msgstr "言語と地域"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:35
 msgid "Welcome to Metis"
-msgstr "Metis へようこそ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:36
 msgid "Choose your style"
-msgstr "スタイルを選ぶ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:37
 msgid "Pick a wallpaper"
-msgstr "壁紙を選ぶ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:38
 msgid "Clock format"
-msgstr "時計の形式"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:40
 msgid "Weather"
-msgstr "天気"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:41
 msgid "Gaming"
-msgstr "ゲーム"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:42
 msgid "Optional software"
-msgstr "オプションのソフトウェア"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:43
 msgid "You're all set"
-msgstr "準備完了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:168
 msgid "Skip"
-msgstr "スキップ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:210
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:369
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:486
 msgid "Back"
-msgstr "戻る"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:214
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:366
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:485
 msgid "Next"
-msgstr "次へ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:364
 msgid "Finish"
-msgstr "完了"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:422
 msgid ""
 "Choose the language used by Metis. You can change this later in Settings."
-msgstr "Metis で使う言語を選んでください。後から設定で変更できます。"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:132
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:947
 msgid "Screenshot"
-msgstr "スクリーンショット"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:241
 msgid "Selection"
-msgstr "選択範囲"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:242
 msgid "Full screen"
-msgstr "全画面"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:243
 msgid "Window"
-msgstr "ウィンドウ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:265
 msgid "Copy"
-msgstr "コピー"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:267
 msgid "Both"
-msgstr "両方"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:315
 msgid "Capture"
-msgstr "キャプチャ"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:396
 msgid "Include pointer"
-msgstr "ポインターを含める"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:397
 msgid "Delay (seconds)"
-msgstr "遅延（秒）"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:399
 msgid "After capture"
-msgstr "キャプチャ後"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:679
 msgid "Select a window to capture"
-msgstr "キャプチャするウィンドウを選択"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:680
 msgid "Select an area to capture"
-msgstr "キャプチャする範囲を選択"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:704
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:881
 msgid "Screenshot failed"
-msgstr "スクリーンショットに失敗しました"
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:941
 msgid "Screenshot captured"
-msgstr "スクリーンショットを保存しました"
-
-#~ msgid "System default"
-#~ msgstr "システム既定"
-
-#~ msgid "Display"
-#~ msgstr "ディスプレイ"
-
-#~ msgid "Language & region for this session"
-#~ msgstr "このセッションの言語と地域"
-
-#~ msgid "Animations, titlebar opacity, and window borders"
-#~ msgstr "アニメーション、タイトルバーの不透明度、ウィンドウ枠"
-
-#~ msgid "App titlebars"
-#~ msgstr "アプリのタイトルバー"
-
-#~ msgid ""
-#~ "Applies to Metis Settings, the edge bar, onboarding, and the lock screen. "
-#~ "Other apps follow the system locale."
-#~ msgstr ""
-#~ "Metis の設定、エッジバー、初期設定、ロック画面に適用されます。他のアプリは"
-#~ "システムの言語に従います。"
-
-#~ msgid "Battery, profiles, and idle behaviour"
-#~ msgstr "バッテリー、プロファイル、アイドル時の動作"
-
-#~ msgid "Briefing weather card on the edge bar"
-#~ msgstr "エッジバーのブリーフィング天気カード"
-
-#~ msgid "Calendar accounts for the briefing"
-#~ msgstr "ブリーフィング用のカレンダーアカウント"
-
-#~ msgid "Calendars"
-#~ msgstr "カレンダー"
-
-#~ msgid "Connectivity"
-#~ msgstr "接続"
-
-#~ msgid "Desktop"
-#~ msgstr "デスクトップ"
-
-#~ msgid "Desktop wallpaper: picture, solid colour, or gradient"
-#~ msgstr "壁紙：画像、単色、またはグラデーション"
-
-#~ msgid "Displays"
-#~ msgstr "ディスプレイ"
-
-#~ msgid "Gamepads, touchscreens, Steam, and GPU hints"
-#~ msgstr "ゲームパッド、タッチスクリーン、Steam、GPU のヒント"
-
-#~ msgid "Gestures, tap-to-click, and natural scroll"
-#~ msgstr "ジェスチャ、タップでクリック、ナチュラルスクロール"
-
-#~ msgid "Graphics profile, arrangement, resolution, scale, and night light"
-#~ msgstr "グラフィックプロファイル、配置、解像度、スケール、ナイトライト"
-
-#~ msgid "Installed printers and system print settings"
-#~ msgstr "インストール済みプリンタとシステムの印刷設定"
-
-#~ msgid "Keyboard"
-#~ msgstr "キーボード"
-
-#~ msgid "Launcher apps and menu panel look"
-#~ msgstr "ランチャーのアプリとメニューの見た目"
-
-#~ msgid "Metis Menu"
-#~ msgstr "Metis メニュー"
-
-#~ msgid "Mouse"
-#~ msgstr "マウス"
-
-#~ msgid "Optional wallpaper widgets: folders, apps, clock, and more"
-#~ msgstr "壁紙ウィジェット（任意）：フォルダ、アプリ、時計など"
-
-#~ msgid "Output and input audio devices"
-#~ msgstr "出力・入力オーディオデバイス"
-
-#~ msgid "Override Metis vs app titlebars per application"
-#~ msgstr "アプリごとに Metis / アプリのタイトルバーを上書き"
-
-#~ msgid "Pair and manage Bluetooth devices"
-#~ msgstr "Bluetooth デバイスのペアリングと管理"
-
-#~ msgid "Pointer speed, acceleration, and scrolling"
-#~ msgstr "ポインタ速度、加速、スクロール"
-
-#~ msgid "Position, opacity, blur, workspaces, and the bar border"
-#~ msgstr "位置、不透明度、ぼかし、ワークスペース、バーの枠"
-
-#~ msgid "Power"
-#~ msgstr "電源"
-
-#~ msgid "Printers"
-#~ msgstr "プリンタ"
-
-#~ msgid "Remote access"
-#~ msgstr "リモートアクセス"
-
-#~ msgid "Repeat rate and layout preferences"
-#~ msgstr "リピート速度とレイアウト設定"
-
-#~ msgid "Session language and number/date formats"
-#~ msgstr "セッションの言語と数値・日付の形式"
-
-#~ msgid "Share your logged-in session over the network"
-#~ msgstr "ログイン中のセッションをネットワークで共有"
-
-#~ msgid "System monitor panel, refresh rate, and process controls"
-#~ msgstr "システムモニタ、更新頻度、プロセス制御"
-
-#~ msgid "Theme mode, accent colours, and interface font"
-#~ msgstr "テーマモード、アクセントカラー、UI フォント"
-
-#~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
-#~ msgstr "Wi-Fi、Ethernet、DNS、プロキシ"
+msgstr ""

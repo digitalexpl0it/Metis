@@ -7,6 +7,7 @@ use gtk::prelude::*;
 use metis_config::MenuConfig;
 
 use crate::{runtime, ui};
+use metis_i18n::tr;
 
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("menu");
@@ -14,11 +15,11 @@ pub fn build() -> gtk::Widget {
 
     // ---- Quick launchers --------------------------------------------------
     let (launch_card, launch_body) =
-        ui::section_with_icon("Quick launchers", "applications-utilities-symbolic");
+        ui::section_with_icon(&tr("Quick launchers"), "applications-utilities-symbolic");
 
     launch_body.append(&ui::launcher_picker(
         "utilities-terminal-symbolic",
-        "Terminal",
+        &tr("Terminal"),
         metis_config::KNOWN_TERMINALS,
         cfg.terminal.clone(),
         |val| {
@@ -30,7 +31,7 @@ pub fn build() -> gtk::Widget {
 
     launch_body.append(&ui::launcher_picker(
         "system-file-manager-symbolic",
-        "File manager",
+        &tr("File manager"),
         metis_config::KNOWN_FILE_MANAGERS,
         cfg.file_manager.clone(),
         |val| {
@@ -40,10 +41,10 @@ pub fn build() -> gtk::Widget {
         },
     ));
 
-    let launch_hint = gtk::Label::new(Some(
+    let launch_hint = gtk::Label::new(Some(&tr(
         "Auto-detect uses the first installed option. Choose Custom to point at any \
-         executable on your system.",
-    ));
+         executable on your system."
+        )));
     launch_hint.set_xalign(0.0);
     launch_hint.set_wrap(true);
     launch_hint.add_css_class("metis-settings-hint");
@@ -51,7 +52,7 @@ pub fn build() -> gtk::Widget {
     content.append(&launch_card);
 
     // ---- Appearance -------------------------------------------------------
-    let (look_card, look_body) = ui::section_with_icon("Appearance", "view-app-grid-symbolic");
+    let (look_card, look_body) = ui::section_with_icon(&tr("Appearance"), "view-app-grid-symbolic");
 
     let menu_opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     menu_opacity.set_value(metis_config::load_bar_config().menu_opacity as f64);
@@ -59,15 +60,15 @@ pub fn build() -> gtk::Widget {
     menu_opacity.set_draw_value(true);
     look_body.append(&ui::row_with_icon(
         "display-brightness-symbolic",
-        "Panel opacity",
+        &tr("Panel opacity"),
         &menu_opacity,
     ));
     // Connect after seeding the value so opening the page doesn't write bar.json.
     menu_opacity.connect_value_changed(|s| set_menu_opacity(s.value() as f32));
 
-    let look_hint = gtk::Label::new(Some(
-        "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s.",
-    ));
+    let look_hint = gtk::Label::new(Some(&tr(
+        "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s."
+        )));
     look_hint.set_xalign(0.0);
     look_hint.set_wrap(true);
     look_hint.add_css_class("metis-settings-hint");

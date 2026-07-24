@@ -8,6 +8,7 @@ use gtk::prelude::*;
 
 use crate::printers::{self, PrintersSnapshot};
 use crate::ui;
+use metis_i18n::tr;
 
 struct Sections {
     status: gtk::Label,
@@ -17,11 +18,11 @@ struct Sections {
 pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("printers");
 
-    let open = gtk::Button::with_label("Open printer settings…");
+    let open = gtk::Button::with_label(&tr("Open printer settings…"));
     open.add_css_class("suggested-action");
     content.append(&open);
 
-    let (card, body) = ui::section("Installed printers");
+    let (card, body) = ui::section(&tr("Installed printers"));
     let status = gtk::Label::new(None);
     status.set_xalign(0.0);
     let status_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -68,7 +69,7 @@ fn render(sections: &Sections, snap: &PrintersSnapshot) {
     if !snap.cups_available {
         sections
             .status
-            .set_text("CUPS not available. Install cups and system-config-printer.");
+            .set_text(&tr("CUPS not available. Install cups and system-config-printer."));
         return;
     }
     if let Some(default) = &snap.default_printer {
@@ -76,10 +77,10 @@ fn render(sections: &Sections, snap: &PrintersSnapshot) {
             .status
             .set_text(&format!("Default printer: {default}"));
     } else {
-        sections.status.set_text("No default printer set");
+        sections.status.set_text(&tr("No default printer set"));
     }
     if snap.printers.is_empty() {
-        let empty = gtk::Label::new(Some("No printers configured."));
+        let empty = gtk::Label::new(Some(&tr("No printers configured.")));
         empty.set_xalign(0.0);
         empty.add_css_class("metis-settings-hint");
         let empty_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -99,7 +100,7 @@ fn render(sections: &Sections, snap: &PrintersSnapshot) {
         state.add_css_class("metis-settings-hint");
         row.append(&state);
         if p.is_default {
-            let badge = gtk::Label::new(Some("Default"));
+            let badge = gtk::Label::new(Some(&tr("Default")));
             badge.add_css_class("metis-settings-badge");
             row.append(&badge);
         }

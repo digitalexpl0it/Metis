@@ -12,6 +12,7 @@ use gtk::prelude::*;
 use metis_config::{TempUnit, WeatherConfig, WeatherLocation};
 
 use crate::{runtime, ui};
+use metis_i18n::tr;
 
 #[derive(Debug, Clone)]
 struct GeoResult {
@@ -26,14 +27,18 @@ pub fn build() -> gtk::Widget {
     let cfg = Rc::new(RefCell::new(metis_config::load_weather_config()));
 
     // ---- Units ------------------------------------------------------------
-    let (unit_card, unit_body) = ui::section("Units");
-    let unit_dd = gtk::DropDown::from_strings(&["Automatic", "Celsius", "Fahrenheit"]);
+    let (unit_card, unit_body) = ui::section(&tr("Units"));
+    let unit_dd = {
+        let __dd_labels = [tr("Automatic"), tr("Celsius"), tr("Fahrenheit")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
     unit_dd.set_selected(match cfg.borrow().unit {
         TempUnit::Auto => 0,
         TempUnit::Celsius => 1,
         TempUnit::Fahrenheit => 2,
     });
-    unit_body.append(&ui::row("Temperature unit", &unit_dd));
+    unit_body.append(&ui::row(&tr("Temperature unit"), &unit_dd));
     content.append(&unit_card);
     {
         let cfg = cfg.clone();
@@ -48,21 +53,21 @@ pub fn build() -> gtk::Widget {
     }
 
     // ---- Auto-detect ------------------------------------------------------
-    let (auto_card, auto_body) = ui::section("Auto-detect");
+    let (auto_card, auto_body) = ui::section(&tr("Auto-detect"));
     let auto_sw = gtk::Switch::new();
     auto_sw.set_active(cfg.borrow().auto_detect);
     auto_sw.set_halign(gtk::Align::End);
-    auto_body.append(&ui::row("Detect my location", &auto_sw));
+    auto_body.append(&ui::row(&tr("Detect my location"), &auto_sw));
 
     let ip_sw = gtk::Switch::new();
     ip_sw.set_active(cfg.borrow().ip_geolocation);
     ip_sw.set_halign(gtk::Align::End);
     ip_sw.set_sensitive(cfg.borrow().auto_detect);
-    auto_body.append(&ui::row("Use IP geolocation (more precise)", &ip_sw));
+    auto_body.append(&ui::row(&tr("Use IP geolocation (more precise)"), &ip_sw));
 
-    let auto_hint = gtk::Label::new(Some(
-        "Auto-detect is used only when no locations are pinned below.",
-    ));
+    let auto_hint = gtk::Label::new(Some(&tr(
+        "Auto-detect is used only when no locations are pinned below."
+        )));
     auto_hint.set_xalign(0.0);
     auto_hint.add_css_class("metis-settings-hint");
     auto_body.append(&auto_hint);
@@ -85,7 +90,7 @@ pub fn build() -> gtk::Widget {
     }
 
     // ---- Locations --------------------------------------------------------
-    let (loc_card, loc_body) = ui::section("Locations");
+    let (loc_card, loc_body) = ui::section(&tr("Locations"));
 
     let saved_list = gtk::ListBox::new();
     saved_list.set_selection_mode(gtk::SelectionMode::None);
@@ -95,10 +100,10 @@ pub fn build() -> gtk::Widget {
 
     let search_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let search_entry = gtk::Entry::builder()
-        .placeholder_text("Search for a city…")
+        .placeholder_text(&tr("Search for a city…"))
         .hexpand(true)
         .build();
-    let search_btn = gtk::Button::with_label("Search");
+    let search_btn = gtk::Button::with_label(&tr("Search"));
     search_row.append(&search_entry);
     search_row.append(&search_btn);
     loc_body.append(&search_row);
@@ -134,7 +139,7 @@ pub fn build() -> gtk::Widget {
                 return;
             }
             clear_list(&results_list);
-            let placeholder = gtk::Label::new(Some("Searching…"));
+            let placeholder = gtk::Label::new(Some(&tr("Searching…")));
             placeholder.set_xalign(0.0);
             results_list.append(&placeholder);
             let tx = tx.clone();
@@ -159,7 +164,7 @@ fn populate_results(
 ) {
     clear_list(results_list);
     if results.is_empty() {
-        let empty = gtk::Label::new(Some("No matches found."));
+        let empty = gtk::Label::new(Some(&tr("No matches found.")));
         empty.set_xalign(0.0);
         results_list.append(&empty);
         return;
@@ -169,7 +174,7 @@ fn populate_results(
         let label = gtk::Label::new(Some(&format!("{}, {}", r.name, r.detail)));
         label.set_xalign(0.0);
         label.set_hexpand(true);
-        let add = gtk::Button::with_label("Add");
+        let add = gtk::Button::with_label(&tr("Add"));
         row.append(&label);
         row.append(&add);
         {
@@ -196,7 +201,7 @@ fn rebuild_saved(list: &gtk::ListBox, cfg: &Rc<RefCell<WeatherConfig>>) {
     clear_list(list);
     let count = cfg.borrow().locations.len();
     if count == 0 {
-        let empty = gtk::Label::new(Some("No pinned locations (using auto-detect)."));
+        let empty = gtk::Label::new(Some(&tr("No pinned locations (using auto-detect).")));
         empty.set_xalign(0.0);
         empty.add_css_class("metis-settings-hint");
         list.append(&empty);

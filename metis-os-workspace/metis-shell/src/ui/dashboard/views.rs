@@ -1,6 +1,7 @@
 //! Control-center tab layouts for the system dashboard.
 
 use gtk::prelude::*;
+use metis_i18n::tr;
 
 use super::charts;
 
@@ -87,7 +88,7 @@ pub fn build_overview() -> OverviewPage {
         .build();
 
     let cpu_card = card_with_icon(
-        "Processor",
+        &tr("Processor"),
         &["cpu-symbolic", "utilities-system-monitor-symbolic"],
     );
     let cpu_header = gtk::Box::builder()
@@ -117,7 +118,7 @@ pub fn build_overview() -> OverviewPage {
     cpu_card.set_vexpand(true);
 
     let mem_card = card_with_icon(
-        "Memory",
+        &tr("Memory"),
         &["media-flash-symbolic", "drive-harddisk-solidstate-symbolic"],
     );
     let mem_value = gtk::Label::new(Some("—"));
@@ -135,8 +136,8 @@ pub fn build_overview() -> OverviewPage {
         .spacing(12)
         .build();
     mem_legend.add_css_class("metis-dash-legend");
-    mem_legend.append(&legend_chip(0, "RAM"));
-    mem_legend.append(&legend_chip(1, "Swap"));
+    mem_legend.append(&legend_chip(0, &tr("RAM")));
+    mem_legend.append(&legend_chip(1, &tr("Swap")));
     mem_card.append(&mem_legend);
     mem_card.set_vexpand(true);
 
@@ -152,7 +153,7 @@ pub fn build_overview() -> OverviewPage {
         .build();
 
     let net_card = card_with_icon(
-        "Network",
+        &tr("Network"),
         &[
             "network-transmit-receive-symbolic",
             "network-wireless-symbolic",
@@ -163,10 +164,10 @@ pub fn build_overview() -> OverviewPage {
         .row_spacing(4)
         .margin_bottom(4)
         .build();
-    let eth_down = iface_rate_label("Ethernet ↓");
-    let eth_up = iface_rate_label("Ethernet ↑");
-    let wifi_down = iface_rate_label("Wi‑Fi ↓");
-    let wifi_up = iface_rate_label("Wi‑Fi ↑");
+    let eth_down = iface_rate_label(&tr("Ethernet ↓"));
+    let eth_up = iface_rate_label(&tr("Ethernet ↑"));
+    let wifi_down = iface_rate_label(&tr("Wi‑Fi ↓"));
+    let wifi_up = iface_rate_label(&tr("Wi‑Fi ↑"));
     iface_grid.attach(&eth_down, 0, 0, 1, 1);
     iface_grid.attach(&eth_up, 1, 0, 1, 1);
     iface_grid.attach(&wifi_down, 0, 1, 1, 1);
@@ -183,8 +184,8 @@ pub fn build_overview() -> OverviewPage {
         .spacing(12)
         .build();
     net_legend.add_css_class("metis-dash-legend");
-    net_legend.append(&rate_legend_chip(true, "Download"));
-    net_legend.append(&rate_legend_chip(false, "Upload"));
+    net_legend.append(&rate_legend_chip(true, &tr("Download")));
+    net_legend.append(&rate_legend_chip(false, &tr("Upload")));
     net_card.append(&net_legend);
     let firewall_status = gtk::Label::new(Some("—"));
     firewall_status.add_css_class("metis-dash-muted");
@@ -194,7 +195,7 @@ pub fn build_overview() -> OverviewPage {
     net_card.set_vexpand(true);
 
     let disk_io_card = card_with_icon(
-        "Disk I/O",
+        &tr("Disk I/O"),
         &["drive-harddisk-symbolic", "media-flash-symbolic"],
     );
     let disk_io_value = gtk::Label::new(Some("—"));
@@ -212,8 +213,8 @@ pub fn build_overview() -> OverviewPage {
         .spacing(12)
         .build();
     disk_io_legend.add_css_class("metis-dash-legend");
-    disk_io_legend.append(&rate_legend_chip(true, "Read"));
-    disk_io_legend.append(&rate_legend_chip(false, "Write"));
+    disk_io_legend.append(&rate_legend_chip(true, &tr("Read")));
+    disk_io_legend.append(&rate_legend_chip(false, &tr("Write")));
     disk_io_card.append(&disk_io_legend);
     disk_io_card.set_vexpand(true);
 
@@ -223,7 +224,7 @@ pub fn build_overview() -> OverviewPage {
 
     // Row 3: Session | Storage
     let session_card = card_with_icon(
-        "Session",
+        &tr("Session"),
         &["clock-symbolic", "appointment-soon-symbolic"],
     );
     let session_grid = gtk::Grid::builder()
@@ -234,12 +235,12 @@ pub fn build_overview() -> OverviewPage {
     session_grid.add_css_class("metis-dash-session-grid");
     let load_label = session_value_label();
     let uptime_label = session_value_label();
-    session_stat_row(&session_grid, 0, "Load average", &load_label);
-    session_stat_row(&session_grid, 1, "Uptime", &uptime_label);
+    session_stat_row(&session_grid, 0, &tr("Load average"), &load_label);
+    session_stat_row(&session_grid, 1, &tr("Uptime"), &uptime_label);
     session_card.append(&session_grid);
 
     let disk_card = card_with_icon(
-        "Storage",
+        &tr("Storage"),
         &["drive-harddisk-symbolic", "folder-symbolic"],
     );
     let disk_box = gtk::FlowBox::new();
@@ -264,7 +265,7 @@ pub fn build_overview() -> OverviewPage {
 
     // Row 4: System
     let system_card = card_with_icon(
-        "System",
+        &tr("System"),
         &["computer-symbolic", "system-run-symbolic"],
     );
     let sys_grid = gtk::Grid::builder()
@@ -273,11 +274,11 @@ pub fn build_overview() -> OverviewPage {
         .margin_top(2)
         .build();
     sys_grid.add_css_class("metis-dash-kv-grid");
-    let hostname = kv_row(&sys_grid, 0, "Hostname");
-    let cpu_model = kv_row(&sys_grid, 1, "Processor");
-    let cpu_cores = kv_row(&sys_grid, 2, "Cores");
-    let system_memory = kv_row(&sys_grid, 3, "Memory");
-    let kernel = kv_row(&sys_grid, 4, "Kernel");
+    let hostname = kv_row(&sys_grid, 0, &tr("Hostname"));
+    let cpu_model = kv_row(&sys_grid, 1, &tr("Processor"));
+    let cpu_cores = kv_row(&sys_grid, 2, &tr("Cores"));
+    let system_memory = kv_row(&sys_grid, 3, &tr("Memory"));
+    let kernel = kv_row(&sys_grid, 4, &tr("Kernel"));
     kernel.set_ellipsize(gtk::pango::EllipsizeMode::End);
     cpu_model.set_ellipsize(gtk::pango::EllipsizeMode::End);
     system_card.append(&sys_grid);
@@ -293,7 +294,7 @@ pub fn build_overview() -> OverviewPage {
     temp_gauges.add_css_class("metis-dash-temp-gauges");
 
     let (cpu_temp_card, cpu_temp) = build_temp_gauge_card(
-        "CPU",
+        &tr("CPU"),
         &[
             "sensor-temperature-symbolic",
             "temperature-high-symbolic",
@@ -377,15 +378,19 @@ pub fn build_processes() -> ProcessPage {
         .margin_bottom(6)
         .build();
     let search = gtk::SearchEntry::builder()
-        .placeholder_text("Search name, user, or PID…")
+        .placeholder_text(tr("Search name, user, or PID…"))
         .hexpand(true)
         .build();
     search.add_css_class("metis-dash-search");
-    let filter = gtk::DropDown::from_strings(&["All processes", "User apps", "System"]);
+    let filter_labels = [tr("All processes"), tr("User apps"), tr("System")];
+    let filter_refs: Vec<&str> = filter_labels.iter().map(|s| s.as_str()).collect();
+    let filter = gtk::DropDown::from_strings(&filter_refs);
     filter.add_css_class("metis-dash-filter");
     let monitor_btn = gtk::Button::builder()
-        .label("Open monitor")
-        .tooltip_text("Open the configured process monitor (Settings → Control Center)")
+        .label(tr("Open monitor"))
+        .tooltip_text(tr(
+            "Open the configured process monitor (Settings → Control Center)",
+        ))
         .build();
     monitor_btn.add_css_class("metis-dash-monitor-btn");
     toolbar.append(&search);
@@ -408,13 +413,13 @@ pub fn build_processes() -> ProcessPage {
     header.add_css_class("metis-dash-table-head");
     header.add_css_class("metis-dash-proc-cols");
 
-    let name = sort_header("Name", -1, gtk::Align::Start);
+    let name = sort_header(&tr("Name"), -1, gtk::Align::Start);
     name.set_hexpand(true);
-    let pid = sort_header("PID", 64, gtk::Align::Start);
-    let user = sort_header("User", 88, gtk::Align::Start);
-    let kind = sort_header("Type", 64, gtk::Align::Start);
-    let cpu = sort_header("CPU", 64, gtk::Align::End);
-    let memory = sort_header("Memory", 80, gtk::Align::End);
+    let pid = sort_header(&tr("PID"), 64, gtk::Align::Start);
+    let user = sort_header(&tr("User"), 88, gtk::Align::Start);
+    let kind = sort_header(&tr("Type"), 64, gtk::Align::Start);
+    let cpu = sort_header(&tr("CPU"), 64, gtk::Align::End);
+    let memory = sort_header(&tr("Memory"), 80, gtk::Align::End);
     let end_spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     end_spacer.set_width_request(36);
     header.attach(&name, 0, 0, 1, 1);

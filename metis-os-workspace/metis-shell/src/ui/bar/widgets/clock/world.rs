@@ -44,7 +44,7 @@ impl WorldClocksPage {
         local_card.add_css_class("metis-clock-card-main");
         let local_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
         local_info.set_hexpand(true);
-        let local_name = gtk::Label::builder().label("Local Time").halign(gtk::Align::Start).build();
+        let local_name = gtk::Label::builder().label(metis_i18n::tr("Local Time")).halign(gtk::Align::Start).build();
         local_name.add_css_class("metis-clock-card-name");
         let local_offset = gtk::Label::builder()
             .label(&Local::now().format("%A, %B %-d").to_string())
@@ -64,7 +64,7 @@ impl WorldClocksPage {
         // ---- Add row: an "Add clock" button that toggles an inline picker ----
         let add_btn = gtk::Button::from_icon_name("list-add-symbolic");
         add_btn.add_css_class("metis-cal-add-btn");
-        add_btn.set_tooltip_text(Some("Add a world clock"));
+        add_btn.set_tooltip_text(Some(&metis_i18n::tr("Add a world clock")));
         add_btn.set_halign(gtk::Align::End);
         root.append(&add_btn);
 
@@ -79,7 +79,7 @@ impl WorldClocksPage {
         picker.set_visible(false);
 
         let search = gtk::Entry::builder()
-            .placeholder_text("Search city / timezone…")
+            .placeholder_text(metis_i18n::tr("Search city / timezone…"))
             .primary_icon_name("system-search-symbolic")
             .build();
         picker.append(&search);
@@ -239,7 +239,7 @@ impl WorldInner {
 
         if zones.is_empty() {
             let empty = gtk::Label::builder()
-                .label("Add up to 3 world clocks")
+                .label(metis_i18n::tr("Add up to 3 world clocks"))
                 .halign(gtk::Align::Start)
                 .build();
             empty.add_css_class("metis-cal-empty");
@@ -281,7 +281,7 @@ impl WorldInner {
 
             let remove = gtk::Button::from_icon_name("window-close-symbolic");
             remove.add_css_class("metis-cal-event-action");
-            remove.set_tooltip_text(Some("Remove"));
+            remove.set_tooltip_text(Some(&metis_i18n::tr("Remove")));
             remove.set_valign(gtk::Align::Center);
             {
                 let inner = self.clone();
@@ -313,10 +313,10 @@ fn offset_label(tz: &Tz, now: DateTime<Utc>) -> String {
     let h = abs / 3600;
     let m = (abs % 3600) / 60;
     if diff == 0 {
-        "Same as local".to_string()
+        metis_i18n::tr("Same as local")
     } else if m == 0 {
-        format!("{sign}{h}h from local")
+        metis_i18n::tr("%1 from local").replace("%1", &format!("{sign}{h}h"))
     } else {
-        format!("{sign}{h}h{m:02} from local")
+        metis_i18n::tr("%1 from local").replace("%1", &format!("{sign}{h}h{m:02}"))
     }
 }

@@ -135,7 +135,7 @@ fn show_context_menu(anchor: &gtk::Button, entry: &VolumeEntry) {
     box_.append(&title);
 
     if entry.mount_path.is_some() {
-        let open = menu_btn("Open");
+        let open = menu_btn(&metis_i18n::tr("Open"));
         let id = entry.id.clone();
         open.connect_clicked(move |_| {
             dismiss_volume_menu();
@@ -152,11 +152,11 @@ fn show_context_menu(anchor: &gtk::Button, entry: &VolumeEntry) {
 
     if entry.needs_mount {
         let label = if entry.is_encrypted_locked {
-            "Unlock…"
+            metis_i18n::tr("Unlock…")
         } else {
-            "Mount"
+            metis_i18n::tr("Mount")
         };
-        let mount = menu_btn(label);
+        let mount = menu_btn(&label);
         let id = entry.id.clone();
         mount.connect_clicked(move |_| {
             dismiss_volume_menu();
@@ -166,7 +166,7 @@ fn show_context_menu(anchor: &gtk::Button, entry: &VolumeEntry) {
     }
 
     if entry.can_unmount {
-        let unmount = menu_btn("Unmount");
+        let unmount = menu_btn(&metis_i18n::tr("Unmount"));
         let id = entry.id.clone();
         unmount.connect_clicked(move |_| {
             dismiss_volume_menu();
@@ -176,7 +176,7 @@ fn show_context_menu(anchor: &gtk::Button, entry: &VolumeEntry) {
     }
 
     if entry.can_eject {
-        let eject = menu_btn("Eject");
+        let eject = menu_btn(&metis_i18n::tr("Eject"));
         let id = entry.id.clone();
         eject.connect_clicked(move |_| {
             dismiss_volume_menu();

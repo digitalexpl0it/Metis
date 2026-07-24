@@ -244,6 +244,24 @@ pub fn on_bar_config_changed() {
     });
 }
 
+/// Destroy and recreate the panel so chrome picks up a new language catalog.
+pub fn reload_for_locale() {
+    let was_open = is_active();
+    CENTER.with(|c| {
+        if let Some(old) = c.borrow_mut().take() {
+            old.anim_gen.set(old.anim_gen.get().wrapping_add(1));
+            old.animating.set(false);
+            old.open.set(false);
+            crate::ui::toast::set_panel_open(false);
+            old.window.set_visible(false);
+            old.window.destroy();
+        }
+    });
+    if was_open {
+        show();
+    }
+}
+
 /// Drop the Notification Center under the screenshot Overlay layer so the
 /// picker UI paints and receives hits on top, while the panel stays visible
 /// (and capturable) on `Top`.
@@ -408,7 +426,7 @@ fn build_center() -> Rc<Center> {
     let layout = nc_layout();
 
     let window = gtk::Window::builder()
-        .title("Notification Center")
+        .title(&metis_i18n::tr("Notification Center"))
         .decorated(false)
         .build();
     window.add_css_class("metis-nc-window");
@@ -457,7 +475,7 @@ fn build_center() -> Rc<Center> {
         .build();
     events_card.add_css_class("metis-nc-card");
     let events_header = gtk::Label::builder()
-        .label("Events")
+        .label(metis_i18n::tr("Events"))
         .halign(gtk::Align::Start)
         .build();
     events_header.add_css_class("metis-nc-card-title");
@@ -526,11 +544,19 @@ fn build_center() -> Rc<Center> {
     let rail = build_tool_rail(
         &stack,
         &[
-            ("calendar", "Calendar", "x-office-calendar-symbolic"),
-            ("clocks", "World clocks", "preferences-system-time-symbolic"),
-            ("stopwatch", "Stopwatch", "media-playback-start-symbolic"),
-            ("timer", "Timer", "alarm-symbolic"),
-            ("alarms", "Alarms", "appointment-soon-symbolic"),
+            ("calendar", &metis_i18n::tr("Calendar"), "x-office-calendar-symbolic"),
+            (
+                "clocks",
+                &metis_i18n::tr("World clocks"),
+                "preferences-system-time-symbolic",
+            ),
+            (
+                "stopwatch",
+                &metis_i18n::tr("Stopwatch"),
+                "media-playback-start-symbolic",
+            ),
+            ("timer", &metis_i18n::tr("Timer"), "alarm-symbolic"),
+            ("alarms", &metis_i18n::tr("Alarms"), "appointment-soon-symbolic"),
         ],
     );
     tools_header.append(&rail);

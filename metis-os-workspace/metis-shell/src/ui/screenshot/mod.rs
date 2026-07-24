@@ -129,7 +129,7 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     let windows = list_windows_best_effort();
 
     let window = gtk::Window::builder()
-        .title("Screenshot")
+        .title(&metis_i18n::tr("Screenshot"))
         .decorated(false)
         .build();
     window.add_css_class("metis-screenshot-window");
@@ -238,9 +238,9 @@ fn build_toolbar(
     let mode_box = gtk::Box::new(gtk::Orientation::Horizontal, 4);
     mode_box.add_css_class("metis-screenshot-mode");
 
-    let selection_btn = mode_button("edit-select-symbolic", "Selection");
-    let screen_btn = mode_button("view-fullscreen-symbolic", "Full screen");
-    let window_btn = mode_button("window-new-symbolic", "Window");
+    let selection_btn = mode_button("edit-select-symbolic", &metis_i18n::tr("Selection"));
+    let screen_btn = mode_button("view-fullscreen-symbolic", &metis_i18n::tr("Full screen"));
+    let window_btn = mode_button("window-new-symbolic", &metis_i18n::tr("Window"));
     mode_box.append(&selection_btn);
     mode_box.append(&screen_btn);
     mode_box.append(&window_btn);
@@ -249,7 +249,7 @@ fn build_toolbar(
     let options_btn = gtk::MenuButton::new();
     options_btn.set_icon_name("preferences-system-symbolic");
     options_btn.add_css_class("metis-screenshot-icon");
-    options_btn.set_tooltip_text(Some("Options"));
+    options_btn.set_tooltip_text(Some(&metis_i18n::tr("Options")));
 
     let pointer_switch = gtk::Switch::new();
     pointer_switch.set_active(draw_cursor);
@@ -261,11 +261,16 @@ fn build_toolbar(
     after_seg.add_css_class("linked");
 
     let (after_copy, after_save, after_both, after_open) = {
-        let labels = ["Copy", "Save", "Both", "Open"];
+        let labels = [
+            metis_i18n::tr("Copy"),
+            metis_i18n::tr("Save"),
+            metis_i18n::tr("Both"),
+            metis_i18n::tr("Open"),
+        ];
         let mut buttons = Vec::new();
         let mut leader: Option<gtk::ToggleButton> = None;
         for label in labels {
-            let btn = gtk::ToggleButton::with_label(label);
+            let btn = gtk::ToggleButton::with_label(&label);
             btn.add_css_class("metis-screenshot-after-btn");
             if let Some(ref head) = leader {
                 btn.set_group(Some(head));
@@ -307,7 +312,7 @@ fn build_toolbar(
     options_btn.set_popover(Some(&popover));
     toolbar.append(&options_btn);
 
-    let capture_btn = gtk::Button::with_label("Capture");
+    let capture_btn = gtk::Button::with_label(&metis_i18n::tr("Capture"));
     capture_btn.add_css_class("metis-screenshot-capture");
     toolbar.append(&capture_btn);
 
@@ -388,10 +393,10 @@ fn build_options_popover(
     panel.set_margin_bottom(10);
     panel.set_size_request(280, -1);
 
-    panel.append(&option_row("Include pointer", pointer_switch));
-    panel.append(&option_row("Delay (seconds)", delay_spin));
+    panel.append(&option_row(&metis_i18n::tr("Include pointer"), pointer_switch));
+    panel.append(&option_row(&metis_i18n::tr("Delay (seconds)"), delay_spin));
 
-    let after_label = gtk::Label::new(Some("After capture"));
+    let after_label = gtk::Label::new(Some(&metis_i18n::tr("After capture")));
     after_label.set_halign(gtk::Align::Start);
     after_label.add_css_class("metis-screenshot-option-label");
     panel.append(&after_label);
@@ -671,10 +676,10 @@ impl Overlay {
         let crop = self.capture_rect();
         let Some(crop) = crop else {
             let msg = match self.mode.get() {
-                ScreenshotMode::Window => "Select a window to capture",
-                _ => "Select an area to capture",
+                ScreenshotMode::Window => metis_i18n::tr("Select a window to capture"),
+                _ => metis_i18n::tr("Select an area to capture"),
             };
-            toast_message(msg);
+            toast_message(&msg);
             return;
         };
         let draw_cursor = self.draw_cursor.get();
@@ -696,7 +701,7 @@ impl Overlay {
                         Ok(path) => after_capture_action(&config, &path, after_capture),
                         Err(err) => {
                             tracing::warn!(%err, "screenshot capture failed");
-                            toast_message("Screenshot failed");
+                            toast_message(&metis_i18n::tr("Screenshot failed"));
                         }
                     }
                 });
@@ -873,7 +878,7 @@ fn run_instant_capture(mode: ScreenshotMode, config: ScreenshotConfig) {
             glib::idle_add_once(move || after_capture_action(&config, &path, config.after_capture));
         } else {
             tracing::warn!("instant screenshot failed");
-            glib::idle_add_once(|| toast_message("Screenshot failed"));
+            glib::idle_add_once(|| toast_message(&metis_i18n::tr("Screenshot failed")));
         }
     });
 }
@@ -933,13 +938,13 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
         let program = format!("xdg-open {}", shell_escape(path));
         let _ = crate::compositor::launch_program(&program);
     }
-    toast_message("Screenshot captured");
+    toast_message(&metis_i18n::tr("Screenshot captured"));
 }
 
 fn toast_message(message: &str) {
     crate::ui::toast::show(&BarNotification::internal(
         NotificationKind::Information,
-        "Screenshot",
+        &metis_i18n::tr("Screenshot"),
         message,
     ));
 }

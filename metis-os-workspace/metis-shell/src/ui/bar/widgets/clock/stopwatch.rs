@@ -42,10 +42,10 @@ impl StopwatchPage {
             .spacing(16)
             .halign(gtk::Align::Center)
             .build();
-        let primary = gtk::Button::with_label("Start");
+        let primary = gtk::Button::with_label(&metis_i18n::tr("Start"));
         primary.add_css_class("metis-sw-btn");
         primary.add_css_class("metis-sw-btn-go");
-        let secondary = gtk::Button::with_label("Lap");
+        let secondary = gtk::Button::with_label(&metis_i18n::tr("Lap"));
         secondary.add_css_class("metis-sw-btn");
         secondary.add_css_class("metis-sw-btn-stop");
         secondary.set_sensitive(false);
@@ -122,8 +122,8 @@ impl Inner {
     fn resume(self: &Rc<Self>) {
         self.running.set(true);
         self.start.set(Some(Instant::now()));
-        self.primary.set_label("Pause");
-        self.secondary.set_label("Lap");
+        self.primary.set_label(&metis_i18n::tr("Pause"));
+        self.secondary.set_label(&metis_i18n::tr("Lap"));
         self.secondary.set_sensitive(true);
 
         let generation = self.generation.get();
@@ -144,8 +144,8 @@ impl Inner {
             self.accumulated.set(self.accumulated.get() + start.elapsed());
         }
         self.label.set_label(&fmt(self.accumulated.get()));
-        self.primary.set_label("Resume");
-        self.secondary.set_label("Reset");
+        self.primary.set_label(&metis_i18n::tr("Resume"));
+        self.secondary.set_label(&metis_i18n::tr("Reset"));
     }
 
     fn reset(&self) {
@@ -156,8 +156,8 @@ impl Inner {
         self.last_lap.set(Duration::ZERO);
         self.lap_count.set(0);
         self.label.set_label("00:00:00.0");
-        self.primary.set_label("Start");
-        self.secondary.set_label("Lap");
+        self.primary.set_label(&metis_i18n::tr("Start"));
+        self.secondary.set_label(&metis_i18n::tr("Lap"));
         self.secondary.set_sensitive(false);
         while let Some(child) = self.laps.first_child() {
             self.laps.remove(&child);
@@ -186,7 +186,7 @@ impl Inner {
             .build();
         delta_lbl.add_css_class("metis-sw-lap-delta");
         let name = gtk::Label::builder()
-            .label(&format!("Lap {n}"))
+            .label(metis_i18n::tr("Lap %1").replace("%1", &n.to_string()))
             .halign(gtk::Align::End)
             .build();
         name.add_css_class("metis-sw-lap-name");
