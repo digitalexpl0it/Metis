@@ -116,7 +116,7 @@ impl WeatherWidget {
                     primary.name,
                     primary.temp.round(),
                     unit,
-                    primary.label
+                    crate::services::weather::condition_label(primary.code)
                 )));
                 self.status.set_visible(false);
             }
@@ -166,7 +166,7 @@ impl WeatherWidget {
         let right = gtk::Box::new(gtk::Orientation::Vertical, 2);
         right.set_halign(gtk::Align::End);
         right.set_valign(gtk::Align::Center);
-        let cond = gtk::Label::new(Some(&p.label));
+        let cond = gtk::Label::new(Some(&crate::services::weather::condition_label(p.code)));
         cond.add_css_class("metis-weather-cond");
         cond.set_halign(gtk::Align::End);
         right.append(&cond);
@@ -198,7 +198,7 @@ impl WeatherWidget {
         for point in &p.hourly {
             let col = gtk::Box::new(gtk::Orientation::Vertical, 4);
             col.add_css_class("metis-weather-hour");
-            let label = gtk::Label::new(Some(&point.label));
+            let label = gtk::Label::new(Some(&crate::services::weather::hour_label(point.hour24)));
             label.add_css_class("metis-weather-hour-label");
             col.append(&label);
             let icon = icons::image(weather_icon(point.code, point.is_day));

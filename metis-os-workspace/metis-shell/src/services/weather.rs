@@ -44,7 +44,8 @@ enum WeatherError {
 /// A single point in the short hourly forecast strip.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HourlyPoint {
-    pub label: String,
+    /// Local hour-of-day (0–23). Formatted for display via [`hour_label`].
+    pub hour24: u32,
     pub temp: f64,
     pub code: i64,
     pub is_day: bool,
@@ -536,7 +537,7 @@ async fn fetch_openmeteo(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather,
         temp,
         code,
         is_day,
-        label: weather_label(code).to_string(),
+        label: weather_label(code),
         high,
         low,
         hourly,
@@ -590,7 +591,7 @@ async fn fetch_metno(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather, Wea
         temp,
         code,
         is_day,
-        label: weather_label(code).to_string(),
+        label: weather_label(code),
         high,
         low,
         hourly,
@@ -650,7 +651,7 @@ fn metno_hourly(series: &[serde_json::Value], fahrenheit: bool) -> Vec<HourlyPoi
         let (code, sym_is_day) = metno_symbol_to_code(symbol);
         let is_day = sym_is_day.unwrap_or_else(|| (6..20).contains(&hour));
         points.push(HourlyPoint {
-            label: format_hour(hour),
+            hour24: hour,
             temp,
             code,
             is_day,
@@ -775,12 +776,11 @@ fn parse_hourly(hourly: Option<&serde_json::Value>, current_time: &str) -> Vec<H
 
     let mut points = Vec::new();
     for i in start..(start + HOURLY_POINTS).min(times.len()) {
-        let label = times[i]
+        let hour24 = times[i]
             .as_str()
             .and_then(|s| s.get(11..13))
             .and_then(|h| h.parse::<u32>().ok())
-            .map(format_hour)
-            .unwrap_or_default();
+            .unwrap_or(0);
         let temp = temps.get(i).and_then(|v| v.as_f64()).unwrap_or(0.0);
         let code = codes
             .and_then(|c| c.get(i))
@@ -792,7 +792,7 @@ fn parse_hourly(hourly: Option<&serde_json::Value>, current_time: &str) -> Vec<H
             .unwrap_or(1)
             != 0;
         points.push(HourlyPoint {
-            label,
+            hour24,
             temp,
             code,
             is_day,
@@ -801,7 +801,23 @@ fn parse_hourly(hourly: Option<&serde_json::Value>, current_time: &str) -> Vec<H
     points
 }
 
-fn weather_label(code: i64) -> &'static str {
+/// Localized WMO condition name for UI chrome (bar overlay, desktop widget).
+pub fn condition_label(code: i64) -> String {
+    metis_i18n::tr(weather_msgid(code))
+}
+
+/// Localized hour chip for the hourly strip (`3PM`, `12AM`, …).
+pub fn hour_label(hour24: u32) -> String {
+    let (h12, suffix_key) = match hour24 % 24 {
+        0 => (12, "AM"),
+        h @ 1..=11 => (h, "AM"),
+        12 => (12, "PM"),
+        h => (h - 12, "PM"),
+    };
+    format!("{h12}{}", metis_i18n::tr(suffix_key))
+}
+
+fn weather_msgid(code: i64) -> &'static str {
     match code {
         0 => "Clear",
         1 => "Mostly clear",
@@ -818,14 +834,12 @@ fn weather_label(code: i64) -> &'static str {
     }
 }
 
+fn weather_label(code: i64) -> String {
+    condition_label(code)
+}
+
 fn format_hour(hour24: u32) -> String {
-    let (h12, suffix) = match hour24 % 24 {
-        0 => (12, "AM"),
-        h @ 1..=11 => (h, "AM"),
-        12 => (12, "PM"),
-        h => (h - 12, "PM"),
-    };
-    format!("{h12}{suffix}")
+    hour_label(hour24)
 }
 
 /// US-style regions report in Fahrenheit; otherwise fall back to the locale.
