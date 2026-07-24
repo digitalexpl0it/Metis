@@ -3313,3 +3313,72 @@ msgstr "Zrzut ekranu wykonany"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi-Fi, Ethernet, DNS i proxy"
+
+msgid "Mostly clear"
+msgstr "Przeważnie pogodnie"
+
+msgid "Partly cloudy"
+msgstr "Częściowe zachmurzenie"
+
+msgid "Cloudy"
+msgstr "Pochmurno"
+
+msgid "Fog"
+msgstr "Mgła"
+
+msgid "Drizzle"
+msgstr "Mżawka"
+
+msgid "Rain"
+msgstr "Deszcz"
+
+msgid "Snow"
+msgstr "Śnieg"
+
+msgid "Showers"
+msgstr "Przelotne opady"
+
+msgid "Snow showers"
+msgstr "Przelotne opady śniegu"
+
+msgid "Thunderstorm"
+msgstr "Burza"
+
+msgid "Waiting for weather…"
+msgstr "Oczekiwanie na pogodę…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Skonfiguruj lokalizacje w Ustawienia → Pogoda lub poczekaj na auto-wykrycie."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "Max:%1°%2 Min:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "Pogoda niedostępna"
+
+msgid "Drag title · resize ↘"
+msgstr "Przeciągnij tytuł · rozmiar ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ przeciągnij"
+
+msgid "Drag to resize"
+msgstr "Przeciągnij, aby zmienić rozmiar"
+
+msgid "Following start-menu pins"
+msgstr "Według przypięć menu"
+
+msgid "Disk"
+msgstr "Dysk"
+
+msgid "Folders"
+msgstr "Foldery"
+
+msgid "Apps"
+msgstr "Aplikacje"
+
+msgid "Equalizer"
+msgstr "Equalizer"
+
+msgid "Placeholder"
+msgstr "Symbol zastępczy"

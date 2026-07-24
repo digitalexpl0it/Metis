@@ -1960,3 +1960,78 @@ msgstr "Screenshot captured"
 
 msgid "Applies across Metis Settings, the edge bar, Control Center, screenshots, notifications, onboarding, and the lock screen. Other apps follow the system locale."
 msgstr "Applies across Metis Settings, the edge bar, Control Center, screenshots, notifications, onboarding, and the lock screen. Other apps follow the system locale."
+
+msgid "Mostly clear"
+msgstr "Mostly clear"
+
+msgid "Partly cloudy"
+msgstr "Partly cloudy"
+
+msgid "Cloudy"
+msgstr "Cloudy"
+
+msgid "Fog"
+msgstr "Fog"
+
+msgid "Drizzle"
+msgstr "Drizzle"
+
+msgid "Rain"
+msgstr "Rain"
+
+msgid "Snow"
+msgstr "Snow"
+
+msgid "Showers"
+msgstr "Showers"
+
+msgid "Snow showers"
+msgstr "Snow showers"
+
+msgid "Thunderstorm"
+msgstr "Thunderstorm"
+
+msgid "Waiting for weather…"
+msgstr "Waiting for weather…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Configure locations in Settings → Weather, or wait for auto-detect."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "H:%1°%2 L:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "Weather unavailable"
+
+msgid "Drag title · resize ↘"
+msgstr "Drag title · resize ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ drag"
+
+msgid "Drag to resize"
+msgstr "Drag to resize"
+
+msgid "Following start-menu pins"
+msgstr "Following start-menu pins"
+
+msgid "Disk"
+msgstr "Disk"
+
+msgid "Folders"
+msgstr "Folders"
+
+msgid "Apps"
+msgstr "Apps"
+
+msgid "Equalizer"
+msgstr "Equalizer"
+
+msgid "Placeholder"
+msgstr "Placeholder"
+
+msgid "AM"
+msgstr "AM"
+
+msgid "PM"
+msgstr "PM"

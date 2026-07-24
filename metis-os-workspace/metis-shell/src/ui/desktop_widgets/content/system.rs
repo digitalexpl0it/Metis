@@ -16,9 +16,9 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
     root.set_hexpand(true);
     root.set_vexpand(true);
 
-    let cpu_row = metric_row("CPU", &inst.font);
-    let mem_row = metric_row("Memory", &inst.font);
-    let disk_row = metric_row("Disk", &inst.font);
+    let cpu_row = metric_row(&metis_i18n::tr("CPU"), &inst.font);
+    let mem_row = metric_row(&metis_i18n::tr("Memory"), &inst.font);
+    let disk_row = metric_row(&metis_i18n::tr("Disk"), &inst.font);
     root.append(&cpu_row.root);
     root.append(&mem_row.root);
     root.append(&disk_row.root);

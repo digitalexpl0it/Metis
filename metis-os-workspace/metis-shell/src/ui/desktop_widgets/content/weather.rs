@@ -118,7 +118,9 @@ fn paint(panel: &WeatherPanel, snap: Option<&WeatherSnapshot>) {
                 .icon
                 .set_from_icon_name(Some("weather-overcast-symbolic"));
             panel.temp.set_text("—");
-            panel.place.set_text("Weather unavailable");
+            panel
+                .place
+                .set_text(&metis_i18n::tr("Weather unavailable"));
             panel
                 .detail
                 .set_text(snap.error.as_deref().unwrap_or(""));
@@ -128,10 +130,12 @@ fn paint(panel: &WeatherPanel, snap: Option<&WeatherSnapshot>) {
                 .icon
                 .set_from_icon_name(Some("weather-overcast-symbolic"));
             panel.temp.set_text("—");
-            panel.place.set_text("Waiting for weather…");
             panel
-                .detail
-                .set_text("Configure locations in Settings → Weather, or wait for auto-detect.");
+                .place
+                .set_text(&metis_i18n::tr("Waiting for weather…"));
+            panel.detail.set_text(&metis_i18n::tr(
+                "Configure locations in Settings → Weather, or wait for auto-detect.",
+            ));
         }
     }
 }
@@ -150,8 +154,12 @@ fn apply_snapshot(
     temp.set_text(&format!("{:.0}°{unit}", loc.temp));
     place.set_text(&loc.name);
     detail.set_text(&format!(
-        "{}  ·  H {:.0}° / L {:.0}°",
-        loc.label, loc.high, loc.low
+        "{}  ·  {}",
+        crate::services::weather::condition_label(loc.code),
+        metis_i18n::tr("H:%1°%2 L:%3°%2")
+            .replace("%1", &format!("{:.0}", loc.high))
+            .replace("%3", &format!("{:.0}", loc.low))
+            .replace("%2", &unit.to_string()),
     ));
 }
 

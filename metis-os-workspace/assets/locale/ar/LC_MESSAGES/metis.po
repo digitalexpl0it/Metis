@@ -3311,3 +3311,72 @@ msgstr "تم التقاط الشاشة"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi‑Fi وEthernet وDNS والوكيل"
+
+msgid "Mostly clear"
+msgstr "صافٍ غالباً"
+
+msgid "Partly cloudy"
+msgstr "غائم جزئياً"
+
+msgid "Cloudy"
+msgstr "غائم"
+
+msgid "Fog"
+msgstr "ضباب"
+
+msgid "Drizzle"
+msgstr "رذاذ"
+
+msgid "Rain"
+msgstr "مطر"
+
+msgid "Snow"
+msgstr "ثلج"
+
+msgid "Showers"
+msgstr "زخات"
+
+msgid "Snow showers"
+msgstr "زخات ثلج"
+
+msgid "Thunderstorm"
+msgstr "عاصفة رعدية"
+
+msgid "Waiting for weather…"
+msgstr "بانتظار الطقس…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "اضبط المواقع في الإعدادات → الطقس، أو انتظر الكشف التلقائي."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "ع:%1°%2 د:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "الطقس غير متاح"
+
+msgid "Drag title · resize ↘"
+msgstr "اسحب العنوان · غيّر الحجم ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ اسحب"
+
+msgid "Drag to resize"
+msgstr "اسحب لتغيير الحجم"
+
+msgid "Following start-menu pins"
+msgstr "يتبع تثبيتات قائمة البدء"
+
+msgid "Disk"
+msgstr "القرص"
+
+msgid "Folders"
+msgstr "مجلدات"
+
+msgid "Apps"
+msgstr "التطبيقات"
+
+msgid "Equalizer"
+msgstr "المعادل"
+
+msgid "Placeholder"
+msgstr "عنصر نائب"

@@ -3310,3 +3310,72 @@ msgstr "צילום המסך בוצע"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi‑Fi, Ethernet, DNS ופרוקסי"
+
+msgid "Mostly clear"
+msgstr "בהיר ברובו"
+
+msgid "Partly cloudy"
+msgstr "מעונן חלקית"
+
+msgid "Cloudy"
+msgstr "מעונן"
+
+msgid "Fog"
+msgstr "ערפל"
+
+msgid "Drizzle"
+msgstr "טפטוף"
+
+msgid "Rain"
+msgstr "גשם"
+
+msgid "Snow"
+msgstr "שלג"
+
+msgid "Showers"
+msgstr "ממטרים"
+
+msgid "Snow showers"
+msgstr "ממטרי שלג"
+
+msgid "Thunderstorm"
+msgstr "סופת רעמים"
+
+msgid "Waiting for weather…"
+msgstr "ממתין למזג האוויר…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "הגדר מיקומים בהגדרות → מזג אוויר, או המתן לזיהוי אוטומטי."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "ג:%1°%2 נ:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "מזג האוויר לא זמין"
+
+msgid "Drag title · resize ↘"
+msgstr "גרור כותרת · שנה גודל ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ גרירה"
+
+msgid "Drag to resize"
+msgstr "גרור לשינוי גודל"
+
+msgid "Following start-menu pins"
+msgstr "עוקב אחר נעיצות התפריט"
+
+msgid "Disk"
+msgstr "דיסק"
+
+msgid "Folders"
+msgstr "תיקיות"
+
+msgid "Apps"
+msgstr "אפליקציות"
+
+msgid "Equalizer"
+msgstr "אקוולייזר"
+
+msgid "Placeholder"
+msgstr "מציין מקום"

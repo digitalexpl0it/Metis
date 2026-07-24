@@ -21,9 +21,9 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
         DesktopWidgetKind::Equalizer => equalizer::build(inst),
         DesktopWidgetKind::Placeholder => {
             let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
-            let hint = gtk::Label::new(Some(
+            let hint = gtk::Label::new(Some(&metis_i18n::tr(
                 "Placeholder — drag the title bar to move, corner to resize.",
-            ));
+            )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-dw-hint");

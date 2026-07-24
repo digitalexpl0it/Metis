@@ -3312,3 +3312,72 @@ msgstr "Captura de ecrã efetuada"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi-Fi, Ethernet, DNS e proxy"
+
+msgid "Mostly clear"
+msgstr "Predominantemente limpo"
+
+msgid "Partly cloudy"
+msgstr "Parcialmente nublado"
+
+msgid "Cloudy"
+msgstr "Nublado"
+
+msgid "Fog"
+msgstr "Nevoeiro"
+
+msgid "Drizzle"
+msgstr "Garoa"
+
+msgid "Rain"
+msgstr "Chuva"
+
+msgid "Snow"
+msgstr "Neve"
+
+msgid "Showers"
+msgstr "Aguaceiros"
+
+msgid "Snow showers"
+msgstr "Aguaceiros de neve"
+
+msgid "Thunderstorm"
+msgstr "Tempestade"
+
+msgid "Waiting for weather…"
+msgstr "Aguardando o clima…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Configure locais em Definições → Clima, ou aguarde a deteção automática."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "Máx:%1°%2 Mín:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "Clima indisponível"
+
+msgid "Drag title · resize ↘"
+msgstr "Arrastar título · redimensionar ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ arrastar"
+
+msgid "Drag to resize"
+msgstr "Arrastar para redimensionar"
+
+msgid "Following start-menu pins"
+msgstr "A seguir pins do menu"
+
+msgid "Disk"
+msgstr "Disco"
+
+msgid "Folders"
+msgstr "Pastas"
+
+msgid "Apps"
+msgstr "Apps"
+
+msgid "Equalizer"
+msgstr "Equalizador"
+
+msgid "Placeholder"
+msgstr "Marcador"

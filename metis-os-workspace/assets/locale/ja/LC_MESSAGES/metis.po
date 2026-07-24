@@ -3310,3 +3310,72 @@ msgstr "スクリーンショットを保存しました"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi-Fi、Ethernet、DNS、プロキシ"
+
+msgid "Mostly clear"
+msgstr "おおむね晴れ"
+
+msgid "Partly cloudy"
+msgstr "晴れ時々曇り"
+
+msgid "Cloudy"
+msgstr "曇り"
+
+msgid "Fog"
+msgstr "霧"
+
+msgid "Drizzle"
+msgstr "霧雨"
+
+msgid "Rain"
+msgstr "雨"
+
+msgid "Snow"
+msgstr "雪"
+
+msgid "Showers"
+msgstr "にわか雨"
+
+msgid "Snow showers"
+msgstr "にわか雪"
+
+msgid "Thunderstorm"
+msgstr "雷雨"
+
+msgid "Waiting for weather…"
+msgstr "天気を取得中…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "設定 → 天気で場所を設定するか、自動検出を待ってください。"
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "最高:%1°%2 最低:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "天気を取得できません"
+
+msgid "Drag title · resize ↘"
+msgstr "タイトルをドラッグ · リサイズ ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ ドラッグ"
+
+msgid "Drag to resize"
+msgstr "ドラッグしてリサイズ"
+
+msgid "Following start-menu pins"
+msgstr "スタートメニューのピンに従う"
+
+msgid "Disk"
+msgstr "ディスク"
+
+msgid "Folders"
+msgstr "フォルダー"
+
+msgid "Apps"
+msgstr "アプリ"
+
+msgid "Equalizer"
+msgstr "イコライザー"
+
+msgid "Placeholder"
+msgstr "プレースホルダー"

@@ -3307,3 +3307,72 @@ msgstr "截图已捕获"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi-Fi、以太网、DNS 和代理"
+
+msgid "Mostly clear"
+msgstr "大部晴朗"
+
+msgid "Partly cloudy"
+msgstr "局部多云"
+
+msgid "Cloudy"
+msgstr "多云"
+
+msgid "Fog"
+msgstr "雾"
+
+msgid "Drizzle"
+msgstr "毛毛雨"
+
+msgid "Rain"
+msgstr "雨"
+
+msgid "Snow"
+msgstr "雪"
+
+msgid "Showers"
+msgstr "阵雨"
+
+msgid "Snow showers"
+msgstr "阵雪"
+
+msgid "Thunderstorm"
+msgstr "雷暴"
+
+msgid "Waiting for weather…"
+msgstr "正在获取天气…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "在设置 → 天气中配置地点，或等待自动检测。"
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "高:%1°%2 低:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "无法获取天气"
+
+msgid "Drag title · resize ↘"
+msgstr "拖标题 · 调整大小 ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ 拖动"
+
+msgid "Drag to resize"
+msgstr "拖动以调整大小"
+
+msgid "Following start-menu pins"
+msgstr "跟随开始菜单固定"
+
+msgid "Disk"
+msgstr "磁盘"
+
+msgid "Folders"
+msgstr "文件夹"
+
+msgid "Apps"
+msgstr "应用"
+
+msgid "Equalizer"
+msgstr "均衡器"
+
+msgid "Placeholder"
+msgstr "占位符"

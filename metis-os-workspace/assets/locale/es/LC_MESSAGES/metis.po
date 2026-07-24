@@ -3373,3 +3373,66 @@ msgstr "Clima no disponible"
 
 msgid "H:%1°%2 L:%3°%2"
 msgstr "Máx:%1°%2 Mín:%3°%2"
+
+msgid "Mostly clear"
+msgstr "Mayormente despejado"
+
+msgid "Partly cloudy"
+msgstr "Parcialmente nublado"
+
+msgid "Cloudy"
+msgstr "Nublado"
+
+msgid "Fog"
+msgstr "Niebla"
+
+msgid "Drizzle"
+msgstr "Llovizna"
+
+msgid "Rain"
+msgstr "Lluvia"
+
+msgid "Snow"
+msgstr "Nieve"
+
+msgid "Showers"
+msgstr "Chubascos"
+
+msgid "Snow showers"
+msgstr "Chubascos de nieve"
+
+msgid "Thunderstorm"
+msgstr "Tormenta"
+
+msgid "Waiting for weather…"
+msgstr "Esperando el clima…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Configura ubicaciones en Ajustes → Clima, o espera la detección automática."
+
+msgid "Drag title · resize ↘"
+msgstr "Arrastra el título · redimensiona ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ arrastrar"
+
+msgid "Drag to resize"
+msgstr "Arrastra para redimensionar"
+
+msgid "Following start-menu pins"
+msgstr "Siguiendo pines del menú"
+
+msgid "Disk"
+msgstr "Disco"
+
+msgid "Folders"
+msgstr "Carpetas"
+
+msgid "Apps"
+msgstr "Apps"
+
+msgid "Equalizer"
+msgstr "Ecualizador"
+
+msgid "Placeholder"
+msgstr "Marcador"

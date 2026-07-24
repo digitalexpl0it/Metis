@@ -58,8 +58,8 @@ pub use volumes::{
     snapshot as volumes_snapshot, unmount as volumes_unmount, VolumeEntry, VolumeKind,
 };
 pub use weather::{
-    last_weather_snapshot, remember_snapshot, spawn_weather_service, weather_refresh,
-    LocationWeather, WeatherSnapshot,
+    condition_label, hour_label, last_weather_snapshot, remember_snapshot, spawn_weather_service,
+    weather_refresh, LocationWeather, WeatherSnapshot,
 };
 pub use windows::refresh_taskbars;
 pub use workspaces::{

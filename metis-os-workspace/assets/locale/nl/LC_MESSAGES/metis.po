@@ -3311,3 +3311,72 @@ msgstr "Schermafbeelding vastgelegd"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi-Fi, ethernet, DNS en proxy"
+
+msgid "Mostly clear"
+msgstr "Overwegend helder"
+
+msgid "Partly cloudy"
+msgstr "Gedeeltelijk bewolkt"
+
+msgid "Cloudy"
+msgstr "Bewolkt"
+
+msgid "Fog"
+msgstr "Mist"
+
+msgid "Drizzle"
+msgstr "Motregen"
+
+msgid "Rain"
+msgstr "Regen"
+
+msgid "Snow"
+msgstr "Sneeuw"
+
+msgid "Showers"
+msgstr "Buien"
+
+msgid "Snow showers"
+msgstr "Sneeuwbuien"
+
+msgid "Thunderstorm"
+msgstr "Onweer"
+
+msgid "Waiting for weather…"
+msgstr "Weer laden…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Stel locaties in via Instellingen → Weer, of wacht op auto-detectie."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "H:%1°%2 L:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "Weer niet beschikbaar"
+
+msgid "Drag title · resize ↘"
+msgstr "Titel slepen · formaat ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ slepen"
+
+msgid "Drag to resize"
+msgstr "Slepen om te vergroten/verkleinen"
+
+msgid "Following start-menu pins"
+msgstr "Volgt startmenu-pins"
+
+msgid "Disk"
+msgstr "Schijf"
+
+msgid "Folders"
+msgstr "Mappen"
+
+msgid "Apps"
+msgstr "Apps"
+
+msgid "Equalizer"
+msgstr "Equalizer"
+
+msgid "Placeholder"
+msgstr "Plaatshouder"

@@ -26,7 +26,7 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
     let sorted = sort_pins_az(&pins);
 
     if from_menu && !sorted.is_empty() {
-        let badge = gtk::Label::new(Some("Following start-menu pins"));
+        let badge = gtk::Label::new(Some(&metis_i18n::tr("Following start-menu pins")));
         badge.set_xalign(0.0);
         badge.add_css_class("metis-dw-hint");
         root.append(&badge);
@@ -75,11 +75,11 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
 }
 
 fn empty_hint() -> gtk::Label {
-    let empty = gtk::Label::new(Some(
+    let empty = gtk::Label::new(Some(&metis_i18n::tr(
         "No pinned apps yet.\n\
          Right-click an app in the Metis start menu and choose Pin — \
          they show here automatically.",
-    ));
+    )));
     empty.set_wrap(true);
     empty.set_xalign(0.0);
     empty.add_css_class("metis-dw-hint");

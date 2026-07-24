@@ -453,19 +453,19 @@ fn build_card(
         header.add_css_class("metis-dw-header");
         if inst.show_title {
             header.set_height_request(28);
-            let title = gtk::Label::new(Some(inst.kind.label()));
+            let title = gtk::Label::new(Some(&metis_i18n::tr(inst.kind.label())));
             title.add_css_class("metis-dw-title");
             title.set_xalign(0.0);
             title.set_hexpand(true);
             title.set_can_target(false);
             header.append(&title);
             if inst.locked {
-                let lock = gtk::Label::new(Some("Locked"));
+                let lock = gtk::Label::new(Some(&metis_i18n::tr("Locked")));
                 lock.add_css_class("metis-dw-badge");
                 lock.set_can_target(false);
                 header.append(&lock);
             } else if can_edit {
-                let badge = gtk::Label::new(Some("Drag title · resize ↘"));
+                let badge = gtk::Label::new(Some(&metis_i18n::tr("Drag title · resize ↘")));
                 badge.add_css_class("metis-dw-badge");
                 badge.set_can_target(false);
                 header.append(&badge);
@@ -474,7 +474,7 @@ fn build_card(
             // Title off but edit mode: keep a grab strip so the card stays movable.
             header.set_height_request(18);
             header.add_css_class("metis-dw-header-slim");
-            let badge = gtk::Label::new(Some("⋮⋮ drag"));
+            let badge = gtk::Label::new(Some(&metis_i18n::tr("⋮⋮ drag")));
             badge.add_css_class("metis-dw-badge");
             badge.set_hexpand(true);
             badge.set_xalign(0.5);
@@ -501,7 +501,7 @@ fn build_card(
         let handle = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         handle.add_css_class("metis-dw-resize");
         handle.set_size_request(RESIZE_HANDLE, RESIZE_HANDLE);
-        handle.set_tooltip_text(Some("Drag to resize"));
+        handle.set_tooltip_text(Some(&metis_i18n::tr("Drag to resize")));
         let grip = gtk::Label::new(Some("↘"));
         grip.set_can_target(false);
         handle.append(&grip);

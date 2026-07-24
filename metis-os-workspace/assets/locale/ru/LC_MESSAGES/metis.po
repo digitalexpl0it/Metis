@@ -3313,3 +3313,72 @@ msgstr "Снимок экрана сохранён"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "Wi‑Fi, Ethernet, DNS и прокси"
+
+msgid "Mostly clear"
+msgstr "Преимущественно ясно"
+
+msgid "Partly cloudy"
+msgstr "Переменная облачность"
+
+msgid "Cloudy"
+msgstr "Облачно"
+
+msgid "Fog"
+msgstr "Туман"
+
+msgid "Drizzle"
+msgstr "Морось"
+
+msgid "Rain"
+msgstr "Дождь"
+
+msgid "Snow"
+msgstr "Снег"
+
+msgid "Showers"
+msgstr "Ливни"
+
+msgid "Snow showers"
+msgstr "Снежные ливни"
+
+msgid "Thunderstorm"
+msgstr "Гроза"
+
+msgid "Waiting for weather…"
+msgstr "Ожидание погоды…"
+
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr "Укажите места в Параметры → Погода или дождитесь автоопределения."
+
+msgid "H:%1°%2 L:%3°%2"
+msgstr "Макс:%1°%2 Мин:%3°%2"
+
+msgid "Weather unavailable"
+msgstr "Погода недоступна"
+
+msgid "Drag title · resize ↘"
+msgstr "Перетащите заголовок · размер ↘"
+
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ перетащить"
+
+msgid "Drag to resize"
+msgstr "Перетащите для изменения размера"
+
+msgid "Following start-menu pins"
+msgstr "По закреплениям меню"
+
+msgid "Disk"
+msgstr "Диск"
+
+msgid "Folders"
+msgstr "Папки"
+
+msgid "Apps"
+msgstr "Приложения"
+
+msgid "Equalizer"
+msgstr "Эквалайзер"
+
+msgid "Placeholder"
+msgstr "Заполнитель"
