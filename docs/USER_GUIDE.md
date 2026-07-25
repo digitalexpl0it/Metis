@@ -474,7 +474,9 @@ the Metis titlebar.
 surface-sniffed by X11/XWayland apps — rootless XWayland does not see Wayland
 input or buffers. All X11 clients share one XWayland server, so a malicious X11
 app can still attack other X11 apps (classic X11↔X11). Metis does not claim
-per-app XSECURITY sandboxes today.
+per-app XSECURITY sandboxes today. By default Metis starts XWayland **without**
+the abstract Unix socket (`config.json` → `"xwayland_abstract_socket": false`);
+set it to `true` if a legacy local client needs `@/tmp/.X11-unix/...`.
 
 - **Move** — drag the titlebar.
 - **Close / minimize / maximize** — the three titlebar buttons (× / − / +).
@@ -782,10 +784,20 @@ files.
    `sudo apt install gnome-remote-desktop`
 2. Open **Settings → Remote access** (or `metis-cmd settings remote`).
 3. Click **Set password…** and choose the RDP username and password clients will
-   use.
-4. Turn on **Allow remote desktop connections**.
-5. Copy the connection address (hostname or LAN IP plus port **3389**) and connect
+   use. Settings pipes the password into `metis-remote` on stdin — never put the
+   password on a shell command line.
+4. Leave **LAN only (firewall)** on (default). Enabling sharing applies nftables
+   or ufw rules so TCP **3389** accepts only private, loopback, and link-local
+   sources (may prompt via PolicyKit).
+5. Turn on **Allow desktop session sharing**.
+6. Copy the connection address (hostname or LAN IP plus port **3389**) and connect
    from another machine on your network.
+
+**CLI credentials (if needed):**
+
+```bash
+printf '%s\n' 'your-password' | metis-remote set-credentials YOUR_USER
+```
 
 **Clients.** Windows: *Remote Desktop Connection* (`mstsc`). macOS: *Microsoft
 Remote Desktop* from the App Store. Linux:
@@ -794,37 +806,41 @@ Remote Desktop* from the App Store. Linux:
 xfreerdp /v:HOST:3389 /u:USERNAME /p:PASSWORD /dynamic-resolution
 ```
 
-**Security.** `remote.json` defaults to LAN-only guidance (`lan_only: true`). Keep
-port 3389 on your local network — do not expose RDP to the internet without a VPN
-or strong perimeter controls. Example firewall (adjust interface/subnet):
+(`grdctl` still receives the password on its argv when Metis sets credentials —
+that is a GNOME Remote Desktop limitation; minimize how long that process runs.)
 
-```bash
-sudo ufw allow from 192.168.0.0/16 to any port 3389 proto tcp
-```
+**Security.** `remote.json` defaults to `"lan_only": true`. Metis applies named
+firewall rules (`metis-rdp-lan-only` / nft table `inet metis_rdp`) on enable and
+clears them on disable or when you turn LAN only off (Settings warns first). Do
+not expose RDP to the internet without a VPN or strong perimeter controls.
+Manual check: `metis-remote firewall status`.
 
-**Session lock.** While the session is locked (`Super+L`), the compositor blocks
-screen capture — remote viewers see a frozen or black screen until you unlock.
-This matches Metis’s local lock posture.
+**Session lock.** While the session is locked (`Super+L`), Metis pauses RDP listen
+(`metis-remote pause`) without clearing `remote.json.enabled`, and blocks capture
+and input injection. Unlock resumes sharing if it was still enabled. Remote
+clients cannot view or control the desktop while locked.
 
 **Auto-start.** When `remote.json` has `"enabled": true` and `"auto_start": true`
 (the defaults after you turn sharing on), `metis-session` runs `metis-remote
 autostart` at login so you do not need to reopen Settings each time.
 
 **Clipboard.** Text copy/paste between the Metis session and an RDP client is
-synced via the portal's Mutter clipboard bridge (same path as GNOME). Image
-clipboard is best-effort; text (`text/plain`, UTF-8) is the supported v1 path.
+synced via the portal's Mutter clipboard bridge. **Text only** (`text/plain`,
+UTF-8) — Metis does not advertise local image clipboard mimes to RDP.
 
 **Troubleshooting.** If the page shows an install hint, install
 `gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
-set a password first. PipeWire and the Metis ScreenCast portal must be running in
-the DRM session — re-run `./run-metis.sh --install-session` if portal capture is
-broken. Check status from a terminal: `metis-remote status` (JSON).
+set a password first. If status warns that LAN-only firewall is not applied,
+install `nftables` or `ufw` and approve the admin prompt. PipeWire and the Metis
+ScreenCast portal must be running in the DRM session — re-run
+`./run-metis.sh --install-session` if portal capture is broken. Check status:
+`metis-remote status` (JSON).
 
 RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are **not** driven by
 Settings → Remote access. For host-install notes, ports, and the compatibility
 matrix (including multi-user / VT behaviour), see
 [`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop). Optional Metis
-orchestration of RustDesk remains a follow-up.
+orchestration of RustDesk / a first-party viewer remains a later-phase follow-up.
 
 ### System dashboard (Control Center)
 
@@ -890,7 +906,8 @@ end session); that is the intended same-session control plane. If
 `/tmp/metis`.
 
 While the session is locked, IPC also rejects focus/launch/clipboard/capture/
-workspace/session-control and remote-input inject commands.
+workspace/session-control and remote-input inject commands. Desktop sharing also
+pauses RDP listen until unlock (see Remote desktop above).
 
 ### Nested dev sessions (GNOME / host compositor)
 

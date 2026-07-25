@@ -203,12 +203,23 @@ impl ClipboardSession {
         if !enabled {
             return;
         }
+        // Ignore image-only local selections for RDP (text-only contract).
+        let is_text = preview_text.is_some()
+            || mime.contains("text")
+            || mime.eq_ignore_ascii_case("UTF8_STRING");
+        if !is_text {
+            let _ = image_path;
+            return;
+        }
         let local = LocalClip {
             mime: mime.to_string(),
             text: preview_text.map(str::to_string),
-            image_path: image_path.map(str::to_string),
+            image_path: None,
         };
         let mimes = local_mimes(&local);
+        if mimes.is_empty() {
+            return;
+        }
         if let Ok(mut inner) = self.inner.lock() {
             inner.last_local = Some(local);
             inner.remote_owner = false;
@@ -246,16 +257,18 @@ fn mime_types_from_options(_options: &HashMap<&str, Value<'_>>) -> Vec<String> {
 }
 
 fn local_mimes(local: &LocalClip) -> Vec<String> {
-    if local.text.is_some() {
+    // Text-only RDP clipboard contract: never advertise image/* to GRD.
+    if local.text.is_some()
+        || local.mime.contains("text")
+        || local.mime.eq_ignore_ascii_case("UTF8_STRING")
+    {
         vec![
             "text/plain;charset=utf-8".into(),
             "text/plain".into(),
             "UTF8_STRING".into(),
         ]
-    } else if local.image_path.is_some() {
-        vec![local.mime.clone()]
     } else {
-        vec![local.mime.clone()]
+        Vec::new()
     }
 }
 
@@ -265,13 +278,9 @@ fn local_clip_bytes(local: &LocalClip, mime_type: &str) -> Result<Vec<u8>, Strin
             return Ok(text.as_bytes().to_vec());
         }
     }
-    if let Some(path) = &local.image_path {
-        return std::fs::read(path).map_err(|err| format!("read clipboard image: {err}"));
-    }
-    if let Some(text) = &local.text {
-        return Ok(text.as_bytes().to_vec());
-    }
-    Err("No clipboard data for requested mime".into())
+    // Image clipboard is intentionally unsupported for RDP until a real path exists.
+    let _ = &local.image_path;
+    Err("RDP clipboard is text-only".into())
 }
 
 mod pipe {

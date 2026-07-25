@@ -47,11 +47,17 @@ impl MetisState {
     pub fn start_xwayland(&mut self, loop_handle: LoopHandle<'static, MetisState>) {
         use std::process::Stdio;
 
+        let open_abstract = metis_config::load_app_config().xwayland_abstract_socket;
+        tracing::info!(
+            open_abstract_socket = open_abstract,
+            "starting XWayland"
+        );
+
         let (xwayland, client) = match XWayland::spawn(
             &self.display_handle,
             None,
             std::iter::empty::<(String, String)>(),
-            true,
+            open_abstract,
             Stdio::null(),
             Stdio::null(),
             |_| (),

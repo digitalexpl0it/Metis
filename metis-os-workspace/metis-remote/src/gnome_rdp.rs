@@ -109,6 +109,9 @@ pub fn status_snapshot() -> RemoteStatus {
             addresses: host::lan_addresses(),
             backend: "gnome-rdp".into(),
             config_enabled: false,
+            lan_only: true,
+            firewall_applied: false,
+            firewall_backend: String::new(),
             error: Some(
                 "Install gnome-remote-desktop (Ubuntu: sudo apt install gnome-remote-desktop)"
                     .into(),
@@ -143,6 +146,9 @@ pub fn status_snapshot() -> RemoteStatus {
         addresses: host::lan_addresses(),
         backend: "gnome-rdp".into(),
         config_enabled: false,
+        lan_only: true,
+        firewall_applied: false,
+        firewall_backend: String::new(),
         error,
     }
 }
@@ -313,6 +319,35 @@ pub fn disable_sharing() -> Result<(), String> {
     let _ = systemctl(&["stop", SYSTEMD_UNIT]);
     let _ = systemctl(&["stop", HEADLESS_UNIT]);
     let _ = systemctl(&["disable", "--now", HEADLESS_UNIT]);
+    Ok(())
+}
+
+/// Stop accepting RDP connections without clearing `remote.json` or credentials.
+pub fn pause_sharing() -> Result<(), String> {
+    let _ = grdctl(&["rdp", "disable"]);
+    Ok(())
+}
+
+/// Re-enable RDP after [`pause_sharing`] (daemon must already be running).
+pub fn resume_sharing() -> Result<(), String> {
+    if !mutter_apis_available() {
+        return Err(
+            "Desktop capture is unavailable — unlock and ensure metis-portal is running".into(),
+        );
+    }
+    ensure_tls_cert()?;
+    if !daemon_active() {
+        run_ok(
+            systemctl(&["enable", "--now", SYSTEMD_UNIT])?,
+            "start gnome-remote-desktop",
+        )?;
+        wait_for_daemon(Duration::from_secs(5));
+        let _ = wait_for_grd_user_bus(Duration::from_secs(8));
+    }
+    run_ok(grdctl(&["rdp", "set-port", &DEFAULT_PORT.to_string()])?, "set RDP port")?;
+    run_ok(grdctl(&["rdp", "disable-view-only"])?, "enable remote control")?;
+    run_ok(grdctl(&["rdp", "enable"])?, "enable RDP")?;
+    let _ = wait_for_rdp_port(DEFAULT_PORT, Duration::from_secs(10));
     Ok(())
 }
 

@@ -1,11 +1,14 @@
 # Metis Shell — Edge Bar (v2)
 
 **Current phase:** Phases **1–14** are complete for their shipped product bars.
-**Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and Stage 2
-GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
+**Phase 15** (Security hardening) is next — supply-chain / compiler mitigations,
+spawn + Polkit hygiene, lock/VT policy, capability-scoped IPC, and deeper X11
+isolation. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and
+Stage 2 GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
 (upstream wayland-rs UAF). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
-remote stretch: first-party viewer. **Phase 3** multi-GPU hardware validation
-remains open. See individual phase sections for deferred follow-ups.
+(remote access security closeout) complete 2026-07-25. **Phase 3** multi-GPU
+hardware validation remains open. See individual phase sections for deferred
+follow-ups.
 
 ---
 
@@ -673,6 +676,11 @@ Mode. Track compatibility either way:
 
 ## Phase 7 — Remote access (full desktop sharing)
 
+**Status: complete for the GNOME RDP path (2026-07-25 security closeout).** Metis
+hardens session sharing via `metis-remote` + `gnome-remote-desktop` + portal
+clipboard/input. **Deferred to Phase 15 / stretch:** first-party remote viewer/
+host and deep per-app X11 isolation.
+
 Let you **remote into a Metis machine from another device** (laptop, tablet,
 phone) with full interactive control — not just “share screen” in a call.
 ScreenCast (Phase 3) covers **local video capture** for portal apps; remote
@@ -710,31 +718,31 @@ latency and clear setup docs.
 - [x] **RDP clipboard bridge (v1)** — `metis-portal` Mutter session clipboard
       D-Bus (`EnableClipboard`, `SetSelection`, `SelectionRead`/`Write`); compositor
       `ClipboardChanged` events forwarded to active GRD sessions (2026-07-05).
-      **Follow-up:** image clipboard, mime-type option parsing.
+      **2026-07-25:** text-only contract — never advertise local `image/*` to GRD.
+      **Follow-up:** image clipboard after a real image path exists.
 - [x] **ScreenCast as capture backend** — GRD RDP already consumes Mutter
       ScreenCast → `metis-portal` PipeWire (memfd BGRx). **2026-07-24:** multi-
       monitor `RecordMonitor(connector)` selects the matching `wl_output` by
       name for the live pump (portal + Mutter shim). **2026-07-24:** dmabuf
       zero-copy path (GBM capture + PipeWire `SPA_DATA_DmaBuf`, MemFd fallback).
-- [ ] **First-party remote option** (stretch) — lightweight Metis remote viewer/
-      host or official RustDesk/RDP preset in `metis-session` (TBD; depends on
-      security review and maintenance cost)
+- [ ] **First-party remote option** (stretch → Phase 15 §F) — lightweight Metis
+      remote viewer/host or official RustDesk/RDP preset in `metis-session`
+      (deferred; higher RAM/CPU than hardening the existing GRD path)
 
 ### C. Security & session policy
 
-- [x] **Firewall / LAN-only defaults** — `remote.json` `lan_only: true` + USER_GUIDE
-      ufw example and internet exposure warning
-- [x] **Session lock** — ~~remote session behaviour when Metis is locked /
-      idle~~ **local lock done** (2026-07-02): compositor-rendered lock screen
-      (Option A) with configurable background (wallpaper reuse / picture / solid /
-      gradient) + blur + dim + clock, PAM auth (`/etc/pam.d/metis`) on a worker
-      thread with zeroize + failure throttling, triggered by `Super+L`, the shell
-      menu Lock button, the `LockSession` IPC command, and (optionally) idle-blank.
-      Client render/input and focus/capture IPC are blocked while locked. Remaining
-      follow-ups: `ext-session-lock-v1` protocol support for third-party lockers,
-      fingerprint/greeter niceties, and remote-session behaviour when locked.
-      **Remote RDP (2026-07-05):** capture blocked while locked — remote viewers
-      see frozen/black until unlock (documented in USER_GUIDE).
+- [x] **Firewall / LAN-only defaults** — `remote.json` `lan_only: true` (default);
+      Settings toggle; `metis-remote firewall apply|clear` (nftables preferred,
+      ufw fallback, `pkexec` when needed). Status reports `firewall_applied` /
+      `firewall_backend` (2026-07-25).
+- [x] **Credential hygiene** — `metis-remote set-credentials <user>` reads the
+      password from stdin; Settings pipes it (never on Metis argv). `grdctl` still
+      requires argv (GRD limitation). Documented in USER_GUIDE (2026-07-25).
+- [x] **Session lock** — local lock (2026-07-02) plus **remote pause** (2026-07-25):
+      lock runs `metis-remote pause` (RDP disable, keep `remote.json.enabled`);
+      unlock runs `resume` if still enabled. Capture/inject remain denied while
+      locked. Remaining follow-ups: `ext-session-lock-v1` for third-party lockers,
+      fingerprint/greeter niceties.
 - [x] **Multi-user / VT** — documented in `docs/UBUNTU_DEV.md` (2026-07-24):
       Metis is a single graphical session per seat; switching TTYs pauses the
       DRM session; remote RDP attaches to the active logged-in session only;
@@ -745,10 +753,12 @@ latency and clear setup docs.
 - [x] **Flatpak gaming optimize confirmation** — Settings modal + CLI
       `--yes` / `METIS_GAMING_OPTIMIZE_YES` gate.
 - [x] **Calendar keyring cleanup** — delete CalDAV / M365 secrets on account remove.
-- [ ] **Deeper X11 isolation** (stretch) — optional separate XWayland instances
-      per untrusted app, disable abstract X socket, and/or research XSECURITY
-      usefulness under rootless XWayland (often limited). Documented residual:
-      all X11 clients share one server (X11↔X11); Wayland clients stay isolated.
+- [x] **XWayland abstract socket** — `config.json` `xwayland_abstract_socket`
+      default **false** (2026-07-25). Residual: one shared X11 server remains.
+- [ ] **Deeper X11 isolation** (→ Phase 15 §E) — optional separate XWayland
+      instances per untrusted app and/or research XSECURITY under rootless
+      XWayland (often limited). Documented residual: all X11 clients share one
+      server (X11↔X11); Wayland clients stay isolated.
 
 ---
 
@@ -1223,6 +1233,117 @@ Builtins-only for Phase 14. Possible later phase:
 **Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
 dashboard sampling (done); Phase 2 weather service (done); app launch /
 `launch_id` (done).
+
+---
+
+## Phase 15 — Security hardening
+
+Raise Metis’s security floor without rebuilding the DE. Phase 7 already hardened
+the GNOME RDP path (LAN firewall, stdin credentials, lock pauses listen,
+text-only clipboard, abstract X socket off). This phase closes the residual
+audit gaps: supply chain, spawn hygiene, lock/VT policy, capability-scoped IPC,
+and deeper X11 isolation.
+
+**Target:** a Metis session where privileged host actions are Polkit-declared,
+user-controlled strings never hit a shell, lock mode cannot be trivially bypassed
+via VT switch without a documented policy, widgets cannot issue compositor
+commands outside their capability, CI refuses known-CVE crates, and untrusted
+X11 apps are isolated where practical.
+
+**Non-goals:** rewriting Smithay; a Metis-native remote protocol as the primary
+deliverable (optional stretch in §F); claiming full XSECURITY on a single
+shared X server.
+
+### A. Supply chain & compiler mitigations (quick wins)
+
+- [ ] **`cargo-audit` in release CI** — run `cargo audit` (or `cargo deny`) in
+      `.github/workflows/release-deb.yml` before the `.deb` build; fail the job
+      on unignored advisories. Document ignore policy for accepted risks.
+- [ ] **Dev / PR audit optional** — lightweight `cargo audit` job on PRs that
+      touch `Cargo.lock` (or nightly), so CVEs surface before tag day.
+- [ ] **Release profile hardening** — enable `overflow-checks = true` on
+      `[profile.release]` (and inherit in `release-small`); set
+      `panic = "abort"` on default `release` (already on `release-small`) to
+      avoid unwind metadata leaks. Re-benchmark compositor hot path; document
+      any intentional opt-outs per crate if needed.
+- [ ] **Document residual C ABI risk** — USER_GUIDE / PACKAGING note that GTK,
+      lcms2, OpenSSL, libinput, etc. remain outside Rust’s safety model; point
+      at distro security updates.
+
+### B. Process spawn & Polkit
+
+- [ ] **Ban shell interpolation for user input** — audit `Command::new("sh")` /
+      `-c` across compositor, shell, settings, remote, gaming; replace with
+      argv vectors (`.arg()` / `.args()`). Keep `sh -c` only for fixed literals
+      with no interpolated untrusted data (or eliminate entirely).
+- [ ] **SSID / VPN / process-name sanitization** — validate and pass NetworkManager
+      / systemctl / related arguments as discrete argv; reject control chars and
+      unexpected separators where tools accept free-form names.
+- [ ] **Metis Polkit policies** — ship `.policy` (and optional `.rules`) for
+      privileged helpers (`metis-remote firewall`, optional software install,
+      group membership changes, etc.) bound to Metis desktop IDs; prefer
+      `pkexec` of a fixed helper binary + subcommand over free-form command
+      strings. Document required PolicyKit prompts in USER_GUIDE.
+- [ ] **Minimize credential lifetime on argv** — where third-party tools still
+      require argv secrets (`grdctl`), document and keep the window as short as
+      possible (already noted for RDP); prefer stdin/socket APIs when upstream
+      allows.
+
+### C. Session lock & VT switching
+
+- [ ] **Decide lock/VT product policy** — pick one and document:
+      (1) **Block** Ctrl+Alt+F\<n\> while locked (keep Ctrl+Alt+Backspace quit as
+      escape hatch), or (2) **Allow** VT switch but blank/lock DRM outputs and
+      require re-auth on return, or (3) leave current escape-hatch behavior with
+      an explicit USER_GUIDE security note. Default recommendation: (1) or (2).
+- [ ] **Implement chosen policy** — gate `drm_change_vt` on `lock.locked` (and
+      optionally idle-blank); on VT resume while session still “locked”, re-show
+      lock UI before client input/capture.
+- [ ] **`ext-session-lock-v1` (optional follow-up)** — protocol support for
+      third-party lockers; separate from Metis’s compositor-rendered lock.
+
+### D. Capability-scoped IPC (widgets & helpers)
+
+- [ ] **Command allowlists per channel** — `command-widgets` (and any future
+      helper sockets) accept only a documented subset (e.g. reload widgets,
+      update weather state) — refuse `Launch`, geometry/window manip, session
+      end, inject, etc. Keep bar/main channel for privileged DE control.
+- [ ] **Capability tokens (v1)** — compositor issues short-lived, scoped tokens
+      when spawning `--desktop-widgets` (and similar); widget process must
+      present token + command; reject mismatched scope. Same-UID SO_PEERCRED
+      remains necessary but not sufficient.
+- [ ] **Docs** — USER_GUIDE IPC trust model: same-UID baseline, per-channel
+      allowlists, token scopes, what a compromised widget can / cannot do.
+
+### E. Deeper X11 / XWayland isolation
+
+Carried from Phase 7 residual. Wayland clients stay isolated; X11↔X11 on one
+server does not.
+
+- [ ] **Per-app / per-sandbox XWayland** — research + prototype separate rootless
+      XWayland instances for untrusted classes (e.g. Flatpak X11, Steam/Proton
+      bucket vs random native X11). Measure RAM/CPU vs single server.
+- [ ] **Launch policy** — Settings or `config.json` knob: shared XWayland
+      (compat) vs isolated buckets (hardened). Default stays shared until
+      isolation is stable.
+- [ ] **Abstract socket remains default-off** — keep `xwayland_abstract_socket:
+      false`; document when enabling it is necessary.
+- [ ] **XSECURITY research note** — document usefulness (often limited under
+      rootless XWayland); do not claim sandboxing we cannot enforce.
+
+### F. Stretch / related (not phase gates)
+
+- [ ] **First-party remote viewer/host** — from Phase 7 §B; only after security
+      review and a clear maintenance story.
+- [ ] **Image RDP clipboard** — only after a real image path exists (text-only
+      contract stays until then).
+- [ ] **Fingerprint / greeter niceties** on the lock screen.
+
+**Suggested order:** §A → §B → §C → §D → §E (architecture) → §F as appetite
+allows.
+
+**Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
+split (done); DRM/libseat VT path (done).
 
 ---
 

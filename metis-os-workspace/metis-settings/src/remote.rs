@@ -1,10 +1,12 @@
 //! Desktop sharing status via the `metis-remote` CLI.
 
+use std::io::Write;
 use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RemoteSnapshot {
     #[serde(default)]
     pub available: bool,
@@ -25,7 +27,34 @@ pub struct RemoteSnapshot {
     pub backend: String,
     #[serde(default)]
     pub config_enabled: bool,
+    #[serde(default = "default_true")]
+    pub lan_only: bool,
+    #[serde(default)]
+    pub firewall_applied: bool,
+    #[serde(default)]
+    pub firewall_backend: String,
     pub error: Option<String>,
+}
+
+impl Default for RemoteSnapshot {
+    fn default() -> Self {
+        Self {
+            available: false,
+            running: false,
+            rdp_enabled: false,
+            port: default_port(),
+            password_set: false,
+            username: None,
+            hostname: default_hostname(),
+            addresses: Vec::new(),
+            backend: default_backend(),
+            config_enabled: false,
+            lan_only: true,
+            firewall_applied: false,
+            firewall_backend: String::new(),
+            error: None,
+        }
+    }
 }
 
 fn default_port() -> u16 {
@@ -38,6 +67,10 @@ fn default_hostname() -> String {
 
 fn default_backend() -> String {
     "gnome-rdp".into()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn metis_remote_bin() -> String {
@@ -80,15 +113,22 @@ fn run_remote(args: &[&str]) -> Result<String, String> {
 
 pub fn load_snapshot() -> RemoteSnapshot {
     match run_remote(&["status"]) {
-        Ok(json) => serde_json::from_str(&json).unwrap_or_else(|_| RemoteSnapshot {
-            error: Some("Failed to parse metis-remote status".into()),
-            ..RemoteSnapshot::default()
-        }),
+        Ok(json) => {
+            // Tolerate leading junk (e.g. accidental tool stdout) by parsing from
+            // the first `{` — status is always a single JSON object.
+            let trimmed = json.trim();
+            let payload = trimmed.find('{').map(|i| &trimmed[i..]).unwrap_or(trimmed);
+            serde_json::from_str(payload).unwrap_or_else(|err| RemoteSnapshot {
+                error: Some(format!("Failed to parse metis-remote status: {err}")),
+                ..RemoteSnapshot::default()
+            })
+        }
         Err(err) => RemoteSnapshot {
             error: Some(err),
             port: default_port(),
             hostname: default_hostname(),
             backend: default_backend(),
+            lan_only: true,
             ..Default::default()
         },
     }
@@ -102,8 +142,55 @@ pub fn disable_sharing() -> Result<(), String> {
     run_remote(&["disable"]).map(|_| ())
 }
 
+pub fn set_lan_only(lan_only: bool) -> Result<(), String> {
+    let flag = if lan_only { "true" } else { "false" };
+    run_remote(&["set-lan-only", flag]).map(|_| ())
+}
+
+/// Set RDP credentials. Password is piped on stdin — never placed on argv.
 pub fn set_credentials(username: &str, password: &str) -> Result<(), String> {
-    run_remote(&["set-credentials", username, password]).map(|_| ())
+    let bin = metis_remote_bin();
+    let mut child = Command::new(&bin)
+        .args(["set-credentials", username])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to run {bin}: {e}"))?;
+    {
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| format!("{bin}: missing stdin pipe"))?;
+        stdin
+            .write_all(password.as_bytes())
+            .and_then(|_| stdin.write_all(b"\n"))
+            .map_err(|e| format!("write password to {bin}: {e}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("{bin} wait: {e}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let msg = if !stderr.trim().is_empty() {
+            stderr.trim().to_string()
+        } else {
+            stdout.trim().to_string()
+        };
+        Err(if msg.is_empty() {
+            format!("{bin} set-credentials failed")
+        } else {
+            msg
+        })
+    }
+}
+
+/// Zeroize an owned password string after credentials were submitted.
+pub fn scrub_password(password: &mut String) {
+    password.zeroize();
 }
 
 pub fn connection_hint(snap: &RemoteSnapshot) -> String {

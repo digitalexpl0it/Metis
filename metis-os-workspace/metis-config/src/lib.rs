@@ -46,6 +46,11 @@ pub struct AppConfig {
     /// Gaming's PRIME `graphics_mode`.
     #[serde(default)]
     pub graphics_profile: graphics::GraphicsProfile,
+    /// When true, XWayland also listens on the abstract Unix socket
+    /// (`@/tmp/.X11-unix/...`). Default false for slightly tighter local exposure;
+    /// one shared X11 server remains either way.
+    #[serde(default = "default_false")]
+    pub xwayland_abstract_socket: bool,
 }
 
 fn default_theme() -> String {
@@ -56,6 +61,10 @@ fn default_show_briefing() -> bool {
     true
 }
 
+fn default_false() -> bool {
+    false
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -64,6 +73,7 @@ impl Default for AppConfig {
             gaming_setup_complete: false,
             show_briefing_on_login: default_show_briefing(),
             graphics_profile: graphics::GraphicsProfile::default(),
+            xwayland_abstract_socket: default_false(),
         }
     }
 }

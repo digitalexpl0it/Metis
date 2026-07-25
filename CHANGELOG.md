@@ -36,6 +36,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Security
 
+- **Phase 7 remote security closeout** — LAN-only RDP firewall enforcement
+  (`metis-remote firewall` via nftables/ufw + Settings toggle); RDP password via
+  stdin (not Metis argv); lock pauses RDP listen and unlock resumes if still
+  enabled; RDP clipboard text-only (no local image mimes); XWayland abstract
+  socket default-off (`config.json` `xwayland_abstract_socket`). First-party
+  remote viewer and deep X11 isolation remain deferred.
 - **IPC hardening** — `$XDG_RUNTIME_DIR/metis` is `0700`; compositor sockets and
   command/clipboard files are `0600`; accepts require same-UID `SO_PEERCRED`;
   insecure `/tmp/metis` fallback removed (fail closed if `XDG_RUNTIME_DIR` is
@@ -48,7 +54,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   password / M365 refresh token from the Secret Service.
 - **Docs** — USER_GUIDE / UBUNTU_DEV cover IPC trust model, calendar secrets in
   keyring, and X11↔X11 vs Wayland isolation (deeper X isolation tracked as TODO
-  stretch).
+  Phase 15 / stretch).
 
 ### Added
 

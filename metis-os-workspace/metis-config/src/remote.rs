@@ -23,7 +23,8 @@ pub struct RemoteConfig {
     /// Start sharing when the Metis session opens (if [`Self::enabled`]).
     #[serde(default = "default_auto_start")]
     pub auto_start: bool,
-    /// UI hint for LAN-only firewall guidance (not enforced by Metis).
+    /// When true, `metis-remote enable` applies host firewall rules so TCP 3389
+    /// accepts only private / loopback / link-local sources.
     #[serde(default = "default_true")]
     pub lan_only: bool,
 }

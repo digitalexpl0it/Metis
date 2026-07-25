@@ -201,6 +201,9 @@ impl MetisState {
 
         self.lock_arm_clock_timer();
         tracing::info!("lock: session locked");
+        // Pause RDP listen without clearing remote.json.enabled. Capture/inject
+        // denials remain belt-and-suspenders while locked.
+        spawn_metis_remote(&["pause"]);
         self.damaged = true;
         self.request_redraw();
     }
@@ -218,6 +221,8 @@ impl MetisState {
             self.loop_handle.remove(token);
         }
         tracing::info!("lock: session unlocked");
+        // Resume RDP only when remote.json still wants sharing.
+        spawn_metis_remote(&["resume"]);
         self.damaged = true;
         self.request_redraw();
     }
@@ -1238,6 +1243,47 @@ fn run_power_action(btn: PowerButton) {
         Ok(_) => tracing::info!(action = arg, "lock: power action requested"),
         Err(err) => tracing::warn!(action = arg, %err, "lock: failed to run power action"),
     }
+}
+
+/// Resolve `metis-remote` next to the compositor binary (dev/install layout).
+fn metis_remote_bin() -> std::path::PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("metis-remote");
+            if sibling.is_file() {
+                return sibling;
+            }
+        }
+    }
+    std::path::PathBuf::from("metis-remote")
+}
+
+/// Fire-and-forget `metis-remote` (pause/resume on lock). Never blocks the compositor.
+fn spawn_metis_remote(args: &[&str]) {
+    let bin = metis_remote_bin();
+    let args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
+    std::thread::Builder::new()
+        .name("metis-remote-lock".into())
+        .spawn(move || {
+            match std::process::Command::new(&bin)
+                .args(&args)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+            {
+                Ok(status) if status.success() => {
+                    tracing::debug!(?args, "lock: metis-remote ok");
+                }
+                Ok(status) => {
+                    tracing::warn!(?args, %status, "lock: metis-remote exited non-zero");
+                }
+                Err(err) => {
+                    tracing::warn!(?args, %err, "lock: failed to run metis-remote");
+                }
+            }
+        })
+        .ok();
 }
 
 /// The account's display name (GECOS first field), falling back to the login.

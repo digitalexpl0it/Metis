@@ -13,6 +13,7 @@ use metis_i18n::tr;
 
 struct Sections {
     enable_sw: gtk::Switch,
+    lan_sw: gtk::Switch,
     status_label: gtk::Label,
     address_label: gtk::Label,
     port_label: gtk::Label,
@@ -24,6 +25,7 @@ struct Sections {
     change_pw_btn: gtk::Button,
     install_banner: gtk::Box,
     toggling: Rc<Cell<bool>>,
+    lan_toggling: Rc<Cell<bool>>,
 }
 
 pub fn build(parent: &gtk::Window) -> gtk::Widget {
@@ -127,14 +129,18 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     content.append(&status_card);
 
     let (sec_card, sec_body) = ui::section(&tr("Security"));
+    let (lan_row, lan_sw) = ui::switch_row(&tr("LAN only (firewall)"));
+    sec_body.append(&lan_row);
     let hint_label = gtk::Label::new(Some(&tr(
-        "Keep session sharing on your local network when possible. Use a strong password. \
-         Sharing pauses while the session is locked (Super+L). \
-         See docs/USER_GUIDE.md for firewall setup (ufw allow 3389/tcp)."
+        "LAN only restricts TCP 3389 to private and link-local addresses via nftables \
+         or ufw (may prompt for admin). Use a strong password. While locked (Super+L), \
+         remote connections cannot view or control the desktop — RDP listen pauses. \
+         Clipboard sync is text-only."
         )));
     hint_label.set_xalign(0.0);
     hint_label.set_wrap(true);
     hint_label.add_css_class("metis-settings-hint");
+    hint_label.set_margin_top(8);
     sec_body.append(&hint_label);
     content.append(&sec_card);
 
@@ -154,9 +160,11 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let password_dialog = Rc::new(RefCell::new(None::<gtk::Window>));
 
     let toggling = Rc::new(Cell::new(false));
+    let lan_toggling = Rc::new(Cell::new(false));
     let action_error = Rc::new(RefCell::new(None::<String>));
     let sections = Rc::new(Sections {
         enable_sw,
+        lan_sw,
         status_label,
         address_label,
         port_label,
@@ -168,10 +176,12 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         change_pw_btn: change_pw_btn.clone(),
         install_banner,
         toggling: toggling.clone(),
+        lan_toggling: lan_toggling.clone(),
     });
 
     let (tx, rx) = mpsc::channel::<RemoteSnapshot>();
     let (action_tx, action_rx) = mpsc::channel::<(bool, Result<(), String>)>();
+    let (lan_tx, lan_rx) = mpsc::channel::<(bool, Result<(), String>)>();
     let (cred_tx, cred_rx) = mpsc::channel::<Result<(), String>>();
     let refresh = {
         let tx = tx.clone();
@@ -203,6 +213,20 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                     sections_poll.toggling.set(true);
                     sections_poll.enable_sw.set_active(!active);
                     sections_poll.toggling.set(false);
+                    *sections_poll.action_error.borrow_mut() = Some(err.clone());
+                    sections_poll.error_label.set_text(&err);
+                    sections_poll.error_label.set_visible(true);
+                } else {
+                    *sections_poll.action_error.borrow_mut() = None;
+                    sections_poll.error_label.set_visible(false);
+                }
+                refresh_after_toggle();
+            }
+            while let Ok((lan_only, result)) = lan_rx.try_recv() {
+                if let Err(err) = result {
+                    sections_poll.lan_toggling.set(true);
+                    sections_poll.lan_sw.set_active(!lan_only);
+                    sections_poll.lan_toggling.set(false);
                     *sections_poll.action_error.borrow_mut() = Some(err.clone());
                     sections_poll.error_label.set_text(&err);
                     sections_poll.error_label.set_visible(true);
@@ -247,6 +271,43 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                     remote::disable_sharing()
                 };
                 let _ = action_tx.send((active, result));
+            });
+        });
+    }
+
+    {
+        let sections_lan = sections.clone();
+        let lan_tx = lan_tx.clone();
+        let parent = parent.clone();
+        ui::defer_switch_active_notify(&sections.lan_sw, move |lan_only| {
+            if sections_lan.lan_toggling.get() {
+                return;
+            }
+            // Turning LAN-only off while sharing is active needs an explicit confirm.
+            if !lan_only && sections_lan.enable_sw.is_active() {
+                let sections_lan = sections_lan.clone();
+                let lan_tx = lan_tx.clone();
+                confirm_disable_lan_only(&parent, move |confirmed| {
+                    if !confirmed {
+                        sections_lan.lan_toggling.set(true);
+                        sections_lan.lan_sw.set_active(true);
+                        sections_lan.lan_toggling.set(false);
+                        return;
+                    }
+                    *sections_lan.action_error.borrow_mut() = None;
+                    let lan_tx = lan_tx.clone();
+                    std::thread::spawn(move || {
+                        let result = remote::set_lan_only(false);
+                        let _ = lan_tx.send((false, result));
+                    });
+                });
+                return;
+            }
+            *sections_lan.action_error.borrow_mut() = None;
+            let lan_tx = lan_tx.clone();
+            std::thread::spawn(move || {
+                let result = remote::set_lan_only(lan_only);
+                let _ = lan_tx.send((lan_only, result));
             });
         });
     }
@@ -302,6 +363,78 @@ fn readout_row(title: &str, value: &gtk::Label) -> gtk::Box {
     row
 }
 
+/// Confirm turning off LAN-only while desktop sharing is active.
+fn confirm_disable_lan_only(parent: &gtk::Window, on_done: impl Fn(bool) + 'static) {
+    let dialog = gtk::Window::builder()
+        .title(&tr("Allow RDP beyond the LAN?"))
+        .modal(true)
+        .transient_for(parent)
+        .decorated(false)
+        .resizable(false)
+        .default_width(420)
+        .build();
+    dialog.add_css_class("metis-settings-window");
+    dialog.add_css_class("metis-settings-password-dialog");
+
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    outer.set_margin_top(16);
+    outer.set_margin_bottom(16);
+    outer.set_margin_start(20);
+    outer.set_margin_end(20);
+
+    let body = gtk::Label::new(Some(&tr(
+        "Turning off LAN only removes Metis firewall rules for port 3389. \
+         Remote desktop may then be reachable from outside your private network \
+         unless you have other protections (VPN, host firewall)."
+    )));
+    body.set_xalign(0.0);
+    body.set_wrap(true);
+    body.add_css_class("metis-settings-hint");
+    outer.append(&body);
+
+    let btn_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    btn_row.set_halign(gtk::Align::End);
+    btn_row.set_margin_top(16);
+    let cancel = gtk::Button::with_label(&tr("Keep LAN only"));
+    cancel.add_css_class("metis-settings-secondary");
+    let proceed = gtk::Button::with_label(&tr("Turn off LAN only"));
+    proceed.add_css_class("destructive-action");
+    btn_row.append(&cancel);
+    btn_row.append(&proceed);
+    outer.append(&btn_row);
+
+    dialog.set_child(Some(&ui::dialog_sheet(&outer)));
+
+    let on_done = Rc::new(on_done);
+    let finished = Rc::new(Cell::new(false));
+    let finish = {
+        let on_done = on_done.clone();
+        let finished = finished.clone();
+        let dialog = dialog.clone();
+        Rc::new(move |confirmed: bool| {
+            if finished.replace(true) {
+                return;
+            }
+            on_done(confirmed);
+            dialog.destroy();
+        })
+    };
+    cancel.connect_clicked({
+        let finish = finish.clone();
+        move |_| finish(false)
+    });
+    proceed.connect_clicked({
+        let finish = finish.clone();
+        move |_| finish(true)
+    });
+    dialog.connect_destroy({
+        let finish = finish.clone();
+        move |_| finish(false)
+    });
+
+    dialog.present();
+}
+
 fn render(sections: &Sections, snap: &RemoteSnapshot) {
     sections.install_banner.set_visible(!snap.available);
     sections.password_banner.set_visible(snap.available && !snap.password_set);
@@ -312,6 +445,11 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
     // Reflect user intent from remote.json — not only live RDP daemon state.
     sections.enable_sw.set_active(snap.config_enabled);
     sections.toggling.set(false);
+
+    sections.lan_toggling.set(true);
+    sections.lan_sw.set_sensitive(snap.available);
+    sections.lan_sw.set_active(snap.lan_only);
+    sections.lan_toggling.set(false);
 
     if !snap.available {
         sections.status_label.set_text(&tr("Not available"));
@@ -341,7 +479,9 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
             sections.port_label.set_text(&snap.port.to_string());
             sections.username_label.set_text(&username);
         } else if snap.config_enabled && !snap.rdp_enabled {
-            sections.status_label.set_text(&tr("Starting…"));
+            sections.status_label.set_text(&tr(
+                "Enabled — RDP not listening (locked or starting)",
+            ));
             sections.address_label.set_text(&remote::connection_hint(snap));
             sections.port_label.set_text(&snap.port.to_string());
             sections.username_label.set_text(&username);
@@ -352,6 +492,29 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
             sections.username_label.set_text(&username);
         }
     }
+
+    let mut hint = tr(
+        "LAN only restricts TCP 3389 to private and link-local addresses via nftables \
+         or ufw (may prompt for admin). Use a strong password. While locked (Super+L), \
+         remote connections cannot view or control the desktop — RDP listen pauses. \
+         Clipboard sync is text-only.",
+    );
+    if snap.config_enabled && snap.lan_only {
+        if snap.firewall_applied {
+            let backend = if snap.firewall_backend.is_empty() {
+                "firewall"
+            } else {
+                snap.firewall_backend.as_str()
+            };
+            hint.push_str(&format!("\n\nLAN-only rules are active ({backend})."));
+        } else {
+            hint.push_str(&format!(
+                "\n\n{}",
+                tr("LAN-only is on, but firewall rules are not applied yet.")
+            ));
+        }
+    }
+    sections.hint_label.set_text(&hint);
 
     if let Some(err) = snap
         .error
@@ -517,6 +680,8 @@ fn show_password_dialog(
             let save_tx = save_tx.clone();
             std::thread::spawn(move || {
                 let result = remote::set_credentials(&user, &pass);
+                let mut pass = pass;
+                remote::scrub_password(&mut pass);
                 let _ = save_tx.send(result);
             });
         }

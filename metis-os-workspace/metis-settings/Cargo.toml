@@ -20,3 +20,4 @@ metis-i18n = { workspace = true }
 metis-secrets = { workspace = true }
 metis-protocol = { workspace = true }
 metis-gaming = { workspace = true }
+zeroize = "1"
