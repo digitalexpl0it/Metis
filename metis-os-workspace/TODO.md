@@ -317,10 +317,12 @@ so each milestone is shippable on its own:
         from the primary. Wallpaper/decoration GL caches are invalidated on
         renderer-context switches. Multi-GPU hardware validation remains.
 - [x] **Settings portal (`org.freedesktop.portal.Settings`)** — `metis-portal`
-      serves color-scheme, gtk-theme, and empty decoration/button layouts from
-      `metis-config` so GTK clients pick up Metis light/dark prefs and drop CSD
-      chrome; registered via `metis.portal` + `metis-portals.conf`, started by
-      the compositor before `xdg-desktop-portal` in the DRM session.
+      serves color-scheme (`u` uint32 per xdg-desktop-portal spec), gtk-theme,
+      and empty decoration/button layouts from `metis-config` so GTK /
+      Electron clients pick up Metis light/dark prefs; registered via
+      `metis.portal` + `metis-portals.conf`, started by the compositor before
+      `xdg-desktop-portal` in the DRM session. (2026-07-25: fixed ashpd signing
+      color-scheme as `i`, which broke Chromium `DarkModeManagerLinux`.)
 - [x] **Screenshot portal** — compositor exposes
       `ext-image-copy-capture-v1` / `ext-image-capture-source-v1`; `metis-portal`
       serves `org.freedesktop.impl.portal.Screenshot` via a native Wayland capture
@@ -1138,7 +1140,9 @@ clicks only. Empty chrome aims for click-through where layer-shell allows
 
 - [x] **Folders widget** — path default `~/Desktop` or custom; directories first,
       then files, A–Z; Gio `FileMonitor`; open via configured file manager /
-      launch; faint transparent panel; cap/virtualize huge folders
+      launch; faint transparent panel; cap/virtualize huge folders; context
+      menu Open / Rename / Delete (opaque Popover confirms — not hollow
+      toplevel windows)
 - [x] **Apps widget** — dedicated widget pin list (not a silent dump of start-menu
       pins); “Import start-menu pins” action; launch via `applications::launch_id`
       (handles `OnlyShowIn=GNOME` desktop files)

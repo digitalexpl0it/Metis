@@ -17,7 +17,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   records parametric TF/primaries; remains default-off (upstream wayland-rs UAF).
   Requires `liblcms2-dev` to build.
 
-## [2026-07-24]
+### Fixed
+
+- **GitHub Desktop / Electron dark-mode portal parse** — Settings portal
+  `org.freedesktop.appearance` `color-scheme` was serialized as signed `i`
+  (ashpd default) instead of the spec type `u`. Chromium's
+  `DarkModeManagerLinux` failed `PopVariantOfUint32` (`dark_mode_manager_linux.cc`).
+  `metis-portal` now returns and emits uint32. Verify with
+  `busctl … Settings Read … color-scheme` → `v v u …`.
+- **Folders delete/rename hollow dialog** — toplevel GTK windows inherit the
+  shell's transparent `window` fill, so confirms showed wallpaper through the
+  frame (and Metis SSD ghost chrome). Delete / Rename now use opaque Popovers
+  on the folders card with a Cairo-painted panel.
+- **Wi-Fi radio killed on HDMI plug/unplug** — flaky GTK switch notifies and
+  Settings poll could run `nmcli radio wifi off`. Radio-off now requires a
+  real click arm in the bar and Settings; unarmed offs are refused at the
+  nmcli spawn site.
 
 ### Security
 
