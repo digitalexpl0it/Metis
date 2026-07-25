@@ -231,12 +231,23 @@ pub fn build() -> gtk::Widget {
     {
         let ui_tx = ui_tx.clone();
         optimize_btn.connect_clicked(move |btn| {
-            btn.set_sensitive(false);
-            btn.set_label(&tr("Optimizing…"));
+            let Some(parent) = btn
+                .root()
+                .and_then(|r| r.downcast::<gtk::Window>().ok())
+            else {
+                tracing::warn!("gaming optimize: no parent window");
+                return;
+            };
+            let btn = btn.clone();
             let ui_tx = ui_tx.clone();
-            std::thread::spawn(move || {
-                let summary = run_optimize_pass();
-                let _ = ui_tx.send(GamingUiEvent::OptimizeDone { summary });
+            show_optimize_confirm_dialog(&parent, move || {
+                btn.set_sensitive(false);
+                btn.set_label(&tr("Optimizing…"));
+                let ui_tx = ui_tx.clone();
+                std::thread::spawn(move || {
+                    let summary = run_optimize_pass();
+                    let _ = ui_tx.send(GamingUiEvent::OptimizeDone { summary });
+                });
             });
         });
     }
@@ -311,6 +322,88 @@ fn spawn_health_check(tx: mpsc::Sender<GamingUiEvent>) {
         let check = run_health_check();
         let _ = tx.send(GamingUiEvent::HealthCheck(check));
     });
+}
+
+/// Permission-review dialog before writing Flatpak gaming overrides.
+fn show_optimize_confirm_dialog(parent: &gtk::Window, on_confirm: impl Fn() + 'static) {
+    let title = tr("Apply Flatpak gaming overrides?");
+    let dialog = gtk::Window::builder()
+        .title(&title)
+        .modal(true)
+        .transient_for(parent)
+        .resizable(false)
+        .default_width(480)
+        .build();
+    dialog.add_css_class("metis-settings-window");
+
+    let root = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(12)
+        .margin_top(20)
+        .margin_bottom(20)
+        .margin_start(24)
+        .margin_end(24)
+        .build();
+
+    let heading = gtk::Label::new(Some(&title));
+    heading.set_xalign(0.0);
+    heading.add_css_class("metis-settings-section-title");
+    root.append(&heading);
+
+    let body = gtk::Label::new(Some(&tr(
+        "Metis will run flatpak override --user for installed Steam, Lutris, and Heroic apps. \
+         This widens their sandboxes with:"
+    )));
+    body.set_wrap(true);
+    body.set_xalign(0.0);
+    body.add_css_class("metis-settings-hint");
+    root.append(&body);
+
+    let flags = gtk::Label::new(Some(
+        "• Steam: --device=all, --socket=wayland, --socket=pulseaudio, --share=network\n\
+         • Lutris / Heroic: --device=all, --share=network\n\
+         • Optional: GPU offload env vars when enabled in Settings",
+    ));
+    flags.set_xalign(0.0);
+    flags.add_css_class("metis-settings-value");
+    root.append(&flags);
+
+    let warn = gtk::Label::new(Some(&tr(
+        "Cancel leaves Flatpak permissions unchanged."
+    )));
+    warn.set_wrap(true);
+    warn.set_xalign(0.0);
+    warn.add_css_class("metis-settings-hint");
+    root.append(&warn);
+
+    let btn_row = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .halign(gtk::Align::End)
+        .build();
+    let cancel = gtk::Button::with_label(&tr("Cancel"));
+    cancel.add_css_class("metis-settings-secondary");
+    let confirm = gtk::Button::with_label(&tr("Apply overrides"));
+    confirm.add_css_class("suggested-action");
+    btn_row.append(&cancel);
+    btn_row.append(&confirm);
+    root.append(&btn_row);
+
+    dialog.set_child(Some(&ui::dialog_sheet(&root)));
+
+    cancel.connect_clicked({
+        let dialog = dialog.clone();
+        move |_| dialog.close()
+    });
+    confirm.connect_clicked({
+        let dialog = dialog.clone();
+        move |_| {
+            dialog.close();
+            on_confirm();
+        }
+    });
+
+    dialog.present();
 }
 
 /// Flatpak overrides + input-group membership + compositor optimize hook.
@@ -402,7 +495,7 @@ fn show_gaming_setup_dialog(
     let steps = gtk::Box::new(gtk::Orientation::Vertical, 6);
     for line in [
         "1. Detect hybrid GPU and Steam install",
-        "2. Apply Flatpak gaming overrides",
+        "2. Apply Flatpak gaming overrides (--device=all, network, Wayland/Pulse where needed)",
         "3. Install ~/.local/share/metis/bin/launch-steam",
         "4. Reload compositor gaming config",
     ] {
@@ -590,16 +683,35 @@ fn apply_health_check(
             let fix_id = item.id.to_string();
             let ui_tx = ui_tx.clone();
             fix.connect_clicked(move |btn| {
-                btn.set_sensitive(false);
-                let ui_tx = ui_tx.clone();
-                let fix_id = fix_id.clone();
-                std::thread::spawn(move || {
-                    let summary = match auto_fix_item(&fix_id) {
-                        Ok(msg) => msg,
-                        Err(err) => err,
+                let run_fix = {
+                    let btn = btn.clone();
+                    let ui_tx = ui_tx.clone();
+                    let fix_id = fix_id.clone();
+                    move || {
+                        btn.set_sensitive(false);
+                        let ui_tx = ui_tx.clone();
+                        let fix_id = fix_id.clone();
+                        std::thread::spawn(move || {
+                            let summary = match auto_fix_item(&fix_id) {
+                                Ok(msg) => msg,
+                                Err(err) => err,
+                            };
+                            let _ = ui_tx.send(GamingUiEvent::FixDone { summary });
+                        });
+                    }
+                };
+                if fix_id == "flatpak_steam" {
+                    let Some(parent) = btn
+                        .root()
+                        .and_then(|r| r.downcast::<gtk::Window>().ok())
+                    else {
+                        run_fix();
+                        return;
                     };
-                    let _ = ui_tx.send(GamingUiEvent::FixDone { summary });
-                });
+                    show_optimize_confirm_dialog(&parent, run_fix);
+                } else {
+                    run_fix();
+                }
             });
             actions.append(&fix);
         }

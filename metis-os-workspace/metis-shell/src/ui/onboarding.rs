@@ -930,14 +930,15 @@ fn build_gaming() -> gtk::Widget {
     col.append(&auto_gpu);
 
     let optimize = gtk::CheckButton::with_label(&metis_i18n::tr(
-        "Optimize Flatpak Steam / Lutris / Heroic",
+        "Optimize Flatpak Steam / Lutris / Heroic (--device=all, network, Wayland)",
     ));
     optimize.set_active(GAMING_OPTIMIZE.get());
     optimize.connect_active_notify(|s| GAMING_OPTIMIZE.set(s.is_active()));
     col.append(&optimize);
 
     let hint = gtk::Label::new(Some(&metis_i18n::tr(
-        "You can rerun gaming setup anytime from Settings → Gaming.",
+        "Checking this widens Flatpak sandboxes for those apps (device, network, \
+         Wayland/Pulse). You can review or rerun anytime from Settings → Gaming.",
     )));
     hint.add_css_class("metis-onboarding-hint");
     hint.set_xalign(0.0);

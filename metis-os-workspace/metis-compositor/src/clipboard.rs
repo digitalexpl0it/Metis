@@ -551,5 +551,10 @@ fn image_file_extension(mime: &str) -> &'static str {
 }
 
 fn clipboard_image_dir() -> std::path::PathBuf {
-    metis_protocol::runtime_dir().join("clipboard")
+    let dir = metis_protocol::runtime_dir().join("clipboard");
+    if let Ok(runtime) = metis_protocol::ensure_runtime_dir() {
+        let _ = std::fs::create_dir_all(runtime.join("clipboard"));
+        let _ = metis_protocol::set_mode(&runtime.join("clipboard"), 0o700);
+    }
+    dir
 }

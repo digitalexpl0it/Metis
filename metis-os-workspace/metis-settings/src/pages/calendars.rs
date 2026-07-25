@@ -137,9 +137,15 @@ impl Inner {
     }
 
     fn remove_account(self: &Rc<Self>, id: &str) {
+        let id_owned = id.to_string();
         self.config.borrow_mut().accounts.retain(|a| a.id != id);
         self.persist_and_reload();
         self.rebuild();
+        // Best-effort keyring cleanup (CalDAV password + M365 refresh token).
+        run_async(async move {
+            let _ = metis_secrets::delete(&id_owned, metis_secrets::CALDAV_PASSWORD).await;
+            let _ = metis_secrets::delete(&id_owned, metis_secrets::MS_REFRESH_TOKEN).await;
+        });
     }
 
     fn set_enabled(self: &Rc<Self>, id: &str, enabled: bool) {

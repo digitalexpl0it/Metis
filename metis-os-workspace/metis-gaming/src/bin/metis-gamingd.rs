@@ -39,12 +39,23 @@ fn check_runtime_command() {
         return;
     };
     let cmd = cmd.trim();
-    match cmd {
+    let (verb, arg) = cmd
+        .split_once(char::is_whitespace)
+        .unwrap_or((cmd, ""));
+    match verb {
         "reload-gaming" => tracing::info!("gamingd: reload-gaming"),
         "optimize-gaming" => {
-            match metis_gaming::optimize_flatpak_gaming(&[]) {
-                Ok(r) => tracing::info!(?r, "gamingd: flatpak optimize done"),
-                Err(err) => tracing::warn!(%err, "gamingd: flatpak optimize failed"),
+            if arg.trim() == "yes"
+                || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some()
+            {
+                match metis_gaming::optimize_flatpak_gaming(&[]) {
+                    Ok(r) => tracing::info!(?r, "gamingd: flatpak optimize done"),
+                    Err(err) => tracing::warn!(%err, "gamingd: flatpak optimize failed"),
+                }
+            } else {
+                tracing::warn!(
+                    "gamingd: optimize-gaming ignored without confirmation (need `yes`)"
+                );
             }
         }
         _ => {}

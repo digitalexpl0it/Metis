@@ -552,10 +552,20 @@ fn watch_compositor_dismiss() {
                     rebuild_for_locale();
                 }
                 "optimize-gaming" => {
-                    std::thread::spawn(|| {
-                        let _ = metis_gaming::optimize_flatpak_gaming(&[]);
-                        let _ = metis_gaming::ensure_steam_launcher();
-                    });
+                    // Require explicit `yes` (Settings confirm / metis-cmd --yes).
+                    if arg.trim() == "yes"
+                        || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some()
+                    {
+                        std::thread::spawn(|| {
+                            let _ = metis_gaming::optimize_flatpak_gaming(&[]);
+                            let _ = metis_gaming::ensure_steam_launcher();
+                        });
+                    } else {
+                        tracing::warn!(
+                            "optimize-gaming ignored without confirmation — use Settings → Gaming \
+                             or: metis-cmd optimize-gaming --yes"
+                        );
+                    }
                 }
                 "show-onboarding" => crate::ui::onboarding::show(),
                 "settings" => {

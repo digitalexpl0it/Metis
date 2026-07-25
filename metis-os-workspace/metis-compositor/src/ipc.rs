@@ -6,15 +6,15 @@ use crate::events::{accept_event_subscribers, init_events_listener};
 use crate::state::MetisState;
 
 pub fn init_ipc(state: &mut MetisState) -> Result<(), Box<dyn std::error::Error>> {
+    let runtime = metis_protocol::ensure_runtime_dir()?;
     let socket_path = metis_protocol::ipc_socket_path();
     if socket_path.exists() {
         let _ = std::fs::remove_file(&socket_path);
     }
-    if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    let _ = runtime;
 
     let listener = std::os::unix::net::UnixListener::bind(&socket_path)?;
+    metis_protocol::set_mode(&socket_path, 0o600)?;
     listener.set_nonblocking(true)?;
     state.ipc_listener = Some(listener);
 
@@ -32,7 +32,17 @@ pub fn drain_ipc(state: &mut MetisState) {
     if let Some(listener) = state.ipc_listener.as_ref() {
         loop {
             match listener.accept() {
-                Ok((stream, _)) => pending.push(stream),
+                Ok((stream, _)) => {
+                    match metis_protocol::peer_uid_is_euid(&stream) {
+                        Ok(true) => pending.push(stream),
+                        Ok(false) => {
+                            tracing::warn!("IPC: rejected connection from foreign UID");
+                        }
+                        Err(err) => {
+                            tracing::warn!(%err, "IPC: peercred check failed; dropping connection");
+                        }
+                    }
+                }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                 Err(e) => {
                     tracing::warn!("IPC accept error: {e}");

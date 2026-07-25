@@ -38,6 +38,10 @@ sudo apt install -y gnome-keyring   # recommended, desktop-independent
 
 Without PAM auto-unlock (`pam_gnome_keyring`), the login keyring starts locked and the first secret access prompts once per session via gcr's prompter (pulled in by `gnome-keyring`).
 
+**What Metis stores there:** CalDAV passwords and Microsoft 365 refresh tokens
+(`metis-secrets`). Account lists in `~/.config/metis/calendars.json` hold no
+secrets; removing an account deletes the matching keyring items.
+
 ### Phase 4 runtime tools (standalone session)
 
 Several settings pages shell out to system services (same pattern as `nmcli` for
@@ -237,8 +241,18 @@ Full gaming checklist: [User Guide — Steam & Proton](USER_GUIDE.md#steam-proto
 **Gaming Platform 2.0 (Phase 11):** `metis-gamingd` starts automatically with the
 Metis session (`run-metis.sh` / `metis-session`). Settings → Gaming writes
 `gaming.json`; reload with `metis-cmd reload-gaming`, optimize Flatpak overrides
-with `metis-cmd optimize-gaming`. Optional: `gamemode` package for per-game CPU
+with `metis-cmd optimize-gaming --yes` (requires explicit consent; Settings →
+Gaming shows a permission dialog). Optional: `gamemode` package for per-game CPU
 scheduler tweaks (`gamemoderun %command%` in Steam launch options).
+
+### IPC trust model
+
+Compositor control sockets live under `$XDG_RUNTIME_DIR/metis/` (`0700` dir,
+`0600` sockets and command files). Accepts require `SO_PEERCRED` so the peer UID
+matches the compositor's euid — **cross-UID** clients are dropped. Same-UID
+malware still has full DE control by design of the session control plane.
+`XDG_RUNTIME_DIR` must be set; Metis refuses the old world-readable `/tmp/metis`
+fallback.
 
 ### Release build profiles
 

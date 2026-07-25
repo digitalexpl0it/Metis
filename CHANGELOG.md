@@ -7,6 +7,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [2026-07-24]
 
+### Security
+
+- **IPC hardening** — `$XDG_RUNTIME_DIR/metis` is `0700`; compositor sockets and
+  command/clipboard files are `0600`; accepts require same-UID `SO_PEERCRED`;
+  insecure `/tmp/metis` fallback removed (fail closed if `XDG_RUNTIME_DIR` is
+  unset). Lock screen IPC denylist expanded (close window, end session,
+  workspace moves, screenshot overlay, inject, …).
+- **Flatpak gaming optimize consent** — Settings shows a permission dialog before
+  overrides; `metis-cmd optimize-gaming` requires `--yes` (or
+  `METIS_GAMING_OPTIMIZE_YES=1`); shell/gamingd ignore bare optimize commands.
+- **Calendar keyring hygiene** — removing a calendar account deletes its CalDAV
+  password / M365 refresh token from the Secret Service.
+- **Docs** — USER_GUIDE / UBUNTU_DEV cover IPC trust model, calendar secrets in
+  keyring, and X11↔X11 vs Wayland isolation (deeper X isolation tracked as TODO
+  stretch).
+
 ### Added
 
 - **Phase 5 HDR encode (H2)** — with HDR on, the DRM compositor composites the
@@ -49,6 +65,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **App titlebars overrides reset on reopen** — opening Settings → App titlebars
+  pruned intentional overrides for Text Editor, Metis Settings, and GitHub
+  Desktop (one-time cleanup list left in place). Prune now only drops junk keys.
 - **HDR toggle on SDR laptop panels (washed-out desktop)** — `hdr_available`
   now requires the monitor EDID to advertise ST.2084/HDR10, not merely a DRM
   `HDR_OUTPUT_METADATA` property (common on Intel/AMD eDP). Settings clears a

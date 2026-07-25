@@ -335,28 +335,108 @@ pub fn runtime_command_path_widgets() -> std::path::PathBuf {
     runtime_dir().join("command-widgets")
 }
 
+/// `$XDG_RUNTIME_DIR/metis`. Refuses the old `/tmp/metis` fallback — if
+/// `XDG_RUNTIME_DIR` is unset, returns a non-writable sentinel so binds/connects
+/// fail closed instead of creating a world-accessible control plane.
 pub fn runtime_dir() -> std::path::PathBuf {
-    std::env::var("XDG_RUNTIME_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp/metis"))
-        .join("metis")
+    match std::env::var_os("XDG_RUNTIME_DIR") {
+        Some(dir) => std::path::PathBuf::from(dir).join("metis"),
+        None => {
+            eprintln!(
+                "metis: XDG_RUNTIME_DIR is unset; refusing insecure /tmp/metis fallback"
+            );
+            std::path::PathBuf::from("/var/empty/metis-no-xdg-runtime-dir")
+        }
+    }
+}
+
+/// Create `$XDG_RUNTIME_DIR/metis` with mode `0700`. Errors if `XDG_RUNTIME_DIR`
+/// is unset.
+pub fn ensure_runtime_dir() -> std::io::Result<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_RUNTIME_DIR").ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "XDG_RUNTIME_DIR is unset (refusing /tmp/metis fallback)",
+        )
+    })?;
+    let dir = std::path::PathBuf::from(base).join("metis");
+    std::fs::create_dir_all(&dir)?;
+    set_mode(&dir, 0o700)?;
+    Ok(dir)
+}
+
+/// Set Unix permission bits on `path` (no-op semantics on non-Unix).
+pub fn set_mode(path: &std::path::Path, mode: u32) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, mode);
+    }
+    Ok(())
+}
+
+/// Atomically write `contents` to `path` with mode `0600`, creating parent dirs
+/// as `0700` when they are the Metis runtime dir.
+pub fn write_private_file(path: &std::path::Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if parent.ends_with("metis") {
+            let _ = ensure_runtime_dir();
+        } else {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    use std::io::Write;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(path)?;
+    file.write_all(contents.as_ref())?;
+    file.sync_all()?;
+    set_mode(path, 0o600)?;
+    Ok(())
 }
 
 pub fn write_runtime_command(action: &str) -> std::io::Result<()> {
-    let path = runtime_command_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(path, action)
+    write_private_file(&runtime_command_path(), format!("{action}\n"))
 }
 
 /// Write a one-shot command for the desktop-widgets process.
 pub fn write_runtime_command_widgets(action: &str) -> std::io::Result<()> {
-    let path = runtime_command_path_widgets();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
+    write_private_file(&runtime_command_path_widgets(), format!("{action}\n"))
+}
+
+/// True when the Unix peer's UID matches this process's effective UID.
+#[cfg(unix)]
+pub fn peer_uid_is_euid(stream: &std::os::unix::net::UnixStream) -> std::io::Result<bool> {
+    use std::os::fd::AsRawFd;
+    let mut cred: libc::ucred = unsafe { std::mem::zeroed() };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let rc = unsafe {
+        libc::getsockopt(
+            stream.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            &mut cred as *mut _ as *mut libc::c_void,
+            &mut len,
+        )
+    };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
     }
-    std::fs::write(path, action)
+    Ok(cred.uid == unsafe { libc::geteuid() })
+}
+
+#[cfg(not(unix))]
+pub fn peer_uid_is_euid(_stream: &std::os::unix::net::UnixStream) -> std::io::Result<bool> {
+    Ok(true)
 }
 
 /// Send one JSON command to the compositor IPC socket and read the reply line.

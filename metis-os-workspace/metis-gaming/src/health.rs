@@ -59,7 +59,7 @@ pub fn run_health_check() -> HealthCheck {
             severity: HealthSeverity::Warn,
             detail: "Gaming overrides not applied".into(),
             fix_hint: Some(
-                "metis-cmd optimize-gaming   # or Settings → Gaming → Optimize now".into(),
+                "metis-cmd optimize-gaming --yes   # or Settings → Gaming → Optimize now".into(),
             ),
             auto_fixable: true,
         });

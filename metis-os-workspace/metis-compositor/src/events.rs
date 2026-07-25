@@ -61,14 +61,13 @@ fn write_event_nonblocking(stream: &mut std::os::unix::net::UnixStream, bytes: &
 pub fn init_events_listener(
     bus: &EventBus,
 ) -> Result<std::os::unix::net::UnixListener, std::io::Error> {
+    let _ = metis_protocol::ensure_runtime_dir()?;
     let path = metis_protocol::events_socket_path();
     if path.exists() {
         let _ = std::fs::remove_file(&path);
     }
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
     let listener = std::os::unix::net::UnixListener::bind(&path)?;
+    metis_protocol::set_mode(&path, 0o600)?;
     listener.set_nonblocking(true)?;
     tracing::info!(path = ?path, "compositor event socket ready");
     let _ = bus;
@@ -82,8 +81,18 @@ pub fn accept_event_subscribers(
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
-                tracing::info!("shell subscribed to compositor events");
-                bus.subscribe(stream);
+                match metis_protocol::peer_uid_is_euid(&stream) {
+                    Ok(true) => {
+                        tracing::info!("shell subscribed to compositor events");
+                        bus.subscribe(stream);
+                    }
+                    Ok(false) => {
+                        tracing::warn!("events: rejected subscriber from foreign UID");
+                    }
+                    Err(err) => {
+                        tracing::warn!(%err, "events: peercred check failed; dropping subscriber");
+                    }
+                }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
             Err(e) => {

@@ -2375,6 +2375,7 @@ dependencies = [
 name = "metis-protocol"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "metis-grid",
  "serde",
  "serde_json",

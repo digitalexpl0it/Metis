@@ -755,6 +755,16 @@ latency and clear setup docs.
       Metis is a single graphical session per seat; switching TTYs pauses the
       DRM session; remote RDP attaches to the active logged-in session only;
       multi-seat is unsupported.
+- [x] **IPC hardening** (2026-07-24) — `$XDG_RUNTIME_DIR/metis` `0700`, sockets /
+      command files `0600`, `SO_PEERCRED` same-UID check, refuse `/tmp/metis`,
+      expanded lock-screen IPC denylist. Documented in USER_GUIDE / UBUNTU_DEV.
+- [x] **Flatpak gaming optimize confirmation** — Settings modal + CLI
+      `--yes` / `METIS_GAMING_OPTIMIZE_YES` gate.
+- [x] **Calendar keyring cleanup** — delete CalDAV / M365 secrets on account remove.
+- [ ] **Deeper X11 isolation** (stretch) — optional separate XWayland instances
+      per untrusted app, disable abstract X socket, and/or research XSECURITY
+      usefulness under rootless XWayland (often limited). Documented residual:
+      all X11 clients share one server (X11↔X11); Wayland clients stay isolated.
 
 ---
 

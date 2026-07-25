@@ -7600,9 +7600,25 @@ impl MetisState {
                     | C::SetFullscreen { .. }
                     | C::SetMinimized { .. }
                     | C::MoveWindow { .. }
+                    | C::MoveWindowToWorkspace { .. }
+                    | C::MoveWindowToOutput { .. }
+                    | C::MoveWorkspaceToOutput { .. }
+                    | C::SwitchWorkspace { .. }
+                    | C::SetWorkspaceLayout { .. }
+                    | C::SetDefaultLayout { .. }
+                    | C::ApplyLayout { .. }
+                    | C::SetTileMode { .. }
+                    | C::CloseWindow { .. }
                     | C::Launch { .. }
+                    | C::EndSession
                     | C::SetClipboard { .. }
                     | C::BeginCaptureOverlay { .. }
+                    | C::BeginScreenshotOverlay
+                    | C::InjectRemotePointerAbsolute { .. }
+                    | C::InjectRemotePointerRelative { .. }
+                    | C::InjectRemotePointerButton { .. }
+                    | C::InjectRemotePointerScroll { .. }
+                    | C::InjectRemoteKey { .. }
             ) {
                 return CompositorEvent::Error {
                     message: "session is locked".into(),

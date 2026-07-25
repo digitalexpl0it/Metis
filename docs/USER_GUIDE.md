@@ -470,6 +470,12 @@ apps (Cursor, Claude Desktop, …) are steered onto native Wayland when launched
 from Metis, which is more stable than their default XWayland path and still gets
 the Metis titlebar.
 
+**X11 vs Wayland isolation.** Native Wayland clients cannot be keylogged or
+surface-sniffed by X11/XWayland apps — rootless XWayland does not see Wayland
+input or buffers. All X11 clients share one XWayland server, so a malicious X11
+app can still attack other X11 apps (classic X11↔X11). Metis does not claim
+per-app XSECURITY sandboxes today.
+
 - **Move** — drag the titlebar.
 - **Close / minimize / maximize** — the three titlebar buttons (× / − / +).
 - **Resize** — drag a window border or corner; tiled windows float out of the
@@ -707,7 +713,10 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   install `network-manager-openvpn` for OpenVPN; WireGuard is built into modern
   NetworkManager. Edge-bar **VPN** icon toggles connect/disconnect.
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
-  365) used by the Notification Center calendar.
+  365) used by the Notification Center calendar. Account metadata lives in
+  `calendars.json`; **passwords and M365 refresh tokens** are stored in the
+  freedesktop Secret Service (`metis-secrets` / oo7), not in the JSON file.
+  Removing an account also deletes its keyring entries.
 - **Input** — mouse, touchpad, and keyboard layout/repeat settings (`input.json`),
   plus **Keyboard → Shortcuts** to edit desktop keybinds (`keybinds.json`, live
   reload). **Shortcuts** (sidebar) is a searchable read-only chord guide with a
@@ -717,8 +726,9 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   appear when the device or driver reports them.
 - **Printers** — list CUPS queues; open the system printer config when needed.
 - **Gaming** — graphics mode (auto / iGPU / dGPU), battery and performance
-  toggles, health checklist with Fix buttons, **Optimize now**, and **Run gaming
-  setup** wizard; writes `gaming.json` and applies Flatpak overrides when installed.
+  toggles, health checklist with Fix buttons, **Optimize now** (permission dialog
+  before Flatpak `--device=all` / network / Wayland overrides), and **Run gaming
+  setup** wizard; writes `gaming.json`. CLI: `metis-cmd optimize-gaming --yes`.
 - **Control Center** — enable/disable the pull-down system monitor, max panel
   height %, refresh interval, confirm-before-kill, overview widgets, and which
   process monitor **Open monitor** launches (auto-detect / installed / custom);
@@ -867,6 +877,20 @@ closes it rather than the application underneath. Configure in Settings →
 All configuration lives in `~/.config/metis/` as JSON. You can edit files by
 hand — `bar.json` and `themes/*.json` reload while Metis runs.
 
+### Session IPC trust model
+
+Metis shell ↔ compositor control uses Unix sockets and command files under
+`$XDG_RUNTIME_DIR/metis/` (directory mode `0700`; sockets and command files
+`0600`). The compositor checks `SO_PEERCRED` and rejects connections whose peer
+UID is not the session euid — that stops **cross-user** abuse. Any process
+running as **your** UID can still drive the DE (launch apps, inject input,
+end session); that is the intended same-session control plane. If
+`XDG_RUNTIME_DIR` is unset, Metis fails closed rather than falling back to
+`/tmp/metis`.
+
+While the session is locked, IPC also rejects focus/launch/clipboard/capture/
+workspace/session-control and remote-input inject commands.
+
 ### Nested dev sessions (GNOME / host compositor)
 
 When Metis runs inside another desktop (the default `./run-metis.sh --session`
@@ -886,7 +910,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 |------|---------|
 | `bar.json` | Edge bar position/size/opacity/blur, widget order, workspaces, borders, default layout |
 | `clock.json` | World clocks and alarms |
-| `calendars.json` | Calendar accounts |
+| `calendars.json` | Calendar accounts (no passwords — secrets in Keyring / Secret Service) |
 | `themes/dark.json`, `themes/light.json` | Design tokens — accents, semantic colors, `text_on_accent`, shadows/glows |
 | `config.json` | Active theme, onboarding state, briefing-on-login |
 | `menu.json` | App launcher terminal / file-manager defaults and pinned apps |

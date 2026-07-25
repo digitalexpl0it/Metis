@@ -144,31 +144,10 @@ fn read_events(stream: UnixStream, tx: &mpsc::Sender<CompositorEvent>) {
 }
 
 pub fn request_reload() {
-    let path = metis_protocol::runtime_command_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&path)
-    {
-        let _ = writeln!(f, "reload-gaming");
-    }
+    let _ = metis_protocol::write_runtime_command("reload-gaming");
 }
 
 pub fn request_optimize() {
-    let path = metis_protocol::runtime_command_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&path)
-    {
-        let _ = writeln!(f, "optimize-gaming");
-    }
+    // Confirmed optimize only — shell/gamingd ignore bare `optimize-gaming`.
+    let _ = metis_protocol::write_runtime_command("optimize-gaming yes");
 }
