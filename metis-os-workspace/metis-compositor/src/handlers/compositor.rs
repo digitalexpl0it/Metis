@@ -136,6 +136,13 @@ impl CompositorHandler for MetisState {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
+        if let Some(udev) = self.udev.as_mut() {
+            if let Some(gpus) = udev.gpus.as_mut() {
+                if let Err(err) = gpus.early_import(udev.render_node, surface) {
+                    tracing::debug!(?err, "early client-buffer import failed");
+                }
+            }
+        }
         on_commit_buffer_handler::<MetisState>(surface);
         let mut committed_id = None;
         if !is_sync_subsurface(surface) {

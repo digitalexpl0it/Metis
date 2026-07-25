@@ -62,7 +62,7 @@ pub fn pick_drm_mode_index(modes: &[DrmMode], prefs: &OutputPrefs) -> usize {
 
 pub fn list_output_modes(state: &MetisState, name: &str) -> (Vec<OutputModeInfo>, Option<OutputModeInfo>) {
     if let Some(udev) = state.udev.as_ref() {
-        let Some(surface) = udev.surfaces.values().find(|s| s.output.name() == name) else {
+        let Some(surface) = udev.surfaces().find(|s| s.output.name() == name) else {
             return (Vec::new(), None);
         };
         let current = surface
@@ -151,17 +151,14 @@ impl MetisState {
         let Some(udev) = self.udev.as_mut() else {
             return false;
         };
-        let crtc = udev
-            .surfaces
-            .iter()
-            .find(|(_, s)| s.output.name() == name && !s.user_disabled)
-            .map(|(c, _)| *c);
-        let Some(crtc) = crtc else {
+        let Some(id) = udev
+            .output_id_by_name(name)
+            .filter(|id| udev.surface(*id).is_some_and(|surface| !surface.user_disabled))
+        else {
             return false;
         };
         let Some(drm_mode) = udev
-            .surfaces
-            .get(&crtc)
+            .surface(id)
             .and_then(|s| find_drm_mode(&s.modes, &target))
         else {
             tracing::warn!(%name, ?target, "requested mode not advertised by connector");
@@ -169,23 +166,30 @@ impl MetisState {
         };
 
         let wl_mode = WlMode::from(drm_mode);
-        let mut renderer = udev.renderer.take();
         let apply_result = {
-            let surface = udev.surfaces.get_mut(&crtc).unwrap();
-            let Some(renderer) = renderer.as_mut() else {
+            let crate::udev::UdevState { gpus, backends, .. } = udev;
+            let Some(gpus) = gpus.as_mut() else {
+                return false;
+            };
+            let Some(backend) = backends.get_mut(&id.device) else {
+                return false;
+            };
+            let Some(surface) = backend.surfaces.get_mut(&id.crtc) else {
+                return false;
+            };
+            let Ok(mut renderer) = gpus.single_renderer(&surface.render_node) else {
                 tracing::error!("no renderer for mode change");
                 return false;
             };
-            apply_drm_mode(surface, drm_mode, renderer)
+            apply_drm_mode(surface, drm_mode, renderer.as_mut())
         };
-        udev.renderer = renderer;
 
         if let Err(err) = apply_result {
             tracing::warn!(%name, ?target, ?err, "failed to apply DRM mode");
             return false;
         }
 
-        if let Some(surface) = self.udev.as_ref().and_then(|u| u.surfaces.get(&crtc)) {
+        if let Some(surface) = self.udev.as_ref().and_then(|u| u.surface(id)) {
             let output = surface.output.clone();
             let pos = self
                 .space

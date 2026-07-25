@@ -295,6 +295,7 @@ pub fn init_winit(
                                     skip_night_light: false,
                                 },
                                 &[],
+                                true,
                             );
 
                             // Winit re-binds the same framebuffer each frame, so it

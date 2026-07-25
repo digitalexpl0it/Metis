@@ -14,9 +14,7 @@ use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::{Buffer as AllocBuffer, Fourcc, Modifier};
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
-use smithay::backend::renderer::{
-    buffer_type, Bind, BufferType, ExportMem, Offscreen, Texture,
-};
+use smithay::backend::renderer::{buffer_type, Bind, BufferType, ExportMem, Offscreen, Texture};
 use smithay::output::{Output, WeakOutput};
 use smithay::reexports::wayland_server::protocol::{wl_buffer::WlBuffer, wl_shm};
 use smithay::utils::{Buffer, Physical, Point, Rectangle, Scale, Size, Transform};
@@ -150,7 +148,10 @@ fn output_for_source(source: &ImageCaptureSource) -> Option<Output> {
         .and_then(|weak| weak.upgrade())
 }
 
-fn output_constraints(state: &MetisState, source: &ImageCaptureSource) -> Option<BufferConstraints> {
+fn output_constraints(
+    state: &MetisState,
+    source: &ImageCaptureSource,
+) -> Option<BufferConstraints> {
     let output = output_for_source(source)?;
     let mode = output.current_mode()?;
     let dma = state.udev.as_ref().and_then(|udev| {
@@ -186,10 +187,7 @@ fn output_constraints(state: &MetisState, source: &ImageCaptureSource) -> Option
         })
     });
     Some(BufferConstraints {
-        size: mode
-            .size
-            .to_logical(1)
-            .to_buffer(1, Transform::Normal),
+        size: mode.size.to_logical(1).to_buffer(1, Transform::Normal),
         shm: vec![
             wl_shm::Format::Argb8888,
             wl_shm::Format::Xrgb8888,
@@ -221,9 +219,7 @@ pub(crate) fn render_output_to_buffer(
         Some(BufferType::Dma) => {
             render_output_to_dmabuf(state, renderer, output, draw_cursor, buffer)
         }
-        Some(BufferType::Shm) => {
-            render_output_to_shm(state, renderer, output, draw_cursor, buffer)
-        }
+        Some(BufferType::Shm) => render_output_to_shm(state, renderer, output, draw_cursor, buffer),
         _ => Err(CaptureFailureReason::BufferConstraints),
     }
 }
@@ -364,10 +360,7 @@ fn render_scene<F>(
     finish: F,
 ) -> Result<(), CaptureFailureReason>
 where
-    F: FnOnce(
-        &mut GlesRenderer,
-        &[crate::render::OutputStack],
-    ) -> Result<(), CaptureFailureReason>,
+    F: FnOnce(&mut GlesRenderer, &[crate::render::OutputStack]) -> Result<(), CaptureFailureReason>,
 {
     let output_scale = Scale::from(output.current_scale().fractional_scale());
     let render_origin: Point<i32, Physical> = state
@@ -386,6 +379,7 @@ where
             skip_night_light: true,
         },
         &["metis-screenshot"],
+        true,
     );
     if draw_cursor {
         let mut cursor = state.build_cursor_elements(renderer, output, output_scale);
@@ -535,13 +529,7 @@ pub(crate) fn finish_pending_captures(
     let pending = state.image_capture.take_pending();
     for job in pending {
         let buffer = job.frame.buffer();
-        match render_output_to_buffer(
-            state,
-            renderer,
-            &job.output,
-            job.draw_cursor,
-            &buffer,
-        ) {
+        match render_output_to_buffer(state, renderer, &job.output, job.draw_cursor, &buffer) {
             Ok(damage) => {
                 job.frame
                     .success(Transform::Normal, Some(damage), start_time.elapsed());

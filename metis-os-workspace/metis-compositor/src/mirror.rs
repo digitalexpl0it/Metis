@@ -15,12 +15,12 @@ use smithay::backend::renderer::element::{
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::backend::renderer::{Bind, Offscreen, Renderer};
 use smithay::output::Output;
-use smithay::reexports::drm::control::crtc;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
 use crate::night_light::RenderTargetInfo;
 use crate::render::{OutputStack, CLEAR_COLOR};
 use crate::state::MetisState;
+use crate::udev::UdevOutputId;
 
 /// Black clear used behind letterboxed mirror blits.
 const MIRROR_LETTERBOX_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
@@ -147,7 +147,11 @@ pub fn apply_mirror_scales(state: &mut MetisState, cfg: &OutputsConfig) -> bool 
     changed
 }
 
-fn ensure_mirror_batch_cache(state: &mut MetisState, renderer: &mut GlesRenderer) -> bool {
+fn ensure_mirror_batch_cache(
+    state: &mut MetisState,
+    renderer: &mut GlesRenderer,
+    allow_blur: bool,
+) -> bool {
     if state
         .udev
         .as_ref()
@@ -186,6 +190,7 @@ fn ensure_mirror_batch_cache(state: &mut MetisState, renderer: &mut GlesRenderer
             skip_night_light: false,
         },
         &[],
+        allow_blur,
     );
     let mut cursor = state.build_cursor_elements(renderer, &source, output_scale);
     if !cursor.is_empty() {
@@ -239,9 +244,10 @@ fn ensure_mirror_batch_cache(state: &mut MetisState, renderer: &mut GlesRenderer
 pub fn render_mirror_surface(
     state: &mut MetisState,
     renderer: &mut GlesRenderer,
-    crtc: crtc::Handle,
+    id: UdevOutputId,
+    allow_blur: bool,
 ) -> Result<bool, String> {
-    if !ensure_mirror_batch_cache(state, renderer) {
+    if !ensure_mirror_batch_cache(state, renderer, allow_blur) {
         return Ok(false);
     }
 
@@ -253,7 +259,7 @@ pub fn render_mirror_surface(
 
     let dst_size = {
         let udev = state.udev.as_ref().ok_or("no udev")?;
-        let surface = udev.surfaces.get(&crtc).ok_or("no surface")?;
+        let surface = udev.surface(id).ok_or("no surface")?;
         let dst_mode = surface
             .output
             .current_mode()
@@ -288,9 +294,9 @@ pub fn render_mirror_surface(
     );
     let elements: Vec<OutputStack> = vec![OutputStack::Wallpaper(tex)];
 
-    crate::output_vrr::prepare_vrr_for_render(state, crtc);
+    crate::output_vrr::prepare_vrr_for_render(state, id);
     let udev = state.udev.as_mut().ok_or("no udev")?;
-    let surface = udev.surfaces.get_mut(&crtc).ok_or("no surface")?;
+    let surface = udev.surface_mut(id).ok_or("no surface")?;
     let outcome = surface
         .drm_output
         .render_frame(

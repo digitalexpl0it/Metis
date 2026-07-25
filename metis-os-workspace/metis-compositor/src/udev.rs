@@ -1,11 +1,11 @@
 //! Standalone DRM/KMS + libseat + libinput backend.
 //!
-//! Runs Metis directly on the GPU/TTY as its own session. Stage C establishes
-//! the render path on the primary GPU's [`GlesRenderer`]: open the DRM device via
-//! libseat, create a [`DrmOutputManager`], bring up one [`DrmOutput`] per
-//! connected output, and drive damage-gated frames off the vblank. Input
-//! (Stage D), the hardware cursor (Stage E), hotplug (Stage F) and full
-//! multi-GPU (Stage G) build on this.
+//! Runs Metis directly on the GPU/TTY as its own session. Stage G uses a Smithay
+//! [`GpuManager`] and one [`BackendData`] per DRM device, so every seat GPU owns
+//! its scanner, output manager, render node, notifier, and CRTC surfaces. Metis's
+//! GLES-only custom elements are rendered by the output GPU's GLES renderer;
+//! cross-GPU blur is deliberately suppressed until `BlurElement` supports
+//! `MultiRenderer`.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -25,7 +25,7 @@ use smithay::{
             DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, DrmSurface,
             NodeType,
         },
-        egl::{EGLContext, EGLDevice, EGLDisplay},
+        egl::{EGLDevice, EGLDisplay},
         input::InputEvent,
         libinput::{LibinputInputBackend, LibinputSessionInterface},
         renderer::{
@@ -36,6 +36,7 @@ use smithay::{
                 Kind, RenderElementStates,
             },
             gles::GlesRenderer,
+            multigpu::{gbm::GbmGlesBackend, GpuManager},
             ImportDma, ImportEgl, ImportMemWl,
         },
         session::{libseat::LibSeatSession, Event as SessionEvent, Session},
@@ -71,11 +72,11 @@ use smithay::{
         presentation::{PresentationState, Refresh},
     },
 };
-use xcursor::parser::Image as XCursorImage;
 use smithay_drm_extras::{
     display_info,
     drm_scanner::{DrmScanEvent, DrmScanner},
 };
+use xcursor::parser::Image as XCursorImage;
 
 use crate::night_light::RenderTargetInfo;
 use crate::render::{OutputStack, CLEAR_COLOR};
@@ -107,6 +108,13 @@ type MetisDrmOutputManager = DrmOutputManager<
     FrameFeedback,
     DrmDeviceFd,
 >;
+type MetisGpuManager = GpuManager<GbmGlesBackend<GlesRenderer, DrmDeviceFd>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UdevOutputId {
+    pub device: DrmNode,
+    pub crtc: crtc::Handle,
+}
 
 /// Two dmabuf feedbacks per scan-out surface: the default render feedback and a
 /// scanout-preferring feedback whose top tranche advertises the display's
@@ -120,6 +128,8 @@ pub struct SurfaceDmabufFeedback {
 
 /// Per-connector scan-out surface (one CRTC → one `Output`).
 pub struct SurfaceData {
+    pub device: DrmNode,
+    pub render_node: DrmNode,
     pub output: Output,
     pub global: Option<GlobalId>,
     pub drm_output: MetisDrmOutput,
@@ -143,22 +153,16 @@ pub struct SurfaceData {
 pub struct UdevState {
     pub session: LibSeatSession,
     pub loop_handle: LoopHandle<'static, MetisState>,
-    /// The primary (card) DRM node we opened for KMS.
+    /// Primary card node used for dmabuf globals and client GPU steering.
     pub node: DrmNode,
-    /// Render node used to build the [`GlesRenderer`].
+    /// Primary render node.
     pub render_node: DrmNode,
     /// Cached dmabuf formats for ScreenCast / image-copy-capture constraints
     /// (renderer may be briefly `None` while a frame is in flight).
     pub capture_dmabuf_formats: FormatSet,
-    /// Single primary-GPU renderer. Taken out (and restored) around each frame so
-    /// `build_render_elements` can borrow the rest of `MetisState`.
-    pub renderer: Option<GlesRenderer>,
-    pub drm_output_manager: MetisDrmOutputManager,
-    pub drm_scanner: DrmScanner,
-    pub surfaces: HashMap<crtc::Handle, SurfaceData>,
+    pub gpus: Option<MetisGpuManager>,
+    pub backends: HashMap<DrmNode, BackendData>,
     pub dmabuf_state: Option<(DmabufState, DmabufGlobal)>,
-    /// calloop token for the DRM vblank/event notifier (for teardown).
-    pub drm_token: Option<RegistrationToken>,
     /// libinput context, retained so the session can suspend/resume it on VT
     /// switch.
     pub libinput: Option<Libinput>,
@@ -176,6 +180,57 @@ pub struct UdevState {
     /// Monotonic clock used for presentation timestamps when the DRM event does
     /// not carry a hardware timestamp.
     pub clock: Clock<Monotonic>,
+    /// Last GLES context used for compositor-owned textures. Switching nodes
+    /// invalidates context-bound wallpaper and decoration caches.
+    pub active_render_node: Option<DrmNode>,
+}
+
+pub struct BackendData {
+    pub drm_output_manager: MetisDrmOutputManager,
+    pub drm_scanner: DrmScanner,
+    pub surfaces: HashMap<crtc::Handle, SurfaceData>,
+    pub render_node: DrmNode,
+    pub registration_token: RegistrationToken,
+}
+
+impl UdevState {
+    pub fn surfaces(&self) -> impl Iterator<Item = &SurfaceData> {
+        self.backends
+            .values()
+            .flat_map(|backend| backend.surfaces.values())
+    }
+
+    pub fn surfaces_mut(&mut self) -> impl Iterator<Item = &mut SurfaceData> {
+        self.backends
+            .values_mut()
+            .flat_map(|backend| backend.surfaces.values_mut())
+    }
+
+    pub fn surface(&self, id: UdevOutputId) -> Option<&SurfaceData> {
+        self.backends.get(&id.device)?.surfaces.get(&id.crtc)
+    }
+
+    pub fn surface_mut(&mut self, id: UdevOutputId) -> Option<&mut SurfaceData> {
+        self.backends
+            .get_mut(&id.device)?
+            .surfaces
+            .get_mut(&id.crtc)
+    }
+
+    pub fn output_id_by_name(&self, name: &str) -> Option<UdevOutputId> {
+        self.backends.iter().find_map(|(device, backend)| {
+            backend.surfaces.iter().find_map(|(crtc, surface)| {
+                (surface.output.name() == name).then_some(UdevOutputId {
+                    device: *device,
+                    crtc: *crtc,
+                })
+            })
+        })
+    }
+
+    pub fn output_id(&self, output: &Output) -> Option<UdevOutputId> {
+        output.user_data().get::<UdevOutputId>().copied()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -197,7 +252,6 @@ enum BackendError {
 /// Components produced by opening the primary GPU.
 struct OpenedDevice {
     render_node: DrmNode,
-    renderer: GlesRenderer,
     manager: MetisDrmOutputManager,
     drm_token: RegistrationToken,
     /// The DRM device fd, retained so we can set up `linux-drm-syncobj-v1`
@@ -220,22 +274,63 @@ pub fn init_udev(
     let node = pick_primary_gpu(&seat_name).ok_or(BackendError::NoGpu)?;
     tracing::info!(?node, "primary GPU");
 
-    // 3. Open the device: GBM allocator + GLES renderer + DRM output manager,
-    //    and register the vblank notifier.
-    let opened = open_primary_device(&loop_handle, &session, node)?;
+    // 3. Build the renderer manager and open every GPU on this seat. Open the
+    // primary first so display-only devices have a stable fallback.
+    let mut gpus = GpuManager::new(GbmGlesBackend::default())
+        .map_err(|e| BackendError::Open(format!("GPU manager: {e:?}")))?;
+    let udev_backend = UdevBackend::new(&seat_name)
+        .map_err(|e| BackendError::Open(format!("udev backend: {e}")))?;
+    let mut devices: Vec<(DrmNode, std::path::PathBuf)> = udev_backend
+        .device_list()
+        .filter_map(|(id, path)| {
+            DrmNode::from_dev_id(id)
+                .ok()
+                .map(|n| (to_primary_node(n), path.into()))
+        })
+        .collect();
+    devices.sort_by_key(|(candidate, _)| *candidate != node);
+    if !devices.iter().any(|(candidate, _)| *candidate == node) {
+        let path = node.dev_path().ok_or(BackendError::NoDevicePath)?;
+        devices.insert(0, (node, path));
+    }
+
+    let mut backends = HashMap::new();
+    let mut primary_device_fd = None;
+    for (device_node, path) in devices {
+        match open_device(&loop_handle, &session, &mut gpus, device_node, &path) {
+            Ok(opened) => {
+                if device_node == node {
+                    primary_device_fd = Some(opened.device_fd.clone());
+                }
+                backends.insert(
+                    device_node,
+                    BackendData {
+                        drm_output_manager: opened.manager,
+                        drm_scanner: DrmScanner::new(),
+                        surfaces: HashMap::new(),
+                        render_node: opened.render_node,
+                        registration_token: opened.drm_token,
+                    },
+                );
+            }
+            Err(err) if device_node == node => return Err(err.into()),
+            Err(err) => tracing::warn!(?device_node, ?err, "skipping secondary GPU"),
+        }
+    }
+    let primary_render_node = backends
+        .get(&node)
+        .map(|backend| backend.render_node)
+        .ok_or(BackendError::NoGpu)?;
 
     let mut udev = UdevState {
         session,
         loop_handle: loop_handle.clone(),
         node,
-        render_node: opened.render_node,
+        render_node: primary_render_node,
         capture_dmabuf_formats: FormatSet::default(),
-        renderer: Some(opened.renderer),
-        drm_output_manager: opened.manager,
-        drm_scanner: DrmScanner::new(),
-        surfaces: HashMap::new(),
+        gpus: Some(gpus),
+        backends,
         dmabuf_state: None,
-        drm_token: Some(opened.drm_token),
         libinput: None,
         cursor: {
             let (theme, size) = state.xcursor_config();
@@ -249,29 +344,33 @@ pub fn init_udev(
             PresentationState::new::<MetisState>(&state.display_handle, clock.id() as u32)
         },
         clock: Clock::<Monotonic>::new(),
+        active_render_node: None,
     };
 
     // 4. dmabuf global from the primary renderer's formats so EGL/GPU clients
     //    (GTK) can submit hardware buffers; also bind wl_drm for legacy EGL.
-    if let Some(renderer) = udev.renderer.as_mut() {
-        if let Err(err) = renderer.bind_wl_display(&state.display_handle) {
-            tracing::info!(?err, "wl_drm (EGL) bind unavailable");
+    if let Some(gpus) = udev.gpus.as_mut() {
+        if let Ok(mut renderer) = gpus.single_renderer(&udev.render_node) {
+            let renderer = renderer.as_mut();
+            if let Err(err) = renderer.bind_wl_display(&state.display_handle) {
+                tracing::info!(?err, "wl_drm (EGL) bind unavailable");
+            }
+            let dmabuf_formats = renderer.dmabuf_formats();
+            udev.capture_dmabuf_formats = dmabuf_formats.clone();
+            if let Ok(default_feedback) =
+                DmabufFeedbackBuilder::new(udev.render_node.dev_id(), dmabuf_formats).build()
+            {
+                let mut dmabuf_state = DmabufState::new();
+                let global = dmabuf_state.create_global_with_default_feedback::<MetisState>(
+                    &state.display_handle,
+                    &default_feedback,
+                );
+                udev.dmabuf_state = Some((dmabuf_state, global));
+                tracing::info!("dmabuf global created");
+            }
+            let shm_formats = renderer.shm_formats();
+            state.shm_state.update_formats(shm_formats);
         }
-        let dmabuf_formats = renderer.dmabuf_formats();
-        udev.capture_dmabuf_formats = dmabuf_formats.clone();
-        if let Ok(default_feedback) =
-            DmabufFeedbackBuilder::new(udev.render_node.dev_id(), dmabuf_formats).build()
-        {
-            let mut dmabuf_state = DmabufState::new();
-            let global = dmabuf_state.create_global_with_default_feedback::<MetisState>(
-                &state.display_handle,
-                &default_feedback,
-            );
-            udev.dmabuf_state = Some((dmabuf_state, global));
-            tracing::info!("dmabuf global created");
-        }
-        let shm_formats = renderer.shm_formats();
-        state.shm_state.update_formats(shm_formats);
     }
 
     // 5. libinput: feed real input devices into the shared, backend-agnostic
@@ -288,8 +387,10 @@ pub fn init_udev(
         .insert_source(libinput_backend, move |mut event, _, state| {
             if let InputEvent::DeviceAdded { device } = &mut event {
                 if device.has_capability(DeviceCapability::Keyboard) {
-                    if let Some(led_state) =
-                        state.seat.get_keyboard().map(|keyboard| keyboard.led_state())
+                    if let Some(led_state) = state
+                        .seat
+                        .get_keyboard()
+                        .map(|keyboard| keyboard.led_state())
                     {
                         let _ = device.led_update(led_state.into());
                     }
@@ -320,8 +421,6 @@ pub fn init_udev(
         .map_err(|e| BackendError::Open(format!("session source: {e}")))?;
 
     // 6. Register udev hotplug source (GPU add/remove + connector changes).
-    let udev_backend = UdevBackend::new(&seat_name)
-        .map_err(|e| BackendError::Open(format!("udev backend: {e}")))?;
     loop_handle
         .insert_source(udev_backend, move |event, _, state| {
             state.on_udev_event(event);
@@ -359,10 +458,16 @@ pub fn init_udev(
     //     acquire-fence blocker). With it, NVIDIA + DXVK/VKD3D and modern
     //     XWayland negotiate explicit fences instead of implicit sync, which
     //     removes the tell-tale Proton stutter/glitching on this hardware.
-    if supports_syncobj_eventfd(&opened.device_fd) {
+    if primary_device_fd
+        .as_ref()
+        .is_some_and(supports_syncobj_eventfd)
+    {
+        let Some(device_fd) = primary_device_fd else {
+            return Err(BackendError::NoGpu.into());
+        };
         state.drm_syncobj_state = Some(DrmSyncobjState::new::<MetisState>(
             &state.display_handle,
-            opened.device_fd.clone(),
+            device_fd,
         ));
         tracing::info!("linux-drm-syncobj-v1 explicit sync enabled");
     } else {
@@ -421,7 +526,11 @@ fn pick_primary_gpu(seat: &str) -> Option<DrmNode> {
         .collect();
 
     // Ensure udev's notion of the primary GPU is at least in the running.
-    if let Some(p) = primary_gpu(seat).ok().flatten().and_then(|p| DrmNode::from_path(p).ok()) {
+    if let Some(p) = primary_gpu(seat)
+        .ok()
+        .flatten()
+        .and_then(|p| DrmNode::from_path(p).ok())
+    {
         let p = to_primary_node(p);
         if !candidates.contains(&p) {
             candidates.push(p);
@@ -431,7 +540,11 @@ fn pick_primary_gpu(seat: &str) -> Option<DrmNode> {
     // Higher score wins: a connected output dominates; boot_vga breaks ties.
     let best = candidates.into_iter().max_by_key(|node| gpu_rank(node));
     if let Some(node) = best {
-        tracing::info!(?node, has_output = gpu_has_connected_output(node), "selected primary GPU");
+        tracing::info!(
+            ?node,
+            has_output = gpu_has_connected_output(node),
+            "selected primary GPU"
+        );
         return Some(node);
     }
     None
@@ -475,7 +588,10 @@ fn gpu_has_connected_output(node: DrmNode) -> bool {
         Some(c) => c.to_string(),
         None => return false,
     };
-    let Ok(entries) = std::fs::read_dir(&dir.parent().unwrap_or(std::path::Path::new("/sys/class/drm"))) else {
+    let Ok(entries) = std::fs::read_dir(
+        &dir.parent()
+            .unwrap_or(std::path::Path::new("/sys/class/drm")),
+    ) else {
         return false;
     };
     for entry in entries.flatten() {
@@ -502,17 +618,17 @@ fn gpu_is_boot_vga(node: DrmNode) -> bool {
         .unwrap_or(false)
 }
 
-fn open_primary_device(
+fn open_device(
     loop_handle: &LoopHandle<'static, MetisState>,
     session: &LibSeatSession,
+    gpus: &mut MetisGpuManager,
     node: DrmNode,
+    path: &std::path::Path,
 ) -> Result<OpenedDevice, BackendError> {
-    let path = node.dev_path().ok_or(BackendError::NoDevicePath)?;
-
     let mut session = session.clone();
     let fd = session
         .open(
-            &path,
+            path,
             OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
         )
         .map_err(|e| BackendError::Open(format!("libseat open {path:?}: {e}")))?;
@@ -529,10 +645,16 @@ fn open_primary_device(
         .ok()
         .and_then(|d| d.try_get_render_node().ok().flatten())
         .unwrap_or(node);
-    let egl_context = EGLContext::new(&egl_display)?;
-    let renderer = unsafe { GlesRenderer::new(egl_context)? };
+    // Register the GBM device with the manager; it owns the GLES context.
+    gpus.as_mut()
+        .add_node(render_node, gbm.clone())
+        .map_err(BackendError::Egl)?;
+    let mut renderer = gpus
+        .single_renderer(&render_node)
+        .map_err(|e| BackendError::Open(format!("renderer for {render_node}: {e:?}")))?;
 
     let render_formats = renderer
+        .as_mut()
         .egl_context()
         .dmabuf_render_formats()
         .iter()
@@ -557,14 +679,13 @@ fn open_primary_device(
     // VBlank / DRM error notifier.
     let drm_token = loop_handle
         .insert_source(drm_notifier, move |event, meta, state| match event {
-            DrmEvent::VBlank(crtc) => state.on_drm_vblank(crtc, meta.take()),
+            DrmEvent::VBlank(crtc) => state.on_drm_vblank(node, crtc, meta.take()),
             DrmEvent::Error(err) => tracing::warn!(?err, "DRM error"),
         })
         .map_err(|e| BackendError::Open(format!("drm notifier source: {e}")))?;
 
     Ok(OpenedDevice {
         render_node,
-        renderer,
         manager,
         drm_token,
         device_fd,
@@ -612,31 +733,34 @@ fn build_surface_dmabuf_feedback(
 impl MetisState {
     /// Scan the device's connectors and bring up / tear down outputs.
     pub(crate) fn scan_connectors(&mut self) {
-        let scan = {
+        let scans = {
             let Some(udev) = self.udev.as_mut() else {
                 return;
             };
-            match udev
-                .drm_scanner
-                .scan_connectors(udev.drm_output_manager.device())
-            {
-                Ok(scan) => scan,
-                Err(err) => {
-                    tracing::warn!(?err, "connector scan failed");
-                    return;
+            let mut scans = Vec::new();
+            for (node, backend) in &mut udev.backends {
+                match backend
+                    .drm_scanner
+                    .scan_connectors(backend.drm_output_manager.device())
+                {
+                    Ok(scan) => scans.extend(scan.into_iter().map(|event| (*node, event))),
+                    Err(err) => {
+                        tracing::warn!(?node, ?err, "connector scan failed");
+                    }
                 }
             }
+            scans
         };
-        for event in scan {
+        for (node, event) in scans {
             match event {
                 DrmScanEvent::Connected {
                     connector,
                     crtc: Some(crtc),
-                } => self.connector_connected(connector, crtc),
+                } => self.connector_connected(node, connector, crtc),
                 DrmScanEvent::Disconnected {
                     connector: _,
                     crtc: Some(crtc),
-                } => self.connector_disconnected(crtc),
+                } => self.connector_disconnected(node, crtc),
                 _ => {}
             }
         }
@@ -644,11 +768,17 @@ impl MetisState {
         self.retile_outputs();
     }
 
-    fn connector_connected(&mut self, connector: connector::Info, crtc: crtc::Handle) {
+    fn connector_connected(
+        &mut self,
+        node: DrmNode,
+        connector: connector::Info,
+        crtc: crtc::Handle,
+    ) {
         if self
             .udev
             .as_ref()
-            .map(|u| u.surfaces.contains_key(&crtc))
+            .and_then(|u| u.backends.get(&node))
+            .map(|backend| backend.surfaces.contains_key(&crtc))
             .unwrap_or(true)
         {
             return;
@@ -672,7 +802,10 @@ impl MetisState {
 
         let (make, model) = {
             let udev = self.udev.as_ref().unwrap();
-            let drm_device = udev.drm_output_manager.device();
+            let Some(backend) = udev.backends.get(&node) else {
+                return;
+            };
+            let drm_device = backend.drm_output_manager.device();
             let info = display_info::for_connector(drm_device, connector.handle());
             (
                 info.as_ref()
@@ -705,17 +838,30 @@ impl MetisState {
 
         let planes = {
             let udev = self.udev.as_ref().unwrap();
-            udev.drm_output_manager.device().planes(&crtc).ok()
+            udev.backends
+                .get(&node)
+                .and_then(|backend| backend.drm_output_manager.device().planes(&crtc).ok())
         };
-        let mut renderer = self.udev.as_mut().unwrap().renderer.take();
         let drm_output = {
             let udev = self.udev.as_mut().unwrap();
-            let Some(renderer) = renderer.as_mut() else {
+            let UdevState { gpus, backends, .. } = udev;
+            let Some(backend) = backends.get_mut(&node) else {
+                self.space.unmap_output(&output);
+                return;
+            };
+            let render_node = backend.render_node;
+            let Some(gpus) = gpus.as_mut() else {
+                tracing::error!("GPU manager unavailable for connector setup");
+                self.space.unmap_output(&output);
+                return;
+            };
+            let Ok(mut renderer) = gpus.single_renderer(&render_node) else {
                 tracing::error!("no renderer for connector setup");
                 self.space.unmap_output(&output);
                 return;
             };
-            udev.drm_output_manager
+            backend
+                .drm_output_manager
                 .lock()
                 .initialize_output::<GlesRenderer, crate::render::OutputStack>(
                     crtc,
@@ -723,11 +869,10 @@ impl MetisState {
                     &[connector.handle()],
                     &output,
                     planes,
-                    renderer,
+                    renderer.as_mut(),
                     &DrmOutputRenderElements::default(),
                 )
         };
-        self.udev.as_mut().unwrap().renderer = renderer;
 
         let drm_output = match drm_output {
             Ok(o) => o,
@@ -741,19 +886,63 @@ impl MetisState {
         // Per-surface dmabuf feedback (render + scanout tranche) so fullscreen
         // clients can allocate directly-scannable buffers on this display.
         let dmabuf_feedback = {
-            let udev = self.udev.as_ref().unwrap();
-            let render_node = udev.render_node;
-            let render_formats = udev.renderer.as_ref().map(|r| r.dmabuf_formats());
-            render_formats.and_then(|formats| {
-                drm_output.with_compositor(|compositor| {
-                    build_surface_dmabuf_feedback(render_node, formats, compositor.surface())
+            let udev = self.udev.as_mut().unwrap();
+            let render_node = udev.backends.get(&node).map(|backend| backend.render_node);
+            let render_formats = render_node.and_then(|render_node| {
+                udev.gpus
+                    .as_mut()?
+                    .single_renderer(&render_node)
+                    .ok()
+                    .map(|renderer| renderer.dmabuf_formats())
+            });
+            render_node
+                .zip(render_formats)
+                .and_then(|(render_node, formats)| {
+                    drm_output.with_compositor(|compositor| {
+                        build_surface_dmabuf_feedback(render_node, formats, compositor.surface())
+                    })
                 })
-            })
         };
 
-        self.udev.as_mut().unwrap().surfaces.insert(
+        output
+            .user_data()
+            .insert_if_missing(|| UdevOutputId { device: node, crtc });
+        let render_node = self
+            .udev
+            .as_ref()
+            .and_then(|udev| udev.backends.get(&node))
+            .map(|backend| backend.render_node)
+            .unwrap_or(
+                self.udev
+                    .as_ref()
+                    .map(|udev| udev.render_node)
+                    .unwrap_or(node),
+            );
+        if self
+            .udev
+            .as_ref()
+            .is_some_and(|udev| udev.render_node != render_node)
+        {
+            tracing::warn!(
+                output = %name,
+                primary_gpu = ?self.udev.as_ref().map(|udev| udev.render_node),
+                ?render_node,
+                "cross-GPU output uses its local GLES renderer; blur is disabled"
+            );
+        }
+        let Some(backend) = self
+            .udev
+            .as_mut()
+            .and_then(|udev| udev.backends.get_mut(&node))
+        else {
+            self.space.unmap_output(&output);
+            return;
+        };
+        backend.surfaces.insert(
             crtc,
             SurfaceData {
+                device: node,
+                render_node,
                 output: output.clone(),
                 global: Some(global),
                 drm_output,
@@ -773,8 +962,12 @@ impl MetisState {
         self.damaged = true;
     }
 
-    fn connector_disconnected(&mut self, crtc: crtc::Handle) {
-        let removed = self.udev.as_mut().and_then(|u| u.surfaces.remove(&crtc));
+    fn connector_disconnected(&mut self, node: DrmNode, crtc: crtc::Handle) {
+        let removed = self
+            .udev
+            .as_mut()
+            .and_then(|u| u.backends.get_mut(&node))
+            .and_then(|backend| backend.surfaces.remove(&crtc));
         if let Some(mut surface) = removed {
             let output = surface.output.clone();
             if let Some(global) = surface.global.take() {
@@ -811,7 +1004,7 @@ impl MetisState {
             self.damaged = false;
             if let Some(udev) = self.udev.as_mut() {
                 udev.mirror_batch = None;
-                for surface in udev.surfaces.values_mut() {
+                for surface in udev.surfaces_mut() {
                     if !surface.user_disabled {
                         surface.pending = true;
                     }
@@ -822,26 +1015,34 @@ impl MetisState {
         // so capture frames are produced even when the desktop is visually static.
         if self.image_capture.screencast_active() || self.image_capture.has_pending() {
             if let Some(udev) = self.udev.as_mut() {
-                for surface in udev.surfaces.values_mut() {
+                for surface in udev.surfaces_mut() {
                     if !surface.user_disabled {
                         surface.pending = true;
                     }
                 }
             }
         }
-        let crtcs: Vec<crtc::Handle> = self
+        let outputs: Vec<UdevOutputId> = self
             .udev
             .as_ref()
             .map(|u| {
-                u.surfaces
+                u.backends
                     .iter()
-                    .filter(|(_, s)| !s.user_disabled && s.pending && !s.queued)
-                    .map(|(c, _)| *c)
+                    .flat_map(|(device, backend)| {
+                        backend
+                            .surfaces
+                            .iter()
+                            .filter(|(_, s)| !s.user_disabled && s.pending && !s.queued)
+                            .map(|(crtc, _)| UdevOutputId {
+                                device: *device,
+                                crtc: *crtc,
+                            })
+                    })
                     .collect()
             })
             .unwrap_or_default();
-        for crtc in crtcs {
-            self.render_surface(crtc);
+        for id in outputs {
+            self.render_surface(id);
         }
 
         // Housekeeping that the winit backend does in its Redraw handler.
@@ -860,6 +1061,7 @@ impl MetisState {
     /// accumulated while the frame was in flight.
     pub(crate) fn on_drm_vblank(
         &mut self,
+        node: DrmNode,
         crtc: crtc::Handle,
         metadata: Option<DrmEventMetadata>,
     ) {
@@ -867,7 +1069,11 @@ impl MetisState {
             let Some(udev) = self.udev.as_mut() else {
                 return;
             };
-            let Some(surface) = udev.surfaces.get_mut(&crtc) else {
+            let Some(surface) = udev
+                .backends
+                .get_mut(&node)
+                .and_then(|backend| backend.surfaces.get_mut(&crtc))
+            else {
                 return;
             };
             surface.queued = false;
@@ -923,7 +1129,7 @@ impl MetisState {
         }
 
         if still_pending {
-            self.render_surface(crtc);
+            self.render_surface(UdevOutputId { device: node, crtc });
         }
     }
 
@@ -974,46 +1180,68 @@ impl MetisState {
             layer_surface.take_presentation_feedback(
                 &mut feedback,
                 surface_primary_scanout_output,
-                |surface, _| {
-                    surface_presentation_feedback_flags_from_states(surface, None, states)
-                },
+                |surface, _| surface_presentation_feedback_flags_from_states(surface, None, states),
             );
         }
         feedback
     }
 
-    fn render_surface(&mut self, crtc: crtc::Handle) {
-        // Pull the renderer out so `build_render_elements` can borrow the rest of
-        // `self`; it is restored before we return.
-        let mut renderer = match self.udev.as_mut().and_then(|u| u.renderer.take()) {
-            Some(r) => r,
-            None => return,
+    fn render_surface(&mut self, id: UdevOutputId) {
+        let Some((output, render_node, user_disabled, primary_gpu)) =
+            self.udev.as_ref().and_then(|udev| {
+                udev.surface(id).map(|surface| {
+                    (
+                        surface.output.clone(),
+                        surface.render_node,
+                        surface.user_disabled,
+                        udev.render_node,
+                    )
+                })
+            })
+        else {
+            return;
         };
-
-        let user_disabled = self
-            .udev
-            .as_ref()
-            .and_then(|u| u.surfaces.get(&crtc))
-            .is_some_and(|s| s.user_disabled);
         if user_disabled {
-            self.udev.as_mut().unwrap().renderer = Some(renderer);
             return;
         }
 
-        let output = match self
+        let context_changed = self
             .udev
             .as_ref()
-            .and_then(|u| u.surfaces.get(&crtc))
-            .map(|s| s.output.clone())
-        {
-            Some(o) => o,
-            None => {
-                self.process_pending_captures(&mut renderer);
-                self.udev.as_mut().unwrap().renderer = Some(renderer);
+            .is_some_and(|udev| udev.active_render_node != Some(render_node));
+        if context_changed {
+            self.wallpaper.invalidate_gpu_cache();
+            self.decorations.invalidate_all();
+            self.clear_mirror_batch_cache();
+            if let Some(udev) = self.udev.as_mut() {
+                udev.active_render_node = Some(render_node);
+            }
+        }
+
+        let Some(mut gpus) = self.udev.as_mut().and_then(|udev| udev.gpus.take()) else {
+            return;
+        };
+        let mut renderer_guard = match gpus.single_renderer(&render_node) {
+            Ok(renderer) => renderer,
+            Err(err) => {
+                tracing::warn!(?render_node, ?err, "renderer unavailable for output");
+                if let Some(udev) = self.udev.as_mut() {
+                    udev.gpus = Some(gpus);
+                }
                 return;
             }
         };
-        if let Some(s) = self.udev.as_mut().and_then(|u| u.surfaces.get_mut(&crtc)) {
+        let renderer = renderer_guard.as_mut();
+        let cross_gpu = primary_gpu != render_node;
+        if cross_gpu {
+            tracing::trace!(
+                ?primary_gpu,
+                ?render_node,
+                "using output GPU renderer; cross-GPU blur disabled"
+            );
+        }
+
+        if let Some(s) = self.udev.as_mut().and_then(|u| u.surface_mut(id)) {
             s.pending = false;
         }
 
@@ -1021,7 +1249,7 @@ impl MetisState {
         // presentation feedback after the renderer is restored.
         let mut frame_states: Option<RenderElementStates> = None;
         let outcome: Result<bool, String> = if self.mirror_mode_active() {
-            crate::mirror::render_mirror_surface(self, &mut renderer, crtc)
+            crate::mirror::render_mirror_surface(self, renderer, id, !cross_gpu)
         } else {
             let scale = Scale::from(output.current_scale().fractional_scale());
             let origin: Point<i32, Physical> = self
@@ -1031,33 +1259,32 @@ impl MetisState {
                 .unwrap_or_default();
 
             let mut elements = self.build_render_elements(
-                &mut renderer,
+                renderer,
                 origin,
                 scale,
                 RenderTargetInfo {
-                    size: output
-                        .current_mode()
-                        .map(|m| m.size)
-                        .unwrap_or_default(),
+                    size: output.current_mode().map(|m| m.size).unwrap_or_default(),
                     output_name: Some(output.name().as_str()),
                     skip_night_light: false,
                 },
                 &[],
+                !cross_gpu,
             );
 
             // Pointer goes on top of everything; only on the output under the cursor.
-            let cursor = self.build_cursor_elements(&mut renderer, &output, scale);
+            let cursor = self.build_cursor_elements(renderer, &output, scale);
             if !cursor.is_empty() {
                 let mut stacked = cursor;
                 stacked.append(&mut elements);
                 elements = stacked;
             }
 
-            crate::output_vrr::prepare_vrr_for_render(self, crtc);
-            let udev = self.udev.as_mut().unwrap();
-            let surface = udev.surfaces.get_mut(&crtc).unwrap();
+            crate::output_vrr::prepare_vrr_for_render(self, id);
+            let Some(surface) = self.udev.as_mut().and_then(|udev| udev.surface_mut(id)) else {
+                return;
+            };
             match surface.drm_output.render_frame(
-                &mut renderer,
+                renderer,
                 &elements,
                 CLEAR_COLOR,
                 FrameFlags::DEFAULT,
@@ -1071,10 +1298,28 @@ impl MetisState {
             }
         };
 
-        self.process_pending_captures(&mut renderer);
-
-        // Restore the renderer before any early return below.
-        self.udev.as_mut().unwrap().renderer = Some(renderer);
+        drop(renderer_guard);
+        if self.image_capture.has_pending() {
+            if render_node != primary_gpu {
+                self.wallpaper.invalidate_gpu_cache();
+                self.decorations.invalidate_all();
+                self.clear_mirror_batch_cache();
+                if let Some(udev) = self.udev.as_mut() {
+                    udev.active_render_node = Some(primary_gpu);
+                }
+            }
+            match gpus.single_renderer(&primary_gpu) {
+                Ok(mut capture_renderer) => {
+                    self.process_pending_captures(capture_renderer.as_mut());
+                }
+                Err(err) => {
+                    tracing::warn!(?primary_gpu, ?err, "primary capture renderer unavailable");
+                }
+            }
+        }
+        if let Some(udev) = self.udev.as_mut() {
+            udev.gpus = Some(gpus);
+        }
 
         match outcome {
             Ok(rendered) => {
@@ -1086,8 +1331,10 @@ impl MetisState {
                     let feedback = frame_states
                         .as_ref()
                         .map(|states| self.build_presentation_feedback(&output, states));
-                    let udev = self.udev.as_mut().unwrap();
-                    let surface = udev.surfaces.get_mut(&crtc).unwrap();
+                    let Some(surface) = self.udev.as_mut().and_then(|udev| udev.surface_mut(id))
+                    else {
+                        return;
+                    };
                     match surface.drm_output.queue_frame(feedback) {
                         Ok(()) => surface.queued = true,
                         Err(err) => tracing::warn!(?err, "queue_frame failed"),
@@ -1096,7 +1343,8 @@ impl MetisState {
                     let now = self.start_time.elapsed();
                     let out = output.clone();
                     self.space.elements().for_each(|window| {
-                        window.send_frame(&out, now, Some(Duration::ZERO), |_, _| Some(out.clone()));
+                        window
+                            .send_frame(&out, now, Some(Duration::ZERO), |_, _| Some(out.clone()));
                     });
                     self.send_layer_frames(&out, now);
 
@@ -1116,10 +1364,8 @@ impl MetisState {
                     // feedback. Requires the render states captured this frame.
                     if let Some(states) = frame_states.as_ref() {
                         if let Some(udev) = self.udev.as_ref() {
-                            if let Some(feedback) = udev
-                                .surfaces
-                                .get(&crtc)
-                                .and_then(|s| s.dmabuf_feedback.as_ref())
+                            if let Some(feedback) =
+                                udev.surface(id).and_then(|s| s.dmabuf_feedback.as_ref())
                             {
                                 for window in self.space.elements() {
                                     window.send_dmabuf_feedback(
@@ -1210,8 +1456,7 @@ impl MetisState {
                 buf
             }
         };
-        let hotspot: Point<f64, Physical> =
-            Point::from((image.xhot as f64, image.yhot as f64));
+        let hotspot: Point<f64, Physical> = Point::from((image.xhot as f64, image.yhot as f64));
         let pos = local.to_physical(scale) - hotspot;
         if let Ok(elem) = MemoryRenderBufferRenderElement::from_buffer(
             renderer,
@@ -1240,24 +1485,15 @@ impl MetisState {
             .udev
             .as_ref()
             .map(|u| {
-                u.surfaces
-                    .values()
+                u.surfaces()
                     .filter(|s| !s.user_disabled)
                     .map(|s| s.output.clone())
                     .collect()
             })
             .unwrap_or_else(|| self.space.outputs().cloned().collect());
         outputs.sort_by(|a, b| {
-            let ax = self
-                .space
-                .output_geometry(a)
-                .map(|g| g.loc.x)
-                .unwrap_or(0);
-            let bx = self
-                .space
-                .output_geometry(b)
-                .map(|g| g.loc.x)
-                .unwrap_or(0);
+            let ax = self.space.output_geometry(a).map(|g| g.loc.x).unwrap_or(0);
+            let bx = self.space.output_geometry(b).map(|g| g.loc.x).unwrap_or(0);
             ax.cmp(&bx).then_with(|| a.name().cmp(&b.name()))
         });
         let mut x = 0;
@@ -1313,7 +1549,9 @@ impl MetisState {
                     if let Some(li) = udev.libinput.as_mut() {
                         li.suspend();
                     }
-                    udev.drm_output_manager.pause();
+                    for backend in udev.backends.values_mut() {
+                        backend.drm_output_manager.pause();
+                    }
                 }
             }
             SessionEvent::ActivateSession => {
@@ -1324,10 +1562,12 @@ impl MetisState {
                             tracing::warn!(?err, "failed to resume libinput");
                         }
                     }
-                    if let Err(err) = udev.drm_output_manager.lock().activate(false) {
-                        tracing::warn!(?err, "failed to reactivate DRM after resume");
+                    for backend in udev.backends.values_mut() {
+                        if let Err(err) = backend.drm_output_manager.lock().activate(false) {
+                            tracing::warn!(?err, "failed to reactivate DRM after resume");
+                        }
                     }
-                    for surface in udev.surfaces.values_mut() {
+                    for surface in udev.surfaces_mut() {
                         surface.queued = false;
                         surface.pending = true;
                     }
@@ -1362,27 +1602,78 @@ impl MetisState {
         self.end_compositor_session();
     }
 
-    /// udev device add/remove (GPU hotplug). Stage F/G expand this; Stage C only
-    /// reacts to connector changes on the already-open primary device.
+    /// udev device add/remove (GPU hotplug).
     pub(crate) fn on_udev_event(&mut self, event: UdevEvent) {
         let primary = self.udev.as_ref().map(|u| u.node);
         match event {
-            UdevEvent::Changed { device_id } => {
-                if DrmNode::from_dev_id(device_id).ok() == primary {
-                    self.scan_connectors();
-                }
-            }
+            UdevEvent::Changed { .. } => self.scan_connectors(),
             UdevEvent::Removed { device_id } => {
-                // Losing the primary GPU mid-session (e.g. eGPU unplug) can't be
-                // recovered on a single-renderer build; quit cleanly to the greeter
-                // rather than spin on a dead device. Secondary GPUs are Stage G.
-                if DrmNode::from_dev_id(device_id).ok() == primary {
+                let node = DrmNode::from_dev_id(device_id).ok().map(to_primary_node);
+                if node == primary {
                     tracing::error!("primary GPU removed — shutting down DRM session");
                     self.drm_quit();
+                    return;
+                }
+                let Some(node) = node else {
+                    return;
+                };
+                let removed = self
+                    .udev
+                    .as_mut()
+                    .and_then(|udev| udev.backends.remove(&node));
+                if let Some(backend) = removed {
+                    for surface in backend.surfaces.values() {
+                        self.space.unmap_output(&surface.output);
+                    }
+                    if let Some(udev) = self.udev.as_mut() {
+                        if let Some(gpus) = udev.gpus.as_mut() {
+                            gpus.as_mut().remove_node(&backend.render_node);
+                        }
+                        udev.loop_handle.remove(backend.registration_token);
+                    }
+                    self.retile_outputs();
                 }
             }
-            UdevEvent::Added { .. } => {
-                // Secondary-GPU hotplug handled in Stage G (multi-renderer).
+            UdevEvent::Added { device_id, path } => {
+                let Ok(node) = DrmNode::from_dev_id(device_id).map(to_primary_node) else {
+                    return;
+                };
+                if self
+                    .udev
+                    .as_ref()
+                    .is_some_and(|udev| udev.backends.contains_key(&node))
+                {
+                    self.scan_connectors();
+                    return;
+                }
+                let Some(mut gpus) = self.udev.as_mut().and_then(|udev| udev.gpus.take()) else {
+                    return;
+                };
+                let opened = {
+                    let Some(udev) = self.udev.as_ref() else {
+                        return;
+                    };
+                    open_device(&udev.loop_handle, &udev.session, &mut gpus, node, &path)
+                };
+                if let Some(udev) = self.udev.as_mut() {
+                    udev.gpus = Some(gpus);
+                    match opened {
+                        Ok(opened) => {
+                            udev.backends.insert(
+                                node,
+                                BackendData {
+                                    drm_output_manager: opened.manager,
+                                    drm_scanner: DrmScanner::new(),
+                                    surfaces: HashMap::new(),
+                                    render_node: opened.render_node,
+                                    registration_token: opened.drm_token,
+                                },
+                            );
+                        }
+                        Err(err) => tracing::warn!(?node, ?err, "failed to open hotplug GPU"),
+                    }
+                }
+                self.scan_connectors();
             }
         }
     }
@@ -1392,15 +1683,16 @@ impl MetisState {
         let Some(udev) = self.udev.as_mut() else {
             return false;
         };
-        let crtc = udev
-            .surfaces
-            .iter()
-            .find(|(_, s)| s.output.name() == name && !s.user_disabled)
-            .map(|(c, _)| *c);
-        let Some(crtc) = crtc else {
+        let id = udev.output_id_by_name(name).filter(|id| {
+            udev.surface(*id)
+                .is_some_and(|surface| !surface.user_disabled)
+        });
+        let Some(id) = id else {
             return false;
         };
-        let surface = udev.surfaces.get_mut(&crtc).unwrap();
+        let Some(surface) = udev.surface_mut(id) else {
+            return false;
+        };
         let output = surface.output.clone();
         if let Some(global) = surface.global.take() {
             self.display_handle.remove_global::<MetisState>(global);
@@ -1418,15 +1710,16 @@ impl MetisState {
         let Some(udev) = self.udev.as_mut() else {
             return false;
         };
-        let crtc = udev
-            .surfaces
-            .iter()
-            .find(|(_, s)| s.output.name() == name && s.user_disabled)
-            .map(|(c, _)| *c);
-        let Some(crtc) = crtc else {
+        let id = udev.output_id_by_name(name).filter(|id| {
+            udev.surface(*id)
+                .is_some_and(|surface| surface.user_disabled)
+        });
+        let Some(id) = id else {
             return false;
         };
-        let surface = udev.surfaces.get_mut(&crtc).unwrap();
+        let Some(surface) = udev.surface_mut(id) else {
+            return false;
+        };
         let output = surface.output.clone();
         let global = output.create_global::<MetisState>(&self.display_handle);
         surface.global = Some(global);
@@ -1450,17 +1743,19 @@ impl MetisState {
         let Some(udev) = self.udev.as_ref() else {
             return;
         };
-        let device = udev.drm_output_manager.device();
-        for surface in udev.surfaces.values() {
-            if surface.user_disabled {
-                continue;
+        for backend in udev.backends.values() {
+            let device = backend.drm_output_manager.device();
+            for surface in backend.surfaces.values() {
+                if surface.user_disabled {
+                    continue;
+                }
+                set_connector_dpms(device, surface.connector, on, &surface.output.name());
             }
-            set_connector_dpms(device, surface.connector, on, &surface.output.name());
         }
         // On wake, mark surfaces dirty so the heartbeat repaints once powered.
         if on {
             if let Some(udev) = self.udev.as_mut() {
-                for surface in udev.surfaces.values_mut() {
+                for surface in udev.surfaces_mut() {
                     if !surface.user_disabled {
                         surface.pending = true;
                     }
@@ -1499,7 +1794,11 @@ fn set_connector_dpms<D: DrmControlDevice>(
             continue;
         };
         if info.name().to_str().map(|n| n == "DPMS").unwrap_or(false) {
-            let value = if on { DRM_MODE_DPMS_ON } else { DRM_MODE_DPMS_OFF };
+            let value = if on {
+                DRM_MODE_DPMS_ON
+            } else {
+                DRM_MODE_DPMS_OFF
+            };
             if let Err(err) = device.set_property(conn, *handle, value) {
                 tracing::warn!(output = %name, on, ?err, "dpms: set_property failed");
             }
@@ -1527,13 +1826,16 @@ impl DmabufHandler for MetisState {
         dmabuf: smithay::backend::allocator::dmabuf::Dmabuf,
         notifier: ImportNotifier,
     ) {
-        let ok = self
-            .udev
-            .as_mut()
-            .and_then(|u| u.renderer.as_mut())
-            .map(|r| r.import_dmabuf(&dmabuf, None).is_ok())
+        let primary = self.udev.as_ref().map(|udev| udev.render_node);
+        let ok = primary
+            .zip(self.udev.as_mut().and_then(|udev| udev.gpus.as_mut()))
+            .and_then(|(primary, gpus)| gpus.single_renderer(&primary).ok())
+            .map(|mut renderer| renderer.import_dmabuf(&dmabuf, None).is_ok())
             .unwrap_or(false);
         if ok {
+            if let Some(primary) = primary {
+                dmabuf.set_node(primary);
+            }
             let _ = notifier.successful::<MetisState>();
         } else {
             notifier.failed();

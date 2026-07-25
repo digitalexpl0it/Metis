@@ -6,7 +6,7 @@ Language & region, onboarding language step, RTL, live Apply rebuilds (Settings,
 edge bar, NC, desktop widgets), catalogs in `.deb` CI. **Phase 7** (Remote access)
 is largely complete — RDP via portal PipeWire, RustDesk/VNC docs, multi-monitor
 ScreenCast connector select; remaining stretch: first-party remote. **Phase 3**
-ScreenCast dmabuf zero-copy landed (2026-07-24); remaining: **full multi-GPU**.
+ScreenCast dmabuf zero-copy and Stage G multi-device DRM landed (2026-07-24).
 **Phase 14**
 (Desktop Widgets) is
 **complete** (2026-07-18) —
@@ -19,7 +19,7 @@ Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-awa
 toolbar, and compositor capture exclusion. **Phase 11** (Gaming Platform 2.0) is
 **complete** (2026-07-07) — `gaming.json`, Flatpak zero-config, gaming health
 checks, `metis-gamingd`, onboarding gaming step, and hybrid PRIME / scanout
-polish. **Phase 3** is complete except deferred **full multi-GPU** compositing.
+polish. **Phase 3** is complete (multi-GPU hardware validation remains).
 **Phase 4** (settings-app expansion) is complete.
 **Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
@@ -325,13 +325,17 @@ so each milestone is shippable on its own:
       client surfaces), and live connector hotplug with output re-packing.
       Login-manager entry installable via `run-metis.sh --install-session`
       (`metis-session` + `metis.desktop`); `--session --drm` runs from a TTY.
-  - [ ] **Full multi-GPU** — render each output on its own GPU via
-        `GpuManager`/`MultiRenderer`. Blocked on making the custom GL **blur
-        shader** (`BlurElement`, a `GlesTexProgram` drawn through
-        `GlesFrame::render_texture_from_to`) work through `MultiFrame`, which the
-        pinned smithay API does not expose; needs a blur rework (or a
-        per-renderer fallback) + multi-GPU hardware to validate. Single-GPU and
-        hybrid single-output (direct EGL/PRIME import) work today.
+  - [x] **Full multi-GPU device/output ownership** (2026-07-24) — Smithay
+        `GpuManager<GbmGlesBackend<…>>`, all seat GPUs opened at startup/hotplug,
+        and per-device scanners, output managers, render nodes, notifier tokens,
+        and CRTC surface maps. Outputs render with their device's
+        `single_renderer`; primary-GPU client buffers are early-imported.
+        **Caveat:** Metis's GLES-specific `OutputStack` cannot yet be submitted
+        through Smithay `MultiRenderer`, so explicit primary→secondary transfer
+        remains a follow-up; the local output renderer is used as the safe
+        fallback. Custom blur is disabled when the output render node differs
+        from the primary. Wallpaper/decoration GL caches are invalidated on
+        renderer-context switches. Multi-GPU hardware validation remains.
 - [x] **Settings portal (`org.freedesktop.portal.Settings`)** — `metis-portal`
       serves color-scheme, gtk-theme, and empty decoration/button layouts from
       `metis-config` so GTK clients pick up Metis light/dark prefs and drop CSD

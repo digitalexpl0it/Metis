@@ -163,6 +163,13 @@ impl Wallpaper {
         self.decode_generation = self.decode_generation.wrapping_add(1);
     }
 
+    /// Drop only context-bound GL objects while retaining the composed CPU image.
+    /// Used when DRM rendering switches to another GPU context.
+    pub fn invalidate_gpu_cache(&mut self) {
+        self.buffer = None;
+        self.texture = None;
+    }
+
     /// Set the output layout (full framebuffer size + per-output regions) the
     /// wallpaper composes for. Schedules a debounced re-decode when it changes,
     /// collapsing the burst of resize/hotplug events into a single decode.

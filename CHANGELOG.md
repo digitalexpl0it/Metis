@@ -9,6 +9,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 3 Stage G multi-GPU DRM backend** — compositor now opens every GPU on
+  the seat through Smithay `GpuManager`, keeps DRM scanners/output managers/CRTC
+  surfaces per device, renders each output with its device renderer, early-imports
+  client buffers on the primary GPU, and handles secondary GPU hotplug/removal.
+  Cross-GPU outputs suppress the GLES-only blur effect; context-bound wallpaper
+  and decoration caches are rebuilt when switching render nodes. Explicit
+  `MultiRenderer` transfer remains a documented fallback caveat pending a generic
+  render-element stack and hardware validation.
 - **ScreenCast dmabuf zero-copy (Phase 3)** — DRM compositor advertises capture
   dmabuf formats and renders into client GBM buffers; `metis-portal` prefers
   linux-dmabuf + PipeWire `SPA_DATA_DmaBuf` with MemFd fallback. Removes the

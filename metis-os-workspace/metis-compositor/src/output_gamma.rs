@@ -12,7 +12,6 @@
 use smithay::reexports::drm::control::{crtc, Device as DrmControlDevice};
 
 use crate::color_management::vcgt::{self, GammaRamps};
-use crate::udev::UdevState;
 use crate::state::MetisState;
 
 /// Re-upload gamma ramps for every enabled output. Safe to call on any
@@ -22,18 +21,25 @@ pub fn apply_output_gamma(state: &MetisState) {
     let Some(udev) = state.udev.as_ref() else {
         return;
     };
-    for (crtc, surface) in &udev.surfaces {
-        let name = surface.output.name();
-        if !state.is_output_enabled(&name) {
-            continue;
+    for backend in udev.backends.values() {
+        for (crtc, surface) in &backend.surfaces {
+            let name = surface.output.name();
+            if !state.is_output_enabled(&name) {
+                continue;
+            }
+            let icc = state.color_mgmt.icc_bytes_for_output(&name);
+            sync_gamma_for_crtc(backend, *crtc, &name, icc.as_deref());
         }
-        let icc = state.color_mgmt.icc_bytes_for_output(&name);
-        sync_gamma_for_crtc(udev, *crtc, &name, icc.as_deref());
     }
 }
 
-fn sync_gamma_for_crtc(udev: &UdevState, crtc: crtc::Handle, name: &str, icc: Option<&[u8]>) {
-    let device = udev.drm_output_manager.device();
+fn sync_gamma_for_crtc(
+    backend: &crate::udev::BackendData,
+    crtc: crtc::Handle,
+    name: &str,
+    icc: Option<&[u8]>,
+) {
+    let device = backend.drm_output_manager.device();
     let gamma_length = match device.get_crtc(crtc) {
         Ok(info) => info.gamma_length() as usize,
         Err(err) => {

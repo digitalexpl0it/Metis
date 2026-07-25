@@ -82,6 +82,7 @@ impl MetisState {
         output_scale: Scale<f64>,
         target: RenderTargetInfo<'_>,
         exclude_layer_namespaces: &[&str],
+        allow_blur: bool,
     ) -> Vec<OutputStack> {
         // Locked: draw ONLY the compositor lock UI and skip every client, layer,
         // and decoration element — no client content is ever composited while the
@@ -121,8 +122,11 @@ impl MetisState {
                 ))
             })
             .collect();
-        self.blur.ensure_program(renderer);
-        let draw_blur = self.blur.enabled
+        if allow_blur {
+            self.blur.ensure_program(renderer);
+        }
+        let draw_blur = allow_blur
+            && self.blur.enabled
             && !skip_underlay
             && !self.splash_overlay_visible()
             && self.wallpaper.texture().is_some();

@@ -1096,7 +1096,7 @@ impl MetisState {
         // damage produces an empty result, is not queued, and no further vblank
         // arrives, so we fall back to the tick with zero busy-looping.
         if let Some(udev) = self.udev.as_mut() {
-            for surface in udev.surfaces.values_mut() {
+            for surface in udev.surfaces_mut() {
                 if !surface.user_disabled {
                     surface.pending = true;
                 }
@@ -1110,7 +1110,7 @@ impl MetisState {
         self.damaged = true;
         let name = output.name();
         if let Some(udev) = self.udev.as_mut() {
-            for surface in udev.surfaces.values_mut() {
+            for surface in udev.surfaces_mut() {
                 if !surface.user_disabled && surface.output.name() == name {
                     surface.pending = true;
                 }
@@ -2126,7 +2126,7 @@ impl MetisState {
     /// Every connected client-visible output, including user-disabled ones.
     pub fn connected_outputs(&self) -> Vec<smithay::output::Output> {
         if let Some(udev) = &self.udev {
-            udev.surfaces.values().map(|s| s.output.clone()).collect()
+            udev.surfaces().map(|s| s.output.clone()).collect()
         } else {
             self.winit_outputs.clone()
         }
@@ -6242,9 +6242,12 @@ impl MetisState {
                 self.hover_cursor = None;
                 self.schedule_redraw();
             }
-            // Still reveal auto-hide titlebars when the pointer is over the edge bar
-            // strip above a maximized window (the strip overlaps the client top).
-            self.update_titlebar_reveal(loc);
+            // Do not reveal auto-hide titlebars under Exclusive menus (Metis Menu,
+            // NC, CC): the pointer still geometrically overlaps maximized chrome
+            // and would flash SSD every motion while the translucent popover is up.
+            if self.exclusive_keyboard_layer().is_none() {
+                self.update_titlebar_reveal(loc);
+            }
             self.tick_titlebar_press_pending(loc);
             return;
         }
@@ -6756,6 +6759,18 @@ impl MetisState {
         }
 
         if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
+            return;
+        }
+
+        // Grab-less Metis menu / NC / CC: Exclusive keyboard focus lives on the
+        // bar layer while the pointer still geometrically hits windows under the
+        // translucent popover. Raising/focusing those windows every motion would
+        // ping-pong with `handle_layer_commit` reclaiming Exclusive — flickering
+        // the menu search `:focus-within` border and every SSD titlebar.
+        if self.metis_bar_ui_hit(loc) {
+            return;
+        }
+        if self.exclusive_keyboard_layer().is_some() {
             return;
         }
 
