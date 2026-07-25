@@ -40,6 +40,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Metis Menu hover flickered search + titlebars** — with the grab-less menu
+  open, pointer motion over the app list ran `maintain_focus_stacking` into
+  windows under the translucent popover, ping-ponging Exclusive keyboard focus
+  with the bar layer; search `:focus-within` and SSD focused/unfocused chrome
+  flashed every move. Skip stacking/focus restore (and auto-hide titlebar
+  reveal) while the pointer is over bar UI or an Exclusive layer owns the seat.
 - **Desktop widgets stayed English after Language Apply** — `reload()` short-
   circuited when `desktop-widgets.json` identity was unchanged; locale Apply now
   force-rebuilds hosts (`metis-shell`).
