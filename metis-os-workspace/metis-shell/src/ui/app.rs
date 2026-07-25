@@ -123,6 +123,20 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                             image_path.clone(),
                         );
                     }
+                    if let metis_protocol::CompositorEvent::OutputHotplug {
+                        connected,
+                        name,
+                        make,
+                        model,
+                    } = &evt
+                    {
+                        crate::ui::bar::notify_display_hotplug(
+                            *connected,
+                            name,
+                            make,
+                            model,
+                        );
+                    }
                 }
                 SystemEvent::BriefingReady(items) => {
                     tracing::info!(count = items.len(), "briefing ready");

@@ -1,6 +1,7 @@
 //! Per-output ICC profiles from `outputs.json` and the `wp_color_management_v1`
-//! Wayland protocol (staging). Clients can query output colorimetry; actual
-//! GPU/DRM colour transforms are follow-up work (HDR pipeline).
+//! Wayland protocol (staging). Stage 1 applies `vcgt` via CRTC gamma; Stage 2
+//! bakes a GLES 3D LUT ([`crate::color_lut`]). The protocol global stays opt-in
+//! (`METIS_COLOR_MGMT`) until the upstream wayland-rs UAF is fixed.
 
 mod protocol;
 pub(crate) mod vcgt;
@@ -17,18 +18,36 @@ use crate::state::MetisState;
 
 pub use protocol::ColorManagementState;
 
+/// Named transfer function stored for parametric image descriptions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedTransferFunction {
+    Srgb,
+    Gamma22,
+    St2084Pq,
+    Hlg,
+}
+
+/// Named primaries stored for parametric image descriptions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedPrimaries {
+    Srgb,
+    Bt2020,
+}
+
 /// Runtime colour-management state (profiles + live protocol objects).
 pub struct ColorManagementRuntime {
     pub protocol: ColorManagementState,
     /// Output name → ICC bytes (`None` = sRGB parametric default).
     profiles: HashMap<String, Option<Arc<[u8]>>>,
+    /// Set when profiles change so DRM render can rebake Stage 2 LUTs.
+    pub profiles_dirty: bool,
     descriptions: HashMap<u64, DescriptionRecord>,
     next_description_id: u64,
     /// `wp_color_management_output_v1` → output name (for profile reload).
     output_objects: HashMap<ObjectId, String>,
     /// wl_surface id → already has a colour-management surface.
     color_surfaces: HashMap<ObjectId, ()>,
-    /// Pending surface image description (protocol state; GPU transform TBD).
+    /// Pending surface image description (protocol state; GPU still treats as sRGB).
     surface_descriptions: HashMap<ObjectId, u64>,
     /// `wp_image_description_v1` object id → description record id.
     description_objects: HashMap<ObjectId, u64>,
@@ -37,6 +56,10 @@ pub struct ColorManagementRuntime {
 #[derive(Clone)]
 pub(crate) enum DescriptionKind {
     SrgbParametric,
+    Parametric {
+        tf: Option<NamedTransferFunction>,
+        primaries: Option<NamedPrimaries>,
+    },
     Icc(Arc<[u8]>),
 }
 
@@ -51,6 +74,7 @@ impl ColorManagementRuntime {
         Self {
             protocol: ColorManagementState::new(display),
             profiles: HashMap::new(),
+            profiles_dirty: true,
             descriptions: HashMap::new(),
             next_description_id: 1,
             output_objects: HashMap::new(),
@@ -90,6 +114,7 @@ impl ColorManagementRuntime {
             });
             self.profiles.insert(name.clone(), entry);
         }
+        self.profiles_dirty = true;
     }
 
     pub fn profile_for_output(&self, output_name: &str) -> DescriptionKind {
@@ -107,6 +132,34 @@ impl ColorManagementRuntime {
             .get(output_name)
             .and_then(|entry| entry.as_ref())
             .map(Arc::clone)
+    }
+
+    /// Profile map for Stage 2 LUT baking (output name → ICC bytes).
+    pub fn profile_map(&self) -> &HashMap<String, Option<Arc<[u8]>>> {
+        &self.profiles
+    }
+
+    /// Surface image-description record id, if the client set one via
+    /// `wp_color_management_surface_v1` (render still treats buffers as sRGB).
+    pub fn surface_description_id(&self, surface_id: &ObjectId) -> Option<u64> {
+        self.surface_descriptions.get(surface_id).copied()
+    }
+
+    /// Named TF / primaries for a surface description, when parametric.
+    pub fn surface_colour_hint(
+        &self,
+        surface_id: &ObjectId,
+    ) -> Option<(Option<NamedTransferFunction>, Option<NamedPrimaries>)> {
+        let record_id = self.surface_description_id(surface_id)?;
+        let record = self.description(record_id)?;
+        match &record.kind {
+            DescriptionKind::Parametric { tf, primaries } => Some((*tf, *primaries)),
+            DescriptionKind::SrgbParametric => Some((
+                Some(NamedTransferFunction::Srgb),
+                Some(NamedPrimaries::Srgb),
+            )),
+            DescriptionKind::Icc(_) => None,
+        }
     }
 
     pub fn alloc_description(&mut self, kind: DescriptionKind, allow_information: bool) -> u64 {

@@ -3,7 +3,15 @@
 //! thread (NetworkManager applies them and the next refresh reflects the result).
 
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+
+/// One-shot gate: `nmcli radio wifi off` is refused unless Settings armed it
+/// from a real pointer press on the Wi-Fi switch (HDMI modeset must never kill Wi-Fi).
+static WIFI_USER_OFF_ARMED: AtomicBool = AtomicBool::new(false);
+
+/// Set by [`set_radio`] when an armed off is approved; consumed in [`detached`].
+static WIFI_OFF_SPAWN_ALLOWED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WifiNet {
@@ -96,7 +104,14 @@ pub fn load_snapshot() -> NetSnapshot {
 
 pub fn wifi_radio_enabled() -> bool {
     capture(&["-t", "-f", "WIFI", "radio"], Duration::from_secs(3))
-        .map(|s| s.trim() == "enabled")
+        .map(|s| {
+            // nmcli may print trailing junk; treat any line that is exactly
+            // "enabled" as on. Unknown/empty → leave as on (don't kill Wi‑Fi).
+            s.lines()
+                .map(str::trim)
+                .any(|line| line.eq_ignore_ascii_case("enabled"))
+                || s.trim().is_empty()
+        })
         .unwrap_or(true)
 }
 
@@ -286,7 +301,26 @@ pub fn connect_wifi(ssid: String, password: Option<String>) {
     detached(args, Duration::from_secs(30));
 }
 
-pub fn set_radio(on: bool) {
+/// Arm the next Wi-Fi radio-off from a pointer press on the Settings switch.
+pub fn arm_user_wifi_radio_toggle() {
+    WIFI_USER_OFF_ARMED.store(true, Ordering::SeqCst);
+}
+
+/// Returns `false` when an unarmed radio-off was refused (caller should snap the
+/// switch back on).
+pub fn set_radio(on: bool) -> bool {
+    if !on {
+        if !WIFI_USER_OFF_ARMED.swap(false, Ordering::SeqCst) {
+            eprintln!(
+                "metis-settings: blocked nmcli radio wifi off (not user-armed; \
+                 HDMI/modeset must never disable Wi-Fi)"
+            );
+            return false;
+        }
+        WIFI_OFF_SPAWN_ALLOWED.store(true, Ordering::SeqCst);
+    } else {
+        WIFI_USER_OFF_ARMED.store(false, Ordering::SeqCst);
+    }
     detached(
         vec![
             "radio".into(),
@@ -295,6 +329,7 @@ pub fn set_radio(on: bool) {
         ],
         Duration::from_secs(5),
     );
+    true
 }
 
 pub fn forget(target: &str) {
@@ -1576,6 +1611,20 @@ fn to_str_array(csv: &str) -> String {
 // ---- internals -----------------------------------------------------------
 
 fn detached(args: Vec<String>, timeout: Duration) {
+    // Belt-and-suspenders: never spawn `radio wifi off` unless set_radio just
+    // approved it (arm consumed there and this flag set).
+    if args.len() >= 3
+        && args[0] == "radio"
+        && args[1] == "wifi"
+        && args[2].eq_ignore_ascii_case("off")
+        && !WIFI_OFF_SPAWN_ALLOWED.swap(false, Ordering::SeqCst)
+    {
+        eprintln!(
+            "metis-settings: blocked orphan nmcli radio wifi off \
+             (HDMI/modeset must never disable Wi-Fi)"
+        );
+        return;
+    }
     std::thread::spawn(move || {
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let _ = run_with_timeout(&refs, timeout);

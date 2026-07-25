@@ -409,6 +409,11 @@ pub struct NetworkWidget {
     eth_label: gtk::Label,
     wifi_switch: gtk::Switch,
     updating_switch: Rc<Cell<bool>>,
+    /// Same pattern as Bluetooth: ignore poller echo after the user toggles.
+    suppress_until: Rc<Cell<Instant>>,
+    /// Require two consecutive "off" poll readings before reflecting off in UI,
+    /// so a single flaky nmcli read during HDMI modeset cannot flip the switch.
+    wifi_off_streak: Cell<u32>,
     inner: Rc<NetInner>,
 }
 
@@ -437,15 +442,35 @@ impl NetworkWidget {
         header.append(&title);
 
         let updating_switch = Rc::new(Cell::new(false));
+        let suppress_until = Rc::new(Cell::new(Instant::now()));
         let wifi_switch = gtk::Switch::new();
         wifi_switch.set_valign(gtk::Align::Center);
         wifi_switch.add_css_class("metis-net-switch");
         {
             let updating_switch = updating_switch.clone();
+            let suppress_until = suppress_until.clone();
+            // Only a real press may turn Wi-Fi off — HDMI modeset synthesizes
+            // state-set/active notifies without a click.
+            let arm = gtk::GestureClick::new();
+            arm.set_button(1);
+            arm.set_propagation_phase(gtk::PropagationPhase::Capture);
+            arm.connect_pressed(move |_, _, _, _| {
+                crate::services::arm_user_wifi_radio_toggle();
+            });
+            wifi_switch.add_controller(arm);
+
             wifi_switch.connect_state_set(move |_, state| {
-                if !updating_switch.get() {
-                    crate::services::wifi_set_radio(state);
+                if updating_switch.get() {
+                    return glib::Propagation::Proceed;
                 }
+                if !state && crate::services::wifi_hotplug_suppressed() {
+                    return glib::Propagation::Stop;
+                }
+                if !crate::services::wifi_set_radio(state) {
+                    // Unarmed off — refuse the visual toggle too.
+                    return glib::Propagation::Stop;
+                }
+                bump_suppress(&suppress_until);
                 glib::Propagation::Proceed
             });
         }
@@ -572,6 +597,8 @@ impl NetworkWidget {
             eth_label,
             wifi_switch,
             updating_switch,
+            suppress_until,
+            wifi_off_streak: Cell::new(0),
             inner,
         }
     }
@@ -581,6 +608,20 @@ impl NetworkWidget {
     }
 
     pub fn update(&self, eth: &EthernetStatus, wifi: &[WifiNetwork], wifi_enabled: bool) {
+        let hotplug = crate::services::wifi_hotplug_suppressed();
+        let mut wifi_enabled = wifi_enabled;
+        if wifi_enabled {
+            self.wifi_off_streak.set(0);
+        } else {
+            let streak = self.wifi_off_streak.get().saturating_add(1);
+            self.wifi_off_streak.set(streak);
+            // Ignore transient "off" during/after HDMI modeset. Need a long
+            // consistent streak before the switch is allowed to show off.
+            if hotplug || streak < 6 {
+                wifi_enabled = true;
+            }
+        }
+
         icons::set_icon(&self.icon, bar_icon(eth, wifi, wifi_enabled));
         self.root
             .set_tooltip_text(Some(&network_tooltip(eth, wifi, wifi_enabled)));
@@ -598,9 +639,18 @@ impl NetworkWidget {
             self.eth_label.set_text(&eth.label);
         }
 
-        self.updating_switch.set(true);
-        self.wifi_switch.set_active(wifi_enabled);
-        self.updating_switch.set(false);
+        let suppressed = Instant::now() < self.suppress_until.get() || hotplug;
+        if !suppressed {
+            self.updating_switch.set(true);
+            // Poll may turn the switch ON to match NM — never OFF (only the user can).
+            if wifi_enabled && !self.wifi_switch.is_active() {
+                self.wifi_switch.set_active(true);
+            }
+            let updating = self.updating_switch.clone();
+            glib::timeout_add_local_once(Duration::from_millis(400), move || {
+                updating.set(false);
+            });
+        }
 
         // Clear a stale "connecting" spinner once the target is active (or it
         // has been pending too long).

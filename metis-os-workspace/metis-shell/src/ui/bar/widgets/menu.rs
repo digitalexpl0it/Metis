@@ -7,6 +7,7 @@
 //! idle; that must not steal keyboard focus from the search entry while typing.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use gtk::gdk;
@@ -21,12 +22,207 @@ const FREQUENT_LIMIT: usize = 8;
 /// Alphabetical rows appended per idle slice so opening the menu never blocks the
 /// GTK main loop (and the nested compositor Wayland socket) for one giant rebuild.
 const MENU_ALPHA_CHUNK: usize = 32;
+const PIN_SHEET_WIDTH: i32 = 180;
 
 thread_local! {
     /// Menu instances for every output. Weak handles avoid keeping bars alive
     /// across a live bar rebuild.
     static MENU_POPOVERS: RefCell<Vec<glib::WeakRef<gtk::Popover>>> =
         const { RefCell::new(Vec::new()) };
+}
+
+/// Pin/Unpin menu drawn inside the Start menu's `GtkOverlay` (same surface).
+/// A nested `GtkPopover` would be a separate Wayland surface the compositor
+/// stacks *behind* the translucent menu — same pitfall as rail tooltips.
+///
+/// Right-clicks are handled on the overlay itself so (x, y) are already in
+/// overlay space. Per-row `translate_coordinates` failed for FlowBox tiles and
+/// for the second open (stale margins made the clamp snap to top-left).
+struct PinContext {
+    overlay: gtk::Overlay,
+    panel: gtk::Box,
+    /// Live row/tile widgets → desktop id, for overlay `pick` → pin target.
+    targets: RefCell<HashMap<usize, String>>,
+    refresh: RefCell<Option<Rc<dyn Fn()>>>,
+}
+
+impl PinContext {
+    fn new(overlay: &gtk::Overlay) -> Rc<Self> {
+        let panel = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        panel.add_css_class("metis-bar-dropdown-panel");
+        panel.add_css_class("metis-bar-tasks-menu");
+        panel.add_css_class("metis-menu-pin-context");
+        panel.set_halign(gtk::Align::Start);
+        panel.set_valign(gtk::Align::Start);
+        panel.set_width_request(PIN_SHEET_WIDTH);
+        panel.set_visible(false);
+        overlay.add_overlay(&panel);
+
+        let ctx = Rc::new(Self {
+            overlay: overlay.clone(),
+            panel,
+            targets: RefCell::new(HashMap::new()),
+            refresh: RefCell::new(None),
+        });
+
+        // Secondary click anywhere in the menu: resolve the app under the
+        // pointer (picking through the pin sheet) and open at cursor coords.
+        {
+            let ctx = ctx.clone();
+            let secondary = gtk::GestureClick::builder()
+                .button(gdk::BUTTON_SECONDARY)
+                .propagation_phase(gtk::PropagationPhase::Capture)
+                .build();
+            secondary.connect_pressed(move |gesture, n_press, x, y| {
+                if n_press != 1 {
+                    return;
+                }
+                let Some(id) = ctx.pick_app_id(x, y) else {
+                    return;
+                };
+                gesture.set_state(gtk::EventSequenceState::Claimed);
+                ctx.show(&id, x, y);
+            });
+            overlay.add_controller(secondary);
+        }
+
+        ctx
+    }
+
+    fn set_refresh(&self, refresh: Rc<dyn Fn()>) {
+        *self.refresh.borrow_mut() = Some(refresh);
+    }
+
+    fn clear_targets(&self) {
+        self.targets.borrow_mut().clear();
+    }
+
+    fn register_target(&self, widget: &impl IsA<gtk::Widget>, id: &str) {
+        let widget = widget.as_ref();
+        self.targets
+            .borrow_mut()
+            .insert(widget.as_ptr() as usize, id.to_string());
+    }
+
+    fn pick_app_id(&self, x: f64, y: f64) -> Option<String> {
+        // Don't let the pin sheet steal the pick when re-opening over another app.
+        let was_targetable = self.panel.can_target();
+        self.panel.set_can_target(false);
+        let target = self.overlay.pick(x, y, gtk::PickFlags::DEFAULT);
+        self.panel.set_can_target(was_targetable);
+
+        let mut node = target;
+        while let Some(w) = node {
+            if let Some(id) = self.targets.borrow().get(&(w.as_ptr() as usize)).cloned() {
+                return Some(id);
+            }
+            node = w.parent();
+        }
+        None
+    }
+
+    fn dismiss(&self) {
+        // Clear margins before hide — leftover offsets inflate measure and make
+        // the next clamp snap to (0, 0).
+        self.panel.set_margin_start(0);
+        self.panel.set_margin_top(0);
+        while let Some(child) = self.panel.first_child() {
+            self.panel.remove(&child);
+        }
+        self.panel.set_visible(false);
+    }
+
+    fn show(&self, id: &str, ox: f64, oy: f64) {
+        self.dismiss();
+
+        let already_pinned = metis_config::load_menu_config()
+            .pinned
+            .iter()
+            .any(|p| p == id);
+        let label = if already_pinned {
+            metis_i18n::tr("Unpin from Start")
+        } else {
+            metis_i18n::tr("Pin to Start")
+        };
+
+        let item = gtk::Button::builder()
+            .label(&label)
+            .has_frame(false)
+            .build();
+        item.add_css_class("metis-bar-task-menu-item");
+        item.set_halign(gtk::Align::Fill);
+        if let Some(child) = item.child() {
+            if let Ok(lbl) = child.downcast::<gtk::Label>() {
+                lbl.set_halign(gtk::Align::Start);
+                lbl.set_xalign(0.0);
+            }
+        }
+        self.panel.append(&item);
+
+        let id = id.to_string();
+        let refresh = self.refresh.borrow().clone();
+        let panel = self.panel.clone();
+        item.connect_clicked(move |_| {
+            applications::toggle_pin(&id);
+            while let Some(child) = panel.first_child() {
+                panel.remove(&child);
+            }
+            panel.set_margin_start(0);
+            panel.set_margin_top(0);
+            panel.set_visible(false);
+            if let Some(refresh) = &refresh {
+                refresh();
+            }
+        });
+
+        self.place_at(ox, oy);
+    }
+
+    fn place_at(&self, ox: f64, oy: f64) {
+        self.panel.set_margin_start(0);
+        self.panel.set_margin_top(0);
+        self.panel.set_visible(true);
+
+        let panel_w = PIN_SHEET_WIDTH;
+        let (_, nat_h, _, _) = self.panel.measure(gtk::Orientation::Vertical, panel_w);
+        let panel_h = nat_h.max(36);
+        let ov_w = self.overlay.width();
+        let ov_h = self.overlay.height();
+        if ov_w <= 0 || ov_h <= 0 {
+            let panel = self.panel.clone();
+            let overlay = self.overlay.clone();
+            glib::idle_add_local_once(move || {
+                Self::apply_place(&panel, &overlay, ox, oy, panel_w, panel_h);
+            });
+            return;
+        }
+        Self::apply_place(&self.panel, &self.overlay, ox, oy, panel_w, panel_h);
+    }
+
+    fn apply_place(
+        panel: &gtk::Box,
+        overlay: &gtk::Overlay,
+        ox: f64,
+        oy: f64,
+        panel_w: i32,
+        panel_h: i32,
+    ) {
+        let ov_w = overlay.width().max(1);
+        let ov_h = overlay.height().max(1);
+        let gap = 4;
+        let mut mx = ox as i32 + gap;
+        let mut my = oy as i32 + gap;
+        if mx + panel_w > ov_w {
+            mx = ox as i32 - gap - panel_w;
+        }
+        if my + panel_h > ov_h {
+            my = oy as i32 - gap - panel_h;
+        }
+        mx = mx.clamp(0, (ov_w - panel_w).max(0));
+        my = my.clamp(0, (ov_h - panel_h).max(0));
+        panel.set_margin_start(mx);
+        panel.set_margin_top(my);
+    }
 }
 
 /// Toggle the first live Metis menu. Used by the compositor's standalone Super
@@ -126,7 +322,9 @@ pub fn install(button: &gtk::Button) {
     pinned_header.add_css_class("metis-bar-section-title");
     pinned_col.append(&pinned_header);
 
-    let pinned_hint = gtk::Label::new(Some(&metis_i18n::tr("Right-click an app to pin it here.")));
+    let pinned_hint = gtk::Label::new(Some(&metis_i18n::tr(
+        "Right-click an app and choose Pin to Start.",
+    )));
     pinned_hint.add_css_class("metis-menu-empty");
     pinned_hint.set_wrap(true);
     pinned_hint.set_halign(gtk::Align::Start);
@@ -166,6 +364,33 @@ pub fn install(button: &gtk::Button) {
 
     overlay.set_child(Some(&panel));
     overlay.add_overlay(&tip);
+    let pin_ctx = PinContext::new(&overlay);
+    // Primary click outside the pin sheet dismisses it without stealing the
+    // click when the target is the Pin/Unpin button itself.
+    {
+        let pin_ctx = pin_ctx.clone();
+        let overlay_for_pick = overlay.clone();
+        let dismiss = gtk::GestureClick::builder()
+            .button(gdk::BUTTON_PRIMARY)
+            .propagation_phase(gtk::PropagationPhase::Capture)
+            .build();
+        dismiss.connect_pressed(move |_, _, x, y| {
+            if !pin_ctx.panel.is_visible() {
+                return;
+            }
+            if let Some(target) = overlay_for_pick.pick(x, y, gtk::PickFlags::DEFAULT) {
+                let mut node = Some(target);
+                while let Some(w) = node {
+                    if w == pin_ctx.panel {
+                        return;
+                    }
+                    node = w.parent();
+                }
+            }
+            pin_ctx.dismiss();
+        });
+        overlay.add_controller(dismiss);
+    }
 
     // ---- Rebuild plumbing ----
     // A shared `refresh` handle lets row/tile context actions (pin/unpin) trigger
@@ -181,6 +406,7 @@ pub fn install(button: &gtk::Button) {
             }
         })
     };
+    pin_ctx.set_refresh(refresh.clone());
 
     let list_generation = Rc::new(Cell::new(0_u64));
     let search_debounce: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
@@ -191,24 +417,26 @@ pub fn install(button: &gtk::Button) {
         let pinned_hint = pinned_hint.clone();
         let header = header.clone();
         let search = search.clone();
-        let refresh = refresh.clone();
         let list_generation = list_generation.clone();
+        let pin_ctx = pin_ctx.clone();
         Rc::new(move || {
             let keep_search_focus = search.has_focus();
             let query = search.text().to_string();
             let apps = applications::list_apps();
+            pin_ctx.dismiss();
+            pin_ctx.clear_targets();
             populate_center(
                 &apps_container,
                 &header,
                 &query,
                 &apps,
-                &refresh,
                 &search,
                 &list_generation,
+                &pin_ctx,
             );
-            if query.trim().is_empty() {
-                populate_pinned(&pinned_flow, &pinned_hint, &apps, &refresh);
-            }
+            // Always refresh pins — including during search — so a right-click
+            // Pin action is visible immediately in the pinned column.
+            populate_pinned(&pinned_flow, &pinned_hint, &apps, &pin_ctx);
             restore_search_focus(&search, keep_search_focus);
         })
     };
@@ -284,7 +512,9 @@ pub fn install(button: &gtk::Button) {
     }
     {
         let btn = button.clone();
+        let pin_ctx = pin_ctx.clone();
         popover.connect_unmap(move |popover| {
+            pin_ctx.dismiss();
             btn.remove_css_class("metis-bar-dropdown-active");
             if let Some(window) = popover.root().and_downcast::<gtk::Window>() {
                 window.set_keyboard_mode(KeyboardMode::OnDemand);
@@ -551,9 +781,9 @@ fn populate_center(
     header: &gtk::Label,
     query: &str,
     apps: &[AppEntry],
-    refresh: &Rc<dyn Fn()>,
     search: &gtk::SearchEntry,
     list_generation: &Rc<Cell<u64>>,
+    pin_ctx: &Rc<PinContext>,
 ) {
     let generation = list_generation.get().wrapping_add(1);
     list_generation.set(generation);
@@ -563,16 +793,16 @@ fn populate_center(
     if q.is_empty() {
         header.set_text(&metis_i18n::tr("Frequent Apps"));
         for entry in applications::frequent_from(apps, FREQUENT_LIMIT) {
-            container.append(&app_row(&entry, refresh));
+            container.append(&app_row(&entry, pin_ctx));
         }
         append_alpha_chunk(
             container,
             apps,
-            refresh,
             list_generation,
             generation,
             0,
             '\0',
+            pin_ctx,
         );
     } else {
         header.set_text(&metis_i18n::tr("Search Results"));
@@ -584,7 +814,7 @@ fn populate_center(
             container.append(&empty);
         }
         for entry in results {
-            container.append(&app_row(&entry, refresh));
+            container.append(&app_row(&entry, pin_ctx));
         }
     }
     restore_search_focus(search, keep_search_focus);
@@ -594,11 +824,11 @@ fn populate_center(
 fn append_alpha_chunk(
     container: &gtk::Box,
     apps: &[AppEntry],
-    refresh: &Rc<dyn Fn()>,
     list_generation: &Rc<Cell<u64>>,
     generation: u64,
     start: usize,
     mut last_letter: char,
+    pin_ctx: &Rc<PinContext>,
 ) {
     if list_generation.get() != generation {
         return;
@@ -618,28 +848,33 @@ fn append_alpha_chunk(
             last_letter = letter;
             container.append(&letter_header(letter));
         }
-        container.append(&app_row(entry, refresh));
+        container.append(&app_row(entry, pin_ctx));
     }
     if end < apps.len() {
         let container = container.clone();
         let apps = apps.to_vec();
-        let refresh = refresh.clone();
         let list_generation = list_generation.clone();
+        let pin_ctx = pin_ctx.clone();
         glib::idle_add_local_once(move || {
             append_alpha_chunk(
                 &container,
                 &apps,
-                &refresh,
                 &list_generation,
                 generation,
                 end,
                 last_letter,
+                &pin_ctx,
             );
         });
     }
 }
 
-fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, apps: &[AppEntry], refresh: &Rc<dyn Fn()>) {
+fn populate_pinned(
+    flow: &gtk::FlowBox,
+    hint: &gtk::Label,
+    apps: &[AppEntry],
+    pin_ctx: &Rc<PinContext>,
+) {
     while let Some(child) = flow.first_child() {
         flow.remove(&child);
     }
@@ -652,7 +887,7 @@ fn populate_pinned(flow: &gtk::FlowBox, hint: &gtk::Label, apps: &[AppEntry], re
     hint.set_visible(false);
     flow.set_visible(true);
     for entry in pinned {
-        flow.append(&pinned_tile(&entry, refresh));
+        flow.append(&pinned_tile(&entry, pin_ctx));
     }
 }
 
@@ -681,7 +916,7 @@ fn wire_vertical_scroll(widget: &impl IsA<gtk::Widget>, scroll: &gtk::ScrolledWi
     widget.add_controller(ctrl);
 }
 
-fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
+fn app_row(entry: &AppEntry, pin_ctx: &Rc<PinContext>) -> gtk::Button {
     let row = gtk::Button::builder().has_frame(false).build();
     row.add_css_class("metis-menu-row");
     row.set_hexpand(true);
@@ -709,11 +944,11 @@ fn app_row(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
             applications::launch(&entry);
         });
     }
-    attach_pin_gesture(&row, &entry.id, refresh);
+    attach_pin_target(&row, &entry.id, pin_ctx);
     row
 }
 
-fn pinned_tile(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
+fn pinned_tile(entry: &AppEntry, pin_ctx: &Rc<PinContext>) -> gtk::Button {
     let tile = gtk::Button::builder().has_frame(false).build();
     tile.add_css_class("metis-menu-tile");
 
@@ -739,22 +974,14 @@ fn pinned_tile(entry: &AppEntry, refresh: &Rc<dyn Fn()>) -> gtk::Button {
             applications::launch(&entry);
         });
     }
-    attach_pin_gesture(&tile, &entry.id, refresh);
+    attach_pin_target(&tile, &entry.id, pin_ctx);
     tile
 }
 
-/// Right-click toggles the app's pinned state and refreshes the menu in place.
-fn attach_pin_gesture(widget: &impl IsA<gtk::Widget>, id: &str, refresh: &Rc<dyn Fn()>) {
-    let gesture = gtk::GestureClick::builder()
-        .button(gdk::BUTTON_SECONDARY)
-        .build();
-    let id = id.to_string();
-    let refresh = refresh.clone();
-    gesture.connect_pressed(move |_, _, _, _| {
-        applications::toggle_pin(&id);
-        refresh();
-    });
-    widget.add_controller(gesture);
+/// Register a row/tile so the overlay-level secondary-click handler can resolve
+/// which app was under the cursor (coordinates stay in overlay space).
+fn attach_pin_target(widget: &impl IsA<gtk::Widget>, id: &str, pin_ctx: &Rc<PinContext>) {
+    pin_ctx.register_target(widget, id);
 }
 
 fn app_image(entry: &AppEntry, size: i32) -> gtk::Image {

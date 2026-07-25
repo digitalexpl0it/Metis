@@ -78,7 +78,7 @@ pub fn reapply() {
             // always wins by source order, regardless of cross-provider cascade.
             let mut css = metis_config::build_stylesheet(&tokens);
             css.push_str(&format!(
-                "\nwindow, window.background {{ background-color: {}; }}\n",
+                "\nwindow, window.background {{ background-color: {} !important; }}\n",
                 tokens.bg
             ));
             base.load_from_data(&css);
@@ -118,11 +118,15 @@ fn settings_css(t: &ThemeTokens) -> String {
         /* The shared bar stylesheet makes every `window` transparent for the
            layer-shell overlays; in the settings app we want solid windows so
            spawned dialogs (e.g. the colour picker) aren't see-through. */
-        window {{ background-color: {bg}; color: {text}; }}
-        window.dialog, window.csd, .colorchooser {{ background-color: {bg}; color: {text}; }}
+        window {{ background-color: {bg} !important; color: {text}; }}
+        window.dialog, window.csd, .colorchooser {{ background-color: {bg} !important; color: {text}; }}
 
         /* Window + CSD titlebar so the whole frame tracks the active theme. */
-        .metis-settings-window {{ background-color: {bg}; color: {text}; }}
+        .metis-settings-window {{ background-color: {bg} !important; color: {text}; }}
+        window.metis-settings-confirm-dialog {{
+            background-color: {bg} !important;
+            color: {text};
+        }}
 
         /* Modal sheets: the window buffer stays transparent so pixels outside the
            rounded card are true alpha (not a solid grey fill). Metis SSD already
@@ -601,12 +605,26 @@ fn settings_css(t: &ThemeTokens) -> String {
             border-radius: {rl}px;
             overflow: hidden;
         }}
+        .metis-display-arrangement-viewport {{
+            min-width: 200px;
+        }}
+        /* Cap resolution dropdown natural width so long mode strings can't
+           lock the Settings window from shrinking. */
+        .metis-settings-shrink-dropdown {{
+            min-width: 140px;
+            max-width: 320px;
+        }}
         .metis-display-block {{
             border-radius: {rs}px;
             border: 2px solid transparent;
             background-color: {surface};
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-            transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+            /* No transform transition — it fights GtkFixed::move_ and rubber-bands. */
+            transition: border-color 160ms ease, box-shadow 160ms ease;
+        }}
+        .metis-display-block-dragging {{
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+            opacity: 0.96;
         }}
         .metis-display-block-selected {{
             border-color: {accent};

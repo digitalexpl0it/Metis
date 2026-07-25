@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use gtk::gdk::prelude::*;
 use gtk::glib;
 use gtk::prelude::*;
 use metis_i18n::tr;
@@ -16,6 +17,13 @@ pub fn show(
     on_keep: Rc<dyn Fn()>,
     on_revert: Rc<dyn Fn()>,
 ) {
+    // Force the parent to repaint after a modeset/layout apply — GTK can keep a
+    // fully transparent buffer while Metis SSD still draws the outer chrome.
+    parent.queue_draw();
+    if let Some(surface) = parent.surface() {
+        surface.queue_render();
+    }
+
     let title = tr("Keep these display settings?");
     let dialog = gtk::Window::builder()
         .title(&title)
@@ -24,9 +32,13 @@ pub fn show(
         .resizable(false)
         .default_width(440)
         .build();
+    // Opaque sheet (not a transparent buffer with only a border) — same pattern
+    // as password / widget dialogs, but with a solid window fill so modeset
+    // redraw glitches cannot leave a hollow frame.
     dialog.add_css_class("metis-settings-window");
+    dialog.add_css_class("metis-settings-confirm-dialog");
 
-    let root = gtk::Box::builder()
+    let sheet = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(16)
         .margin_top(20)
@@ -34,17 +46,18 @@ pub fn show(
         .margin_start(24)
         .margin_end(24)
         .build();
+    sheet.add_css_class("metis-settings-dialog-sheet");
 
     let heading = gtk::Label::new(Some(&title));
     heading.set_xalign(0.0);
     heading.add_css_class("metis-settings-section-title");
-    root.append(&heading);
+    sheet.append(&heading);
 
     let body = gtk::Label::new(None);
     body.set_wrap(true);
     body.set_xalign(0.0);
     body.add_css_class("metis-settings-hint");
-    root.append(&body);
+    sheet.append(&body);
 
     let btn_row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -60,9 +73,9 @@ pub fn show(
     keep_btn.add_css_class("suggested-action");
     btn_row.append(&revert_btn);
     btn_row.append(&keep_btn);
-    root.append(&btn_row);
+    sheet.append(&btn_row);
 
-    dialog.set_child(Some(&root));
+    dialog.set_child(Some(&sheet));
 
     let resolved = Rc::new(RefCell::new(false));
     let remaining = Rc::new(RefCell::new(CONFIRM_SECONDS));
@@ -89,6 +102,7 @@ pub fn show(
         let resolved = resolved.clone();
         let timer_id = timer_id.clone();
         let dialog = dialog.clone();
+        let parent = parent.clone();
         let on_keep = on_keep.clone();
         let on_revert = on_revert.clone();
         Rc::new(move |keep: bool| {
@@ -104,7 +118,20 @@ pub fn show(
             } else {
                 on_revert();
             }
-            dialog.close();
+            // Drop the modal grab before destroying — otherwise a failed close
+            // leaves Settings input-dead behind a zombie dialog stuck at "0 seconds".
+            dialog.set_modal(false);
+            let dialog = dialog.clone();
+            let parent = parent.clone();
+            // Defer destroy so we aren't tearing the window down from inside a
+            // close-request / button handler.
+            glib::idle_add_local_once(move || {
+                dialog.destroy();
+                parent.queue_draw();
+                if let Some(surface) = parent.surface() {
+                    surface.queue_render();
+                }
+            });
         })
     };
 
@@ -133,13 +160,17 @@ pub fn show(
         let finish = finish.clone();
         move |_| finish(false)
     });
+    // Must Proceed so GTK actually destroys the window. Stop + finish→close was
+    // a deadlock: close re-entered this handler, finish no-op'd (already resolved),
+    // and Stop kept the modal window alive forever.
     dialog.connect_close_request({
         let finish = finish.clone();
         move |_| {
             finish(false);
-            glib::Propagation::Stop
+            glib::Propagation::Proceed
         }
     });
 
     dialog.present();
+    dialog.queue_draw();
 }

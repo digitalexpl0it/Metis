@@ -1130,15 +1130,22 @@ fn attach_notification_channel(channels: crate::services::NotifyChannels) {
     crate::services::set_action_sender(actions);
 
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        while let Ok(note) = incoming.try_recv() {
-            let dnd = widgets::do_not_disturb();
-            if !dnd {
-                if !note.suppress_sound {
-                    crate::services::play_notification_sound(&note);
+        while let Ok(event) = incoming.try_recv() {
+            match event {
+                crate::services::NotifyIncoming::Show(note) => {
+                    let dnd = widgets::do_not_disturb();
+                    if !dnd {
+                        if !note.suppress_sound {
+                            crate::services::play_notification_sound(&note);
+                        }
+                        crate::ui::toast::show(&note);
+                    }
+                    crate::services::push_notification(note);
                 }
-                crate::ui::toast::show(&note);
+                crate::services::NotifyIncoming::Closed { id } => {
+                    crate::services::dismiss_notification_by_dbus_id(id);
+                }
             }
-            crate::services::push_notification(note);
         }
         glib::ControlFlow::Continue
     });
@@ -1233,6 +1240,53 @@ fn emit_internal_notification(note: crate::services::BarNotification) {
         crate::ui::toast::show(&note);
     }
     crate::services::push_notification(note);
+}
+
+/// Toast + notification-center card when a monitor is plugged or unplugged.
+pub fn notify_display_hotplug(connected: bool, name: &str, make: &str, model: &str) {
+    use crate::services::{BarNotification, NotificationKind};
+
+    // DRM modeset around hotplug can make NetworkManager drop the association
+    // briefly — never write `nmcli radio wifi off` from that flake.
+    crate::services::suppress_wifi_radio_writes(20);
+
+    let pretty = {
+        let branded = format!("{} {}", make.trim(), model.trim())
+            .trim()
+            .to_string();
+        if branded.is_empty()
+            || branded.eq_ignore_ascii_case("unknown unknown")
+            || branded.eq_ignore_ascii_case("unknown")
+        {
+            name.to_string()
+        } else {
+            branded
+        }
+    };
+
+    let (title, message, osd_label) = if connected {
+        (
+            metis_i18n::tr("Display connected"),
+            metis_i18n::tr("%1 is ready to use.").replace("%1", &pretty),
+            metis_i18n::tr("Display connected"),
+        )
+    } else {
+        (
+            metis_i18n::tr("Display disconnected"),
+            metis_i18n::tr("%1 was unplugged.").replace("%1", &pretty),
+            metis_i18n::tr("Display disconnected"),
+        )
+    };
+
+    crate::ui::osd::show("video-display-symbolic", &osd_label, None, false);
+
+    let mut note = BarNotification::internal(NotificationKind::Notification, title, message);
+    note.sound_name = Some(if connected {
+        "device-added".to_string()
+    } else {
+        "device-removed".to_string()
+    });
+    emit_internal_notification(note);
 }
 
 /// Mirror a user audio change (volume/mic/mute) onto every bar immediately, so a

@@ -483,19 +483,37 @@ fn attach_entry_menu(btn: &gtk::Button, entry: &DirEntry, parent_dir: &Path) {
             let path = entry.path.clone();
             let parent = parent_dir.clone();
             let old_name = entry.name.clone();
+            let anchor = btn.clone();
             panel.append(&menu_button(
                 &metis_i18n::tr("Rename…"),
                 &popover,
-                Rc::new(move || prompt_rename(&parent, &path, &old_name)),
+                Rc::new(move || {
+                    let anchor = anchor.clone();
+                    let parent = parent.clone();
+                    let path = path.clone();
+                    let old_name = old_name.clone();
+                    // Wait for the context menu to pop down before opening ours.
+                    glib::idle_add_local_once(move || {
+                        prompt_rename(&anchor, &parent, &path, &old_name);
+                    });
+                }),
             ));
         }
         {
             let path = entry.path.clone();
             let name = entry.name.clone();
+            let anchor = btn.clone();
             panel.append(&menu_button(
                 &metis_i18n::tr("Delete"),
                 &popover,
-                Rc::new(move || confirm_delete(&path, &name)),
+                Rc::new(move || {
+                    let anchor = anchor.clone();
+                    let path = path.clone();
+                    let name = name.clone();
+                    glib::idle_add_local_once(move || {
+                        confirm_delete(&anchor, &path, &name);
+                    });
+                }),
             ));
         }
         {
@@ -617,29 +635,53 @@ fn create_new_folder(parent: &Path) {
     }
 }
 
-fn confirm_delete(path: &Path, name: &str) {
+fn confirm_delete(anchor: &impl IsA<gtk::Widget>, path: &Path, name: &str) {
     let path = path.to_path_buf();
-    let name = name.to_string();
-    let cancel_label = metis_i18n::tr("Cancel");
-    let delete_label = metis_i18n::tr("Delete");
-    let dialog = gtk::AlertDialog::builder()
-        .modal(true)
-        .message(metis_i18n::tr("Delete \"%1\"?").replace("%1", &name))
-        .detail(&metis_i18n::tr("This cannot be undone."))
-        .buttons([cancel_label, delete_label])
-        .default_button(0)
-        .cancel_button(0)
+    let title = metis_i18n::tr("Delete \"%1\"?").replace("%1", name);
+
+    // Stay inside the desktop-widgets layer-shell surface via a Popover.
+    // A separate gtk::Window is an RGBA buffer under the shell stylesheet
+    // (`window { background-color: transparent }`); CSS never fills those pixels,
+    // and Metis SSD draws a hollow/ghost titlebar around them.
+    let popover = gtk::Popover::builder()
+        .autohide(true)
+        .has_arrow(false)
         .build();
-    dialog.choose(
-        active_window().as_ref(),
-        None::<&gio::Cancellable>,
-        move |result| {
-            let Ok(idx) = result else {
-                return;
-            };
-            if idx != 1 {
-                return;
-            }
+    popover.add_css_class("metis-dw-confirm");
+    popover.set_parent(anchor);
+
+    let (host, sheet) = opaque_confirm_panel(320);
+    let heading = gtk::Label::new(Some(&title));
+    heading.set_wrap(true);
+    heading.set_xalign(0.0);
+    heading.add_css_class("metis-dw-confirm-title");
+    sheet.append(&heading);
+
+    let detail = gtk::Label::new(Some(&metis_i18n::tr("This cannot be undone.")));
+    detail.set_wrap(true);
+    detail.set_xalign(0.0);
+    detail.add_css_class("metis-dw-confirm-detail");
+    sheet.append(&detail);
+
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.set_halign(gtk::Align::End);
+    actions.set_margin_top(4);
+    let cancel = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
+    let delete = gtk::Button::with_label(&metis_i18n::tr("Delete"));
+    delete.add_css_class("destructive-action");
+    actions.append(&cancel);
+    actions.append(&delete);
+    sheet.append(&actions);
+
+    popover.set_child(Some(&host));
+
+    {
+        let popover = popover.clone();
+        cancel.connect_clicked(move |_| popover.popdown());
+    }
+    {
+        let popover = popover.clone();
+        delete.connect_clicked(move |_| {
             let res = if path.is_dir() {
                 std::fs::remove_dir_all(&path)
             } else {
@@ -651,60 +693,59 @@ fn confirm_delete(path: &Path, name: &str) {
                     &metis_i18n::tr("Could not delete: %1").replace("%1", &err.to_string()),
                 );
             }
-        },
-    );
+            popover.popdown();
+        });
+    }
+
+    popover.popup();
 }
 
-fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
+fn prompt_rename(anchor: &impl IsA<gtk::Widget>, parent: &Path, path: &Path, old_name: &str) {
     let parent = parent.to_path_buf();
     let path = path.to_path_buf();
     let old_name = old_name.to_string();
 
-    let rename_title = metis_i18n::tr("Rename");
-    let win = gtk::Window::builder()
-        .title(&rename_title)
-        .modal(true)
-        .default_width(360)
-        .resizable(false)
+    let popover = gtk::Popover::builder()
+        .autohide(true)
+        .has_arrow(false)
         .build();
-    if let Some(app_win) = active_window() {
-        win.set_transient_for(Some(&app_win));
-    }
+    popover.add_css_class("metis-dw-confirm");
+    popover.set_parent(anchor);
 
-    let body = gtk::Box::new(gtk::Orientation::Vertical, 10);
-    body.set_margin_start(16);
-    body.set_margin_end(16);
-    body.set_margin_top(16);
-    body.set_margin_bottom(16);
+    let (host, sheet) = opaque_confirm_panel(300);
+    let heading = gtk::Label::new(Some(&metis_i18n::tr("Rename")));
+    heading.set_xalign(0.0);
+    heading.add_css_class("metis-dw-confirm-title");
+    sheet.append(&heading);
+
     let entry = gtk::Entry::new();
     entry.set_text(&old_name);
     entry.set_hexpand(true);
-    body.append(&entry);
+    sheet.append(&entry);
 
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     actions.set_halign(gtk::Align::End);
-    let cancel_label = metis_i18n::tr("Cancel");
-    let rename_label = metis_i18n::tr("Rename");
-    let cancel = gtk::Button::with_label(&cancel_label);
-    let ok = gtk::Button::with_label(&rename_label);
+    let cancel = gtk::Button::with_label(&metis_i18n::tr("Cancel"));
+    let ok = gtk::Button::with_label(&metis_i18n::tr("Rename"));
     ok.add_css_class("suggested-action");
     actions.append(&cancel);
     actions.append(&ok);
-    body.append(&actions);
-    win.set_child(Some(&body));
+    sheet.append(&actions);
+
+    popover.set_child(Some(&host));
 
     {
-        let win = win.clone();
-        cancel.connect_clicked(move |_| win.close());
+        let popover = popover.clone();
+        cancel.connect_clicked(move |_| popover.popdown());
     }
     let do_rename = Rc::new({
-        let win = win.clone();
+        let popover = popover.clone();
         let entry = entry.clone();
         move || {
             let new_name = entry.text().to_string();
             let new_name = new_name.trim();
             if new_name.is_empty() || new_name == old_name {
-                win.close();
+                popover.popdown();
                 return;
             }
             let dest = parent.join(new_name);
@@ -719,7 +760,7 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
                 );
                 return;
             }
-            win.close();
+            popover.popdown();
         }
     });
     {
@@ -731,9 +772,55 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
         entry.connect_activate(move |_| do_rename());
     }
 
-    win.present();
+    popover.popup();
     entry.grab_focus();
 }
+
+/// Popover panel with a Cairo-painted opaque backdrop under the content.
+/// Same cell stacking in a Grid: paint fills the allocation; sheet sizes it.
+fn opaque_confirm_panel(min_width: i32) -> (gtk::Grid, gtk::Box) {
+    let (r, g, b) = surface_rgb01();
+
+    let host = gtk::Grid::new();
+    host.set_size_request(min_width, -1);
+    host.add_css_class("metis-dw-confirm-sheet");
+
+    let paint = gtk::DrawingArea::new();
+    paint.set_hexpand(true);
+    paint.set_vexpand(true);
+    paint.set_can_target(false);
+    paint.set_draw_func(move |_, cr, w, h| {
+        cr.set_source_rgb(r, g, b);
+        cr.rectangle(0.0, 0.0, w as f64, h as f64);
+        let _ = cr.fill();
+    });
+
+    let sheet = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    sheet.set_margin_start(16);
+    sheet.set_margin_end(16);
+    sheet.set_margin_top(14);
+    sheet.set_margin_bottom(14);
+    sheet.set_hexpand(true);
+
+    host.attach(&paint, 0, 0, 1, 1);
+    host.attach(&sheet, 0, 0, 1, 1);
+    (host, sheet)
+}
+
+fn surface_rgb01() -> (f64, f64, f64) {
+    let tokens = crate::ui::theme::active_tokens();
+    let h = tokens.surface.trim().trim_start_matches('#');
+    if h.len() != 6 {
+        return (30.0 / 255.0, 30.0 / 255.0, 36.0 / 255.0);
+    }
+    let r = u8::from_str_radix(&h[0..2], 16).unwrap_or(30) as f64 / 255.0;
+    let g = u8::from_str_radix(&h[2..4], 16).unwrap_or(30) as f64 / 255.0;
+    let b = u8::from_str_radix(&h[4..6], 16).unwrap_or(36) as f64 / 255.0;
+    (r, g, b)
+}
+
+/// Theme-reload hook (confirm UI is Cairo-painted; stylesheet rules are static).
+pub(crate) fn refresh_opaque_dialog_css() {}
 
 fn toast_error(message: &str) {
     crate::ui::toast::show(&crate::services::BarNotification::internal(

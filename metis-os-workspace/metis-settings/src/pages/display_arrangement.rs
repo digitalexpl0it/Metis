@@ -1,6 +1,6 @@
 //! macOS-style draggable monitor arrangement preview for Settings → Display.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::prelude::*;
@@ -9,7 +9,7 @@ use metis_protocol::OutputInfo;
 
 const CANVAS_MIN_H: i32 = 220;
 const PAD: f64 = 20.0;
-const SNAP_PX: f64 = 18.0;
+const SNAP_PX: f64 = 28.0;
 const TAP_THRESHOLD_PX: f64 = 6.0;
 
 const BLOCK_COLORS: &[&str] = &[
@@ -33,6 +33,9 @@ struct BlockState {
 
 pub struct ArrangementCanvas {
     root: gtk::Box,
+    /// Viewport that owns the allocation used for layout; keeps GtkFixed's
+    /// child bounding-box from locking the Settings window min-width.
+    viewport: gtk::ScrolledWindow,
     canvas: gtk::Fixed,
     hint: gtk::Label,
     cfg: Rc<RefCell<OutputsConfig>>,
@@ -50,6 +53,9 @@ pub struct ArrangementCanvas {
     trial_backup: Rc<RefCell<Option<OutputsConfig>>>,
     canvas_size: Rc<RefCell<(f64, f64)>>,
     resize_debounce: Rc<RefCell<Option<glib::SourceId>>>,
+    /// Suppresses viewport-driven `recompute_layout` while a tile is dragged —
+    /// otherwise GtkFixed reflow fights GestureDrag and rubber-bands.
+    dragging: Cell<bool>,
 }
 
 impl ArrangementCanvas {
@@ -69,6 +75,12 @@ impl ArrangementCanvas {
         let hint = gtk::Label::new(None);
         hint.set_xalign(0.0);
         hint.add_css_class("metis-settings-hint");
+        // Cap the hint's reported min-width so a long sentence can't lock the
+        // Settings window wider than the sidebar + content default.
+        hint.set_wrap(true);
+        hint.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+        hint.set_width_chars(28);
+        hint.set_max_width_chars(56);
         root.append(&hint);
 
         let canvas = gtk::Fixed::builder()
@@ -77,10 +89,28 @@ impl ArrangementCanvas {
             .build();
         canvas.add_css_class("metis-display-arrangement-canvas");
         canvas.set_hexpand(true);
-        root.append(&canvas);
+        canvas.set_overflow(gtk::Overflow::Hidden);
+
+        // GtkFixed's minimum size is the child bounding box. Two side-by-side
+        // monitor tiles easily report ~700–900px and freeze the window from
+        // shrinking. The viewport takes allocation; Fixed lays out inside it.
+        let viewport = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Never)
+            .hexpand(true)
+            .height_request(CANVAS_MIN_H)
+            .propagate_natural_width(false)
+            .propagate_natural_height(false)
+            .min_content_width(200)
+            .min_content_height(CANVAS_MIN_H)
+            .child(&canvas)
+            .build();
+        viewport.add_css_class("metis-display-arrangement-viewport");
+        root.append(&viewport);
 
         let this = Rc::new(Self {
             root,
+            viewport: viewport.clone(),
             canvas,
             hint,
             cfg,
@@ -98,12 +128,16 @@ impl ArrangementCanvas {
             trial_backup: Rc::new(RefCell::new(None)),
             canvas_size: Rc::new(RefCell::new((480.0, CANVAS_MIN_H as f64))),
             resize_debounce: Rc::new(RefCell::new(None)),
+            dragging: Cell::new(false),
         });
         {
             let this_w = this.clone();
             let on_alloc = {
                 let this_w = this_w.clone();
-                move |widget: &gtk::Fixed| {
+                move |widget: &gtk::ScrolledWindow| {
+                    if this_w.dragging.get() {
+                        return;
+                    }
                     let alloc = widget.allocation();
                     if alloc.width() > 0 && alloc.height() > 0 {
                         this_w.schedule_layout_for_size(alloc.width() as f64, alloc.height() as f64);
@@ -112,10 +146,10 @@ impl ArrangementCanvas {
             };
             let on_width = Rc::new(on_alloc);
             let on_height = on_width.clone();
-            this.canvas.connect_notify_local(Some("width"), move |widget, _| {
+            this.viewport.connect_notify_local(Some("width"), move |widget, _| {
                 on_width(widget);
             });
-            this.canvas.connect_notify_local(Some("height"), move |widget, _| {
+            this.viewport.connect_notify_local(Some("height"), move |widget, _| {
                 on_height(widget);
             });
             let this_w = this.clone();
@@ -123,11 +157,15 @@ impl ArrangementCanvas {
                 this_w.refresh_layout();
             });
         }
+        wire_canvas_drag(&this);
         this.rebuild_blocks();
         this
     }
 
     fn schedule_layout_for_size(self: &Rc<Self>, width: f64, height: f64) {
+        if self.dragging.get() {
+            return;
+        }
         let prev = *self.canvas_size.borrow();
         if (prev.0 - width).abs() < 1.0 && (prev.1 - height).abs() < 1.0 {
             return;
@@ -141,7 +179,7 @@ impl ArrangementCanvas {
         let this = self.clone();
         let id = glib::timeout_add_local(std::time::Duration::from_millis(32), move || {
             *this.resize_debounce.borrow_mut() = None;
-            if this.block_widgets.borrow().is_empty() {
+            if this.dragging.get() || this.block_widgets.borrow().is_empty() {
                 return glib::ControlFlow::Break;
             }
             this.recompute_layout();
@@ -155,17 +193,17 @@ impl ArrangementCanvas {
         *self.canvas_size.borrow()
     }
 
-    /// Pick up the canvas (or parent) width so layout works before the first
+    /// Pick up the viewport (or parent) width so layout works before the first
     /// `width` notify, and after rebuilds while the Display stack page is shown.
     fn sync_canvas_size_from_allocation(self: &Rc<Self>) {
-        let alloc = self.canvas.allocation();
+        let alloc = self.viewport.allocation();
         let mut width = alloc.width().max(0) as f64;
         let mut height = alloc
             .height()
-            .max(self.canvas.height_request())
+            .max(self.viewport.height_request())
             .max(CANVAS_MIN_H) as f64;
         if width < 120.0 {
-            if let Some(parent) = self.canvas.parent() {
+            if let Some(parent) = self.viewport.parent() {
                 let palloc = parent.allocation();
                 if palloc.width() > 0 {
                     width = palloc.width() as f64;
@@ -183,6 +221,9 @@ impl ArrangementCanvas {
     }
 
     fn recompute_layout(self: &Rc<Self>) {
+        if self.dragging.get() {
+            return;
+        }
         let blocks = self.blocks.borrow().clone();
         if blocks.is_empty() {
             return;
@@ -214,6 +255,15 @@ impl ArrangementCanvas {
         self.outputs.borrow().len()
     }
 
+    /// Stable identity of the monitors currently drawn (order matters).
+    pub fn output_names(&self) -> Vec<String> {
+        self.blocks.borrow().iter().map(|b| b.name.clone()).collect()
+    }
+
+    pub fn block_name(&self, index: usize) -> Option<String> {
+        self.blocks.borrow().get(index).map(|b| b.name.clone())
+    }
+
     pub fn has_pending(&self) -> bool {
         *self.pending.borrow()
     }
@@ -231,6 +281,9 @@ impl ArrangementCanvas {
         if !*self.pending.borrow() && !force {
             return false;
         }
+        // Shift arrangement so the top-left of the bounding box is (0, 0). Stops
+        // a bad drag from parking the primary output at e.g. (3084, 514).
+        self.normalize_origin_into_cfg();
         let backup = load_outputs_config();
         let cfg = self.cfg.borrow().clone();
         if let Err(err) = save_outputs_config(&cfg) {
@@ -240,6 +293,28 @@ impl ArrangementCanvas {
         *self.trial_backup.borrow_mut() = Some(backup);
         self.set_pending(false);
         true
+    }
+
+    /// Write block positions into cfg with the desktop origin at (0, 0).
+    fn normalize_origin_into_cfg(self: &Rc<Self>) {
+        let mut blocks = self.blocks.borrow_mut();
+        if blocks.is_empty() {
+            return;
+        }
+        let min_x = blocks.iter().map(|b| b.logical_x).min().unwrap_or(0);
+        let min_y = blocks.iter().map(|b| b.logical_y).min().unwrap_or(0);
+        if min_x != 0 || min_y != 0 {
+            for b in blocks.iter_mut() {
+                b.logical_x -= min_x;
+                b.logical_y -= min_y;
+            }
+        }
+        let mut cfg = self.cfg.borrow_mut();
+        for b in blocks.iter() {
+            let entry = cfg.outputs.entry(b.name.clone()).or_default();
+            entry.layout_x = Some(b.logical_x);
+            entry.layout_y = Some(b.logical_y);
+        }
     }
 
     /// User accepted the trial arrangement in the confirmation dialog.
@@ -322,7 +397,21 @@ impl ArrangementCanvas {
                 );
             }
 
-            build_blocks(&list, &self.cfg.borrow())
+            let mut blocks = build_blocks(&list, &self.cfg.borrow());
+            // New HDMI outputs often report the same origin as the primary until
+            // the user arranges them — untangle so boxes aren't stacked, and mark
+            // the auto-placement as pending so Save persists it.
+            if untangle_overlaps(&mut blocks, None) && !self.in_trial() {
+                let mut cfg = self.cfg.borrow_mut();
+                for b in &blocks {
+                    let entry = cfg.outputs.entry(b.name.clone()).or_default();
+                    entry.layout_x = Some(b.logical_x);
+                    entry.layout_y = Some(b.logical_y);
+                }
+                drop(cfg);
+                self.set_pending(true);
+            }
+            blocks
         };
         if blocks.is_empty() {
             return;
@@ -338,9 +427,9 @@ impl ArrangementCanvas {
         let mut widgets = Vec::with_capacity(blocks.len());
         for (idx, block) in blocks.iter().enumerate() {
             let widget = build_block_widget(block, idx == sel);
-            if draggable {
-                wire_drag(self, &widget, idx);
-            } else {
+            // Drag is handled once on the Fixed canvas (stable coords). Per-tile
+            // GestureDrag rubber-bands because offsets are in the moving child's space.
+            if !draggable {
                 wire_select(self, &widget, idx);
             }
             widgets.push(widget.clone());
@@ -563,64 +652,129 @@ fn wire_select(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize
     widget.add_controller(gesture);
 }
 
-fn wire_drag(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize) {
-    let start_canvas = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+/// Drag tiles via a gesture on the Fixed canvas — not on the tiles themselves.
+///
+/// `GtkGestureDrag` offsets are in the widget the gesture is attached to. When
+/// that widget is the tile being `move_`'d, the coordinate space moves under the
+/// pointer every frame and the drag rubber-bands. The canvas stays put, so
+/// `start_origin + offset` tracks the pointer smoothly.
+fn wire_canvas_drag(canvas: &Rc<ArrangementCanvas>) {
+    let drag_index: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(None));
+    let start_origin = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+    let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+    let tile_size = Rc::new(RefCell::new((1.0_f64, 1.0_f64)));
     let drag_total = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
-    let drag = gtk::GestureDrag::new();
-    drag.set_button(1);
+
+    let drag = gtk::GestureDrag::builder()
+        .button(1)
+        .propagation_phase(gtk::PropagationPhase::Capture)
+        .build();
+
     drag.connect_drag_begin({
-        let widget = widget.clone();
-        let start_canvas = start_canvas.clone();
+        let canvas = canvas.clone();
+        let drag_index = drag_index.clone();
+        let start_origin = start_origin.clone();
+        let last_pos = last_pos.clone();
+        let tile_size = tile_size.clone();
         let drag_total = drag_total.clone();
-        move |_, x, y| {
-            let alloc = widget.allocation();
-            start_canvas.replace((alloc.x() as f64 + x, alloc.y() as f64 + y));
+        move |gesture, x, y| {
+            drag_index.set(None);
+            if !*canvas.draggable.borrow() || canvas.in_trial() {
+                return;
+            }
+            let Some(index) = hit_block_index(&canvas, x, y) else {
+                return;
+            };
+            // Claim so child buttons / labels don't steal the sequence.
+            gesture.set_state(gtk::EventSequenceState::Claimed);
+
+            if let Some(id) = canvas.resize_debounce.borrow_mut().take() {
+                id.remove();
+            }
+            canvas.dragging.set(true);
+            drag_index.set(Some(index));
             drag_total.replace((0.0, 0.0));
-        }
-    });
-    drag.connect_drag_update({
-        let widget = widget.clone();
-        let start_canvas = start_canvas.clone();
-        let drag_total = drag_total.clone();
-        let fixed = canvas.canvas.clone();
-        let canvas = canvas.clone();
-        move |_, offset_x, offset_y| {
-            drag_total.replace((offset_x, offset_y));
-            let (sx, sy) = *start_canvas.borrow();
-            let nx = (sx + offset_x).round();
-            let ny = (sy + offset_y).round();
+
+            let widgets = canvas.block_widgets.borrow();
+            let Some(widget) = widgets.get(index) else {
+                return;
+            };
+            widget.add_css_class("metis-display-block-dragging");
             let alloc = widget.allocation();
-            let (canvas_w, canvas_h) = canvas.canvas_dims();
-            let (nx, ny) = clamp_canvas_point(
-                nx,
-                ny,
-                alloc.width() as f64,
-                alloc.height() as f64,
-                canvas_w,
-                canvas_h,
-            );
-            fixed.move_(&widget, nx, ny);
+            let origin = (alloc.x() as f64, alloc.y() as f64);
+            start_origin.replace(origin);
+            last_pos.replace(origin);
+            let (bw, bh) = canvas
+                .blocks
+                .borrow()
+                .get(index)
+                .map(|b| block_canvas_size(b, *canvas.scale.borrow()))
+                .unwrap_or((alloc.width() as f64, alloc.height() as f64));
+            tile_size.replace((bw.max(1.0), bh.max(1.0)));
+
+            canvas.set_selected(index);
+            (canvas.on_select)(index);
         }
     });
-    drag.connect_drag_end({
-        let widget = widget.clone();
+
+    drag.connect_drag_update({
         let canvas = canvas.clone();
+        let drag_index = drag_index.clone();
+        let start_origin = start_origin.clone();
+        let last_pos = last_pos.clone();
+        let tile_size = tile_size.clone();
+        let drag_total = drag_total.clone();
+        move |_, offset_x, offset_y| {
+            let Some(index) = drag_index.get() else {
+                return;
+            };
+            drag_total.replace((offset_x, offset_y));
+            let (ox, oy) = *start_origin.borrow();
+            let (tw, th) = *tile_size.borrow();
+            let (canvas_w, canvas_h) = *canvas.canvas_size.borrow();
+            let (nx, ny) = clamp_canvas_point(
+                ox + offset_x,
+                oy + offset_y,
+                tw,
+                th,
+                canvas_w.max(120.0),
+                canvas_h.max(80.0),
+            );
+            last_pos.replace((nx, ny));
+            if let Some(widget) = canvas.block_widgets.borrow().get(index) {
+                canvas.canvas.move_(widget, nx, ny);
+            }
+        }
+    });
+
+    drag.connect_drag_end({
+        let canvas = canvas.clone();
+        let drag_index = drag_index.clone();
+        let last_pos = last_pos.clone();
+        let tile_size = tile_size.clone();
         let drag_total = drag_total.clone();
         move |_, _, _| {
+            let Some(index) = drag_index.take() else {
+                canvas.dragging.set(false);
+                return;
+            };
+            if let Some(widget) = canvas.block_widgets.borrow().get(index) {
+                widget.remove_css_class("metis-display-block-dragging");
+            }
+            canvas.dragging.set(false);
+
             if canvas.in_trial() {
                 return;
             }
-            let (ox, oy) = *drag_total.borrow();
-            let moved = ox.hypot(oy) >= TAP_THRESHOLD_PX;
 
-            if !moved {
-                canvas.set_selected(index);
-                (canvas.on_select)(index);
+            let (ox, oy) = *drag_total.borrow();
+            if ox.hypot(oy) < TAP_THRESHOLD_PX {
+                // Click without a real drag — selection already applied on begin.
                 return;
             }
 
-            let mut cx = widget.allocation().x() as f64;
-            let mut cy = widget.allocation().y() as f64;
+            let (mut cx, mut cy) = *last_pos.borrow();
+            let (tw, th) = *tile_size.borrow();
             snap_canvas_position(
                 index,
                 &mut cx,
@@ -630,20 +784,13 @@ fn wire_drag(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize) 
                 *canvas.origin.borrow(),
             );
 
-            let alloc = widget.allocation();
-            let (canvas_w, canvas_h) = canvas.canvas_dims();
-            let (cx, cy) = clamp_canvas_point(
-                cx,
-                cy,
-                alloc.width() as f64,
-                alloc.height() as f64,
-                canvas_w,
-                canvas_h,
-            );
+            let (canvas_w, canvas_h) = *canvas.canvas_size.borrow();
+            let (cx, cy) =
+                clamp_canvas_point(cx, cy, tw, th, canvas_w.max(120.0), canvas_h.max(80.0));
 
             let (min_x, min_y) = *canvas.origin.borrow();
-            let (logical_x, logical_y) =
-                canvas_to_logical(cx, cy, min_x, min_y, *canvas.scale.borrow());
+            let scale = (*canvas.scale.borrow()).max(0.01);
+            let (logical_x, logical_y) = canvas_to_logical(cx, cy, min_x, min_y, scale);
 
             {
                 let mut blocks = canvas.blocks.borrow_mut();
@@ -651,25 +798,46 @@ fn wire_drag(canvas: &Rc<ArrangementCanvas>, widget: &gtk::Frame, index: usize) 
                     b.logical_x = logical_x;
                     b.logical_y = logical_y;
                 }
-            }
-
-            {
-                let blocks = canvas.blocks.borrow();
-                let Some(block) = blocks.get(index) else {
-                    return;
-                };
+                untangle_overlaps(&mut blocks, Some(index));
+                let min_x = blocks.iter().map(|b| b.logical_x).min().unwrap_or(0);
+                let min_y = blocks.iter().map(|b| b.logical_y).min().unwrap_or(0);
+                if min_x != 0 || min_y != 0 {
+                    for b in blocks.iter_mut() {
+                        b.logical_x -= min_x;
+                        b.logical_y -= min_y;
+                    }
+                }
                 let mut c = canvas.cfg.borrow_mut();
-                let entry = c.outputs.entry(block.name.clone()).or_default();
-                entry.layout_x = Some(logical_x);
-                entry.layout_y = Some(logical_y);
+                for block in blocks.iter() {
+                    let entry = c.outputs.entry(block.name.clone()).or_default();
+                    entry.layout_x = Some(block.logical_x);
+                    entry.layout_y = Some(block.logical_y);
+                }
             }
 
-            canvas.canvas.move_(&widget, cx.round(), cy.round());
             canvas.set_pending(true);
+            canvas.recompute_layout();
         }
     });
-    widget.add_controller(drag);
+
+    canvas.canvas.add_controller(drag);
 }
+
+fn hit_block_index(canvas: &ArrangementCanvas, x: f64, y: f64) -> Option<usize> {
+    // Prefer the top-most tile when they overlap (later children paint above).
+    for (i, widget) in canvas.block_widgets.borrow().iter().enumerate().rev() {
+        let alloc = widget.allocation();
+        let left = alloc.x() as f64;
+        let top = alloc.y() as f64;
+        let right = left + alloc.width() as f64;
+        let bottom = top + alloc.height() as f64;
+        if x >= left && x < right && y >= top && y < bottom {
+            return Some(i);
+        }
+    }
+    None
+}
+
 
 fn snap_canvas_position(
     moved_idx: usize,
@@ -705,4 +873,98 @@ fn snap_canvas_position(
             *cy = oy - mh;
         }
     }
+}
+
+fn rects_overlap(ax: i32, ay: i32, aw: i32, ah: i32, bx: i32, by: i32, bw: i32, bh: i32) -> bool {
+    ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
+}
+
+/// Push overlapping monitors apart. Prefers moving `prefer_move` (the tile the
+/// user just dragged); otherwise moves non-primary outputs. Separation follows
+/// the shallowest overlap axis in the direction of the centers — never the old
+/// "always shove right" rule that made top/bottom/swap arrangements impossible.
+fn untangle_overlaps(blocks: &mut [BlockState], prefer_move: Option<usize>) -> bool {
+    if blocks.len() < 2 {
+        return false;
+    }
+    let mut changed = false;
+    for _ in 0..64 {
+        let mut progressed = false;
+        for i in 0..blocks.len() {
+            for j in 0..blocks.len() {
+                if i == j {
+                    continue;
+                }
+                let (ax, ay, aw, ah) = (
+                    blocks[i].logical_x,
+                    blocks[i].logical_y,
+                    blocks[i].width,
+                    blocks[i].height,
+                );
+                let (bx, by, bw, bh) = (
+                    blocks[j].logical_x,
+                    blocks[j].logical_y,
+                    blocks[j].width,
+                    blocks[j].height,
+                );
+                if !rects_overlap(ax, ay, aw, ah, bx, by, bw, bh) {
+                    continue;
+                }
+
+                let overlap_x = (ax + aw).min(bx + bw) - ax.max(bx);
+                let overlap_y = (ay + ah).min(by + bh) - ay.max(by);
+                if overlap_x <= 0 || overlap_y <= 0 {
+                    continue;
+                }
+
+                // Which block to move: prefer the dragged tile; else the
+                // non-primary; else the higher index.
+                let move_i = match prefer_move {
+                    Some(p) if p == i => true,
+                    Some(p) if p == j => false,
+                    _ if blocks[i].primary != blocks[j].primary => !blocks[i].primary,
+                    _ => i > j,
+                };
+                let (mi, oi) = if move_i { (i, j) } else { (j, i) };
+
+                let (mx, my, mw, mh) = (
+                    blocks[mi].logical_x,
+                    blocks[mi].logical_y,
+                    blocks[mi].width,
+                    blocks[mi].height,
+                );
+                let (ox, oy, ow, oh) = (
+                    blocks[oi].logical_x,
+                    blocks[oi].logical_y,
+                    blocks[oi].width,
+                    blocks[oi].height,
+                );
+                let mcx = mx as i64 + mw as i64 / 2;
+                let mcy = my as i64 + mh as i64 / 2;
+                let ocx = ox as i64 + ow as i64 / 2;
+                let ocy = oy as i64 + oh as i64 / 2;
+
+                let pair_overlap_x = (mx + mw).min(ox + ow) - mx.max(ox);
+                let pair_overlap_y = (my + mh).min(oy + oh) - my.max(oy);
+
+                if pair_overlap_x <= pair_overlap_y {
+                    if mcx <= ocx {
+                        blocks[mi].logical_x = ox - mw;
+                    } else {
+                        blocks[mi].logical_x = ox + ow;
+                    }
+                } else if mcy <= ocy {
+                    blocks[mi].logical_y = oy - mh;
+                } else {
+                    blocks[mi].logical_y = oy + oh;
+                }
+                progressed = true;
+                changed = true;
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+    changed
 }

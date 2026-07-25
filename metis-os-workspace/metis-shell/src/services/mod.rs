@@ -34,17 +34,20 @@ pub use dashboard::{
     GpuTempReading, HealthLevel, ProcessClass, ProcessRow,
 };
 pub use notifications::{
-    clear_notifications, close_notification, dismiss_notification, do_not_disturb,
-    invoke_action, notification_count, notify_store_changed, play_notification_sound,
-    push_notification, register_refresh, runtime_notifications, set_action_sender,
-    set_do_not_disturb, BarNotification, NotificationEntry, NotificationKind,
+    clear_notifications, close_notification, dismiss_notification,
+    dismiss_notification_by_dbus_id, do_not_disturb, invoke_action, notification_count,
+    notify_store_changed, play_notification_sound, push_notification, register_refresh,
+    runtime_notifications, set_action_sender, set_do_not_disturb, BarNotification,
+    NotificationEntry, NotificationKind,
 };
-pub use notify_dbus::{spawn_notification_service, NotifyChannels};
+pub use notify_dbus::{spawn_notification_service, NotifyChannels, NotifyIncoming};
 pub use poll::{
-    bluetooth_set_powered, set_mic_mute, set_mic_volume_absolute, set_mute, set_volume_absolute,
-    set_volume_relative, spawn_bar_pollers, vpn_clear_password_prompt, vpn_down, vpn_up,
-    vpn_up_with_password, wifi_connect, wifi_scan, wifi_set_radio, BarSnapshot, BluetoothDevice,
-    BluetoothStatus, EthernetStatus, VpnFeedback, VpnStatus, WifiNetwork,
+    arm_user_wifi_radio_toggle, bluetooth_set_powered, set_mic_mute, set_mic_volume_absolute,
+    set_mute, set_volume_absolute, set_volume_relative, spawn_bar_pollers,
+    suppress_wifi_radio_writes, vpn_clear_password_prompt, vpn_down, vpn_up,
+    vpn_up_with_password, wifi_connect, wifi_ensure_radio_on, wifi_hotplug_suppressed, wifi_scan,
+    wifi_set_radio, BarSnapshot, BluetoothDevice, BluetoothStatus, EthernetStatus, VpnFeedback,
+    VpnStatus, WifiNetwork,
 };
 pub use tray_menu::{MenuItem as TrayMenuItem, MenuType, TrayMenu};
 pub use tray::{

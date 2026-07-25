@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -17,6 +18,20 @@ enum AudioCommand {
 }
 
 static AUDIO_CMD_TX: OnceLock<Sender<AudioCommand>> = OnceLock::new();
+
+/// Ignore `nmcli radio wifi` writes until this instant. Display modesets / HDMI
+/// hotplug briefly make NetworkManager look flaky; a false "off" sync must not
+/// permanently kill the radio.
+static WIFI_RADIO_SUPPRESS_UNTIL: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// One-shot gate: `nmcli radio wifi off` is refused unless a real pointer/touch
+/// arm set this immediately beforehand. HDMI modeset used to synthesize GTK
+/// switch notifies that called `wifi_set_radio(false)`.
+static WIFI_USER_OFF_ARMED: AtomicBool = AtomicBool::new(false);
+
+/// Set by [`wifi_set_radio`] when an armed off is queued; consumed in
+/// [`spawn_nmcli`] so orphan `radio wifi off` invocations cannot slip through.
+static WIFI_OFF_SPAWN_ALLOWED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 enum NetworkCommand {
@@ -382,6 +397,7 @@ fn drain_network_commands(
             NetworkCommand::Connect { ssid, password } => run_wifi_connect(ssid, password),
             NetworkCommand::SetRadio(on) => {
                 let state = if on { "on" } else { "off" };
+                tracing::info!(on, "wifi: applying nmcli radio wifi {state}");
                 spawn_nmcli(
                     vec!["radio".into(), "wifi".into(), state.into()],
                     Duration::from_secs(5),
@@ -441,9 +457,65 @@ pub fn wifi_connect(ssid: String, password: Option<String>) {
     queue_network(NetworkCommand::Connect { ssid, password });
 }
 
-/// Enable or disable the Wi-Fi radio.
-pub fn wifi_set_radio(on: bool) {
+/// Arm the next Wi-Fi radio-off. Call from a pointer/touch press on the switch
+/// *before* GTK emits the state change. Unarmed `wifi_set_radio(false)` is a no-op.
+pub fn arm_user_wifi_radio_toggle() {
+    WIFI_USER_OFF_ARMED.store(true, Ordering::SeqCst);
+}
+
+/// Enable or disable the Wi-Fi radio from an **explicit user toggle** only.
+///
+/// Turning the radio **off** requires a prior [`arm_user_wifi_radio_toggle`] from
+/// a real click. Returns `false` if an unarmed off was refused (caller should
+/// keep the switch on).
+pub fn wifi_set_radio(on: bool) -> bool {
+    if !on {
+        if !WIFI_USER_OFF_ARMED.swap(false, Ordering::SeqCst) {
+            tracing::warn!("wifi_set_radio(false) ignored — not user-armed");
+            return false;
+        }
+        WIFI_OFF_SPAWN_ALLOWED.store(true, Ordering::SeqCst);
+    } else {
+        // Click-to-enable also arms; drop leftover so a later phantom off cannot pass.
+        WIFI_USER_OFF_ARMED.store(false, Ordering::SeqCst);
+        if let Ok(mut slot) = WIFI_RADIO_SUPPRESS_UNTIL.lock() {
+            *slot = None;
+        }
+    }
     queue_network(NetworkCommand::SetRadio(on));
+    true
+}
+
+/// Turn the Wi-Fi radio on if needed (Rescan). Never turns it off.
+pub fn wifi_ensure_radio_on() {
+    if wifi_radio_writes_suppressed() {
+        return;
+    }
+    queue_network(NetworkCommand::SetRadio(true));
+}
+
+/// Block Wi-Fi radio *writes* during display hotplug. Also used as a signal to
+/// the bar UI not to trust a transient "disabled" reading.
+pub fn suppress_wifi_radio_writes(for_secs: u64) {
+    let until = Instant::now() + Duration::from_secs(for_secs.max(1));
+    if let Ok(mut slot) = WIFI_RADIO_SUPPRESS_UNTIL.lock() {
+        let next = slot.map_or(until, |prev| prev.max(until));
+        *slot = Some(next);
+    }
+}
+
+/// True while HDMI/modeset suppress is active — UI must not treat "radio off"
+/// as authoritative, and must not apply a switch-off.
+pub fn wifi_hotplug_suppressed() -> bool {
+    wifi_radio_writes_suppressed()
+}
+
+fn wifi_radio_writes_suppressed() -> bool {
+    WIFI_RADIO_SUPPRESS_UNTIL
+        .lock()
+        .ok()
+        .and_then(|slot| *slot)
+        .is_some_and(|until| Instant::now() < until)
 }
 
 /// Bring a NetworkManager VPN / WireGuard profile up (by UUID or name).
@@ -509,6 +581,24 @@ fn run_wifi_connect_owned(args: Vec<String>) {
 
 /// Spawn an `nmcli` invocation on a detached thread, killing it after `timeout`.
 fn spawn_nmcli(args: Vec<String>, timeout: Duration) {
+    // Last-line defense: never run `radio wifi off` unless a user-armed
+    // `wifi_set_radio(false)` already queued it (arm bit already consumed there).
+    // Orphan/stray callers must not kill Wi-Fi during HDMI modeset.
+    if args.len() >= 3
+        && args[0] == "radio"
+        && args[1] == "wifi"
+        && args[2].eq_ignore_ascii_case("off")
+    {
+        // Only SetRadio(false) from wifi_set_radio reaches here after consuming
+        // the arm bit — mark with a side channel so we can still refuse orphans.
+        if !WIFI_OFF_SPAWN_ALLOWED.swap(false, Ordering::SeqCst) {
+            tracing::error!(
+                "spawn_nmcli blocked orphan `radio wifi off` \
+                 (HDMI/modeset must never disable Wi-Fi)"
+            );
+            return;
+        }
+    }
     thread::spawn(move || {
         let mut cmd = std::process::Command::new("nmcli");
         cmd.args(&args)
@@ -862,7 +952,13 @@ fn read_wifi_radio_enabled() -> bool {
     let mut cmd = std::process::Command::new("nmcli");
     cmd.args(["-t", "-f", "WIFI", "radio"]);
     run_command(&mut cmd)
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "enabled")
+        .map(|o| {
+            let text = String::from_utf8_lossy(&o.stdout);
+            text.lines()
+                .map(str::trim)
+                .any(|line| line.eq_ignore_ascii_case("enabled"))
+                || text.trim().is_empty()
+        })
         .unwrap_or(true)
 }
 

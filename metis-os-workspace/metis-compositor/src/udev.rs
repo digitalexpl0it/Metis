@@ -796,8 +796,25 @@ impl MetisState {
             connector.interface_id()
         );
 
-        let cfg = self.output_runtime.cached().clone();
         let modes: Vec<Mode> = connector.modes().to_vec();
+        // First pass: pick a mode from any existing prefs (or EDID preferred).
+        let preliminary = {
+            let cfg = self.output_runtime.cached().clone();
+            let prefs = metis_config::output_prefs(&cfg, &name);
+            crate::output_modes::pick_drm_mode_index(&modes, &prefs)
+        };
+        let Some(drm_mode) = modes.get(preliminary).copied() else {
+            tracing::warn!(%name, "connector has no modes");
+            return;
+        };
+        let preferred = drm_mode
+            .mode_type()
+            .contains(smithay::reexports::drm::control::ModeTypeFlags::PREFERRED);
+        let mode_info = crate::output_modes::drm_mode_info(drm_mode, preferred);
+
+        // Persist extend + preferred mode + right-of-primary layout for first
+        // plugs; restore saved layout/mode on replug.
+        let cfg = crate::output_prefs::persist_hotplug_connect(self, &name, &mode_info);
         let prefs = metis_config::output_prefs(&cfg, &name);
         let mode_id = crate::output_modes::pick_drm_mode_index(&modes, &prefs);
         let Some(drm_mode) = modes.get(mode_id).copied() else {
@@ -836,7 +853,8 @@ impl MetisState {
         );
         let global = output.create_global::<MetisState>(&self.display_handle);
 
-        // Place the output using saved layout or auto-pack left-to-right.
+        // Place the output using saved layout or auto-pack to the right of primary.
+        let cfg = self.output_runtime.cached().clone();
         let position = crate::output_prefs::output_position_for_connect(self, &cfg, &name);
         output.set_preferred(wl_mode);
         output.change_current_state(Some(wl_mode), Some(Transform::Normal), None, Some(position));
@@ -969,6 +987,15 @@ impl MetisState {
         let cfg = self.output_runtime.cached().clone();
         crate::output_prefs::apply_outputs(self, &cfg);
         self.damaged = true;
+
+        let make = output.physical_properties().make.clone();
+        let model = output.physical_properties().model.clone();
+        self.event_bus.emit(&metis_protocol::CompositorEvent::OutputHotplug {
+            connected: true,
+            name: name.clone(),
+            make,
+            model,
+        });
     }
 
     fn connector_disconnected(&mut self, node: DrmNode, crtc: crtc::Handle) {
@@ -979,11 +1006,39 @@ impl MetisState {
             .and_then(|backend| backend.surfaces.remove(&crtc));
         if let Some(mut surface) = removed {
             let output = surface.output.clone();
+            let name = output.name();
+            let make = output.physical_properties().make.clone();
+            let model = output.physical_properties().model.clone();
+            // Remember live position/mode before unmap so the next plug restores
+            // the last working arrangement (e.g. above primary after a drag).
+            crate::output_prefs::persist_output_snapshot(self, &output);
+            // Move windows off this output before it disappears — otherwise they
+            // keep dead geometry and Metis SSD can lose title text / controls.
+            if let Some(fallback) = self.fallback_output_key_excluding(&name) {
+                let fallback = fallback.clone();
+                self.evacuate_output(&name, &fallback);
+            }
             if let Some(global) = surface.global.take() {
                 self.display_handle.remove_global::<MetisState>(global);
             }
             self.space.unmap_output(&output);
-            tracing::info!(output = %output.name(), "output disconnected");
+            tracing::info!(output = %name, "output disconnected");
+            // Refresh wallpaper/layout for the remaining outputs without forcing
+            // a mode poke on every surviving connector.
+            let cfg = self.output_runtime.cached().clone();
+            crate::output_prefs::apply_outputs(self, &cfg);
+            // Drop cached SSD textures so the next frame rebuilds title + buttons
+            // against the remaining output's GL context.
+            self.decorations.clear_texture_caches();
+            self.decorations.invalidate_all();
+            self.nudge_clients_after_output_change();
+            self.damaged = true;
+            self.event_bus.emit(&metis_protocol::CompositorEvent::OutputHotplug {
+                connected: false,
+                name,
+                make,
+                model,
+            });
         }
     }
 
@@ -1297,29 +1352,33 @@ impl MetisState {
                 .and_then(|u| u.surface(id))
                 .is_some_and(|s| s.hdr_active);
 
-            let (frame_elements, clear): (Vec<OutputStack>, [f32; 4]) = if hdr_active {
-                let size = output
-                    .current_mode()
-                    .map(|m| m.size)
-                    .unwrap_or_default();
-                match crate::hdr_encode::encode_output_stack(
+            let output_name = output.name();
+            if self.color_mgmt.profiles_dirty {
+                let profiles = self.color_mgmt.profile_map().clone();
+                self.color_lut.sync_profiles(renderer, &profiles);
+                self.color_mgmt.profiles_dirty = false;
+                // Re-sync gamma now that LUT ownership may have changed.
+                crate::output_gamma::apply_output_gamma(self);
+            }
+
+            let (frame_elements, clear): (Vec<OutputStack>, [f32; 4]) =
+                if let Some(pass) = crate::output_colour::apply_colour_post_pass(
+                    &mut self.color_lut,
                     &mut self.hdr_encode,
                     renderer,
                     &elements,
-                    size,
+                    &output_name,
+                    output
+                        .current_mode()
+                        .map(|m| m.size)
+                        .unwrap_or_default(),
                     scale,
+                    hdr_active,
                 ) {
-                    Some(pq) => {
-                        (
-                            vec![OutputStack::HdrEncode(pq)],
-                            crate::hdr_encode::HDR_CLEAR,
-                        )
-                    }
-                    None => (elements, CLEAR_COLOR),
-                }
-            } else {
-                (elements, CLEAR_COLOR)
-            };
+                    (pass.elements, pass.clear)
+                } else {
+                    (elements, CLEAR_COLOR)
+                };
 
             let Some(surface) = self.udev.as_mut().and_then(|udev| udev.surface_mut(id)) else {
                 return;
@@ -1732,18 +1791,28 @@ impl MetisState {
         let Some(id) = id else {
             return false;
         };
-        let Some(surface) = udev.surface_mut(id) else {
-            return false;
+        let (output, connector, device_node) = {
+            let Some(surface) = udev.surface_mut(id) else {
+                return false;
+            };
+            let output = surface.output.clone();
+            if let Some(global) = surface.global.take() {
+                self.display_handle.remove_global::<MetisState>(global);
+            }
+            self.space.unmap_output(&output);
+            surface.user_disabled = true;
+            surface.pending = false;
+            surface.queued = false;
+            (output, surface.connector, id.device)
         };
-        let output = surface.output.clone();
-        if let Some(global) = surface.global.take() {
-            self.display_handle.remove_global::<MetisState>(global);
+        // Blank the panel. Without this the last frame stays lit while the
+        // pointer can no longer enter — feels like a "dead but still on" monitor.
+        if let Some(backend) = self.udev.as_ref().and_then(|u| u.backends.get(&device_node)) {
+            let device = backend.drm_output_manager.device();
+            set_connector_dpms(device, connector, false, name);
         }
-        self.space.unmap_output(&output);
-        surface.user_disabled = true;
-        surface.pending = false;
-        surface.queued = false;
-        tracing::info!(output = %name, "output disabled by user");
+        let _ = output;
+        tracing::info!(output = %name, "output disabled by user (unmapped + DPMS off)");
         true
     }
 
@@ -1759,16 +1828,29 @@ impl MetisState {
         let Some(id) = id else {
             return false;
         };
-        let Some(surface) = udev.surface_mut(id) else {
-            return false;
+        let (output, connector, device_node) = {
+            let Some(surface) = udev.surface_mut(id) else {
+                return false;
+            };
+            let output = surface.output.clone();
+            let global = output.create_global::<MetisState>(&self.display_handle);
+            surface.global = Some(global);
+            surface.user_disabled = false;
+            surface.pending = true;
+            (output, surface.connector, id.device)
         };
-        let output = surface.output.clone();
-        let global = output.create_global::<MetisState>(&self.display_handle);
-        surface.global = Some(global);
-        surface.user_disabled = false;
-        surface.pending = true;
-        tracing::info!(output = %name, "output re-enabled by user");
-        let _ = output;
+        if let Some(backend) = self.udev.as_ref().and_then(|u| u.backends.get(&device_node)) {
+            let device = backend.drm_output_manager.device();
+            set_connector_dpms(device, connector, true, name);
+        }
+        // Remap into the desktop. `apply_output_layout` only touches outputs
+        // already in the space — without this, Active stays "on" in Settings
+        // while the monitor never rejoins the pointer layout.
+        let cfg = self.output_runtime.cached().clone();
+        let pos = crate::output_prefs::output_position_for_connect(self, &cfg, name);
+        output.change_current_state(None, None, None, Some(pos));
+        self.space.map_output(&output, pos);
+        tracing::info!(output = %name, ?pos, "output re-enabled by user (mapped + DPMS on)");
         true
     }
 

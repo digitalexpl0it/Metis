@@ -47,7 +47,7 @@ smithay::backend::renderer::element::render_elements! {
     // Software/hardware pointer for the DRM backend (named-theme cursor). The
     // winit backend uses the host cursor and never emits this.
     CursorMemory=smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement<GlesRenderer>,
-    // HDR H2: fullscreen SDR→PQ encode blit (DRM only, when hdr_active).
+    // HDR H2 / Stage 2 colour: fullscreen post-pass blit (DRM only).
     HdrEncode=smithay::backend::renderer::gles::element::TextureShaderElement,
 }
 

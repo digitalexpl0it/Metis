@@ -62,6 +62,11 @@ pub(crate) fn play_alarm_sound_id(canberra_id: &str) {
 
 pub struct ClockWidget {
     root: gtk::Button,
+    /// Keeps the notification badge refresh hook alive for `register_refresh`.
+    /// Without this, the `Rc` is dropped at the end of `new` and the Weak in the
+    /// notify store is pruned — the badge then freezes at whatever count was
+    /// painted on the last construction-time refresh (often after a bar rebuild).
+    _notif_refresh: Rc<dyn Fn()>,
 }
 
 impl ClockWidget {
@@ -131,6 +136,7 @@ impl ClockWidget {
             let dnd = do_not_disturb();
             icons::set_icon(&bell_icon_refresh, names::notification(dnd));
             if total == 0 {
+                badge_refresh.set_visible(false);
                 bell_wrap_refresh.set_visible(false);
                 return;
             }
@@ -180,7 +186,10 @@ impl ClockWidget {
             update_bar_labels(&time_label, &date_label, config);
         }
 
-        Self { root }
+        Self {
+            root,
+            _notif_refresh: refresh,
+        }
     }
 
     pub fn root(&self) -> &gtk::Button {

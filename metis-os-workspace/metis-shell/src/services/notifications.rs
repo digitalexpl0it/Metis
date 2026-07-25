@@ -195,8 +195,35 @@ pub fn push_notification(notification: BarNotification) {
 
 /// Remove all runtime notifications.
 pub fn clear_notifications() {
+    let closed: Vec<u32> = RUNTIME.with(|r| {
+        r.borrow()
+            .iter()
+            .map(|e| e.notification.id)
+            .filter(|id| *id != 0)
+            .collect()
+    });
     RUNTIME.with(|r| r.borrow_mut().clear());
+    for id in closed {
+        close_notification(id, 2);
+    }
     fire_refresh();
+}
+
+/// Remove every store entry that carries freedesktop notification `id` (used when
+/// the sending app calls `CloseNotification`).
+pub fn dismiss_notification_by_dbus_id(id: u32) {
+    if id == 0 {
+        return;
+    }
+    let removed = RUNTIME.with(|r| {
+        let mut list = r.borrow_mut();
+        let before = list.len();
+        list.retain(|e| e.notification.id != id);
+        list.len() != before
+    });
+    if removed {
+        fire_refresh();
+    }
 }
 
 /// Remove a single notification by its process-local `uid` (see

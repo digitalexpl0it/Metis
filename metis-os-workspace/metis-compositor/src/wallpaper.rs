@@ -173,15 +173,19 @@ impl Wallpaper {
     /// Set the output layout (full framebuffer size + per-output regions) the
     /// wallpaper composes for. Schedules a debounced re-decode when it changes,
     /// collapsing the burst of resize/hotplug events into a single decode.
+    ///
+    /// Keeps the previous GPU texture on screen until the new compose uploads —
+    /// clearing it here caused a visible black flash on every HDMI plug.
     pub fn set_layout(&mut self, full_size: Size<i32, Physical>, regions: Vec<OutputRegion>) {
         if self.full_size == full_size && self.regions == regions {
             return;
         }
         self.full_size = full_size;
         self.regions = regions;
-        self.invalidate();
-        // Keep the earliest scheduled decode — a burst of startup resizes must not
-        // push this forward forever and starve the first compose pass.
+        // Soft invalidate: drop CPU pixels so a new decode is scheduled, but
+        // leave `buffer` / `texture` so the last frame keeps painting.
+        self.decode_generation = self.decode_generation.wrapping_add(1);
+        self.cpu_pixels = None;
         let at = Instant::now() + Duration::from_millis(120);
         self.redecode_at = Some(self.redecode_at.map_or(at, |prev| prev.min(at)));
     }
@@ -339,6 +343,11 @@ impl Wallpaper {
                         self.sources.insert(path, src);
                     }
                     self.cpu_pixels = Some(out.pixels);
+                    // Drop the previous GPU upload so `ensure` imports the new
+                    // framebuffer this frame (soft layout invalidate keeps the
+                    // old texture until we get here).
+                    self.buffer = None;
+                    self.texture = None;
                 }
             }
         }

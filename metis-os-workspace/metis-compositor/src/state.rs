@@ -253,6 +253,7 @@ pub struct MetisState {
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
     pub hdr_encode: crate::hdr_encode::HdrEncodeRuntime,
+    pub color_lut: crate::color_lut::ColorLutRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
     pub decoration_overrides: crate::decoration_overrides::DecorationsRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
@@ -893,6 +894,7 @@ impl MetisState {
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             hdr_encode: crate::hdr_encode::HdrEncodeRuntime::default(),
+            color_lut: crate::color_lut::ColorLutRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
             decoration_overrides: crate::decoration_overrides::DecorationsRuntime::load(),
             input_runtime: crate::device_input::InputRuntime::new(),
@@ -2428,6 +2430,34 @@ impl MetisState {
         self.refresh_all_scroll_offsets();
         self.arrange_layers();
         self.restore_focus_stacking();
+        self.schedule_redraw();
+    }
+
+    /// Force every mapped toplevel to receive a configure (same size) so clients
+    /// redraw after a DRM modeset or output layout change. Without this, GTK
+    /// windows often keep a fully transparent buffer while SSD borders still draw.
+    pub(crate) fn nudge_clients_after_output_change(&mut self) {
+        let ids: Vec<u32> = self.windows.ids();
+        for id in ids {
+            if self.windows.is_minimized(id) {
+                continue;
+            }
+            let Some(record) = self.windows.get(id).cloned() else {
+                continue;
+            };
+            if !self
+                .space
+                .elements()
+                .any(|w| self.windows.id_for_window(w) == Some(id))
+            {
+                continue;
+            }
+            let Some(loc) = self.space.element_location(&record.window) else {
+                continue;
+            };
+            let size = record.window.geometry().size;
+            self.send_window_configure(&record, loc, size);
+        }
         self.schedule_redraw();
     }
 

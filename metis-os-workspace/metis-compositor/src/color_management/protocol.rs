@@ -18,7 +18,9 @@ use smithay::reexports::wayland_server::{
 };
 use smithay::wayland::{Dispatch2, GlobalDispatch2};
 
-use crate::color_management::{DescriptionKind, DescriptionRecord};
+use crate::color_management::{
+    DescriptionKind, DescriptionRecord, NamedPrimaries, NamedTransferFunction,
+};
 use crate::state::MetisState;
 
 /// User data for the `wp_color_manager_v1` global.
@@ -92,7 +94,10 @@ fn send_manager_support_events(manager: &wp_color_manager_v1::WpColorManagerV1) 
     manager.supported_feature(Feature::Parametric);
     manager.supported_tf_named(TransferFunction::Srgb);
     manager.supported_tf_named(TransferFunction::Gamma22);
+    manager.supported_tf_named(TransferFunction::St2084Pq);
+    manager.supported_tf_named(TransferFunction::Hlg);
     manager.supported_primaries_named(Primaries::Srgb);
+    manager.supported_primaries_named(Primaries::Bt2020);
     manager.done();
 }
 
@@ -363,18 +368,54 @@ const SDR_MIN_LUM_SCALED: u32 = 0;
 const SDR_MAX_LUM: u32 = 80;
 const SDR_REFERENCE_LUM: u32 = 80;
 
-fn send_srgb_parametric_info(info: &wp_image_description_info_v1::WpImageDescriptionInfoV1) {
+fn send_parametric_info(
+    info: &wp_image_description_info_v1::WpImageDescriptionInfoV1,
+    tf: Option<NamedTransferFunction>,
+    primaries: Option<NamedPrimaries>,
+) {
     use wp_color_manager_v1::{Primaries, TransferFunction};
 
-    let [r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y] = SRGB_PRIMARIES_XY;
-    // Chromium requires the full parametric sequence (primaries + named + tf +
-    // luminances + target_*), not just named primaries.
+    let named_p = match primaries.unwrap_or(NamedPrimaries::Srgb) {
+        NamedPrimaries::Srgb => Primaries::Srgb,
+        NamedPrimaries::Bt2020 => Primaries::Bt2020,
+    };
+    let named_tf = match tf.unwrap_or(NamedTransferFunction::Srgb) {
+        NamedTransferFunction::Srgb => TransferFunction::Srgb,
+        NamedTransferFunction::Gamma22 => TransferFunction::Gamma22,
+        NamedTransferFunction::St2084Pq => TransferFunction::St2084Pq,
+        NamedTransferFunction::Hlg => TransferFunction::Hlg,
+    };
+
+    let [r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y] = match primaries.unwrap_or(NamedPrimaries::Srgb) {
+        NamedPrimaries::Srgb => SRGB_PRIMARIES_XY,
+        NamedPrimaries::Bt2020 => BT2020_PRIMARIES_XY,
+    };
+    let (min_lum, max_lum, ref_lum) = match tf.unwrap_or(NamedTransferFunction::Srgb) {
+        NamedTransferFunction::St2084Pq | NamedTransferFunction::Hlg => {
+            (0u32, 1000u32, 203u32)
+        }
+        _ => (SDR_MIN_LUM_SCALED, SDR_MAX_LUM, SDR_REFERENCE_LUM),
+    };
+
     info.primaries(r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
-    info.primaries_named(Primaries::Srgb);
-    info.tf_named(TransferFunction::Srgb);
-    info.luminances(SDR_MIN_LUM_SCALED, SDR_MAX_LUM, SDR_REFERENCE_LUM);
+    info.primaries_named(named_p);
+    info.tf_named(named_tf);
+    info.luminances(min_lum, max_lum, ref_lum);
     info.target_primaries(r_x, r_y, g_x, g_y, b_x, b_y, w_x, w_y);
-    info.target_luminance(SDR_MIN_LUM_SCALED, SDR_MAX_LUM);
+    info.target_luminance(min_lum, max_lum);
+}
+
+/// BT.2020 / BT.2100 primaries and D65 (CIE 1931 xy × 1_000_000).
+const BT2020_PRIMARIES_XY: [i32; 8] = [
+    708_000, 292_000, 170_000, 797_000, 131_000, 46_000, 312_700, 329_000,
+];
+
+fn send_srgb_parametric_info(info: &wp_image_description_info_v1::WpImageDescriptionInfoV1) {
+    send_parametric_info(
+        info,
+        Some(NamedTransferFunction::Srgb),
+        Some(NamedPrimaries::Srgb),
+    );
 }
 
 fn send_image_description_info(
@@ -392,6 +433,9 @@ fn send_image_description_info(
             }
         }
         DescriptionKind::SrgbParametric => send_srgb_parametric_info(info),
+        DescriptionKind::Parametric { tf, primaries } => {
+            send_parametric_info(info, *tf, *primaries);
+        }
     }
     info.done();
 }
@@ -500,9 +544,15 @@ impl Dispatch2<
                     );
                     return;
                 }
-                let record_id = state
-                    .color_mgmt
-                    .alloc_description(DescriptionKind::SrgbParametric, true);
+                let named_tf = tf.and_then(map_transfer_function);
+                let named_primaries = primaries.and_then(map_primaries);
+                let record_id = state.color_mgmt.alloc_description(
+                    DescriptionKind::Parametric {
+                        tf: named_tf,
+                        primaries: named_primaries,
+                    },
+                    true,
+                );
                 init_ready_image_description(state, data_init, image_description, record_id);
             }
             _ => {}
@@ -667,4 +717,26 @@ fn sealed_memfd(name: &str, data: &[u8]) -> Option<OwnedFd> {
     let _ = file.flush();
     unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, libc::F_SEAL_WRITE | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW) };
     Some(file.into())
+}
+
+fn map_transfer_function(
+    tf: wp_color_manager_v1::TransferFunction,
+) -> Option<NamedTransferFunction> {
+    use wp_color_manager_v1::TransferFunction as Tf;
+    match tf {
+        Tf::Srgb => Some(NamedTransferFunction::Srgb),
+        Tf::Gamma22 => Some(NamedTransferFunction::Gamma22),
+        Tf::St2084Pq => Some(NamedTransferFunction::St2084Pq),
+        Tf::Hlg => Some(NamedTransferFunction::Hlg),
+        _ => None,
+    }
+}
+
+fn map_primaries(p: wp_color_manager_v1::Primaries) -> Option<NamedPrimaries> {
+    use wp_color_manager_v1::Primaries as P;
+    match p {
+        P::Srgb => Some(NamedPrimaries::Srgb),
+        P::Bt2020 => Some(NamedPrimaries::Bt2020),
+        _ => None,
+    }
 }

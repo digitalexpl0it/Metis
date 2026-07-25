@@ -22,17 +22,26 @@ use zbus::zvariant::{OwnedValue, Value};
 
 use super::notifications::{BarNotification, NotificationKind, NotifyOutgoing};
 
+/// Events delivered from the D-Bus daemon thread to the GTK main thread.
+#[derive(Debug, Clone)]
+pub enum NotifyIncoming {
+    /// A new (or replaced) notification to show.
+    Show(BarNotification),
+    /// Sending app called `CloseNotification` — drop it from the in-bar store.
+    Closed { id: u32 },
+}
+
 /// Incoming notifications + the outgoing action/close channel handed to the bar.
 pub struct NotifyChannels {
     /// Notifications delivered by the daemon, drained on the GTK main thread.
-    pub incoming: Receiver<BarNotification>,
+    pub incoming: Receiver<NotifyIncoming>,
     /// Sent by the UI when the user clicks an action or dismisses a card; the
     /// daemon turns these into `ActionInvoked` / `NotificationClosed` signals.
     pub actions: UnboundedSender<NotifyOutgoing>,
 }
 
 struct NotifyServer {
-    tx: Mutex<Sender<BarNotification>>,
+    tx: Mutex<Sender<NotifyIncoming>>,
     /// Outgoing signal channel so `CloseNotification` can emit `NotificationClosed`.
     out_tx: UnboundedSender<NotifyOutgoing>,
     next_id: AtomicU32,
@@ -80,14 +89,17 @@ impl NotifyServer {
             expire_ms: expire_timeout,
         };
         if let Ok(tx) = self.tx.lock() {
-            let _ = tx.send(note);
+            let _ = tx.send(NotifyIncoming::Show(note));
         }
         id
     }
 
-    /// `CloseNotification` — acknowledge by emitting `NotificationClosed` with
-    /// reason 3 (closed by a call to CloseNotification), per the spec.
+    /// `CloseNotification` — drop from the UI store and emit `NotificationClosed`
+    /// with reason 3 (closed by a call to CloseNotification), per the spec.
     async fn close_notification(&self, id: u32) {
+        if let Ok(tx) = self.tx.lock() {
+            let _ = tx.send(NotifyIncoming::Closed { id });
+        }
         let _ = self.out_tx.send(NotifyOutgoing::Closed { id, reason: 3 });
     }
 
@@ -155,7 +167,7 @@ fn hint_bool(hints: &HashMap<String, OwnedValue>, key: &str) -> bool {
 /// Start the notification daemon on a background thread and return the receiver
 /// the bar polls on the GTK main thread.
 pub fn spawn_notification_service() -> NotifyChannels {
-    let (tx, rx) = channel::<BarNotification>();
+    let (tx, rx) = channel::<NotifyIncoming>();
     // Outgoing action/close channel. One sender goes to the UI (via the returned
     // struct), one to the daemon's `CloseNotification`, and the receiver lives in
     // `run()`. `unbounded_channel` does not need a runtime to be created.
@@ -208,7 +220,7 @@ const NOTIFY_PATH: &str = "/org/freedesktop/Notifications";
 const NOTIFY_IFACE: &str = "org.freedesktop.Notifications";
 
 async fn run(
-    tx: Sender<BarNotification>,
+    tx: Sender<NotifyIncoming>,
     out_tx: UnboundedSender<NotifyOutgoing>,
     mut out_rx: UnboundedReceiver<NotifyOutgoing>,
 ) -> zbus::Result<()> {

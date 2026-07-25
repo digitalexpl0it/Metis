@@ -5,14 +5,13 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
-use std::time::Duration;
 
 use gtk::prelude::*;
 
 use crate::services::{
-    clear_notifications, do_not_disturb, notification_count, notify_store_changed,
-    register_refresh, runtime_notifications, set_do_not_disturb, BarNotification,
-    NotificationEntry, NotificationKind,
+    clear_notifications, do_not_disturb, notify_store_changed, register_refresh,
+    runtime_notifications, set_do_not_disturb, BarNotification, NotificationEntry,
+    NotificationKind,
 };
 use crate::ui::bar::widgets::build_action_row;
 
@@ -127,7 +126,6 @@ impl NotificationsCard {
                         "pan-end-symbolic"
                     });
                 }
-                let _ = notification_count();
             })
         };
 
@@ -195,22 +193,18 @@ impl NotificationsCard {
 }
 
 fn animate_clear(list: &gtk::Box) {
-    let mut any = false;
+    // Clear the store first so the bar badge drops immediately. A delayed clear
+    // after the slide animation left the badge stuck whenever the clock refresh
+    // hook had been pruned (or the panel closed mid-animation).
+    clear_notifications();
+
     let mut child = list.first_child();
     while let Some(c) = child {
         let next = c.next_sibling();
         if let Ok(rev) = c.clone().downcast::<gtk::Revealer>() {
             rev.set_reveal_child(false);
-            any = true;
         }
         child = next;
-    }
-    if any {
-        glib::timeout_add_local_once(Duration::from_millis(SLIDE_MS as u64 + 20), || {
-            clear_notifications();
-        });
-    } else {
-        clear_notifications();
     }
 }
 

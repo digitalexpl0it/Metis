@@ -15,6 +15,8 @@ mod focus;
 mod grabs;
 mod handlers;
 mod hdr_encode;
+mod output_colour;
+mod color_lut;
 mod idle;
 mod image_capture;
 mod input;

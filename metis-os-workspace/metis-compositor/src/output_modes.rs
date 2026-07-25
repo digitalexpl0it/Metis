@@ -133,6 +133,18 @@ fn apply_output_mode(state: &mut MetisState, output: &Output, prefs: &OutputPref
         }
     }
 
+    // Refuse to force a mode that this connector doesn't advertise (stale prefs
+    // from another monitor / a previous wrong Settings selection).
+    let (available, _) = list_output_modes(state, &output.name());
+    if !available.is_empty() && !available.iter().any(|m| modes_match(m, &target)) {
+        tracing::warn!(
+            name = %output.name(),
+            ?target,
+            "ignoring saved mode that is not in this output's mode list"
+        );
+        return false;
+    }
+
     if state.udev.is_some() {
         return state.udev_apply_mode(&output.name(), target);
     }

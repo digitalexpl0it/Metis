@@ -254,10 +254,11 @@ reference.
   full `MultiRenderer` transfer deferred).
 - **Phase 4 — System settings expansion:** complete (Input, Bluetooth, Printers,
   Power, Sound, Display).
-- **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** in progress —
-  resolution / refresh, arrangement, duplicate mode, VRR, night light, Stage 1
-  ICC→CRTC gamma, HDR H1 (EDID HDR10 + DRM metadata) and H2 SDR→PQ encode on
-  capable panels; Stage 2 colour / H3 remain.
+- **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** **complete**
+  (2026-07-25) — resolution / refresh, arrangement, duplicate mode, VRR, night
+  light, Stage 1 ICC→CRTC gamma, Stage 2 GLES 3D-LUT, HDR H1+H2 (EDID-gated)
+  with unified LUT→PQ post-pass. Default-on `wp_color_management_v1` deferred
+  (upstream wayland-rs UAF); true per-surface HDR content remains stretch.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
 - **Phase 7 — Remote access:** largely complete — live-session RDP via
   `gnome-remote-desktop` (Settings → Remote access), portal capture + EIS input,
@@ -278,7 +279,7 @@ reference.
 
 Optional follow-up: Deck-class / multi-GPU hardware validation, compositor
 **dim on battery** hook, desktop-widget extension API, first-party remote,
-Phase 5 Stage 2 colour / HDR H3.
+default-on colour-management protocol (upstream wayland-rs), per-surface HDR.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and

@@ -4,7 +4,7 @@
 //! gsettings). All `nmcli`/`gsettings` work runs off the GTK main thread;
 //! results arrive over an mpsc channel drained on a timeout.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -21,6 +21,9 @@ use metis_i18n::tr;
 
 struct Sections {
     radio: gtk::Switch,
+    /// True while `render` syncs the radio switch from nmcli — must not call
+    /// `set_radio` (a flaky read during DRM modeset would permanently kill Wi‑Fi).
+    syncing_radio: Cell<bool>,
     wifi: gtk::Box,
     saved: gtk::Box,
     wifi_dns: gtk::Box,
@@ -144,6 +147,7 @@ pub fn build(initial_tab: Option<&str>) -> gtk::Widget {
 
     let sections = Rc::new(Sections {
         radio: radio.clone(),
+        syncing_radio: Cell::new(false),
         wifi: wifi_list,
         saved: saved_body,
         wifi_dns: wdns_body,
@@ -182,8 +186,28 @@ pub fn build(initial_tab: Option<&str>) -> gtk::Widget {
 
     {
         let refresh = refresh.clone();
+        let sections = sections.clone();
+        // HDMI modeset can synthesize active-notify without a click. Only a
+        // real press may turn the radio off.
+        let arm = gtk::GestureClick::new();
+        arm.set_button(1);
+        arm.set_propagation_phase(gtk::PropagationPhase::Capture);
+        arm.connect_pressed(move |_, _, _, _| {
+            net::arm_user_wifi_radio_toggle();
+        });
+        radio.add_controller(arm);
+
         radio.connect_active_notify(move |s| {
-            net::set_radio(s.is_active());
+            if sections.syncing_radio.get() {
+                return;
+            }
+            if !net::set_radio(s.is_active()) {
+                // Unarmed off refused — keep UI matching the still-enabled radio.
+                sections.syncing_radio.set(true);
+                s.set_active(true);
+                sections.syncing_radio.set(false);
+                return;
+            }
             schedule_refresh(&refresh, 1500);
         });
     }
@@ -288,7 +312,14 @@ fn schedule_refresh(refresh: &Rc<impl Fn() + 'static>, delay_ms: u32) {
 }
 
 fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refresh: &Rc<F>) {
-    sections.radio.set_active(snap.wifi_enabled);
+    // Sync UI from nmcli without writing the radio back. Never flip the switch
+    // OFF from a poll — HDMI modeset used to make nmcli report disabled and the
+    // notify handler then ran `nmcli radio wifi off`.
+    sections.syncing_radio.set(true);
+    if snap.wifi_enabled && !sections.radio.is_active() {
+        sections.radio.set_active(true);
+    }
+    sections.syncing_radio.set(false);
 
     // ---- Wi-Fi list ----
     clear(&sections.wifi);

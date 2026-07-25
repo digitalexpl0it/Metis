@@ -232,6 +232,15 @@ pub enum CompositorEvent {
         #[serde(default)]
         pid: Option<u32>,
     },
+    /// A physical display was plugged in or unplugged (DRM hotplug).
+    OutputHotplug {
+        connected: bool,
+        name: String,
+        #[serde(default)]
+        make: String,
+        #[serde(default)]
+        model: String,
+    },
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

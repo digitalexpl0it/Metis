@@ -2326,6 +2326,14 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         font-size: 12px;
     }}
 
+    /* Pin/Unpin sheet — same overlay trick as the rail tooltip. */
+    .metis-menu-pin-context {{
+        padding: 4px;
+        border-radius: {rs}px;
+        border: 1px solid {border};
+        background-color: {raised};
+    }}
+
     .metis-menu-rail {{
         padding: 2px 10px 2px 0;
         margin-right: 4px;
@@ -3689,6 +3697,35 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     /* ---- Desktop widgets (Phase 14 wallpaper layer) ---- */
     window.metis-desktop-widgets-window {{
         background-color: transparent;
+    }}
+    /* Folders delete/rename confirms — Popovers (not toplevel windows).
+       Toplevel dialogs inherit transparent `window` RGBA and stay hollow;
+       Metis SSD then draws a ghost titlebar around them. */
+    popover.metis-dw-confirm {{
+        background-color: transparent;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+    }}
+    popover.metis-dw-confirm contents {{
+        background-color: {surface_solid} !important;
+        border: 1px solid {border};
+        border-radius: {rm}px;
+        padding: 0;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    }}
+    .metis-dw-confirm-sheet {{
+        background-color: {surface_solid};
+        color: {text};
+        border-radius: {rm}px;
+    }}
+    .metis-dw-confirm-title {{
+        font-weight: 600;
+        font-size: 1.05rem;
+        color: {text};
+    }}
+    .metis-dw-confirm-detail {{
+        color: {muted};
     }}
     .metis-desktop-widgets-canvas {{
         background-color: transparent;

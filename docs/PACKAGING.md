@@ -46,7 +46,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 
 | Field | Packages | Why |
 |-------|----------|-----|
-| **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, … | Required to start a Metis session; kitty is the default terminal |
+| **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, `liblcms2-2`, … | Required to start a Metis session; kitty is the default terminal; lcms2 for Stage 2 colour LUTs |
 | **Bundled** | `libgtk4-layer-shell.so.0` | Not packaged on Ubuntu 24.04 — built in CI / copied from the build host into the `.deb` |
 | **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse** | Keyring, portal helpers, and removable-volume mount/eject/LUKS (apt installs by default) |
 | **Suggests** | `gnome-remote-desktop`, `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer` | Optional features |

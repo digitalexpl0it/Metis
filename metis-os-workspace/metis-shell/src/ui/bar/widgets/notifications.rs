@@ -10,6 +10,8 @@ use std::rc::Rc;
 
 pub struct NotificationsWidget {
     root: gtk::Button,
+    /// See [`ClockWidget::_notif_refresh`] — same Weak-hook lifetime bug.
+    _notif_refresh: Rc<dyn Fn()>,
 }
 
 impl NotificationsWidget {
@@ -44,9 +46,15 @@ impl NotificationsWidget {
                 icons::set_icon(&icon, names::notification(do_not_disturb()));
                 let total = notification_count();
                 if do_not_disturb() || total == 0 {
+                    badge.set_label("");
                     badge.set_visible(false);
                 } else {
-                    badge.set_label(&total.to_string());
+                    let label = if total > 99 {
+                        "99+".to_string()
+                    } else {
+                        total.to_string()
+                    };
+                    badge.set_label(&label);
                     badge.set_visible(true);
                 }
             })
@@ -54,7 +62,10 @@ impl NotificationsWidget {
         register_refresh(refresh.clone());
         refresh();
 
-        Self { root }
+        Self {
+            root,
+            _notif_refresh: refresh,
+        }
     }
 
     pub fn root(&self) -> &gtk::Button {

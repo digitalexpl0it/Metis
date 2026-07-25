@@ -36,6 +36,7 @@ jobs:
             libdisplay-info-dev libpam0g-dev \
             libpipewire-0.3-dev \
             libpulse-dev \
+            liblcms2-dev \
             libwayland-dev wayland-protocols \
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \

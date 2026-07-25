@@ -1,32 +1,11 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 8** (Internationalization) is **complete** (2026-07-24)
-— hybrid gettext (shell/settings) + Fluent (compositor), `locale.json`, Settings
-Language & region, onboarding language step, RTL, live Apply rebuilds (Settings,
-edge bar, NC, desktop widgets), catalogs in `.deb` CI. **Phase 7** (Remote access)
-is largely complete — RDP via portal PipeWire, RustDesk/VNC docs, multi-monitor
-ScreenCast connector select; remaining stretch: first-party remote. **Phase 3**
-ScreenCast dmabuf zero-copy and Stage G multi-device DRM landed (2026-07-24).
-**Phase 14**
-(Desktop Widgets) is
-**complete** (2026-07-18) —
-Folders / Apps / Clock / System / Weather / Equalizer builtins, Settings list +
-configure dialogs, chrome, and text style. Extension API deferred. **Phase 13**
-(Notification Center) is
-**complete** (2026-07-10) — Win11-style right panel from the clock, merged
-notifications + calendar tools, closable toasts. **Phase 12** (Native Screenshot
-Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-aware
-toolbar, and compositor capture exclusion. **Phase 11** (Gaming Platform 2.0) is
-**complete** (2026-07-07) — `gaming.json`, Flatpak zero-config, gaming health
-checks, `metis-gamingd`, onboarding gaming step, and hybrid PRIME / scanout
-polish. **Phase 3** is complete (multi-GPU hardware validation remains).
-**Phase 4** (settings-app expansion) is complete.
-**Phase 5** is in progress (HDR H1+H2 landed 2026-07-24; Stage 2 colour / H3
-remain). **Phase 6**
-(Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
-access), **Phase 9** (onboarding — done
-2026-07-04; language step landed with Phase 8), and **Phase 10** (Control Center — v2 shipped 2026-07-07; process tree
-+ configurable keybinds 2026-07-11) are done.
+**Current phase:** Phases **1–14** are complete for their shipped product bars.
+**Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and Stage 2
+GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
+(upstream wayland-rs UAF). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
+remote stretch: first-party viewer. **Phase 3** multi-GPU hardware validation
+remains open. See individual phase sections for deferred follow-ups.
 
 ---
 
@@ -489,11 +468,14 @@ Phase 3) — none of these are possible under the nested winit dev session.
       shader/offscreen path fails. **Cast polish:** keep Default/RGB Colorspace +
       Rec.709 mastering metadata (not BT.2020 without gamut convert); identity
       CRTC gamma while HDR is active (avoids warm/tan laptop overlay).
-  - [ ] **HDR H3 / Stage 2 colour (follow-up)** — GLES 3D-LUT gamut mapping +
-        safer `wp_color_management` HDR TFs / float scene-linear composite once
-        upstream wayland-rs UAF is fixed; optional HLG / per-surface HDR content
-        / true BT.2020 Colorspace when content is wide-gamut
-
+- [x] **HDR H3 / Stage 2 colour (2026-07-25)** — GLES 3D-LUT (`lcms2` bake,
+      33³ atlas) for ICC sRGB→display gamut mapping; high-bit offscreen when
+      available; unified LUT→PQ post-pass; skip CRTC `vcgt` when LUT owns the
+      output. Opt-in `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises
+      PQ/HLG/BT.2020 and stores parametric TF/primaries; default-off until
+      upstream wayland-rs ObjectData UAF is fixed. **Deferred:** default-on colour
+      protocol, true per-surface HDR decode, HLG desktop encode, DRM BT.2020
+      Colorspace for SDR desktop.
 ---
 
 ## Phase 6 — Flatpak, Steam & gaming

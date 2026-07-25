@@ -108,6 +108,7 @@ pub fn on_theme_changed() {
     if !INITED.get() {
         return;
     }
+    content::refresh_opaque_dialog_css();
     if interaction_blocks_reload() {
         return;
     }

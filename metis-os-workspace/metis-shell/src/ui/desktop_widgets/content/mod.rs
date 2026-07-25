@@ -11,6 +11,8 @@ pub(crate) mod weather;
 use gtk::prelude::*;
 use metis_config::{DesktopWidgetInstance, DesktopWidgetKind};
 
+pub(crate) use folders::refresh_opaque_dialog_css;
+
 pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
     match inst.kind {
         DesktopWidgetKind::Folders => folders::build(inst),

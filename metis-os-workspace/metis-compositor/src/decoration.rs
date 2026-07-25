@@ -351,6 +351,21 @@ impl DecorationRuntime {
         self.commit.increment();
     }
 
+    /// Drop cached title / button / titlebar GL textures (e.g. after a connector
+    /// disconnect). The next frame re-rasterizes them so SSD chrome does not keep
+    /// a hollow titlebar with missing controls.
+    pub fn clear_texture_caches(&mut self) {
+        self.titles.clear();
+        self.buttons.clear();
+        self.titlebars.clear();
+        self.borders.clear();
+        self.shadow_bufs.clear();
+        self.shadow_tex = None;
+        self.shadow_corner_tl = None;
+        self.shadow_corner_tr = None;
+        self.commit.increment();
+    }
+
     fn prune_dead_windows(&mut self, live: &std::collections::HashSet<u32>) {
         self.titles.retain(|id, _| live.contains(id));
         self.ids.retain(|(id, _), _| live.contains(id));
@@ -468,6 +483,8 @@ impl DecorationRuntime {
         let close_x = frame.x + frame.width - BTN_RIGHT_PAD - BTN_SIZE;
         let max_x = close_x - (BTN_GAP + BTN_SIZE);
         let min_x = max_x - (BTN_GAP + BTN_SIZE);
+        // Smithay paints the *first* element on top — push fill last so buttons
+        // and title sit above the titlebar background.
         for (role, kind, x) in [
             (4u8, DecoControl::Close, close_x),
             (5u8, DecoControl::Maximize, max_x),

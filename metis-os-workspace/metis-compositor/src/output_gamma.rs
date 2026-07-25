@@ -2,12 +2,10 @@
 //!
 //! Uploads the `vcgt` calibration ramp from an output's ICC profile
 //! (`outputs.json` `color_profile`) into that CRTC's GPU gamma ramp via DRM
-//! `set_gamma`. This is the standard, low-cost way to apply a display profile
-//! (what colord/GNOME do) and applies to everything scanned out on the output.
-//!
-//! Outputs without a profile — or whose profile has no `vcgt` tag — get an
-//! identity ramp so toggling a profile off restores neutral output. Full 3D
-//! gamut mapping (a GLES LUT post-pass) is a later stage.
+//! `set_gamma`. This is the Stage 1 path (what colord/GNOME do for `vcgt`-only
+//! profiles). Stage 2 GLES 3D-LUT ([`crate::color_lut`]) takes over when a LUT
+//! bake succeeds — then this path uploads an identity ramp so TRC is not
+//! double-applied.
 
 use smithay::reexports::drm::control::{crtc, Device as DrmControlDevice};
 
@@ -17,6 +15,9 @@ use crate::state::MetisState;
 /// Re-upload gamma ramps for every enabled output. Safe to call on any
 /// `ReloadOutputs`, after a mode-set, and on VT resume. No-op under the nested
 /// winit backend (there is no DRM device).
+///
+/// When Stage 2 GLES LUT owns an output (full ICC transform), CRTC `vcgt` is
+/// skipped so TRC is not applied twice.
 pub fn apply_output_gamma(state: &MetisState) {
     let Some(udev) = state.udev.as_ref() else {
         return;
@@ -28,8 +29,9 @@ pub fn apply_output_gamma(state: &MetisState) {
                 continue;
             }
             // Hardware gamma on a PQ signal skews colour (warm/muddy cast). Keep
-            // the CRTC ramp identity while HDR encode is active.
-            let icc = if surface.hdr_active {
+            // the CRTC ramp identity while HDR encode is active. Same when the
+            // GLES 3D LUT already includes the profile TRC.
+            let icc = if surface.hdr_active || state.color_lut.lut_owns_output(&name) {
                 None
             } else {
                 state.color_mgmt.icc_bytes_for_output(&name)

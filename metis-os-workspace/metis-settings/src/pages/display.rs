@@ -470,9 +470,6 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             }
             *display_dirty.borrow_mut() = false;
             refresh_save_buttons();
-            runtime::reload_outputs_async();
-            *outputs.borrow_mut() = runtime::list_outputs();
-            canvas.sync_positions();
 
             let on_keep = {
                 let canvas = canvas.clone();
@@ -503,7 +500,30 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                     refresh_save_buttons();
                 })
             };
-            display_confirm::show(&parent, on_keep, on_revert);
+
+            // Apply on a worker, then show the keep/revert dialog once the
+            // compositor has finished the modeset/layout pass. Presenting the
+            // modal mid-modeset left Settings + dialog as hollow SSD frames.
+            let parent = parent.clone();
+            let canvas = canvas.clone();
+            let outputs = outputs.clone();
+            let (tx, rx) = std::sync::mpsc::channel::<()>();
+            std::thread::spawn(move || {
+                runtime::reload_outputs();
+                let _ = tx.send(());
+            });
+            glib::timeout_add_local(Duration::from_millis(50), move || {
+                match rx.try_recv() {
+                    Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        *outputs.borrow_mut() = runtime::list_outputs();
+                        canvas.sync_positions();
+                        parent.queue_draw();
+                        display_confirm::show(&parent, on_keep.clone(), on_revert.clone());
+                        glib::ControlFlow::Break
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                }
+            });
         });
     }
     {
@@ -614,6 +634,65 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     btn_row.append(&revert_display_btn);
     btn_row.append(&save_display_btn);
     content.append(&btn_row);
+
+    // Hotplug: compositor drops disconnected outputs from ListOutputs, but this
+    // page used to keep a stale snapshot until Detect. Poll while mapped.
+    let page_mapped = Rc::new(Cell::new(false));
+    {
+        let page_mapped = page_mapped.clone();
+        scroller.connect_map(move |_| page_mapped.set(true));
+    }
+    {
+        let page_mapped = page_mapped.clone();
+        scroller.connect_unmap(move |_| page_mapped.set(false));
+    }
+    {
+        let page_mapped = page_mapped.clone();
+        let outputs = outputs.clone();
+        let modes_cache = modes_cache.clone();
+        let refresh_detected_outputs = refresh_detected_outputs.clone();
+        let rebuild_detail = rebuild_detail.clone();
+        let canvas_slot = canvas_slot.clone();
+        glib::timeout_add_local(Duration::from_secs(2), move || {
+            if !page_mapped.get() {
+                return glib::ControlFlow::Continue;
+            }
+            if canvas_slot
+                .borrow()
+                .as_ref()
+                .is_some_and(|c| c.in_trial())
+            {
+                return glib::ControlFlow::Continue;
+            }
+            let fresh = runtime::list_outputs();
+            let old_names: Vec<String> = outputs.borrow().iter().map(|o| o.name.clone()).collect();
+            let new_names: Vec<String> = fresh.iter().map(|o| o.name.clone()).collect();
+            let names_changed = old_names != new_names;
+            let geometry_changed = !names_changed
+                && outputs.borrow().iter().zip(fresh.iter()).any(|(a, b)| {
+                    a.rect.width != b.rect.width
+                        || a.rect.height != b.rect.height
+                        || a.rect.x != b.rect.x
+                        || a.rect.y != b.rect.y
+                        || (a.scale - b.scale).abs() > f64::EPSILON
+                        || a.enabled != b.enabled
+                });
+            if names_changed {
+                modes_cache.borrow_mut().clear();
+                *outputs.borrow_mut() = fresh;
+                refresh_detected_outputs();
+            } else if geometry_changed {
+                // Invalidate mode lists so resolution reflects the live connector.
+                modes_cache.borrow_mut().clear();
+                *outputs.borrow_mut() = fresh;
+                if let Some(canvas) = canvas_slot.borrow().as_ref().cloned() {
+                    canvas.sync_positions();
+                }
+                rebuild_detail();
+            }
+            glib::ControlFlow::Continue
+        });
+    }
 
     scroller.upcast()
 }
@@ -755,7 +834,7 @@ fn build_output_panel(
         live_body.append(&ui::row(&tr("HDR"), &hdr));
         let hdr_hint = gtk::Label::new(Some(&tr(
             "Signals HDR10 to the display and tone-maps the desktop (SDR→PQ). \
-             True HDR client content and full colour management are still follow-up."
+             Per-surface HDR client content remains experimental (opt-in colour protocol)."
         )));
         hdr_hint.set_wrap(true);
         hdr_hint.set_xalign(0.0);
@@ -811,12 +890,20 @@ fn build_output_panel(
             .collect();
         let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let mode_dd = gtk::DropDown::from_strings(&label_refs);
+        // Long mode labels ("3840 × 2160 @ 60.00 Hz · recommended") otherwise
+        // become the page min-width and stop the Settings window from shrinking.
+        mode_dd.set_hexpand(true);
+        mode_dd.set_halign(gtk::Align::Fill);
+        mode_dd.add_css_class("metis-settings-shrink-dropdown");
         let prefs = output_prefs(&cfg.borrow(), &out.name);
-        let selected = mode_index_for_prefs(&modes, &prefs).or_else(|| {
-            current
-                .as_ref()
-                .and_then(|c| modes.iter().position(|m| modes_equal(m, c)))
-        });
+        // Prefer what the connector is actually running (or its EDID preferred
+        // mode) over stale saved prefs — those often still hold the primary's
+        // resolution after a projector is attached for the first time.
+        let selected = current
+            .as_ref()
+            .and_then(|c| modes.iter().position(|m| modes_equal(m, c)))
+            .or_else(|| modes.iter().position(|m| m.preferred))
+            .or_else(|| mode_index_for_prefs(&modes, &prefs));
         if let Some(idx) = selected {
             mode_dd.set_selected(idx as u32);
         }
@@ -875,8 +962,8 @@ fn build_output_panel(
     profile_actions.append(&clear_profile);
     color_body.append(&profile_actions);
     let color_hint = gtk::Label::new(Some(&tr(
-        "Saved to outputs.json. The compositor applies the profile's vcgt tag to the \
-         CRTC gamma ramp. Full GPU gamut mapping (Stage 2) is still follow-up work."
+        "Saved to outputs.json. The compositor applies a GLES 3D LUT (sRGB→display) \
+         when possible; otherwise the profile's vcgt tag drives the CRTC gamma ramp."
         )));
     color_hint.set_wrap(true);
     color_hint.set_xalign(0.0);
@@ -1155,10 +1242,13 @@ fn update_arrangement_view(
         *selected_name.borrow_mut() = list.first().map(|o| o.name.clone());
     }
 
-    let needs_new = canvas_slot
-        .borrow()
-        .as_ref()
-        .is_none_or(|c| c.output_count() != list.len());
+    let needs_new = canvas_slot.borrow().as_ref().is_none_or(|c| {
+        c.output_names()
+            != list
+                .iter()
+                .map(|o| o.name.clone())
+                .collect::<Vec<_>>()
+    });
 
     if needs_new {
         while let Some(child) = arrange_body.first_child() {
@@ -1166,11 +1256,17 @@ fn update_arrangement_view(
         }
         let on_select = {
             let selected_name = selected_name.clone();
-            let outputs = outputs.clone();
             let rebuild_detail = rebuild_detail.clone();
             let canvas_slot = canvas_slot.clone();
             Rc::new(move |idx: usize| {
-                if let Some(name) = outputs.borrow().get(idx).map(|o| o.name.clone()) {
+                // Always resolve by the canvas block's name — `outputs` can be
+                // reordered (primary-first) without rebuilding tiles, so index
+                // into `outputs` would open the wrong monitor's mode list.
+                let name = canvas_slot
+                    .borrow()
+                    .as_ref()
+                    .and_then(|c| c.block_name(idx));
+                if let Some(name) = name {
                     *selected_name.borrow_mut() = Some(name);
                 }
                 if let Some(canvas) = canvas_slot.borrow().as_ref().cloned() {

@@ -24,7 +24,7 @@ use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, T
 use crate::render::{OutputStack, CLEAR_COLOR};
 
 /// BT.2408 reference white for mapping SDR peak to HDR (nits).
-const REFERENCE_WHITE_NITS: f32 = 203.0;
+pub const REFERENCE_WHITE_NITS: f32 = 203.0;
 
 /// Custom texture shader: sRGB → linear → scale nits → ST.2084 PQ.
 /// Header mirrors Smithay's texture.frag so EXTERNAL/NO_ALPHA/DEBUG_FLAGS link.
@@ -102,7 +102,7 @@ void main() {
 /// Persistent PQ-encode GL resources, owned by `MetisState`.
 #[derive(Default)]
 pub struct HdrEncodeRuntime {
-    program: Option<GlesTexProgram>,
+    pub program: Option<GlesTexProgram>,
 }
 
 impl HdrEncodeRuntime {

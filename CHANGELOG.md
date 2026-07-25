@@ -5,6 +5,18 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-25]
+
+### Added
+
+- **Phase 5 complete (HDR H3 / Stage 2 colour)** — ICC profiles bake a 33³
+  sRGB→display GLES 3D-LUT (`lcms2`); DRM scanout uses a unified post-pass
+  (high-bit offscreen when available → optional LUT → optional SDR→PQ). CRTC
+  `vcgt` is skipped when the LUT owns the output. Opt-in
+  `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises PQ/HLG/BT.2020 and
+  records parametric TF/primaries; remains default-off (upstream wayland-rs UAF).
+  Requires `liblcms2-dev` to build.
+
 ## [2026-07-24]
 
 ### Security
