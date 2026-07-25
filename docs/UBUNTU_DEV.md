@@ -53,7 +53,7 @@ sudo apt install -y \
 PipeWire/PulseAudio (`pipewire-pulse` / `pulseaudio-utils` for `pactl`) is usually
 already present on Ubuntu desktop installs.
 
-### Remote desktop (Phase 7 — RDP)
+### Remote desktop (Phase 7)
 
 Desktop sharing uses **gnome-remote-desktop** in **headless** mode (not the GNOME
 Shell interactive sharing daemon). Metis ships `metis-remote` to start/stop RDP
@@ -80,17 +80,93 @@ xfreerdp /v:$(hostname -I | awk '{print $1}'):3389 /u:$USER /p:'your-strong-pass
 
 Metis integration: `~/.config/metis/remote.json` + `metis-remote {status|enable|disable|autostart|set-credentials}`; Settings page **Remote access**; `metis-session` calls `metis-remote autostart` when enabled.
 
-**Compatibility matrix (remote desktop):**
+#### Compatibility matrix
 
-| Tool | Status | Notes |
-|------|--------|-------|
-| **gnome-remote-desktop (RDP)** | Supported (v1) | Headless unit; portal/PipeWire capture; Settings toggle; text clipboard |
-| **RustDesk** | Planned (M2) | Document + optional backend in `metis-remote` |
-| **wayvnc / VNC** | Planned (M3) | Needs Smithay capture spike |
-| **xrdp** | Out of toggle scope | Separate X11 login session; USER_GUIDE appendix only if needed |
-| **AnyDesk / Chrome Remote Desktop** | Spot-check later | Not integrated |
+| Tool | Status | Capture / input | Notes |
+|------|--------|-----------------|-------|
+| **gnome-remote-desktop (RDP)** | **Supported (v1)** | Portal / PipeWire via `metis-portal`; EIS remote input | Settings toggle; text clipboard; LAN-only defaults; multi-monitor `RecordMonitor` selects by connector name |
+| **RustDesk** | **Documented (host install)** | Prefer portal/PipeWire on Wayland; own capture may fail | Not in Settings/`metis-remote` yet — see below |
+| **wayvnc** | **Spike / unsupported** | Needs compositor screencopy or portal consumer | No Metis integration; Smithay capture path TBD |
+| **TigerVNC / x11vnc** | **Not applicable** | X11 | Metis is Wayland-first; do not expect these to attach to the DRM session |
+| **xrdp** | **Out of toggle scope** | Separate X11 login session | Different problem (new login), not session sharing |
+| **AnyDesk** | **Spot-check only** | Proprietary capture | May work if it uses portal; not tested in CI |
+| **Chrome Remote Desktop** | **Spot-check only** | Proprietary / CRD host | Not integrated; often expects GNOME/Chrome host helpers |
 
 Lock behaviour: compositor refuses capture while locked — remote view freezes until unlock (documented in USER_GUIDE).
+
+#### RustDesk on a Metis host (manual)
+
+RustDesk is a reasonable third-party option when you need ID/relay access instead of
+LAN RDP. Metis does **not** orchestrate it yet (`metis-remote` backend remains
+`gnome_rdp` only).
+
+**Install (Ubuntu):**
+
+```bash
+# Official .deb from https://github.com/rustdesk/rustdesk/releases (amd64)
+sudo apt install -y ./rustdesk-*.deb
+# or Flatpak if you prefer:
+# flatpak install flathub com.rustdesk.RustDesk
+```
+
+**Wayland / capture notes:**
+
+- On Metis DRM, prefer enabling RustDesk’s **PipeWire / portal** capture when the
+  UI offers it so frames come from `metis-portal` ScreenCast (same path as RDP).
+- If RustDesk falls back to “proprietary” or wlroots-only screencopy, expect a
+  black or stalled picture — Metis is Smithay, not wlroots.
+- Input: when portal capture is used, remote pointer/keyboard usually reach the
+  compositor; verify both native Wayland clients and XWayland (Steam/Proton).
+
+**Firewall / ports (defaults):**
+
+| Port | Proto | Purpose |
+|------|-------|---------|
+| 21115 | TCP | Hole punching / ID server (direct) |
+| 21116 | TCP/UDP | ID / relay coordination |
+| 21117 | TCP | Relay |
+| 21118–21119 | TCP | Web / optional |
+
+For LAN-only testing, allow those ports from your subnet (example):
+
+```bash
+sudo ufw allow from 192.168.0.0/16 to any port 21115:21119 proto tcp
+sudo ufw allow from 192.168.0.0/16 to any port 21116 proto udp
+```
+
+Do **not** expose RustDesk ID/relay ports to the public internet without
+understanding relay trust and strong authentication.
+
+**Verification checklist (DRM Metis session):**
+
+1. Host is on Metis DRM (`./run-metis.sh --session --drm` or installed session), not nested winit.
+2. Start RustDesk; note the ID; set a permanent password (or one-time).
+3. From another machine, connect with RustDesk client.
+4. Confirm: desktop visible, edge bar clickable, Settings opens, XWayland app
+   (e.g. `xterm` / Steam) receives clicks and keys.
+5. Lock with `Super+L` — picture should freeze/black until unlock (same capture
+   block as RDP).
+6. If black screen with portal errors, check `metis-portal` / PipeWire and that
+   RustDesk requested ScreenCast permission.
+
+#### wayvnc / VNC
+
+`wayvnc` targets wlroots protocols. Metis does not implement those; a VNC path
+would need either a Smithay screencopy exporter or a portal-consuming VNC server.
+Treat VNC as **unsupported** until a dedicated spike lands (Phase 7 ScreenCast
+backend follow-up / Phase 3 dmabuf).
+
+#### Multi-user / VT behaviour
+
+- Metis runs **one graphical session per seat**. Logging into Metis on VT2 while
+  another user owns VT1 is a separate session — remote RDP attaches to the
+  **active** Metis session that started `gnome-remote-desktop-headless`, not to
+  an arbitrary VT.
+- Switching away from the Metis VT (Ctrl+Alt+F3, etc.) typically pauses DRM
+  presentation; remote viewers may freeze until you switch back.
+- **Multi-seat** (two users, two GPUs/seats) is unsupported.
+- Nesting (`run-metis.sh` without `--drm`) is for development only — do not use
+  it to validate remote desktop.
 
 ### Portal stack (standalone session)
 

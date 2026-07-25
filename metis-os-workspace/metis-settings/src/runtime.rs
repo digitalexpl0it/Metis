@@ -32,6 +32,17 @@ pub fn send(cmd: &str) {
     }
 }
 
+/// Send a one-shot command to the desktop-widgets process (not the edge bar).
+pub fn send_widgets(cmd: &str) {
+    let path = metis_protocol::runtime_command_path_widgets();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Err(err) = std::fs::write(&path, format!("{cmd}\n")) {
+        tracing::warn!(%err, cmd, "failed to write widgets runtime command");
+    }
+}
+
 /// Ask the compositor to re-read `wallpaper.json` and apply the background live
 /// (picture, solid colour, or gradient). Best-effort.
 pub fn apply_background() {

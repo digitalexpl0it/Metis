@@ -38,10 +38,12 @@ impl CaptureHub {
             .map_err(PortalError::Failed)
     }
 
-    pub async fn output_size(&self) -> (u32, u32) {
-        match tokio::task::spawn_blocking(|| {
+    pub async fn output_size(&self, connector: Option<&str>) -> (u32, u32) {
+        let connector = connector.map(str::to_string);
+        match tokio::task::spawn_blocking(move || {
             capture_output_frame(CaptureOptions {
                 draw_cursor: true,
+                connector,
                 ..Default::default()
             })
         })

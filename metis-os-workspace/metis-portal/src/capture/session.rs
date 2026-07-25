@@ -19,7 +19,7 @@ use wayland_protocols::ext::{
     },
 };
 
-use metis_capture::{prefer_shm_format, BufferFormat, Frame, ShmBuffer};
+use metis_capture::{prefer_shm_format, BufferFormat, CaptureOptions, Frame, ShmBuffer};
 
 enum CaptureMode {
     OneShot,
@@ -36,15 +36,22 @@ struct SessionState {
     frame_pending: bool,
 }
 
+#[derive(Debug, Clone, Default)]
+struct OutputInfo {
+    output: Option<WlOutput>,
+    name: String,
+    description: String,
+}
+
 struct AppState {
     shm: Option<WlShm>,
     copy_manager: Option<ExtImageCopyCaptureManagerV1>,
     source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
-    output: Option<WlOutput>,
+    outputs: Vec<OutputInfo>,
+    options: CaptureOptions,
     session: Option<SessionState>,
     result: Option<Result<Frame, String>>,
     mode: CaptureMode,
-    paint_cursors: bool,
 }
 
 impl AppState {
@@ -58,8 +65,8 @@ impl AppState {
     }
 
     fn start_capture(&mut self, qh: &QueueHandle<Self>) {
-        let Some(output) = self.output.clone() else {
-            self.fail("no wl_output");
+        let Some(output) = self.resolve_output() else {
+            self.fail("no wl_output for capture selection");
             return;
         };
         let Some(source_manager) = self.source_manager.as_ref() else {
@@ -72,12 +79,12 @@ impl AppState {
         };
 
         let source = source_manager.create_source(&output, qh, ());
-        let options = if self.paint_cursors {
+        let wl_options = if self.options.draw_cursor {
             ext_image_copy_capture_manager_v1::Options::PaintCursors
         } else {
             ext_image_copy_capture_manager_v1::Options::empty()
         };
-        let session = copy_manager.create_session(&source, options, qh, ());
+        let session = copy_manager.create_session(&source, wl_options, qh, ());
 
         self.session = Some(SessionState {
             constraints: BufferFormat {
@@ -93,6 +100,10 @@ impl AppState {
             session,
             frame_pending: false,
         });
+    }
+
+    fn resolve_output(&self) -> Option<WlOutput> {
+        resolve_output(&self.outputs, &self.options)
     }
 
     fn on_session_done(&mut self, qh: &QueueHandle<Self>) {
@@ -200,6 +211,42 @@ impl AppState {
     }
 }
 
+fn bind_all_outputs(
+    globals: &wayland_client::globals::GlobalList,
+    qh: &QueueHandle<AppState>,
+) -> Vec<OutputInfo> {
+    let registry = globals.registry();
+    let globals_list = globals.contents().clone_list();
+    let mut outputs = Vec::new();
+    for g in globals_list.into_iter().filter(|g| g.interface == "wl_output") {
+        let version = g.version.min(4);
+        let idx = outputs.len();
+        let output: WlOutput = registry.bind(g.name, version, qh, idx);
+        outputs.push(OutputInfo {
+            output: Some(output),
+            name: String::new(),
+            description: String::new(),
+        });
+    }
+    outputs
+}
+
+fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
+    if let Some(want) = options.connector.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let want_l = want.to_ascii_lowercase();
+        if let Some(info) = outputs.iter().find(|o| {
+            o.name.eq_ignore_ascii_case(want)
+                || o.description.to_ascii_lowercase().contains(&want_l)
+        }) {
+            return info.output.clone();
+        }
+    }
+    outputs
+        .get(options.output_index)
+        .or_else(|| outputs.first())
+        .and_then(|o| o.output.clone())
+}
+
 /// Live capture handle — keeps an ext-image-copy session open across frames.
 pub struct CaptureSession {
     conn: Connection,
@@ -208,27 +255,27 @@ pub struct CaptureSession {
 }
 
 impl CaptureSession {
-    pub fn open(paint_cursors: bool) -> Result<Self, String> {
+    pub fn open(options: CaptureOptions) -> Result<Self, String> {
         let conn = Connection::connect_to_env()
             .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
-        let (globals, queue) =
+        let (globals, mut queue) =
             registry_queue_init::<AppState>(&conn).map_err(|err| format!("registry init: {err}"))?;
         let qh = queue.handle();
 
         let shm = globals.bind(&qh, 1..=1, ()).ok();
         let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
         let source_manager = globals.bind(&qh, 1..=1, ()).ok();
-        let output = globals.bind(&qh, 1..=4, ()).ok();
+        let outputs = bind_all_outputs(&globals, &qh);
 
         let mut state = AppState {
             shm,
             copy_manager,
             source_manager,
-            output,
+            outputs,
+            options,
             session: None,
             result: None,
             mode: CaptureMode::Continuous,
-            paint_cursors,
         };
 
         if state.copy_manager.is_none() || state.source_manager.is_none() {
@@ -237,6 +284,14 @@ impl CaptureSession {
                     .into(),
             );
         }
+        if state.outputs.is_empty() {
+            return Err("no wl_output available for capture".into());
+        }
+
+        // Round-trip so wl_output.name / description events arrive before selection.
+        queue
+            .roundtrip(&mut state)
+            .map_err(|err| format!("wayland roundtrip: {err}"))?;
 
         state.start_capture(&qh);
 
@@ -312,12 +367,32 @@ impl Dispatch<WlRegistry, GlobalListContents> for AppState {
 }
 
 wayland_client::delegate_noop!(AppState: ignore WlShm);
-wayland_client::delegate_noop!(AppState: ignore WlOutput);
 wayland_client::delegate_noop!(AppState: ignore ExtOutputImageCaptureSourceManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCopyCaptureManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCaptureSourceV1);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_shm_pool::WlShmPool);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_buffer::WlBuffer);
+
+impl Dispatch<WlOutput, usize> for AppState {
+    fn event(
+        state: &mut Self,
+        _proxy: &WlOutput,
+        event: <WlOutput as wayland_client::Proxy>::Event,
+        &idx: &usize,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        use wayland_client::protocol::wl_output::Event;
+        let Some(info) = state.outputs.get_mut(idx) else {
+            return;
+        };
+        match event {
+            Event::Name { name } => info.name = name,
+            Event::Description { description } => info.description = description,
+            _ => {}
+        }
+    }
+}
 
 impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
     fn event(

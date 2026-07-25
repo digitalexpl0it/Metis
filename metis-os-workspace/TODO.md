@@ -1,9 +1,13 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** **Phase 8** (Internationalization) is **in progress / largely
-implemented** (2026-07-22) — hybrid gettext (shell/settings) + Fluent
-(compositor), `locale.json`, Settings Language & region, onboarding language
-step, RTL direction, lock-screen bidi text. **Phase 14** (Desktop Widgets) is
+**Current phase:** **Phase 8** (Internationalization) is **complete** (2026-07-24)
+— hybrid gettext (shell/settings) + Fluent (compositor), `locale.json`, Settings
+Language & region, onboarding language step, RTL, live Apply rebuilds (Settings,
+edge bar, NC, desktop widgets), catalogs in `.deb` CI. **Phase 7** (Remote access)
+is largely complete — RDP via portal PipeWire, RustDesk/VNC docs, multi-monitor
+ScreenCast connector select; remaining stretch: first-party remote + dmabuf
+zero-copy. **Phase 14**
+(Desktop Widgets) is
 **complete** (2026-07-18) —
 Folders / Apps / Clock / System / Weather / Equalizer builtins, Settings list +
 configure dialogs, chrome, and text style. Extension API deferred. **Phase 13**
@@ -679,17 +683,17 @@ latency and clear setup docs.
 
 ### A. Third-party remote desktop (document + verify)
 
-- [ ] **RustDesk** — document host install (`rustdesk` server / headless), firewall
-      ports, and Wayland capture path (portal ScreenCast / PipeWire vs RustDesk’s
-      own capture); verify remote mouse/keyboard into Metis compositor + XWayland
-      clients under the DRM session
+- [x] **RustDesk** — documented host install, firewall ports, Wayland/portal
+      capture notes, and Metis DRM verification checklist in `docs/UBUNTU_DEV.md`
+      + USER_GUIDE appendix (2026-07-24). Optional `metis-remote` backend still TBD.
 - [x] **RDP (gnome-remote-desktop headless)** — `metis-remote` orchestrates
       `gnome-remote-desktop-headless.service` + `grdctl --headless`; Settings →
       **Remote access** master toggle; `remote.json` + session autostart; USER_GUIDE
       + UBUNTU_DEV spike docs. **Video + input + text clipboard v1** (2026-07-05).
       **Deferred:** classic `xrdp` X11 login sessions (out of toggle scope).
-- [ ] **Other tools** — spot-check AnyDesk, Chrome Remote Desktop, TigerVNC /
-      `wayvnc` where relevant; capture known-good / known-broken matrix in dev docs
+- [x] **Other tools** — compatibility matrix in `docs/UBUNTU_DEV.md` for
+      AnyDesk, Chrome Remote Desktop, TigerVNC / `wayvnc` (known-good /
+      known-broken / not integrated) (2026-07-24).
 - [x] **Settings → System → Remote access** — master switch, status card, password
       gate, install hint, copy connection address (`metis-cmd settings remote`)
 
@@ -703,9 +707,11 @@ latency and clear setup docs.
       D-Bus (`EnableClipboard`, `SetSelection`, `SelectionRead`/`Write`); compositor
       `ClipboardChanged` events forwarded to active GRD sessions (2026-07-05).
       **Follow-up:** image clipboard, mime-type option parsing.
-- [ ] **ScreenCast as capture backend** — optional: remote servers that consume
-      portal PipeWire streams use `metis-portal` instead of brittle screencopy;
-      follow-up: dmabuf zero-copy (Phase 3 perf item) for lower latency
+- [x] **ScreenCast as capture backend** — GRD RDP already consumes Mutter
+      ScreenCast → `metis-portal` PipeWire (memfd BGRx). **2026-07-24:** multi-
+      monitor `RecordMonitor(connector)` selects the matching `wl_output` by
+      name for the live pump (portal + Mutter shim). **Follow-up:** dmabuf
+      zero-copy (Phase 3 PERF item) for lower CPU/latency.
 - [ ] **First-party remote option** (stretch) — lightweight Metis remote viewer/
       host or official RustDesk/RDP preset in `metis-session` (TBD; depends on
       security review and maintenance cost)
@@ -725,17 +731,25 @@ latency and clear setup docs.
       fingerprint/greeter niceties, and remote-session behaviour when locked.
       **Remote RDP (2026-07-05):** capture blocked while locked — remote viewers
       see frozen/black until unlock (documented in USER_GUIDE).
-- [ ] **Multi-user / VT** — clarify behaviour when switching TTYs or multiple seats
+- [x] **Multi-user / VT** — documented in `docs/UBUNTU_DEV.md` (2026-07-24):
+      Metis is a single graphical session per seat; switching TTYs pauses the
+      DRM session; remote RDP attaches to the active logged-in session only;
+      multi-seat is unsupported.
 
 ---
 
 ## Phase 8 — Internationalization (i18n / l10n)
 
-Metis currently ships **English (US) only** — all user-facing strings in the
+**Status: complete (2026-07-24).** Metis UI strings route through gettext (shell /
+settings) and Fluent (compositor); catalogs ship in `assets/locale/` and the
+`.deb`. Live language Apply rebuilds Settings, the edge bar, Notification Center,
+and desktop widgets. Remaining catalog gaps fall back to English msgids; native
+translation review is welcome but not a phase gate.
+
+Metis previously shipped **English (US) only** — all user-facing strings in the
 shell (edge bar, launcher, popovers, notifications), the settings app, the lock
-screen, and the compositor's on-screen text (titlebars, lock clock/labels) are
-hard-coded English literals. There is no translation layer, locale detection, or
-RTL support yet. This phase makes Metis translatable and locale-aware.
+screen, and the compositor's on-screen text (titlebars, lock clock/labels) were
+hard-coded English literals. This phase made Metis translatable and locale-aware.
 
 **Target:** a Metis session that renders its own UI in the user's system locale
 (with a manual override in Settings), falls back cleanly to English for missing
@@ -753,17 +767,18 @@ strings, and lays out correctly for RTL scripts — without per-string rebuilds.
 
 ### B. Extract & translate strings
 
-- [x] **Audit and externalize hard-coded strings** — nav / locale UI / onboarding
-      / lock Fluent keys wired; remaining page copy continues to use English
-      msgids via `tr()` as call sites are touched.
+- [x] **Audit and externalize hard-coded strings** — shell, settings, onboarding,
+      bar overlays, NC, desktop widgets, splash/toast; remaining gaps use English
+      msgid fallback via gettext.
 - [x] **Catalog extraction + build wiring** — `scripts/i18n-extract.sh`,
-      `scripts/i18n-compile.sh`; install under `/usr/local/share/metis/locale`.
+      `scripts/i18n-compile.sh`; install under `/usr/local/share/metis/locale`
+      and `/usr/share/metis/locale` (`.deb` / release CI).
 - [x] **Translation workflow docs** — `docs/I18N.md`.
 
 ### C. Locale-aware formatting & layout
 
 - [x] **Numbers / dates / times** — chrono localized formatting behind
-      `metis_i18n::format_*`.
+      `metis_i18n::format_*` / `format_pattern`.
 - [x] **RTL support** — GTK default direction; compositor lock text via
       `unicode-bidi` + `rustybuzz` probe.
 - [x] **Fonts / CJK & complex scripts** — fontconfig + Noto CJK/Arabic fallbacks
@@ -773,8 +788,9 @@ strings, and lays out correctly for RTL scripts — without per-string rebuilds.
 
 - [x] **Per-string fallback** — gettext/Fluent fall back to English source /
       English Fluent bundle.
-- [x] **Live language switch** — `reload-locale` (shell) + `ReloadLocale`
-      (compositor) after Settings / onboarding apply.
+- [x] **Live language switch** — `reload-locale` force-rebuilds bar widgets,
+      Notification Center, desktop widgets; Settings rebuilds in-place; compositor
+      `ReloadLocale` for Fluent lock/SSD.
 
 ---
 
@@ -919,6 +935,8 @@ never destroy mid-session.
 - [x] **Settings → Keyboard → Shortcuts** — capture/edit desktop shortcuts;
       `keybinds.json` + compositor `ReloadKeybinds` / `SetKeybindCapture`;
       reserved DRM VT/quit binds locked (2026-07-11).
+- [x] **Settings → Shortcuts (guide)** — searchable grouped read-only chord list
+      under Input; links to Keyboard for editing (2026-07-24).
 - [x] **Multimedia & hardware keys** — `XF86*` volume/mute/mic, display + keyboard
       backlight (logind `SetBrightness`), MPRIS media transport, and `XF86Display`
       mirror⇄extend toggle, with a bottom-center OSD. Compositor forwards intents;
@@ -1077,17 +1095,23 @@ below normal windows.
 `TileKind::Widget` grid tiles (already stripped on load — keep `desk.json` for
 app-grid persistence only); one Wayland surface per widget instance.
 
-**Host model:** GTK4 + `gtk4-layer-shell` in `metis-shell`, Background (or Bottom)
-layer, `exclusive_zone(0)`, **one surface per output** hosting many widget
-instances. Config: `~/.config/metis/desktop-widgets.json` (master switch default
-**off**). Edit mode = move/resize; locked = content clicks only. Empty chrome
-aims for click-through where layer-shell allows (imperfect pass-through OK in v1).
+**Host model:** GTK4 + `gtk4-layer-shell` in a dedicated `metis-shell
+--desktop-widgets` process (spawned by the compositor beside the edge bar),
+Background (or Bottom) layer, `exclusive_zone(0)`, **one surface per output**
+hosting many widget instances. Config: `~/.config/metis/desktop-widgets.json`
+(master switch default **off**). Edit mode = move/resize; locked = content
+clicks only. Empty chrome aims for click-through where layer-shell allows
+(imperfect pass-through OK in v1). Settings reloads use
+`$XDG_RUNTIME_DIR/metis/command-widgets` so they do not race the bar.
 
 ### A. Platform
 
 - [x] **Layer host** — per-output Bottom layer-shell surface; theme tokens; tear
       down when master switch is off. Compositor lock screen covers the session
       (widgets are not shown on the lock UI).
+- [x] **Process isolation** — `metis-shell --desktop-widgets` owns watches,
+      weather, and the widgets command file; bar no longer hosts widgets
+      (2026-07-24).
 - [x] **Widget registry** — kind id → factory (build GTK content + settings);
       iterate `instances` from config (not hardcoded layout)
 - [x] **Edit / lock** — global edit mode + per-instance `locked`; move/resize

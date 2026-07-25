@@ -103,7 +103,9 @@ fn rebuild_grid(flow: &gtk::FlowBox, path: &Path) {
     }
 
     if !path.exists() {
-        let empty = gtk::Label::new(Some(&format!("Folder not found:\n{}", path.display())));
+        let empty = gtk::Label::new(Some(
+            &metis_i18n::tr("Folder not found:\n%1").replace("%1", &path.display().to_string()),
+        ));
         empty.set_wrap(true);
         empty.set_xalign(0.0);
         empty.add_css_class("metis-dw-hint");
@@ -114,7 +116,9 @@ fn rebuild_grid(flow: &gtk::FlowBox, path: &Path) {
     let entries = match read_entries(path) {
         Ok(e) => e,
         Err(err) => {
-            let empty = gtk::Label::new(Some(&format!("Could not read folder:\n{err}")));
+            let empty = gtk::Label::new(Some(
+                &metis_i18n::tr("Could not read folder:\n%1").replace("%1", &err.to_string()),
+            ));
             empty.set_wrap(true);
             empty.set_xalign(0.0);
             empty.add_css_class("metis-dw-hint");
@@ -137,10 +141,12 @@ fn rebuild_grid(flow: &gtk::FlowBox, path: &Path) {
     let parent = path.to_path_buf();
     for (i, entry) in entries.iter().enumerate() {
         if i >= MAX_ENTRIES {
-            let more = gtk::Label::new(Some(&format!(
-                "…and {} more",
-                entries.len().saturating_sub(MAX_ENTRIES)
-            )));
+            let more = gtk::Label::new(Some(
+                &metis_i18n::tr("…and %1 more").replace(
+                    "%1",
+                    &entries.len().saturating_sub(MAX_ENTRIES).to_string(),
+                ),
+            ));
             more.add_css_class("metis-dw-hint");
             flow.insert(&more, -1);
             break;
@@ -155,7 +161,9 @@ fn rebuild_list(list: &gtk::Box, path: &Path) {
     }
 
     if !path.exists() {
-        let empty = gtk::Label::new(Some(&format!("Folder not found:\n{}", path.display())));
+        let empty = gtk::Label::new(Some(
+            &metis_i18n::tr("Folder not found:\n%1").replace("%1", &path.display().to_string()),
+        ));
         empty.set_wrap(true);
         empty.set_xalign(0.0);
         empty.add_css_class("metis-dw-hint");
@@ -166,7 +174,9 @@ fn rebuild_list(list: &gtk::Box, path: &Path) {
     let entries = match read_entries(path) {
         Ok(e) => e,
         Err(err) => {
-            let empty = gtk::Label::new(Some(&format!("Could not read folder:\n{err}")));
+            let empty = gtk::Label::new(Some(
+                &metis_i18n::tr("Could not read folder:\n%1").replace("%1", &err.to_string()),
+            ));
             empty.set_wrap(true);
             empty.set_xalign(0.0);
             empty.add_css_class("metis-dw-hint");
@@ -189,10 +199,12 @@ fn rebuild_list(list: &gtk::Box, path: &Path) {
     let parent = path.to_path_buf();
     for (i, entry) in entries.iter().enumerate() {
         if i >= MAX_ENTRIES {
-            let more = gtk::Label::new(Some(&format!(
-                "…and {} more",
-                entries.len().saturating_sub(MAX_ENTRIES)
-            )));
+            let more = gtk::Label::new(Some(
+                &metis_i18n::tr("…and %1 more").replace(
+                    "%1",
+                    &entries.len().saturating_sub(MAX_ENTRIES).to_string(),
+                ),
+            ));
             more.add_css_class("metis-dw-hint");
             list.append(&more);
             break;
@@ -601,18 +613,20 @@ fn create_new_folder(parent: &Path) {
     }
     if let Err(err) = std::fs::create_dir(&path) {
         tracing::warn!(%err, path = %path.display(), "failed to create folder");
-        toast_error(&format!("Could not create folder: {err}"));
+        toast_error(&metis_i18n::tr("Could not create folder: %1").replace("%1", &err.to_string()));
     }
 }
 
 fn confirm_delete(path: &Path, name: &str) {
     let path = path.to_path_buf();
     let name = name.to_string();
+    let cancel_label = metis_i18n::tr("Cancel");
+    let delete_label = metis_i18n::tr("Delete");
     let dialog = gtk::AlertDialog::builder()
         .modal(true)
-        .message(format!("Delete \"{name}\"?"))
-        .detail("This cannot be undone.")
-        .buttons(["Cancel", "Delete"])
+        .message(metis_i18n::tr("Delete \"%1\"?").replace("%1", &name))
+        .detail(&metis_i18n::tr("This cannot be undone."))
+        .buttons([cancel_label, delete_label])
         .default_button(0)
         .cancel_button(0)
         .build();
@@ -633,7 +647,9 @@ fn confirm_delete(path: &Path, name: &str) {
             };
             if let Err(err) = res {
                 tracing::warn!(%err, path = %path.display(), "delete failed");
-                toast_error(&format!("Could not delete: {err}"));
+                toast_error(
+                    &metis_i18n::tr("Could not delete: %1").replace("%1", &err.to_string()),
+                );
             }
         },
     );
@@ -644,8 +660,9 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
     let path = path.to_path_buf();
     let old_name = old_name.to_string();
 
+    let rename_title = metis_i18n::tr("Rename");
     let win = gtk::Window::builder()
-        .title("Rename")
+        .title(&rename_title)
         .modal(true)
         .default_width(360)
         .resizable(false)
@@ -666,8 +683,10 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
 
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     actions.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label("Cancel");
-    let ok = gtk::Button::with_label("Rename");
+    let cancel_label = metis_i18n::tr("Cancel");
+    let rename_label = metis_i18n::tr("Rename");
+    let cancel = gtk::Button::with_label(&cancel_label);
+    let ok = gtk::Button::with_label(&rename_label);
     ok.add_css_class("suggested-action");
     actions.append(&cancel);
     actions.append(&ok);
@@ -690,12 +709,14 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
             }
             let dest = parent.join(new_name);
             if dest.exists() {
-                toast_error("A file with that name already exists.");
+                toast_error(&metis_i18n::tr("A file with that name already exists."));
                 return;
             }
             if let Err(err) = std::fs::rename(&path, &dest) {
                 tracing::warn!(%err, "rename failed");
-                toast_error(&format!("Could not rename: {err}"));
+                toast_error(
+                    &metis_i18n::tr("Could not rename: %1").replace("%1", &err.to_string()),
+                );
                 return;
             }
             win.close();
@@ -717,7 +738,7 @@ fn prompt_rename(parent: &Path, path: &Path, old_name: &str) {
 fn toast_error(message: &str) {
     crate::ui::toast::show(&crate::services::BarNotification::internal(
         crate::services::NotificationKind::Error,
-        "Folders",
+        metis_i18n::tr("Folders"),
         message,
     ));
 }

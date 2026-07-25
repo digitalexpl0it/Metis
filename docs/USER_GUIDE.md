@@ -800,8 +800,11 @@ set a password first. PipeWire and the Metis ScreenCast portal must be running i
 the DRM session — re-run `./run-metis.sh --install-session` if portal capture is
 broken. Check status from a terminal: `metis-remote status` (JSON).
 
-RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are planned follow-ups
-— see [`TODO.md`](../metis-os-workspace/TODO.md) Phase 7.
+RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are **not** driven by
+Settings → Remote access. For host-install notes, ports, and the compatibility
+matrix (including multi-user / VT behaviour), see
+[`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop). Optional Metis
+orchestration of RustDesk remains a follow-up.
 
 ### System dashboard (Control Center)
 

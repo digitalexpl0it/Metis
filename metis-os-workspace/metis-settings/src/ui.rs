@@ -392,21 +392,22 @@ pub fn launcher_picker(
         .collect();
 
     let mut labels: Vec<String> = Vec::with_capacity(installed.len() + 2);
-    labels.push("Auto-detect".to_string());
+    labels.push(metis_i18n::tr("Auto-detect"));
     for (_, lbl) in &installed {
         labels.push(lbl.clone());
     }
-    labels.push("Custom…".to_string());
+    labels.push(metis_i18n::tr("Custom…"));
     let custom_index = (labels.len() - 1) as u32;
     let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
     let dd = gtk::DropDown::from_strings(&label_refs);
 
+    let path_placeholder = metis_i18n::tr("Path to executable, e.g. /usr/bin/btop");
     let entry = gtk::Entry::builder()
-        .placeholder_text("Path to executable, e.g. /usr/bin/btop")
+        .placeholder_text(&path_placeholder)
         .hexpand(true)
         .build();
     let browse = gtk::Button::from_icon_name("document-open-symbolic");
-    browse.set_tooltip_text(Some("Browse…"));
+    browse.set_tooltip_text(Some(&metis_i18n::tr("Browse…")));
     let custom_box = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     custom_box.append(&entry);
     custom_box.append(&browse);
@@ -459,7 +460,7 @@ pub fn launcher_picker(
         let entry = entry.clone();
         browse.connect_clicked(move |btn| {
             let dialog = gtk::FileDialog::new();
-            dialog.set_title("Choose an executable");
+            dialog.set_title(&metis_i18n::tr("Choose an executable"));
             let parent = btn.root().and_downcast::<gtk::Window>();
             let entry = entry.clone();
             dialog.open(parent.as_ref(), gio::Cancellable::NONE, move |res| {

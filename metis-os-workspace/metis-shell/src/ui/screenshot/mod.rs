@@ -901,6 +901,7 @@ fn perform_capture(
         CaptureOptions {
             draw_cursor,
             output_index,
+            connector: None,
         },
         Some(local),
         &path,

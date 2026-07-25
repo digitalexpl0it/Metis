@@ -6,6 +6,8 @@
 #                                    # /usr/local, log out, pick "Metis" at greeter
 #   ./run-metis.sh --session         # dev only: run compositor+shell from target/
 #                                    # without installing (nested GNOME or bare TTY)
+#                                    # Compositor spawns metis-shell (edge bar) and
+#                                    # metis-shell --desktop-widgets (isolated)
 #   ./run-metis.sh --session -- -c foot   # session + spawn a client app
 #   ./run-metis.sh --session --import-env # also route D-Bus/systemd-activated
 #                                         # apps into the nested session (dev)

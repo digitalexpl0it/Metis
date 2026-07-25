@@ -39,7 +39,9 @@ fn overlay() -> Rc<Osd> {
             return existing.clone();
         }
 
-        let window = gtk::Window::builder().title("Metis OSD").build();
+        let window = gtk::Window::builder()
+            .title(&metis_i18n::tr("Metis OSD"))
+            .build();
         window.add_css_class("metis-osd-window");
         window.init_layer_shell();
         window.set_layer(Layer::Overlay);

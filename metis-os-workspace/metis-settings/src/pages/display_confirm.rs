@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use gtk::glib;
 use gtk::prelude::*;
+use metis_i18n::tr;
 
 const CONFIRM_SECONDS: u32 = 15;
 
@@ -15,8 +16,9 @@ pub fn show(
     on_keep: Rc<dyn Fn()>,
     on_revert: Rc<dyn Fn()>,
 ) {
+    let title = tr("Keep these display settings?");
     let dialog = gtk::Window::builder()
-        .title("Keep these display settings?")
+        .title(&title)
         .modal(true)
         .transient_for(parent)
         .resizable(false)
@@ -33,7 +35,7 @@ pub fn show(
         .margin_end(24)
         .build();
 
-    let heading = gtk::Label::new(Some("Keep these display settings?"));
+    let heading = gtk::Label::new(Some(&title));
     heading.set_xalign(0.0);
     heading.add_css_class("metis-settings-section-title");
     root.append(&heading);
@@ -50,9 +52,11 @@ pub fn show(
         .halign(gtk::Align::End)
         .build();
 
-    let revert_btn = gtk::Button::with_label("Revert");
+    let revert_label = tr("Revert");
+    let keep_label = tr("Keep changes");
+    let revert_btn = gtk::Button::with_label(&revert_label);
     revert_btn.add_css_class("metis-settings-secondary");
-    let keep_btn = gtk::Button::with_label("Keep changes");
+    let keep_btn = gtk::Button::with_label(&keep_label);
     keep_btn.add_css_class("suggested-action");
     btn_row.append(&revert_btn);
     btn_row.append(&keep_btn);
@@ -69,11 +73,14 @@ pub fn show(
         let remaining = remaining.clone();
         Rc::new(move || {
             let secs = *remaining.borrow();
-            body.set_label(&format!(
-                "Your display settings have been applied. If everything still looks correct, \
-                 click Keep changes.\n\nOtherwise the previous settings will be restored in \
-                 {secs} seconds."
-            ));
+            body.set_label(
+                &tr(
+                    "Your display settings have been applied. If everything still looks correct, \
+                     click Keep changes.\n\nOtherwise the previous settings will be restored in \
+                     %1 seconds.",
+                )
+                .replace("%1", &secs.to_string()),
+            );
         })
     };
     update_body();

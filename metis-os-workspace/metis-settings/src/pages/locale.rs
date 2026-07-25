@@ -88,6 +88,7 @@ pub fn build() -> gtk::Widget {
             i18n::reload();
             crate::i18n_gtk::apply_gtk_direction();
             runtime::send("reload-locale");
+            runtime::send_widgets("reload-locale");
             runtime::reload_locale_async();
             // Widgets keep construction-time labels — idle-rebuild Settings chrome
             // (never rebuild synchronously inside this click handler).

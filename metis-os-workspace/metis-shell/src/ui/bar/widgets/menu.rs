@@ -79,7 +79,7 @@ pub fn install(button: &gtk::Button) {
     center.add_css_class("metis-menu-center");
 
     let header = gtk::Label::builder()
-        .label("Frequent Apps")
+        .label(metis_i18n::tr("Frequent Apps"))
         .halign(gtk::Align::Start)
         .build();
     header.add_css_class("metis-bar-section-title");

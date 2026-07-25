@@ -227,6 +227,10 @@ pub struct MetisState {
     pub startup_frames: u32,
     pub shell_spawned: bool,
     pub client_spawned: bool,
+    /// Isolated desktop-widgets process (`metis-shell --desktop-widgets`).
+    pub widgets_cmd: Option<String>,
+    pub widgets_pid: Option<u32>,
+    pub widgets_last_spawn: Option<std::time::Instant>,
     pub child_processes: Vec<std::process::Child>,
 
     pub cursor_status: smithay::input::pointer::CursorImageStatus,
@@ -875,6 +879,9 @@ impl MetisState {
             startup_frames: 0,
             shell_spawned: false,
             client_spawned: false,
+            widgets_cmd: None,
+            widgets_pid: None,
+            widgets_last_spawn: None,
             child_processes: Vec::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             hover_cursor: None,
@@ -1844,8 +1851,16 @@ impl MetisState {
     }
 
     pub fn queue_startup(&mut self, shell: Option<String>, client: Option<String>) {
-        self.startup_shell = shell;
+        self.startup_shell = shell.clone();
         self.startup_client = client;
+        // Same binary, second process: widgets are isolated from the edge bar.
+        self.widgets_cmd = shell.map(|s| {
+            if s.contains("--desktop-widgets") {
+                s
+            } else {
+                format!("{s} --desktop-widgets")
+            }
+        });
     }
 
     pub fn run_pending_startup(&mut self) {
@@ -1856,8 +1871,14 @@ impl MetisState {
                 if let Some(shell) = self.startup_shell.take() {
                     self.spawn_client(&shell);
                 }
+                // Spawn widgets shortly after the bar so layer-shell surfaces do
+                // not contend on the first commit storm.
+                if let Some(widgets) = self.widgets_cmd.clone() {
+                    self.spawn_widgets_process(&widgets);
+                }
             } else {
                 self.startup_shell = None;
+                self.widgets_cmd = None;
             }
             self.shell_spawned = true;
         }
@@ -1871,10 +1892,60 @@ impl MetisState {
             self.client_spawned = true;
         }
 
+        self.maybe_respawn_widgets();
+
         if self.startup_frames > 0 {
             self.startup_frames -= 1;
             self.sync_all_app_windows();
         }
+    }
+
+    fn spawn_widgets_process(&mut self, program: &str) {
+        let before = self.child_processes.len();
+        self.spawn_client(program);
+        self.widgets_last_spawn = Some(std::time::Instant::now());
+        if self.child_processes.len() > before {
+            if let Some(child) = self.child_processes.last() {
+                self.widgets_pid = Some(child.id());
+            }
+        } else {
+            self.widgets_pid = None;
+        }
+    }
+
+    /// Rate-limited respawn if the widgets process exits (crash / OOM).
+    fn maybe_respawn_widgets(&mut self) {
+        let Some(cmd) = self.widgets_cmd.clone() else {
+            return;
+        };
+
+        if let Some(pid) = self.widgets_pid {
+            let mut dead_idx = None;
+            for (i, child) in self.child_processes.iter_mut().enumerate() {
+                if child.id() != pid {
+                    continue;
+                }
+                match child.try_wait() {
+                    Ok(None) => return, // still running
+                    Ok(Some(_)) | Err(_) => dead_idx = Some(i),
+                }
+                break;
+            }
+            if let Some(i) = dead_idx {
+                self.child_processes.remove(i);
+            }
+            tracing::warn!(pid, "desktop-widgets process exited — respawning");
+            self.widgets_pid = None;
+        }
+
+        let min_gap = Duration::from_secs(3);
+        if self
+            .widgets_last_spawn
+            .is_some_and(|t| t.elapsed() < min_gap)
+        {
+            return;
+        }
+        self.spawn_widgets_process(&cmd);
     }
 
     pub fn spawn_client(&mut self, program: &str) {

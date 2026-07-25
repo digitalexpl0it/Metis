@@ -99,7 +99,7 @@ where
 
     if !any {
         if let Some(entry) = notif.desktop_entry.clone() {
-            let button = gtk::Button::with_label("Open");
+            let button = gtk::Button::with_label(&metis_i18n::tr("Open"));
             button.add_css_class("metis-notif-action");
             button.add_css_class("suggested-action");
             let id = notif.id;

@@ -46,7 +46,9 @@ fn overlay() -> Rc<RefCell<Toast>> {
             return existing.clone();
         }
 
-        let window = gtk::Window::builder().title("Metis Notifications").build();
+        let window = gtk::Window::builder()
+            .title(&metis_i18n::tr("Metis Notifications"))
+            .build();
         window.add_css_class("metis-toast-window");
         window.init_layer_shell();
         window.set_layer(Layer::Overlay);
@@ -219,7 +221,7 @@ where
 
     let close = gtk::Button::from_icon_name("window-close-symbolic");
     close.add_css_class("metis-toast-close");
-    close.set_tooltip_text(Some("Dismiss"));
+    close.set_tooltip_text(Some(&metis_i18n::tr("Dismiss")));
     close.set_valign(gtk::Align::Start);
     {
         let on_done = on_done.clone();

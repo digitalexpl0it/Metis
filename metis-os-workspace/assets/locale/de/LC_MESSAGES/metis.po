@@ -9,21 +9,23 @@ msgid ""
 msgstr ""
 "Project-Id-Version: metis 0.1\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-23 18:18-0700\n"
+"POT-Creation-Date: 2026-07-24 18:09-0700\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:158
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:359
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:140
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:145
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:392
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:335
 msgid "Settings"
 msgstr "Einstellungen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:285
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/main.rs:318
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:106
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:793
 msgid "Search"
 msgstr "Suchen"
 
@@ -117,7 +119,7 @@ msgstr "Farbverlauf"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/background.rs:39
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/calendars.rs:51
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1125
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1139
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:420
 msgid "Type"
 msgstr "Typ"
@@ -386,7 +388,8 @@ msgid "Set the application (client) id first."
 msgstr "Legen Sie zuerst die Anwendungs- (Client-) ID fest."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/control_center.rs:31
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:373
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/workspaces.rs:48
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:387
 msgid "Control Center"
 msgstr "Kontrollzentrum"
 
@@ -494,9 +497,12 @@ msgstr "Widget hinzufügen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:249
 msgid "No widgets yet. Pick a type above and click Add widget."
-msgstr "Noch keine Widgets. Wählen Sie oben einen Typ und klicken Sie auf Widget hinzufügen."
+msgstr ""
+"Noch keine Widgets. Wählen Sie oben einen Typ und klicken Sie auf Widget "
+"hinzufügen."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:441
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/mod.rs:505
 msgid "Locked"
 msgstr "Gesperrt"
 
@@ -574,7 +580,8 @@ msgstr "Balkenspiegelung"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1115
 msgid "Spectrum lines use the colour mode above across the frequency range."
-msgstr "Spektrumlinien verwenden den obigen Farbmodus über den Frequenzbereich."
+msgstr ""
+"Spektrumlinien verwenden den obigen Farbmodus über den Frequenzbereich."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1140
 msgid "Mirror wave"
@@ -626,6 +633,28 @@ msgstr "Rahmenbreite"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/desktop_widgets.rs:1620
 msgid "Clear all overrides"
 msgstr "Alle Überschreibungen löschen"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_confirm.rs:19
+msgid "Keep these display settings?"
+msgstr "Save display settings"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_confirm.rs:55
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:216
+msgid "Revert"
+msgstr "Zurücksetzen"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_confirm.rs:56
+msgid "Keep changes"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_confirm.rs:78
+msgid ""
+"Your display settings have been applied. If everything still looks "
+"correct,                      click Keep changes.\n"
+"\n"
+"Otherwise the previous settings will be restored in                      %1 "
+"seconds."
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:46
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:55
@@ -730,13 +759,11 @@ msgstr "Anordnung"
 msgid "Save display settings"
 msgstr "Anzeigeeinstellungen speichern"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:216
-msgid "Revert"
-msgstr "Zurücksetzen"
-
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:221
 msgid "Compositor not reachable — start a Metis session to configure displays."
-msgstr "Compositor nicht erreichbar — starten Sie eine Metis-Sitzung, um Bildschirme zu konfigurieren."
+msgstr ""
+"Compositor nicht erreichbar — starten Sie eine Metis-Sitzung, um Bildschirme "
+"zu konfigurieren."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:599
 msgid "Detect displays"
@@ -846,12 +873,16 @@ msgstr "ICC-Farbprofil auswählen"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:199
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:512
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:719
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1733
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1747
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:623
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:686
 msgid "Cancel"
 msgstr "Abbrechen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display.rs:848
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/notifications.rs:102
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/volumes.rs:138
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:469
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:268
 msgid "Open"
 msgstr "Öffnen"
@@ -860,40 +891,64 @@ msgstr "Öffnen"
 msgid "ICC profiles"
 msgstr "ICC-Profile"
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_schedule.rs:86
+msgid "Custom time"
+msgstr "Customized"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_schedule.rs:99
+msgid "e.g. 8:30 PM"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_schedule.rs:101
+msgid "e.g. 20:30"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/display_schedule.rs:109
+msgid "Presets"
+msgstr "Reset"
+
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:19
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:39
 msgid "Edge bar"
 msgstr "Randleiste"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:712
 msgid "Top"
 msgstr "Oben"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:713
 msgid "Bottom"
 msgstr "Unten"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:714
 msgid "Left"
 msgstr "Links"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:22
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:715
 msgid "Right"
 msgstr "Rechts"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:29
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:720
 msgid "Position"
 msgstr "Position"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:723
 msgid "All displays"
 msgstr "Alle Bildschirme"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:34
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:724
 msgid "Primary display only"
 msgstr "Nur primärer Bildschirm"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:41
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:732
 msgid "Show bar on"
 msgstr "Leiste anzeigen auf"
 
@@ -961,10 +1016,12 @@ msgid "Distance from edge"
 msgstr "Abstand vom Rand"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:112
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:738
 msgid "Opacity"
 msgstr "Deckkraft"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/edgebar.rs:118
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:743
 msgid "Backdrop blur"
 msgstr "Hintergrundunschärfe"
 
@@ -1056,7 +1113,9 @@ msgstr "Jetzt optimieren"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:107
 msgid "Apply Flatpak gaming overrides and add you to the input group if needed"
-msgstr "Flatpak-Gaming-Überschreibungen anwenden und Sie bei Bedarf zur Eingabegruppe hinzufügen"
+msgstr ""
+"Flatpak-Gaming-Überschreibungen anwenden und Sie bei Bedarf zur "
+"Eingabegruppe hinzufügen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:111
 msgid "Run gaming setup"
@@ -1064,7 +1123,9 @@ msgstr "Gaming-Einrichtung ausführen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:114
 msgid "Open the gaming setup wizard (Flatpak, GPU routing, launcher wrappers)"
-msgstr "Gaming-Einrichtungsassistenten öffnen (Flatpak, GPU-Routing, Launcher-Wrapper)"
+msgstr ""
+"Gaming-Einrichtungsassistenten öffnen (Flatpak, GPU-Routing, Launcher-"
+"Wrapper)"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:121
 msgid "Health check"
@@ -1085,7 +1146,7 @@ msgid "Steam"
 msgstr "Steam"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:133
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1095
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1109
 msgid "GPU"
 msgstr "GPU"
 
@@ -1133,7 +1194,8 @@ msgstr "Beheben"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:589
 msgid "Install or apply this fix (may ask for your password)"
-msgstr "Diese Lösung installieren oder anwenden (Passwort kann erforderlich sein)"
+msgstr ""
+"Diese Lösung installieren oder anwenden (Passwort kann erforderlich sein)"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/gaming.rs:607
 msgid "Copy command"
@@ -1312,7 +1374,9 @@ msgid ""
 msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:337
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1798
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:93
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:97
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1812
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:268
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:385
 msgid "System"
@@ -1346,7 +1410,9 @@ msgstr "Speichern"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/keyboard.rs:467
 msgid "That shortcut is reserved for the system and cannot be used."
-msgstr "Dieses Tastenkürzel ist für das System reserviert und kann nicht verwendet werden."
+msgstr ""
+"Dieses Tastenkürzel ist für das System reserviert und kann nicht verwendet "
+"werden."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:16
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:45
@@ -1359,16 +1425,15 @@ msgstr "Formate folgen der Sprache"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:52
 msgid ""
-"Applies to Metis Settings chrome, the Metis Menu, onboarding, and the lock "
-"screen. Many page and widget labels are still English until they are "
-"translated. Other apps follow the system locale."
+"Applies across Metis Settings, the edge bar, Control Center, screenshots, "
+"notifications, onboarding, and the lock screen. Other apps follow the system "
+"locale."
 msgstr ""
-"Gilt für die Metis-Einstellungsoberfläche, das Metis-Menü, die "
-"Ersteinrichtung und den Sperrbildschirm. Viele Seiten- und Widget-"
-"Beschriftungen bleiben Englisch, bis sie übersetzt sind. Andere Apps folgen "
-"der Systemsprache."
+"Applies across Metis Settings, the edge bar, Control Center, screenshots, "
+"notifications, onboarding, and the lock screen. Other apps follow the system "
+"locale."
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:59
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/locale.rs:56
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1570
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1653
 msgid "Apply"
@@ -1570,6 +1635,8 @@ msgstr "Bearbeiten"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:620
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:646
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:496
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:624
 msgid "Delete"
 msgstr "Löschen"
 
@@ -1637,7 +1704,8 @@ msgstr "Wird importiert…"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:945
 msgid "Could not open OpenVPN dialog (no parent window)."
-msgstr "OpenVPN-Dialog konnte nicht geöffnet werden (kein übergeordnetes Fenster)."
+msgstr ""
+"OpenVPN-Dialog konnte nicht geöffnet werden (kein übergeordnetes Fenster)."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:951
 msgid ""
@@ -1668,7 +1736,7 @@ msgstr "Passwort (optional)"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1190
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1351
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:120
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1122
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1136
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:416
 msgid "Name"
 msgstr "Name"
@@ -1679,6 +1747,7 @@ msgid "Gateway"
 msgstr "Gateway"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1011
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/ui.rs:410
 msgid "Browse…"
 msgstr "Durchsuchen…"
 
@@ -1714,7 +1783,8 @@ msgstr "OpenVPN-Profil erstellt."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1147
 msgid "Could not open WireGuard dialog (no parent window)."
-msgstr "WireGuard-Dialog konnte nicht geöffnet werden (kein übergeordnetes Fenster)."
+msgstr ""
+"WireGuard-Dialog konnte nicht geöffnet werden (kein übergeordnetes Fenster)."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1154
 msgid "Add WireGuard"
@@ -1760,7 +1830,9 @@ msgstr "WireGuard-Verbindung erstellt."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1303
 msgid "Could not open edit dialog (no parent window)."
-msgstr "Bearbeitungsdialog konnte nicht geöffnet werden (kein übergeordnetes Fenster)."
+msgstr ""
+"Bearbeitungsdialog konnte nicht geöffnet werden (kein übergeordnetes "
+"Fenster)."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/network.rs:1309
 msgid "Could not load WireGuard profile details."
@@ -1996,7 +2068,9 @@ msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:62
 msgid "Set a password before enabling desktop session sharing."
-msgstr "Legen Sie ein Passwort fest, bevor Sie die Desktop-Sitzungsfreigabe aktivieren."
+msgstr ""
+"Legen Sie ein Passwort fest, bevor Sie die Desktop-Sitzungsfreigabe "
+"aktivieren."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:68
 msgid "Set password…"
@@ -2097,7 +2171,9 @@ msgstr "Sitzungsfreigabe-Passwort"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:413
 msgid "Choose the username and password RDP clients use to join this session."
-msgstr "Wählen Sie Benutzername und Passwort, die RDP-Clients zum Beitreten zu dieser Sitzung verwenden."
+msgstr ""
+"Wählen Sie Benutzername und Passwort, die RDP-Clients zum Beitreten zu "
+"dieser Sitzung verwenden."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:440
 msgid "Confirm password"
@@ -2110,6 +2186,24 @@ msgstr "Passwörter stimmen nicht überein"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/remote.rs:510
 msgid "Use at least 8 characters"
 msgstr "Mindestens 8 Zeichen verwenden"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:17
+#, fuzzy
+msgid "Search shortcuts…"
+msgstr "Tastenkürzel drücken…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:28
+msgid ""
+"These are the current desktop shortcuts. To change a binding, open Keyboard."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:35
+msgid "Change shortcuts in Keyboard"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/shortcuts.rs:105
+msgid "No shortcuts match your search."
+msgstr ""
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:28
 msgid "Output"
@@ -2137,7 +2231,9 @@ msgstr "Pegel"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/sound.rs:45
 msgid "Use the volume icon on the edge bar for quick mute and level control."
-msgstr "Verwenden Sie das Lautstärkesymbol in der Leiste für schnelles Stummschalten und Pegelregelung."
+msgstr ""
+"Verwenden Sie das Lautstärkesymbol in der Leiste für schnelles Stummschalten "
+"und Pegelregelung."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/titlebars.rs:39
 msgid ""
@@ -2218,10 +2314,12 @@ msgid "Temperature unit"
 msgstr "Temperatureinheit"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:56
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/ui.rs:395
 msgid "Auto-detect"
 msgstr "Automatisch erkennen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:60
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:776
 msgid "Detect my location"
 msgstr "Meinen Standort erkennen"
 
@@ -2231,13 +2329,16 @@ msgstr "IP-Geolokalisierung verwenden (genauer)"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:69
 msgid "Auto-detect is used only when no locations are pinned below."
-msgstr "Automatische Erkennung wird nur verwendet, wenn unten keine Standorte angeheftet sind."
+msgstr ""
+"Automatische Erkennung wird nur verwendet, wenn unten keine Standorte "
+"angeheftet sind."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:93
 msgid "Locations"
 msgstr "Standorte"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/pages/weather.rs:103
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:790
 msgid "Search for a city…"
 msgstr "Nach einer Stadt suchen…"
 
@@ -2325,8 +2426,84 @@ msgid ""
 "contents.          Changes apply within ~1s."
 msgstr ""
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/ui.rs:399
+msgid "Custom…"
+msgstr "Customized"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/ui.rs:404
+msgid "Path to executable, e.g. /usr/bin/btop"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-settings/src/ui.rs:463
+msgid "Choose an executable"
+msgstr "Choose a picture"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/mod.rs:115
+msgid "Metis Bar"
+msgstr "Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:39
+msgid "Type here to search…"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:67
+msgid "Previous page"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:68
+msgid "Next page"
+msgstr "Next"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:84
+msgid "Private mode"
+msgstr "Private key"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:100
+msgid "Clear history"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:105
+msgid "Clipboard settings"
+msgstr "Power settings…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:161
+msgid "25 entries per page"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:162
+msgid "50 entries per page"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:163
+msgid "100 entries per page"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:342
+msgid "0 entries"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:344
+msgid "Page %1 / %2 · %3 entries"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:357
+msgid "No clipboard history"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:426
+msgid "Unpin (allow auto-removal)"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:428
+msgid "Pin (keep forever)"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clipboard.rs:439
+msgid "Delete entry"
+msgstr "Delete"
+
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:45
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:541
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:559
 msgid "Alarms"
 msgstr "Wecker"
 
@@ -2388,7 +2565,6 @@ msgid "Every day  ·  %1"
 msgstr "Jeden Tag  ·  %1"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/alarms.rs:388
-#, fuzzy
 msgid "Sun"
 msgstr "Ton"
 
@@ -2471,6 +2647,7 @@ msgid "No events"
 msgstr "Keine Termine"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/calendar.rs:630
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/toast.rs:224
 msgid "Dismiss"
 msgstr "Verwerfen"
 
@@ -2491,7 +2668,6 @@ msgstr "Metis-Wecker"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:277
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:447
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/timer.rs:483
-#, fuzzy
 msgid "Start"
 msgstr "Neustart"
 
@@ -2572,7 +2748,6 @@ msgid "Add a world clock"
 msgstr "Weltuhr hinzufügen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:82
-#, fuzzy
 msgid "Search city / timezone…"
 msgstr "Anwendungen suchen…"
 
@@ -2588,6 +2763,16 @@ msgstr "Wie Ortszeit"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/clock/world.rs:320
 msgid "%1 from local"
 msgstr "%1 zur Ortszeit"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/launcher.rs:21
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1810
+msgid "Metis"
+msgstr "Metis"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:82
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:564
+msgid "Frequent Apps"
+msgstr "Häufige Apps"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:123
 msgid "Pinned"
@@ -2621,13 +2806,14 @@ msgstr "Neustart"
 msgid "Shut Down"
 msgstr "Herunterfahren"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:564
-msgid "Frequent Apps"
-msgstr "Häufige Apps"
-
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/menu.rs:578
 msgid "Search Results"
 msgstr "Suchergebnisse"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/notifications.rs:21
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:47
+msgid "Notifications"
+msgstr "Benachrichtigungen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:42
 msgid "Power settings…"
@@ -2700,7 +2886,9 @@ msgstr "VPN"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:686
 msgid "No VPN profiles yet. Import OpenVPN or WireGuard in Settings."
-msgstr "Noch keine VPN-Profile. Importieren Sie OpenVPN oder WireGuard in den Einstellungen."
+msgstr ""
+"Noch keine VPN-Profile. Importieren Sie OpenVPN oder WireGuard in den "
+"Einstellungen."
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/sys.rs:714
 msgid "Remember on this profile"
@@ -2779,175 +2967,197 @@ msgstr "Aushängen"
 msgid "Eject"
 msgstr "Auswerfen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:341
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/weather.rs:41
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:40
+msgid "Weather"
+msgstr "Wetter"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/weather.rs:131
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/weather.rs:123
+msgid "Weather unavailable"
+msgstr "Wetter nicht verfügbar"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/weather.rs:174
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/weather.rs:159
+msgid "H:%1°%2 L:%3°%2"
+msgstr "H:%1°%2 T:%3°%2"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/workspaces.rs:104
+msgid "Metis desktop"
+msgstr "Free desktop"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/bar/widgets/workspaces.rs:107
+msgid "Desktop %1"
+msgstr "~/Desktop"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:355
 msgid "Metis Control Center"
 msgstr "Metis-Kontrollzentrum"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:432
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:446
 msgid "Overview"
 msgstr "Übersicht"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:433
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:447
 msgid "Processes"
 msgstr "Prozesse"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:919
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:994
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:933
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1008
 msgid "total"
 msgstr "gesamt"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:921
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:935
 msgid "cores"
 msgstr "Kerne"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:944
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:958
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:167
 msgid "Ethernet ↓"
 msgstr "Ethernet ↓"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:949
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:963
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:168
 msgid "Ethernet ↑"
 msgstr "Ethernet ↑"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:954
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:968
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:169
 msgid "Wi‑Fi ↓"
 msgstr "WLAN ↓"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:959
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:973
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:170
 msgid "Wi‑Fi ↑"
 msgstr "WLAN ↑"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:968
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:982
 msgid "Firewall active"
 msgstr "Firewall aktiv"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:974
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:988
 msgid "Firewall inactive"
 msgstr "Firewall inaktiv"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1055
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1069
 msgid "Σ total"
 msgstr "Σ gesamt"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1123
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1137
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:418
 msgid "PID"
 msgstr "PID"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1124
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1138
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:419
 msgid "User"
 msgstr "Benutzer"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1126
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1140
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:297
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:421
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/system.rs:19
 msgid "CPU"
 msgstr "CPU"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1127
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1141
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:121
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:280
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/views.rs:422
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/system.rs:20
 msgid "Memory"
 msgstr "Speicher"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1226
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1240
 msgid "No matching processes"
 msgstr "Keine passenden Prozesse"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1236
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1250
 msgid "Showing first 300 visible rows — refine the filter"
 msgstr "Erste 300 sichtbare Zeilen — Filter verfeinern"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1427
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1441
 msgid "Collapse child processes"
 msgstr "Unterprozesse einklappen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1429
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1443
 msgid "Expand child processes"
 msgstr "Unterprozesse ausklappen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1506
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1593
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1738
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1520
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1607
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1752
 msgid "End task"
 msgstr "Aufgabe beenden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1508
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1522
 msgid "Cannot end processes owned by another user"
 msgstr "Prozesse eines anderen Benutzers können nicht beendet werden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1600
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1736
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1614
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1750
 msgid "Force quit"
 msgstr "Beenden erzwingen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1608
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1622
 msgid "End process tree"
 msgstr "Prozessbaum beenden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1615
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1735
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1629
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1749
 msgid "Force quit tree"
 msgstr "Prozessbaum erzwingen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1623
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1637
 msgid "Copy PID"
 msgstr "PID kopieren"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1695
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1709
 msgid "Force quit process tree?"
 msgstr "Prozessbaum erzwingen?"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1696
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1710
 msgid "Force quit?"
 msgstr "Beenden erzwingen?"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1697
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1711
 msgid "End process tree?"
 msgstr "Prozessbaum beenden?"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1698
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1712
 msgid "End task?"
 msgstr "Aufgabe beenden?"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1703
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1709
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1717
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1723
 msgid "Send SIGKILL to process"
 msgstr "SIGKILL an Prozess senden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1704
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1715
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1718
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1729
 msgid "and its child processes"
 msgstr "und seine Unterprozesse"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1705
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1710
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1719
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1724
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:628
 msgid "This cannot be undone."
 msgstr "Dies kann nicht rückgängig gemacht werden."
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1714
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1717
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1728
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1731
 msgid "Send SIGTERM to process"
 msgstr "SIGTERM an Prozess senden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1737
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1751
 msgid "End tree"
 msgstr "Baum beenden"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1796
-msgid "Metis"
-msgstr "Metis"
-
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1797
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1811
 msgid "App"
 msgstr "App"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1894
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/dashboard/mod.rs:1908
 msgid "N/A"
 msgstr "k. A."
 
@@ -3028,27 +3238,140 @@ msgstr "Monitor öffnen"
 msgid "Open the configured process monitor (Settings → Control Center)"
 msgstr "Konfigurierten Prozessmonitor öffnen (Einstellungen → Kontrollzentrum)"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:411
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/apps.rs:29
+msgid "Following start-menu pins"
+msgstr "Folgt Startmenü-Anheftungen"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/apps.rs:79
+msgid ""
+"No pinned apps yet.\n"
+"         Right-click an app in the Metis start menu and choose Pin "
+"—          they show here automatically."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:107
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:165
+msgid ""
+"Folder not found:\n"
+"%1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:120
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:178
+msgid ""
+"Could not read folder:\n"
+"%1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:132
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:190
+msgid ""
+"This folder is empty.\n"
+"Right-click for New Folder."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:145
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:203
+msgid "…and %1 more"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:477
+msgid "Open with…"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:487
+msgid "Rename…"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:504
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:592
+msgid "New Folder"
+msgstr "Folders"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:512
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:598
+msgid "Open in File Manager"
+msgstr "File manager"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:616
+msgid "Could not create folder: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:627
+msgid "Delete \"%1\"?"
+msgstr "Delete"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:651
+msgid "Could not delete: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:663
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:687
+msgid "Rename"
+msgstr "Username"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:712
+msgid "A file with that name already exists."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:718
+msgid "Could not rename: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/folders.rs:741
+msgid "Folders"
+msgstr "Ordner"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/mod.rs:25
+msgid "Placeholder — drag the title bar to move, corner to resize."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/system.rs:21
+msgid "Disk"
+msgstr "Festplatte"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/weather.rs:135
+msgid "Waiting for weather…"
+msgstr "Wetter wird geladen…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/content/weather.rs:137
+msgid "Configure locations in Settings → Weather, or wait for auto-detect."
+msgstr ""
+"Orte unter Einstellungen → Wetter festlegen oder Auto-Erkennung abwarten."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/mod.rs:510
+msgid "Drag title · resize ↘"
+msgstr "Titel ziehen · Größe ↘"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/mod.rs:519
+msgid "⋮⋮ drag"
+msgstr "⋮⋮ ziehen"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/desktop_widgets/mod.rs:546
+msgid "Drag to resize"
+msgstr "Ziehen zum Ändern der Größe"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:429
 msgid "Notification Center"
 msgstr "Benachrichtigungszentrum"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:460
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:478
 msgid "Events"
 msgstr "Termine"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:529
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:547
 msgid "Calendar"
 msgstr "Kalender"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:532
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:550
 msgid "World clocks"
 msgstr "Weltuhren"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:537
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:555
 msgid "Stopwatch"
 msgstr "Stoppuhr"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:540
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/mod.rs:558
 msgid "Timer"
 msgstr "Timer"
 
@@ -3056,10 +3379,6 @@ msgstr "Timer"
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:151
 msgid "Collapse"
 msgstr "Einklappen"
-
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:47
-msgid "Notifications"
-msgstr "Benachrichtigungen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/notification_center/notif_list.rs:54
 msgid "DND"
@@ -3078,7 +3397,7 @@ msgid "No new notifications"
 msgstr "Keine neuen Benachrichtigungen"
 
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:34
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:484
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:486
 msgid "Language & region"
 msgstr "Sprache & Region"
 
@@ -3098,10 +3417,6 @@ msgstr "Hintergrundbild wählen"
 msgid "Clock format"
 msgstr "Uhrformat"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:40
-msgid "Weather"
-msgstr "Wetter"
-
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:41
 msgid "Gaming"
 msgstr "Spiele"
@@ -3114,35 +3429,223 @@ msgstr "Optionale Software"
 msgid "You're all set"
 msgstr "Alles bereit"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:168
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:147
+msgid "Metis Setup"
+msgstr "Setup"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:170
 msgid "Skip"
 msgstr "Überspringen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:210
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:369
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:486
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:212
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:371
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:488
 msgid "Back"
 msgstr "Zurück"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:214
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:366
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:485
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:216
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:368
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:487
 msgid "Next"
 msgstr "Weiter"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:364
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:366
 msgid "Finish"
 msgstr "Fertig"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:422
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:424
 msgid ""
 "Choose the language used by Metis. You can change this later in Settings."
 msgstr ""
 "Wähle die Sprache für Metis. Du kannst sie später in den Einstellungen "
 "ändern."
 
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:510
+msgid ""
+"Metis is a fast, modern desktop built on Wayland.\n"
+"         This quick setup will personalize your workspace — you can change\n"
+"         everything later in Settings."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:526
+msgid "Pick light or dark — your desktop updates live behind this card."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:541
+msgid "Light"
+msgstr "Right"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:542
+msgid "Dark"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:575
+msgid "Choose a bundled background — applied instantly."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:584
+msgid ""
+"No bundled wallpapers found. Reinstall Metis (wallpapers ship "
+"under              /usr/share/metis/wallpapers), or add images in Settings → "
+"Appearance."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:666
+msgid "How should the edge-bar clock display time?"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:679
+msgid "12-hour (3:45 PM)"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:680
+msgid "24-hour (15:45)"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:781
+msgid "Or search for a city to pin a location (overrides auto-detect)."
+msgstr "No pinned locations (using auto-detect)."
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:820
+msgid "No results — try another spelling."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:894
+msgid "native Steam"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:895
+msgid "Flatpak Steam"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:896
+msgid "not installed"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:899
+msgid "detected"
+msgstr "Not detected"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:901
+msgid "not detected"
+msgstr "Not detected"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:904
+msgid "installed"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:906
+msgid "optional — install gamemode"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:909
+msgid "may be missing (install mesa-vulkan-drivers:i386)"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:911
+msgid "looks OK"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:915
+msgid "Hybrid GPU: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:916
+msgid "Steam: %1"
+msgstr "Steam"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:917
+msgid "GameMode: %1"
+msgstr "Auto GameMode"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:918
+msgid "32-bit Vulkan: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:926
+msgid "Enable automatic GPU switching for games"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:933
+msgid "Optimize Flatpak Steam / Lutris / Heroic"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:940
+msgid "You can rerun gaming setup anytime from Settings → Gaming."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1062
+msgid "pkexec not found. Install manually:"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1071
+msgid "failed to start pkexec: %1"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1077
+msgid "Install cancelled or failed. You can run:"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1088
+msgid "Turn on extras, then Install selected. Installed items are greyed out."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1124
+msgid "Install selected"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1160
+msgid "Installed"
+msgstr "Installed (native)"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1245
+msgid "Installing… authenticate if prompted."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1264
+msgid "Installed successfully."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1277
+msgid "Install failed unexpectedly."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1292
+msgid "Your desktop is ready. Here are a few shortcuts to get started:"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1306
+msgid "Click the brand icon"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1307
+msgid "Open the app launcher"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1311
+msgid "Disable tiling / return to free desktop"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1313
+msgid "Close the focused window"
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1316
+msgid "Switch workspace"
+msgstr "Workspaces"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/onboarding.rs:1326
+msgid ""
+"For monitor arrangement, resolution, and refresh rate, open\n"
+"         Settings → Display."
+msgstr ""
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/osd.rs:43
+msgid "Metis OSD"
+msgstr "Metis"
+
 #: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:132
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:947
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:948
 msgid "Screenshot"
 msgstr "Screenshot"
 
@@ -3195,9 +3698,69 @@ msgstr "Bereich zum Aufnehmen auswählen"
 msgid "Screenshot failed"
 msgstr "Screenshot fehlgeschlagen"
 
-#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:941
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/screenshot/mod.rs:942
 msgid "Screenshot captured"
 msgstr "Screenshot aufgenommen"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/splash.rs:159
+msgid "Starting Metis…"
+msgstr "Starting…"
+
+#: /home/drose/Projects/Metis/metis-os-workspace/metis-shell/src/ui/toast.rs:50
+msgid "Metis Notifications"
+msgstr "Notifications"
+
+#~ msgid " · Connected"
+#~ msgstr " · Connected"
+
+#~ msgid ""
+#~ "Applies to Metis Settings chrome, the Metis Menu, onboarding, and the "
+#~ "lock screen. Many page and widget labels are still English until they are "
+#~ "translated. Other apps follow the system locale."
+#~ msgstr ""
+#~ "Gilt für die Metis-Einstellungsoberfläche, das Metis-Menü, die "
+#~ "Ersteinrichtung und den Sperrbildschirm. Viele Seiten- und Widget-"
+#~ "Beschriftungen bleiben Englisch, bis sie übersetzt sind. Andere Apps "
+#~ "folgen der Systemsprache."
+
+#~ msgid "Mostly clear"
+#~ msgstr "Überwiegend klar"
+
+#~ msgid "Partly cloudy"
+#~ msgstr "Teilweise bewölkt"
+
+#~ msgid "Cloudy"
+#~ msgstr "Bewölkt"
+
+#~ msgid "Fog"
+#~ msgstr "Nebel"
+
+#~ msgid "Drizzle"
+#~ msgstr "Nieselregen"
+
+#~ msgid "Rain"
+#~ msgstr "Regen"
+
+#~ msgid "Snow"
+#~ msgstr "Schnee"
+
+#~ msgid "Showers"
+#~ msgstr "Schauer"
+
+#~ msgid "Snow showers"
+#~ msgstr "Schneeschauer"
+
+#~ msgid "Thunderstorm"
+#~ msgstr "Gewitter"
+
+#~ msgid "Apps"
+#~ msgstr "Apps"
+
+#~ msgid "Equalizer"
+#~ msgstr "Equalizer"
+
+#~ msgid "Placeholder"
+#~ msgstr "Platzhalter"
 
 #~ msgid "System default"
 #~ msgstr "Systemstandard"
@@ -3313,72 +3876,3 @@ msgstr "Screenshot aufgenommen"
 
 #~ msgid "Wi-Fi, Ethernet, DNS, and proxy"
 #~ msgstr "WLAN, Ethernet, DNS und Proxy"
-
-msgid "Mostly clear"
-msgstr "Überwiegend klar"
-
-msgid "Partly cloudy"
-msgstr "Teilweise bewölkt"
-
-msgid "Cloudy"
-msgstr "Bewölkt"
-
-msgid "Fog"
-msgstr "Nebel"
-
-msgid "Drizzle"
-msgstr "Nieselregen"
-
-msgid "Rain"
-msgstr "Regen"
-
-msgid "Snow"
-msgstr "Schnee"
-
-msgid "Showers"
-msgstr "Schauer"
-
-msgid "Snow showers"
-msgstr "Schneeschauer"
-
-msgid "Thunderstorm"
-msgstr "Gewitter"
-
-msgid "Waiting for weather…"
-msgstr "Wetter wird geladen…"
-
-msgid "Configure locations in Settings → Weather, or wait for auto-detect."
-msgstr "Orte unter Einstellungen → Wetter festlegen oder Auto-Erkennung abwarten."
-
-msgid "H:%1°%2 L:%3°%2"
-msgstr "H:%1°%2 T:%3°%2"
-
-msgid "Weather unavailable"
-msgstr "Wetter nicht verfügbar"
-
-msgid "Drag title · resize ↘"
-msgstr "Titel ziehen · Größe ↘"
-
-msgid "⋮⋮ drag"
-msgstr "⋮⋮ ziehen"
-
-msgid "Drag to resize"
-msgstr "Ziehen zum Ändern der Größe"
-
-msgid "Following start-menu pins"
-msgstr "Folgt Startmenü-Anheftungen"
-
-msgid "Disk"
-msgstr "Festplatte"
-
-msgid "Folders"
-msgstr "Ordner"
-
-msgid "Apps"
-msgstr "Apps"
-
-msgid "Equalizer"
-msgstr "Equalizer"
-
-msgid "Placeholder"
-msgstr "Platzhalter"

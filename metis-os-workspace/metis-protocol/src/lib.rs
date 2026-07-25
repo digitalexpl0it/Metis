@@ -322,6 +322,12 @@ pub fn runtime_command_path() -> std::path::PathBuf {
     runtime_dir().join("command")
 }
 
+/// Runtime command file for the desktop-widgets shell process (isolated from the
+/// edge bar so Settings reloads do not race the bar poller).
+pub fn runtime_command_path_widgets() -> std::path::PathBuf {
+    runtime_dir().join("command-widgets")
+}
+
 pub fn runtime_dir() -> std::path::PathBuf {
     std::env::var("XDG_RUNTIME_DIR")
         .map(std::path::PathBuf::from)
@@ -331,6 +337,15 @@ pub fn runtime_dir() -> std::path::PathBuf {
 
 pub fn write_runtime_command(action: &str) -> std::io::Result<()> {
     let path = runtime_command_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, action)
+}
+
+/// Write a one-shot command for the desktop-widgets process.
+pub fn write_runtime_command_widgets(action: &str) -> std::io::Result<()> {
+    let path = runtime_command_path_widgets();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

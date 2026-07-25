@@ -143,7 +143,9 @@ pub fn show() {
         return;
     }
 
-    let window = gtk::Window::builder().title("Metis Setup").build();
+    let window = gtk::Window::builder()
+        .title(&metis_i18n::tr("Metis Setup"))
+        .build();
     window.add_css_class("metis-onboarding-window");
     window.init_layer_shell();
     window.set_layer(Layer::Overlay);
@@ -504,11 +506,11 @@ fn build_welcome() -> gtk::Widget {
     logo.set_halign(gtk::Align::Center);
     col.append(&logo);
 
-    let text = gtk::Label::new(Some(
+    let text = gtk::Label::new(Some(&metis_i18n::tr(
         "Metis is a fast, modern desktop built on Wayland.\n\
          This quick setup will personalize your workspace — you can change\n\
          everything later in Settings.",
-    ));
+    )));
     text.add_css_class("metis-onboarding-subtitle");
     text.set_halign(gtk::Align::Center);
     text.set_justify(gtk::Justification::Center);
@@ -520,9 +522,9 @@ fn build_welcome() -> gtk::Widget {
 fn build_theme() -> gtk::Widget {
     let col = step_shell();
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
         "Pick light or dark — your desktop updates live behind this card.",
-    ));
+    )));
     hint.add_css_class("metis-onboarding-subtitle");
     hint.set_xalign(0.0);
     hint.set_wrap(true);
@@ -536,8 +538,10 @@ fn build_theme() -> gtk::Widget {
     chooser.set_hexpand(false);
     chooser.set_margin_top(8);
 
-    let light_btn = theme_preview_button("Light", false, wp.as_deref());
-    let dark_btn = theme_preview_button("Dark", true, wp.as_deref());
+    let light_label = metis_i18n::tr("Light");
+    let dark_label = metis_i18n::tr("Dark");
+    let light_btn = theme_preview_button(&light_label, false, wp.as_deref());
+    let dark_btn = theme_preview_button(&dark_label, true, wp.as_deref());
     dark_btn.set_group(Some(&light_btn));
 
     let mode = crate::config::load_theme_preference().unwrap_or(ThemeMode::Light);
@@ -567,17 +571,19 @@ fn build_theme() -> gtk::Widget {
 fn build_wallpaper() -> gtk::Widget {
     let col = step_shell();
 
-    let hint = gtk::Label::new(Some("Choose a bundled background — applied instantly."));
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
+        "Choose a bundled background — applied instantly.",
+    )));
     hint.add_css_class("metis-onboarding-subtitle");
     hint.set_xalign(0.0);
     col.append(&hint);
 
     let wallpapers = metis_config::list_bundled_wallpapers();
     if wallpapers.is_empty() {
-        let empty = gtk::Label::new(Some(
+        let empty = gtk::Label::new(Some(&metis_i18n::tr(
             "No bundled wallpapers found. Reinstall Metis (wallpapers ship under \
              /usr/share/metis/wallpapers), or add images in Settings → Appearance.",
-        ));
+        )));
         empty.add_css_class("metis-onboarding-hint");
         empty.set_wrap(true);
         empty.set_xalign(0.0);
@@ -656,7 +662,9 @@ fn build_wallpaper() -> gtk::Widget {
 fn build_clock() -> gtk::Widget {
     let col = step_shell();
 
-    let hint = gtk::Label::new(Some("How should the edge-bar clock display time?"));
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
+        "How should the edge-bar clock display time?",
+    )));
     hint.add_css_class("metis-onboarding-subtitle");
     hint.set_xalign(0.0);
     col.append(&hint);
@@ -668,8 +676,8 @@ fn build_clock() -> gtk::Widget {
     row.set_halign(gtk::Align::Center);
     row.set_margin_top(8);
 
-    let btn_12 = gtk::ToggleButton::with_label("12-hour (3:45 PM)");
-    let btn_24 = gtk::ToggleButton::with_label("24-hour (15:45)");
+    let btn_12 = gtk::ToggleButton::with_label(&metis_i18n::tr("12-hour (3:45 PM)"));
+    let btn_24 = gtk::ToggleButton::with_label(&metis_i18n::tr("24-hour (15:45)"));
     btn_24.set_group(Some(&btn_12));
 
     if is_24h {
@@ -700,27 +708,39 @@ fn build_edge_bar() -> gtk::Widget {
     let col = step_shell();
     let bar = crate::config::load_bar_config();
 
-    let position_dd = gtk::DropDown::from_strings(&["Top", "Bottom", "Left", "Right"]);
+    let position_labels = [
+        metis_i18n::tr("Top"),
+        metis_i18n::tr("Bottom"),
+        metis_i18n::tr("Left"),
+        metis_i18n::tr("Right"),
+    ];
+    let position_refs: Vec<&str> = position_labels.iter().map(|s| s.as_str()).collect();
+    let position_dd = gtk::DropDown::from_strings(&position_refs);
     position_dd.set_selected(bar_position_index(bar.position));
-    col.append(&labeled_row("Position", &position_dd));
+    col.append(&labeled_row(&metis_i18n::tr("Position"), &position_dd));
 
-    let displays_dd = gtk::DropDown::from_strings(&["All displays", "Primary display only"]);
+    let display_labels = [
+        metis_i18n::tr("All displays"),
+        metis_i18n::tr("Primary display only"),
+    ];
+    let display_refs: Vec<&str> = display_labels.iter().map(|s| s.as_str()).collect();
+    let displays_dd = gtk::DropDown::from_strings(&display_refs);
     displays_dd.set_selected(match bar.displays {
         BarDisplays::Primary => 1,
         _ => 0,
     });
-    col.append(&labeled_row("Show bar on", &displays_dd));
+    col.append(&labeled_row(&metis_i18n::tr("Show bar on"), &displays_dd));
 
     let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     opacity.set_value(bar.opacity as f64);
     opacity.set_size_request(220, -1);
     opacity.set_draw_value(true);
-    col.append(&labeled_row("Opacity", &opacity));
+    col.append(&labeled_row(&metis_i18n::tr("Opacity"), &opacity));
 
     let blur = gtk::Switch::new();
     blur.set_active(bar.blur);
     blur.set_halign(gtk::Align::End);
-    col.append(&labeled_row("Backdrop blur", &blur));
+    col.append(&labeled_row(&metis_i18n::tr("Backdrop blur"), &blur));
 
     position_dd.connect_selected_notify(move |dd| {
         let pos = index_to_bar_position(dd.selected());
@@ -752,11 +772,14 @@ fn build_weather() -> gtk::Widget {
     let auto_sw = gtk::Switch::new();
     auto_sw.set_active(cfg.borrow().auto_detect);
     auto_sw.set_halign(gtk::Align::End);
-    col.append(&labeled_row("Detect my location", &auto_sw));
-
-    let hint = gtk::Label::new(Some(
-        "Or search for a city to pin a location (overrides auto-detect).",
+    col.append(&labeled_row(
+        &metis_i18n::tr("Detect my location"),
+        &auto_sw,
     ));
+
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
+        "Or search for a city to pin a location (overrides auto-detect).",
+    )));
     hint.add_css_class("metis-onboarding-hint");
     hint.set_xalign(0.0);
     hint.set_wrap(true);
@@ -764,10 +787,10 @@ fn build_weather() -> gtk::Widget {
 
     let search_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let entry = gtk::Entry::builder()
-        .placeholder_text("Search for a city…")
+        .placeholder_text(metis_i18n::tr("Search for a city…"))
         .hexpand(true)
         .build();
-    let search_btn = gtk::Button::with_label("Search");
+    let search_btn = gtk::Button::with_label(&metis_i18n::tr("Search"));
     search_row.append(&entry);
     search_row.append(&search_btn);
     col.append(&search_row);
@@ -793,7 +816,9 @@ fn build_weather() -> gtk::Widget {
                 clear_list_box(&results);
                 if items.is_empty() {
                     let row = gtk::ListBoxRow::new();
-                    let lbl = gtk::Label::new(Some("No results — try another spelling."));
+                    let lbl = gtk::Label::new(Some(&metis_i18n::tr(
+                        "No results — try another spelling.",
+                    )));
                     lbl.add_css_class("metis-onboarding-hint");
                     lbl.set_xalign(0.0);
                     row.set_child(Some(&lbl));
@@ -866,43 +891,54 @@ fn build_gaming() -> gtk::Widget {
 
     let hybrid = metis_config::detect_hybrid_gpu(None).is_some();
     let steam = match metis_gaming::detect_steam() {
-        metis_gaming::SteamInstall::Native => "native Steam",
-        metis_gaming::SteamInstall::Flatpak => "Flatpak Steam",
-        metis_gaming::SteamInstall::None => "not installed",
+        metis_gaming::SteamInstall::Native => metis_i18n::tr("native Steam"),
+        metis_gaming::SteamInstall::Flatpak => metis_i18n::tr("Flatpak Steam"),
+        metis_gaming::SteamInstall::None => metis_i18n::tr("not installed"),
+    };
+    let hybrid_status = if hybrid {
+        metis_i18n::tr("detected")
+    } else {
+        metis_i18n::tr("not detected")
+    };
+    let gamemode_status = if metis_gaming::gamemode_installed() {
+        metis_i18n::tr("installed")
+    } else {
+        metis_i18n::tr("optional — install gamemode")
+    };
+    let vulkan_status = if metis_gaming::i386_vulkan_likely_missing() {
+        metis_i18n::tr("may be missing (install mesa-vulkan-drivers:i386)")
+    } else {
+        metis_i18n::tr("looks OK")
     };
     let summary = gtk::Label::new(Some(&format!(
-        "Hybrid GPU: {}\nSteam: {}\nGameMode: {}\n32-bit Vulkan: {}",
-        if hybrid { "detected" } else { "not detected" },
-        steam,
-        if metis_gaming::gamemode_installed() {
-            "installed"
-        } else {
-            "optional — install gamemode"
-        },
-        if metis_gaming::i386_vulkan_likely_missing() {
-            "may be missing (install mesa-vulkan-drivers:i386)"
-        } else {
-            "looks OK"
-        },
+        "{}\n{}\n{}\n{}",
+        metis_i18n::tr("Hybrid GPU: %1").replace("%1", &hybrid_status),
+        metis_i18n::tr("Steam: %1").replace("%1", &steam),
+        metis_i18n::tr("GameMode: %1").replace("%1", &gamemode_status),
+        metis_i18n::tr("32-bit Vulkan: %1").replace("%1", &vulkan_status),
     )));
     summary.add_css_class("metis-onboarding-subtitle");
     summary.set_xalign(0.0);
     summary.set_wrap(true);
     col.append(&summary);
 
-    let auto_gpu = gtk::CheckButton::with_label("Enable automatic GPU switching for games");
+    let auto_gpu = gtk::CheckButton::with_label(&metis_i18n::tr(
+        "Enable automatic GPU switching for games",
+    ));
     auto_gpu.set_active(GAMING_AUTO_GPU.get());
     auto_gpu.connect_active_notify(|s| GAMING_AUTO_GPU.set(s.is_active()));
     col.append(&auto_gpu);
 
-    let optimize = gtk::CheckButton::with_label("Optimize Flatpak Steam / Lutris / Heroic");
+    let optimize = gtk::CheckButton::with_label(&metis_i18n::tr(
+        "Optimize Flatpak Steam / Lutris / Heroic",
+    ));
     optimize.set_active(GAMING_OPTIMIZE.get());
     optimize.connect_active_notify(|s| GAMING_OPTIMIZE.set(s.is_active()));
     col.append(&optimize);
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
         "You can rerun gaming setup anytime from Settings → Gaming.",
-    ));
+    )));
     hint.add_css_class("metis-onboarding-hint");
     hint.set_xalign(0.0);
     hint.set_margin_top(8);
@@ -1022,7 +1058,8 @@ fn run_pkexec_apt_install(packages: &[String]) -> Result<(), String> {
     }
     if !binary_on_path("pkexec") {
         return Err(format!(
-            "pkexec not found. Install manually:\n{}",
+            "{}\n{}",
+            metis_i18n::tr("pkexec not found. Install manually:"),
             apt_install_command(&packages.iter().map(|s| s.as_str()).collect::<Vec<_>>())
         ));
     }
@@ -1031,12 +1068,13 @@ fn run_pkexec_apt_install(packages: &[String]) -> Result<(), String> {
         .args(packages)
         .env("DEBIAN_FRONTEND", "noninteractive")
         .status()
-        .map_err(|e| format!("failed to start pkexec: {e}"))?;
+        .map_err(|e| metis_i18n::tr("failed to start pkexec: %1").replace("%1", &e.to_string()))?;
     if status.success() {
         Ok(())
     } else {
         Err(format!(
-            "Install cancelled or failed. You can run:\n{}",
+            "{}\n{}",
+            metis_i18n::tr("Install cancelled or failed. You can run:"),
             apt_install_command(&packages.iter().map(|s| s.as_str()).collect::<Vec<_>>())
         ))
     }
@@ -1046,9 +1084,9 @@ fn build_optional_software() -> gtk::Widget {
     let col = step_shell();
     col.set_spacing(6);
 
-    let hint = gtk::Label::new(Some(
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
         "Turn on extras, then Install selected. Installed items are greyed out.",
-    ));
+    )));
     hint.add_css_class("metis-onboarding-subtitle");
     hint.set_xalign(0.0);
     hint.set_wrap(true);
@@ -1083,7 +1121,7 @@ fn build_optional_software() -> gtk::Widget {
     status.set_height_request(28);
     col.append(&status);
 
-    let install_btn = gtk::Button::with_label("Install selected");
+    let install_btn = gtk::Button::with_label(&metis_i18n::tr("Install selected"));
     install_btn.add_css_class("suggested-action");
     install_btn.set_halign(gtk::Align::Start);
     install_btn.set_sensitive(false);
@@ -1115,13 +1153,13 @@ fn build_optional_software() -> gtk::Widget {
 
                 let text_col = gtk::Box::new(gtk::Orientation::Vertical, 0);
                 text_col.set_hexpand(true);
-                let title = gtk::Label::new(Some(feat.title));
+                let title = gtk::Label::new(Some(&metis_i18n::tr(feat.title)));
                 title.add_css_class("metis-onboarding-optional-title");
                 title.set_xalign(0.0);
-                let sub = gtk::Label::new(Some(if feat.installed {
-                    "Installed"
+                let sub = gtk::Label::new(Some(&if feat.installed {
+                    metis_i18n::tr("Installed")
                 } else {
-                    feat.subtitle
+                    metis_i18n::tr(feat.subtitle)
                 }));
                 sub.add_css_class("metis-onboarding-hint");
                 sub.set_xalign(0.0);
@@ -1204,7 +1242,7 @@ fn build_optional_software() -> gtk::Widget {
 
             btn.set_sensitive(false);
             list.set_sensitive(false);
-            status.set_text("Installing… authenticate if prompted.");
+            status.set_text(&metis_i18n::tr("Installing… authenticate if prompted."));
 
             let (tx, rx) = mpsc::channel::<Result<(), String>>();
             let pkgs_thread = pkgs.clone();
@@ -1223,7 +1261,7 @@ fn build_optional_software() -> gtk::Widget {
                         *features.borrow_mut() = probe_optional_features();
                         refresh_list();
                         list.set_sensitive(true);
-                        status.set_text("Installed successfully.");
+                        status.set_text(&metis_i18n::tr("Installed successfully."));
                         glib::ControlFlow::Break
                     }
                     Ok(Err(err)) => {
@@ -1236,7 +1274,7 @@ fn build_optional_software() -> gtk::Widget {
                     Err(mpsc::TryRecvError::Disconnected) => {
                         list.set_sensitive(true);
                         btn.set_sensitive(true);
-                        status.set_text("Install failed unexpectedly.");
+                        status.set_text(&metis_i18n::tr("Install failed unexpectedly."));
                         glib::ControlFlow::Break
                     }
                 }
@@ -1250,9 +1288,9 @@ fn build_optional_software() -> gtk::Widget {
 fn build_finish() -> gtk::Widget {
     let col = step_shell();
 
-    let summary = gtk::Label::new(Some(
+    let summary = gtk::Label::new(Some(&metis_i18n::tr(
         "Your desktop is ready. Here are a few shortcuts to get started:",
-    ));
+    )));
     summary.add_css_class("metis-onboarding-subtitle");
     summary.set_xalign(0.0);
     summary.set_wrap(true);
@@ -1264,15 +1302,18 @@ fn build_finish() -> gtk::Widget {
     let layout_free = cfg.chord_for(metis_config::KeybindAction::LayoutFree).display();
     let ws1 = cfg.chord_for(metis_config::KeybindAction::Workspace1).display();
     let keybinds = [
-        ("Click the brand icon".to_string(), "Open the app launcher"),
+        (
+            metis_i18n::tr("Click the brand icon"),
+            metis_i18n::tr("Open the app launcher"),
+        ),
         (
             layout_free,
-            "Disable tiling / return to free desktop",
+            metis_i18n::tr("Disable tiling / return to free desktop"),
         ),
-        (close, "Close the focused window"),
+        (close, metis_i18n::tr("Close the focused window")),
         (
             format!("{mod_label} + 1 … 9"),
-            "Switch workspace",
+            metis_i18n::tr("Switch workspace"),
         ),
     ];
     // Keep a note that defaults use the configured Metis modifier.
@@ -1281,10 +1322,10 @@ fn build_finish() -> gtk::Widget {
         col.append(&keybind_row(key, desc));
     }
 
-    let display_hint = gtk::Label::new(Some(
+    let display_hint = gtk::Label::new(Some(&metis_i18n::tr(
         "For monitor arrangement, resolution, and refresh rate, open\n\
          Settings → Display.",
-    ));
+    )));
     display_hint.add_css_class("metis-onboarding-hint");
     display_hint.set_xalign(0.0);
     display_hint.set_margin_top(8);

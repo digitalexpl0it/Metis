@@ -8,6 +8,8 @@ use std::time::Duration;
 use ashpd::PortalError;
 use wayland_client::protocol::wl_shm::Format;
 
+use metis_capture::CaptureOptions;
+
 use crate::capture::session::CaptureSession;
 use crate::pipewire::PipeWireHub;
 
@@ -73,13 +75,13 @@ fn rgba_to_bgrx(data: &[u8], width: u32, height: u32, stride: u32) -> Vec<u8> {
 pub fn spawn_screencast_pump(
     pipewire: Arc<PipeWireHub>,
     node_id: u32,
-    paint_cursors: bool,
+    options: CaptureOptions,
     cancel: Arc<AtomicBool>,
 ) -> thread::JoinHandle<()> {
     thread::Builder::new()
         .name("metis-screencast".into())
         .spawn(move || {
-            let session = match CaptureSession::open(paint_cursors) {
+            let session = match CaptureSession::open(options) {
                 Ok(s) => s,
                 Err(err) => {
                     tracing::error!(%err, "screencast capture session failed");

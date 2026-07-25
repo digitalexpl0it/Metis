@@ -1650,7 +1650,7 @@ fn mutate_from_disk(
     if let Err(err) = save_desktop_widgets_config(&disk) {
         tracing::warn!(%err, "failed to save desktop-widgets.json");
     }
-    crate::runtime::send("reload-desktop-widgets");
+    crate::runtime::send_widgets("reload-desktop-widgets");
 }
 
 /// Like [`mutate_from_disk`], but coalesces rapid calls (opacity / border sliders).
@@ -1688,7 +1688,7 @@ fn mutate_from_disk_debounced(
         if let Err(err) = save_desktop_widgets_config(&disk) {
             tracing::warn!(%err, "failed to save desktop-widgets.json");
         }
-        crate::runtime::send("reload-desktop-widgets");
+        crate::runtime::send_widgets("reload-desktop-widgets");
         glib::ControlFlow::Break
     });
     *pending_slot.borrow_mut() = Some(source);

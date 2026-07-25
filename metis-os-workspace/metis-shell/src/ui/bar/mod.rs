@@ -87,7 +87,8 @@ pub fn init_and_show() {
         crate::ui::dashboard::init();
         crate::ui::screenshot::init();
         crate::ui::notification_center::init();
-        crate::ui::desktop_widgets::init();
+        // Desktop widgets run in a separate `metis-shell --desktop-widgets`
+        // process so a widget hang cannot freeze the edge bar.
         watch_bar_config();
         watch_dashboard_config();
         spawn_gaming_daemon();
@@ -111,7 +112,7 @@ fn build_bar(
     let (win_w, win_h) = layer_window_size(&cfg);
 
     let window = gtk::Window::builder()
-        .title("Metis Bar")
+        .title(&metis_i18n::tr("Metis Bar"))
         .default_width(win_w)
         .default_height(win_h)
         .build();
@@ -507,7 +508,10 @@ fn watch_compositor_dismiss() {
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
                 "reload-dashboard" => crate::ui::dashboard::on_dashboard_config_changed(),
-                "reload-desktop-widgets" => crate::ui::desktop_widgets::reload(),
+                // Desktop widgets are isolated; Settings writes to command-widgets.
+                "reload-desktop-widgets" => {
+                    tracing::debug!("reload-desktop-widgets ignored in bar process");
+                }
                 "screenshot" => crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Interactive),
                 "screenshot instant-full" => {
                     crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::InstantFull);
@@ -966,7 +970,7 @@ fn rebuild_for_locale() {
     crate::ui::theme::reload_stylesheet();
     crate::ui::notification_center::reload_for_locale();
     crate::ui::dashboard::reload_for_locale();
-    crate::ui::desktop_widgets::reload_for_locale();
+    // Desktop widgets process watches locale.json / its own command file.
     // Re-apply weather with freshly translated condition/hour strings.
     if let Some(snapshot) = last_weather_snapshot() {
         BARS.with(|bars| {
@@ -1104,7 +1108,6 @@ fn attach_weather_channel(rx: Receiver<WeatherSnapshot>) {
                     handle.widget_refs.apply_weather(&snapshot);
                 }
             });
-            crate::ui::desktop_widgets::on_weather_snapshot(&snapshot);
         }
         glib::ControlFlow::Continue
     });

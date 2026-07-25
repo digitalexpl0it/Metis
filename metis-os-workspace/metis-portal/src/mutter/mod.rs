@@ -18,6 +18,8 @@ use zbus::fdo;
 use zbus::interface;
 use zbus::zvariant::{ObjectPath, OwnedObjectPath, Value};
 
+use metis_capture::CaptureOptions;
+
 use crate::capture::{spawn_screencast_pump, CaptureHub};
 use crate::compositor_ipc;
 use crate::pipewire::PipeWireHub;
@@ -64,8 +66,8 @@ impl MutterHub {
         self.next_stream.fetch_add(1, Ordering::Relaxed).to_string()
     }
 
-    async fn capture_size(&self) -> (u32, u32) {
-        self.capture.output_size().await
+    async fn capture_size(&self, connector: Option<&str>) -> (u32, u32) {
+        self.capture.output_size(connector).await
     }
 }
 
@@ -277,17 +279,18 @@ impl ScreenCastSession {
 
     async fn record_monitor(
         &self,
-        _connector: &str,
+        connector: &str,
         properties: HashMap<&str, Value<'_>>,
     ) -> fdo::Result<OwnedObjectPath> {
-        self.record_stream(properties).await
+        self.record_stream(properties, Some(connector.to_string()))
+            .await
     }
 
     async fn record_virtual(
         &self,
         properties: HashMap<&str, Value<'_>>,
     ) -> fdo::Result<OwnedObjectPath> {
-        self.record_stream(properties).await
+        self.record_stream(properties, None).await
     }
 
     async fn record_window(
@@ -307,7 +310,7 @@ impl ScreenCastSession {
         _height: i32,
         properties: HashMap<&str, Value<'_>>,
     ) -> fdo::Result<OwnedObjectPath> {
-        self.record_stream(properties).await
+        self.record_stream(properties, None).await
     }
 }
 
@@ -315,10 +318,14 @@ impl ScreenCastSession {
     async fn record_stream(
         &self,
         properties: HashMap<&str, Value<'_>>,
+        connector: Option<String>,
     ) -> fdo::Result<OwnedObjectPath> {
         let stream_id = self.hub.alloc_stream_id();
         let path = format!("{}/Stream/{stream_id}", self.path);
-        let (width, height) = self.hub.capture_size().await;
+        let (width, height) = self
+            .hub
+            .capture_size(connector.as_deref())
+            .await;
         let mapping_id = mapping_id_from_properties(&properties);
         eis::register_viewport(eis::Viewport {
             mapping_id: mapping_id.clone(),
@@ -335,6 +342,7 @@ impl ScreenCastSession {
             width,
             height,
             mapping_id,
+            connector,
             node_id: None,
         };
         self.conn
@@ -354,6 +362,7 @@ struct ScreenCastStream {
     width: u32,
     height: u32,
     mapping_id: String,
+    connector: Option<String>,
     node_id: Option<u32>,
 }
 
@@ -392,13 +401,17 @@ impl ScreenCastStream {
         if self.node_id.is_some() {
             return Ok(());
         }
-        let (width, height) = self.hub.capture_size().await;
+        let (width, height) = self
+            .hub
+            .capture_size(self.connector.as_deref())
+            .await;
         self.width = width;
         self.height = height;
 
         tracing::info!(
             stream = %self.stream_path,
             mapping_id = %self.mapping_id,
+            connector = self.connector.as_deref().unwrap_or("primary"),
             width = self.width,
             height = self.height,
             "mutter shim: starting ScreenCast stream"
@@ -424,7 +437,11 @@ impl ScreenCastStream {
         let pump = spawn_screencast_pump(
             Arc::clone(&self.hub.pipewire),
             handle.node_id,
-            true,
+            CaptureOptions {
+                draw_cursor: true,
+                connector: self.connector.clone(),
+                output_index: 0,
+            },
             Arc::clone(&cancel),
         );
         self.hub.sc_streams.lock().map_err(|_| {

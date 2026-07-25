@@ -21,6 +21,8 @@ use ashpd::{
 use async_trait::async_trait;
 use enumflags2::BitFlags;
 
+use metis_capture::CaptureOptions;
+
 use crate::capture::{spawn_screencast_pump, CaptureHub};
 use crate::compositor_ipc;
 use crate::pipewire::PipeWireHub;
@@ -127,18 +129,20 @@ impl ScreencastImpl for MetisScreencast {
     ) -> ashpd::backend::Result<Streams> {
         tracing::info!(?app_id, "portal screencast start");
         compositor_ipc::begin_capture_overlay(compositor_ipc::portal_app_id(app_id));
-        let (width, height) = self.capture.output_size().await;
+        let (width, height) = self.capture.output_size(None).await;
         let stream = self
             .pipewire
             .create_stream(width, height)
             .map_err(|err| PortalError::Failed(format!("create PipeWire stream: {err}")))?;
 
-        let paint_cursors = true;
         let cancel = Arc::new(AtomicBool::new(false));
         let pump = spawn_screencast_pump(
             Arc::clone(&self.pipewire),
             stream.node_id,
-            paint_cursors,
+            CaptureOptions {
+                draw_cursor: true,
+                ..Default::default()
+            },
             Arc::clone(&cancel),
         );
 

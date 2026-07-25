@@ -45,6 +45,7 @@ thread_local! {
     static CFG: RefCell<DesktopWidgetsConfig> = RefCell::new(DesktopWidgetsConfig::default());
     static INITED: Cell<bool> = const { Cell::new(false) };
     static FILE_MONITOR: RefCell<Option<gio::FileMonitor>> = const { RefCell::new(None) };
+    static AUX_MONITORS: RefCell<Vec<gio::FileMonitor>> = const { RefCell::new(Vec::new()) };
     static SAVE_PENDING: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
     /// Active move/resize gestures — file monitor / Settings reload must not
     /// tear down the surface mid-drag (that caused stutter + resize rubberbanding).
@@ -68,6 +69,18 @@ pub fn init() {
     reload_from_disk();
     watch_config_file();
     watch_monitors();
+}
+
+/// Full autonomous host for `metis-shell --desktop-widgets`: config/theme/menu/
+/// locale watches, weather fan-out, and a dedicated runtime command file.
+pub fn init_autonomous() {
+    init();
+    watch_menu_pins();
+    watch_theme_and_config();
+    watch_locale_file();
+    watch_widgets_commands();
+    attach_weather();
+    crate::services::watch_app_index();
 }
 
 /// Re-read `desktop-widgets.json` and rebuild host surfaces.
@@ -760,6 +773,123 @@ fn watch_config_file() {
         schedule_reload();
     });
     FILE_MONITOR.with(|cell| *cell.borrow_mut() = Some(monitor));
+}
+
+fn retain_monitor(monitor: gio::FileMonitor) {
+    AUX_MONITORS.with(|cell| cell.borrow_mut().push(monitor));
+}
+
+fn watch_menu_pins() {
+    let path = metis_config::menu_config_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let file = gio::File::for_path(&path);
+    let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    else {
+        tracing::warn!(path = %path.display(), "menu.json file monitor unavailable");
+        return;
+    };
+    monitor.connect_changed(move |_, _, _, _| {
+        glib::timeout_add_local_once(Duration::from_millis(200), on_menu_pins_changed);
+    });
+    retain_monitor(monitor);
+}
+
+fn watch_theme_and_config() {
+    let themes = crate::config::config_dir().join("themes");
+    if let Err(err) = crate::config::ensure_config_dirs() {
+        tracing::warn!(%err, "failed to ensure themes dir");
+    }
+    let themes_file = gio::File::for_path(&themes);
+    if let Ok(monitor) =
+        themes_file.monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    {
+        monitor.connect_changed(move |_, _, _, _| {
+            glib::timeout_add_local_once(Duration::from_millis(250), || {
+                let _ = crate::ui::theme::init_theme();
+            });
+        });
+        retain_monitor(monitor);
+    } else {
+        tracing::warn!(path = %themes.display(), "themes dir monitor unavailable");
+    }
+
+    let cfg_path = metis_config::app_config_path();
+    let cfg_file = gio::File::for_path(&cfg_path);
+    if let Ok(monitor) = cfg_file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    {
+        monitor.connect_changed(move |_, _, _, _| {
+            glib::timeout_add_local_once(Duration::from_millis(250), || {
+                let _ = crate::ui::theme::init_theme();
+            });
+        });
+        retain_monitor(monitor);
+    }
+}
+
+fn watch_locale_file() {
+    let path = metis_config::locale_config_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let file = gio::File::for_path(&path);
+    let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    else {
+        tracing::warn!(path = %path.display(), "locale.json file monitor unavailable");
+        return;
+    };
+    monitor.connect_changed(move |_, _, _, _| {
+        glib::timeout_add_local_once(Duration::from_millis(200), apply_locale_reload);
+    });
+    retain_monitor(monitor);
+}
+
+fn apply_locale_reload() {
+    metis_i18n::reload();
+    let dir = if metis_i18n::is_rtl() {
+        gtk::TextDirection::Rtl
+    } else {
+        gtk::TextDirection::Ltr
+    };
+    gtk::Widget::set_default_direction(dir);
+    reload_for_locale();
+}
+
+fn watch_widgets_commands() {
+    let path = metis_protocol::runtime_command_path_widgets();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    glib::timeout_add_local(Duration::from_millis(100), move || {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            let cmd = raw.trim();
+            if !cmd.is_empty() {
+                match cmd {
+                    "reload-desktop-widgets" => reload(),
+                    "reload-theme" => {
+                        let _ = crate::ui::theme::init_theme();
+                    }
+                    "reload-locale" => apply_locale_reload(),
+                    "reload-weather" => crate::services::weather::weather_refresh(),
+                    other => tracing::debug!(%other, "unknown widgets runtime command"),
+                }
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+        glib::ControlFlow::Continue
+    });
+}
+
+fn attach_weather() {
+    let rx = crate::services::weather::spawn_weather_service();
+    glib::timeout_add_local(Duration::from_millis(1000), move || {
+        while let Ok(snapshot) = rx.try_recv() {
+            crate::services::weather::remember_snapshot(&snapshot);
+            on_weather_snapshot(&snapshot);
+        }
+        glib::ControlFlow::Continue
+    });
 }
 
 fn watch_monitors() {

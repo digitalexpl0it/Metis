@@ -156,7 +156,7 @@ pub fn show() {
     progress_frame.append(&progress);
     card.append(&progress_frame);
 
-    let label = gtk::Label::new(Some("Starting Metis…"));
+    let label = gtk::Label::new(Some(&metis_i18n::tr("Starting Metis…")));
     label.add_css_class("metis-splash-label");
     label.set_halign(gtk::Align::Center);
     card.append(&label);

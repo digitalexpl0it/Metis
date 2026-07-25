@@ -36,7 +36,7 @@ impl ClipboardWidget {
         panel.set_width_request(420);
 
         let search = gtk::SearchEntry::builder()
-            .placeholder_text("Type here to search…")
+            .placeholder_text(metis_i18n::tr("Type here to search…"))
             .hexpand(true)
             .build();
         search.add_css_class("metis-clipboard-search");
@@ -64,8 +64,8 @@ impl ClipboardWidget {
             .build();
         footer.add_css_class("metis-clipboard-footer");
 
-        let prev_btn = icon_button("go-previous-symbolic", "Previous page");
-        let next_btn = icon_button("go-next-symbolic", "Next page");
+        let prev_btn = icon_button("go-previous-symbolic", &metis_i18n::tr("Previous page"));
+        let next_btn = icon_button("go-next-symbolic", &metis_i18n::tr("Next page"));
         let page_label = gtk::Label::builder()
             .label("")
             .halign(gtk::Align::Start)
@@ -80,7 +80,9 @@ impl ClipboardWidget {
         nav.append(&next_btn);
         nav.append(&page_label);
 
-        let private_label = gtk::Label::builder().label("Private mode").build();
+        let private_label = gtk::Label::builder()
+            .label(metis_i18n::tr("Private mode"))
+            .build();
         private_label.add_css_class("metis-notif-dnd-label");
         let private_switch = gtk::Switch::new();
         private_switch.set_active(private_mode());
@@ -95,10 +97,13 @@ impl ClipboardWidget {
         private_box.append(&private_label);
         private_box.append(&private_switch);
 
-        let clear_btn = icon_button("user-trash-symbolic", "Clear history");
+        let clear_btn = icon_button("user-trash-symbolic", &metis_i18n::tr("Clear history"));
         clear_btn.add_css_class("metis-clipboard-footer-btn");
 
-        let settings_btn = icon_button("emblem-system-symbolic", "Clipboard settings");
+        let settings_btn = icon_button(
+            "emblem-system-symbolic",
+            &metis_i18n::tr("Clipboard settings"),
+        );
         settings_btn.add_css_class("metis-clipboard-footer-btn");
 
         footer.append(&nav);
@@ -153,9 +158,9 @@ impl ClipboardWidget {
         let settings_items: Rc<RefCell<Vec<(gtk::Button, gtk::Image, usize)>>> =
             Rc::new(RefCell::new(Vec::new()));
         for (label, size) in [
-            ("25 entries per page", 25_usize),
-            ("50 entries per page", 50),
-            ("100 entries per page", 100),
+            (metis_i18n::tr("25 entries per page"), 25_usize),
+            (metis_i18n::tr("50 entries per page"), 50),
+            (metis_i18n::tr("100 entries per page"), 100),
         ] {
             let btn = gtk::Button::builder().has_frame(false).hexpand(true).build();
             btn.add_css_class("metis-clipboard-settings-item");
@@ -167,7 +172,7 @@ impl ClipboardWidget {
             let check = icons::image("object-select-symbolic");
             check.add_css_class("metis-clipboard-settings-check");
             let text = gtk::Label::builder()
-                .label(label)
+                .label(&label)
                 .halign(gtk::Align::Start)
                 .hexpand(true)
                 .build();
@@ -334,14 +339,12 @@ fn icon_button(icon_name: &str, tooltip: &str) -> gtk::Button {
 
 fn page_indicator(page: &ClipboardPage) -> String {
     if page.total_matching == 0 {
-        "0 entries".to_string()
+        metis_i18n::tr("0 entries")
     } else {
-        format!(
-            "Page {} / {} · {} entries",
-            page.page + 1,
-            page.total_pages,
-            page.total_matching
-        )
+        metis_i18n::tr("Page %1 / %2 · %3 entries")
+            .replace("%1", &(page.page + 1).to_string())
+            .replace("%2", &page.total_pages.to_string())
+            .replace("%3", &page.total_matching.to_string())
     }
 }
 
@@ -351,7 +354,7 @@ fn fill_list(list: &gtk::Box, entries: &[ClipboardEntry], active_id: Option<u64>
     }
     if entries.is_empty() {
         let empty = gtk::Label::builder()
-            .label("No clipboard history")
+            .label(metis_i18n::tr("No clipboard history"))
             .halign(gtk::Align::Center)
             .margin_top(24)
             .margin_bottom(24)
@@ -419,14 +422,12 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
     });
     row.append(&body);
 
-    let pin_btn = icon_button(
-        "view-pin-symbolic",
-        if entry.favorited {
-            "Unpin (allow auto-removal)"
-        } else {
-            "Pin (keep forever)"
-        },
-    );
+    let pin_tooltip = if entry.favorited {
+        metis_i18n::tr("Unpin (allow auto-removal)")
+    } else {
+        metis_i18n::tr("Pin (keep forever)")
+    };
+    let pin_btn = icon_button("view-pin-symbolic", &pin_tooltip);
     pin_btn.add_css_class("metis-clipboard-row-action");
     if entry.favorited {
         pin_btn.add_css_class("metis-clipboard-pinned");
@@ -435,7 +436,7 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
     pin_btn.connect_clicked(move |_| toggle_favorite(entry_id));
     row.append(&pin_btn);
 
-    let delete_btn = icon_button("user-trash-symbolic", "Delete entry");
+    let delete_btn = icon_button("user-trash-symbolic", &metis_i18n::tr("Delete entry"));
     delete_btn.add_css_class("metis-clipboard-row-action");
     delete_btn.connect_clicked(move |_| delete_entry(entry_id));
     row.append(&delete_btn);

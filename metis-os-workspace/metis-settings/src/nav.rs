@@ -1,5 +1,7 @@
 //! Sidebar structure — single source of truth for nav order, icons, and page metadata.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::OnceLock;
 
 /// Accent hue for the macOS-style icon badge in the sidebar.
@@ -174,6 +176,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Repeat rate and layout preferences"),
     },
     NavItem {
+        page_id: Some("shortcuts"),
+        title: "Shortcuts",
+        icon: Some("preferences-desktop-keyboard-shortcuts-symbolic"),
+        hue: Some(NavHue::Gray),
+        subtitle: Some("Search and browse current desktop shortcuts"),
+    },
+    NavItem {
         page_id: None,
         title: "System",
         icon: None,
@@ -233,6 +242,26 @@ pub const NAV: &[NavItem] = &[
 
 pub fn page_ids() -> Vec<&'static str> {
     NAV.iter().filter_map(|item| item.page_id).collect()
+}
+
+thread_local! {
+    static PAGE_REQUEST: RefCell<Option<Rc<dyn Fn(&str)>>> = const { RefCell::new(None) };
+}
+
+/// Register a callback used by pages that need to jump to another Settings page.
+pub fn set_page_request_handler(handler: Rc<dyn Fn(&str)>) {
+    PAGE_REQUEST.with(|slot| {
+        *slot.borrow_mut() = Some(handler);
+    });
+}
+
+/// Navigate to another Settings page (e.g. Shortcuts → Keyboard).
+pub fn request_page(page_id: &str) {
+    PAGE_REQUEST.with(|slot| {
+        if let Some(handler) = slot.borrow().as_ref() {
+            handler(page_id);
+        }
+    });
 }
 
 pub fn meta_for(page_id: &str) -> Option<&'static NavItem> {

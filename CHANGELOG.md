@@ -5,6 +5,35 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-24]
+
+### Added
+
+- **Settings → Shortcuts** — searchable, grouped read-only guide of current
+  desktop chords (plus reserved System binds); jump to Keyboard to edit.
+- **Desktop-widget process isolation** — compositor spawns
+  `metis-shell --desktop-widgets` beside the edge bar; widgets own Gio watches,
+  weather, and `$XDG_RUNTIME_DIR/metis/command-widgets` so a widget hang cannot
+  freeze the bar. Rate-limited respawn if the widgets process exits.
+- **Phase 8 complete** — remaining shell/settings/onboarding strings routed
+  through `tr()`; live Apply rebuilds desktop widgets; catalogs extracted for
+  `.deb` CI. English msgid fallback for any still-untranslated entries.
+- **Phase 7 remote docs** — RustDesk host install, ports, Wayland/portal
+  verification checklist; expanded remote compatibility matrix; multi-user / VT
+  behaviour (`docs/UBUNTU_DEV.md`, USER_GUIDE pointer).
+- **ScreenCast multi-monitor** — Mutter `RecordMonitor(connector)` and the live
+  PipeWire pump select the matching `wl_output` by name (`metis-capture`,
+  `metis-portal`). GRD already used the portal path; this makes per-display
+  capture correct on multi-head DRM sessions.
+
+### Fixed
+
+- **Desktop widgets stayed English after Language Apply** — `reload()` short-
+  circuited when `desktop-widgets.json` identity was unchanged; locale Apply now
+  force-rebuilds hosts (`metis-shell`).
+- **Weather overlay English conditions** — translate WMO labels / hour chips at
+  paint time from codes, not baked English snapshot strings.
+
 ## [2026-07-22]
 
 ### Fixed

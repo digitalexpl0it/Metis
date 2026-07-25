@@ -9,6 +9,7 @@ use gtk::prelude::*;
 use metis_config::{
     format_schedule_hhmm, format_schedule_minutes, parse_schedule_input, schedule_half_hour_presets,
 };
+use metis_i18n::tr;
 
 pub struct ScheduleTimePicker {
     pub root: gtk::Box,
@@ -82,7 +83,7 @@ pub fn build_schedule_time_picker(
     let pop_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
     pop_box.set_size_request(268, -1);
 
-    let custom_hint = gtk::Label::new(Some("Custom time"));
+    let custom_hint = gtk::Label::new(Some(&tr("Custom time")));
     custom_hint.set_xalign(0.0);
     custom_hint.set_margin_start(14);
     custom_hint.set_margin_top(12);
@@ -94,17 +95,18 @@ pub fn build_schedule_time_picker(
     popover_entry.set_margin_start(14);
     popover_entry.set_margin_end(14);
     popover_entry.set_margin_bottom(8);
-    popover_entry.set_placeholder_text(Some(if use_12h.get() {
-        "e.g. 8:30 PM"
+    let placeholder = if use_12h.get() {
+        tr("e.g. 8:30 PM")
     } else {
-        "e.g. 20:30"
-    }));
+        tr("e.g. 20:30")
+    };
+    popover_entry.set_placeholder_text(Some(&placeholder));
     pop_box.append(&popover_entry);
 
     let sep = gtk::Separator::new(gtk::Orientation::Horizontal);
     pop_box.append(&sep);
 
-    let presets_hint = gtk::Label::new(Some("Presets"));
+    let presets_hint = gtk::Label::new(Some(&tr("Presets")));
     presets_hint.set_xalign(0.0);
     presets_hint.set_margin_start(14);
     presets_hint.set_margin_top(10);

@@ -209,6 +209,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.add_titled(&pages::mouse::build(), Some("mouse"), "Mouse");
     stack.add_titled(&pages::touchpad::build(), Some("touchpad"), "Touchpad");
     stack.add_titled(&pages::keyboard::build(), Some("keyboard"), "Keyboard");
+    stack.add_titled(&pages::shortcuts::build(), Some("shortcuts"), "Shortcuts");
     stack.add_titled(&pages::bluetooth::build(), Some("bluetooth"), "Bluetooth");
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
     stack.add_titled(
@@ -281,6 +282,24 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
                 selecting.set(false);
             }
         });
+    }
+
+    {
+        let nav = nav.clone();
+        let stack = stack.clone();
+        nav::set_page_request_handler(Rc::new(move |page_id: &str| {
+            let Some(index) = NAV.iter().position(|item| item.page_id == Some(page_id)) else {
+                return;
+            };
+            if let Some(id) = NAV[index].page_id {
+                if stack.visible_child_name().as_deref() != Some(id) {
+                    stack.set_visible_child_name(id);
+                }
+            }
+            if let Some(row) = nav.row_at_index(index as i32) {
+                nav.select_row(Some(&row));
+            }
+        }));
     }
 
     let nav_scroll = gtk::ScrolledWindow::builder()

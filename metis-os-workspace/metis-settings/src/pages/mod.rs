@@ -17,6 +17,7 @@ pub mod network;
 pub mod power;
 pub mod printers;
 pub mod remote;
+pub mod shortcuts;
 pub mod sound;
 pub mod titlebars;
 pub mod touchpad;

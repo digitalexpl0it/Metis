@@ -51,6 +51,36 @@ pub fn run(init: MetisInit) {
     tracing::warn!("GLib main loop returned — shell exiting");
 }
 
+/// Isolated desktop-widgets process — no edge bar, NC, dashboard, or splash.
+pub fn run_desktop_widgets(init: MetisInit) {
+    tracing::info!(
+        wayland_display = ?std::env::var("WAYLAND_DISPLAY").ok(),
+        "initializing GTK (desktop-widgets mode)"
+    );
+    if let Err(err) = gtk::init() {
+        tracing::error!(?err, "gtk::init() failed — cannot open display");
+        return;
+    }
+
+    let dir = if metis_i18n::is_rtl() {
+        gtk::TextDirection::Rtl
+    } else {
+        gtk::TextDirection::Ltr
+    };
+    gtk::Widget::set_default_direction(dir);
+
+    theme::install_theme();
+    crate::ui::desktop_widgets::init_autonomous();
+    // Keep the compositor event channel drained so the listener thread does not
+    // fill unbounded buffers; widgets do not render bar chrome from these events.
+    attach_system_events_widgets(init.event_rx);
+
+    tracing::info!("starting GLib main loop (desktop-widgets)");
+    let main_loop = glib::MainLoop::new(None, false);
+    main_loop.run();
+    tracing::warn!("GLib main loop returned — desktop widgets exiting");
+}
+
 fn attach_system_events(event_rx: Receiver<SystemEvent>) {
     glib::timeout_add_local(std::time::Duration::from_millis(32), move || {
         while let Ok(event) = event_rx.try_recv() {
@@ -106,6 +136,17 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
     // ListWindows resync guards against any dropped/missed window events.
     glib::timeout_add_seconds_local(5, || {
         crate::services::windows::reconcile_now();
+        glib::ControlFlow::Continue
+    });
+}
+
+fn attach_system_events_widgets(event_rx: Receiver<SystemEvent>) {
+    glib::timeout_add_local(std::time::Duration::from_millis(250), move || {
+        while let Ok(event) = event_rx.try_recv() {
+            if let SystemEvent::Status(msg) = event {
+                tracing::debug!(%msg, "status");
+            }
+        }
         glib::ControlFlow::Continue
     });
 }

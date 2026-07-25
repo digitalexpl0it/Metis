@@ -30,11 +30,15 @@ pub struct Frame {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CaptureOptions {
     pub draw_cursor: bool,
-    /// Zero-based index into the connected `wl_output` list.
+    /// Zero-based index into the connected `wl_output` list (used when
+    /// [`Self::connector`] is `None` or does not match).
     pub output_index: usize,
+    /// Prefer the output whose `wl_output.name` (or description) matches this
+    /// connector string (e.g. `HDMI-A-1`, `eDP-1`). Case-insensitive.
+    pub connector: Option<String>,
 }
 
 impl Default for CaptureOptions {
@@ -42,6 +46,7 @@ impl Default for CaptureOptions {
         Self {
             draw_cursor: false,
             output_index: 0,
+            connector: None,
         }
     }
 }
@@ -56,11 +61,18 @@ struct SessionState {
     frame_pending: bool,
 }
 
+#[derive(Debug, Clone, Default)]
+struct OutputInfo {
+    output: Option<WlOutput>,
+    name: String,
+    description: String,
+}
+
 pub struct AppState {
     shm: Option<WlShm>,
     copy_manager: Option<ExtImageCopyCaptureManagerV1>,
     source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
-    outputs: Vec<WlOutput>,
+    outputs: Vec<OutputInfo>,
     options: CaptureOptions,
     session: Option<SessionState>,
     result: Option<Result<Frame, String>>,
@@ -77,8 +89,8 @@ impl AppState {
     }
 
     fn start_capture(&mut self, qh: &QueueHandle<Self>) {
-        let Some(output) = self.outputs.get(self.options.output_index).cloned() else {
-            self.fail("no wl_output for capture index");
+        let Some(output) = self.resolve_output() else {
+            self.fail("no wl_output for capture selection");
             return;
         };
         let Some(source_manager) = self.source_manager.as_ref() else {
@@ -112,6 +124,10 @@ impl AppState {
             session,
             frame_pending: false,
         });
+    }
+
+    fn resolve_output(&self) -> Option<WlOutput> {
+        resolve_output(&self.outputs, &self.options)
     }
 
     fn on_session_done(&mut self, qh: &QueueHandle<Self>) {
@@ -222,7 +238,7 @@ pub fn capture_output_frame(options: CaptureOptions) -> Result<Frame, String> {
     let shm = globals.bind(&qh, 1..=1, ()).ok();
     let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
     let source_manager = globals.bind(&qh, 1..=1, ()).ok();
-    let outputs: Vec<WlOutput> = globals.bind(&qh, 1..=4, ()).ok().into_iter().collect();
+    let outputs = bind_all_outputs(&globals, &qh);
 
     let mut state = AppState {
         shm,
@@ -243,6 +259,11 @@ pub fn capture_output_frame(options: CaptureOptions) -> Result<Frame, String> {
         return Err("no wl_output available for capture".into());
     }
 
+    // Round-trip so wl_output.name / description events arrive before selection.
+    event_queue
+        .roundtrip(&mut state)
+        .map_err(|err| format!("wayland roundtrip: {err}"))?;
+
     state.start_capture(&qh);
 
     let deadline = Instant::now() + Duration::from_secs(8);
@@ -257,6 +278,42 @@ pub fn capture_output_frame(options: CaptureOptions) -> Result<Frame, String> {
         Some(result) => result,
         None => Err("capture timed out".to_string()),
     }
+}
+
+fn bind_all_outputs(
+    globals: &wayland_client::globals::GlobalList,
+    qh: &QueueHandle<AppState>,
+) -> Vec<OutputInfo> {
+    let registry = globals.registry();
+    let globals_list = globals.contents().clone_list();
+    let mut outputs = Vec::new();
+    for g in globals_list.into_iter().filter(|g| g.interface == "wl_output") {
+        let version = g.version.min(4);
+        let idx = outputs.len();
+        let output: WlOutput = registry.bind(g.name, version, qh, idx);
+        outputs.push(OutputInfo {
+            output: Some(output),
+            name: String::new(),
+            description: String::new(),
+        });
+    }
+    outputs
+}
+
+fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
+    if let Some(want) = options.connector.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let want_l = want.to_ascii_lowercase();
+        if let Some(info) = outputs.iter().find(|o| {
+            o.name.eq_ignore_ascii_case(want)
+                || o.description.to_ascii_lowercase().contains(&want_l)
+        }) {
+            return info.output.clone();
+        }
+    }
+    outputs
+        .get(options.output_index)
+        .or_else(|| outputs.first())
+        .and_then(|o| o.output.clone())
 }
 
 pub fn prefer_shm_format(current: Format, offered: Format) -> Format {
@@ -289,12 +346,32 @@ impl Dispatch<WlRegistry, GlobalListContents> for AppState {
 }
 
 wayland_client::delegate_noop!(AppState: ignore WlShm);
-wayland_client::delegate_noop!(AppState: ignore WlOutput);
 wayland_client::delegate_noop!(AppState: ignore ExtOutputImageCaptureSourceManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCopyCaptureManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCaptureSourceV1);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_shm_pool::WlShmPool);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_buffer::WlBuffer);
+
+impl Dispatch<WlOutput, usize> for AppState {
+    fn event(
+        state: &mut Self,
+        _proxy: &WlOutput,
+        event: <WlOutput as wayland_client::Proxy>::Event,
+        &idx: &usize,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        use wayland_client::protocol::wl_output::Event;
+        let Some(info) = state.outputs.get_mut(idx) else {
+            return;
+        };
+        match event {
+            Event::Name { name } => info.name = name,
+            Event::Description { description } => info.description = description,
+            _ => {}
+        }
+    }
+}
 
 impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
     fn event(
