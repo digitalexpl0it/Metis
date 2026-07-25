@@ -6,9 +6,9 @@
 
 > **Metis** is a next-generation Wayland desktop environment built in Rust. The
 > **Metis compositor** owns the Wayland session, the window grid, and the
-> wallpaper; the **Metis shell** is a GTK4 layer-shell edge bar (plus on-demand
-> popovers, Notification Center, Control Center, and optional desktop widgets)
-> spawned by the compositor.
+> wallpaper; it spawns the **Metis shell** (GTK4 layer-shell edge bar plus
+> on-demand popovers, Notification Center, and Control Center) and, when enabled,
+> a separate **desktop-widgets** process so a hung widget cannot freeze the bar.
 
 New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 
@@ -53,7 +53,7 @@ and system configuration.
 │   ├── metis-remote/            # Desktop sharing orchestrator (gnome-remote-desktop RDP)
 │   ├── metis-secrets/           # Shared freedesktop Secret Service (oo7) wrapper
 │   ├── metis-settings/          # GTK4 settings app (display, desktop, devices, system)
-│   ├── metis-shell/             # GTK4 layer-shell: edge bar, panels, desktop widgets
+│   ├── metis-shell/             # GTK4 layer-shell: edge bar, panels; `--desktop-widgets` host
 │   └── scripts/                 # package-deb.sh + packaging / smoke helpers
 ├── Screenshots/                 # README showcase images
 └── docs/                        # User guide + development setup
@@ -139,9 +139,10 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   volumes (USB / SD / optical / ISO — open, mount/unlock, eject), and clock
   (opens Notification Center). Right-click dock icons to pin/close.
 - **Desktop widgets** *(optional)* — free-floating wallpaper panels (Folders,
-  Apps, Clock, System, Weather, Equalizer). Off by default; enable in
-  Settings → Desktop widgets. Edit mode to move/resize; configure via the gear
-  on each instance. Writes `desktop-widgets.json` (live reload).
+  Apps, Clock, System, Weather, Equalizer) in a dedicated `metis-shell
+  --desktop-widgets` process. Off by default; enable in Settings → Desktop
+  widgets. Edit mode to move/resize; configure via the gear on each instance.
+  Writes `desktop-widgets.json` (live reload).
 - **Control Center** — pull the edge bar toward the desktop (or click the grid
   icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
   charts, temperature gauges, and a searchable process list with right-click
@@ -163,8 +164,9 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 - **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
   sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
   include Display, Appearance, Background, Edge bar, Windows, **Desktop widgets**,
-  Metis Menu, Weather, Network, Calendars, Input, Bluetooth, Printers, Power,
-  Sound, **Gaming**, **Control Center**, and **Remote access**.
+  Metis Menu, Weather, Network, Calendars, Input, **Shortcuts** (read-only guide;
+  edit under Keyboard), Bluetooth, Printers, Power, Sound, **Gaming**,
+  **Control Center**, and **Remote access**.
 - **Gaming** — hybrid-GPU routing (`gaming.json`), Flatpak Steam/Lutris/Heroic
   overrides, health checklist, and `metis-gamingd` for auto performance profile
   + GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
@@ -245,8 +247,10 @@ reference.
 - **Phase 2 — Settings app + window decorations:** complete. Standalone
   `metis-settings`, compositor SSD titlebars, edge snapping, XWayland support,
   Appearance light/dark sync for session GTK apps.
-- **Phase 3 — Multi-monitor, workspaces & tiling:** largely complete. Per-output
-  bars and desks; independent or linked workspaces; optional scrolling layout.
+- **Phase 3 — Multi-monitor, workspaces & tiling:** complete. Per-output bars and
+  desks; independent or linked workspaces; optional scrolling layout; ScreenCast
+  dmabuf zero-copy; Stage G multi-GPU DRM (hardware validation still open;
+  full `MultiRenderer` transfer deferred).
 - **Phase 4 — System settings expansion:** complete (Input, Bluetooth, Printers,
   Power, Sound, Display).
 - **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — resolution /
@@ -266,11 +270,13 @@ reference.
 - **Phase 14 — Desktop Widgets:** **complete** (2026-07-18) — optional wallpaper
   panels (Folders, Apps, Clock, System, Weather, Equalizer); Settings list +
   configure dialogs; chrome and text style. Extension API deferred.
-- **Configurable shortcuts:** Settings → Keyboard → Shortcuts + `keybinds.json`.
-- **Portal capture:** Screenshot + ScreenCast (SHM; dmabuf zero-copy deferred).
+- **Configurable shortcuts:** Settings → Shortcuts (guide) + Keyboard → Shortcuts
+  editor + `keybinds.json`.
+- **Portal capture:** Screenshot + ScreenCast (DRM dmabuf zero-copy with MemFd
+  fallback).
 
-Optional follow-up: dmabuf screencast perf, Deck-class hardware verification,
-compositor **dim on battery** hook, desktop-widget extension API.
+Optional follow-up: Deck-class / multi-GPU hardware verification, compositor
+**dim on battery** hook, desktop-widget extension API, first-party remote.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and

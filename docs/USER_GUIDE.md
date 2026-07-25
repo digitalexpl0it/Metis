@@ -65,8 +65,9 @@ or with `metis-cmd.sh show-onboarding`. Disable for dev with
   holds the app launcher, a taskbar dock of running apps, workspace dots, and
   status widgets (weather, battery, Bluetooth, network, volume, clipboard, clock).
 - **Desktop widgets** *(optional)* — free-floating panels over the wallpaper
-  (Folders, Apps, Clock, System, Weather, Equalizer). Off by default; turn on
-  in **Settings → Desktop widgets**, then use **Edit mode** to move/resize.
+  (Folders, Apps, Clock, System, Weather, Equalizer) in their own shell process.
+  Off by default; turn on in **Settings → Desktop widgets**, then use **Edit
+  mode** to move/resize.
 - **Windows** — every app gets a compositor-drawn **titlebar** with close,
   minimize, and maximize buttons, plus a border. Windows tile into a grid by
   default — opening or closing an app re-splits the area below desk widgets among
@@ -590,8 +591,9 @@ scrolling mode; in grid mode they're inert.
 
 ## 8. Keyboard shortcuts reference
 
-Defaults are listed below. Change them anytime in **Settings → Keyboard →
-Shortcuts** (saved to `~/.config/metis/keybinds.json`, live-reloaded). Ctrl+Alt+F1–F12,
+Defaults are listed below. Browse them in **Settings → Shortcuts** (searchable
+read-only guide), and change them in **Settings → Keyboard → Shortcuts** (saved
+to `~/.config/metis/keybinds.json`, live-reloaded). Ctrl+Alt+F1–F12,
 Ctrl+Alt+Backspace, and the multimedia / hardware keys (see below) are system-only
 and cannot be rebound.
 
@@ -677,13 +679,15 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   vs scrolling). The **Windows** card covers titlebar opacity, the title pill
   border, and the window frame border.
 - **Desktop widgets** — optional wallpaper panels (Folders, Apps, Clock, System,
-  Weather, Equalizer; off by default). Enable the layer, turn on **Edit mode**
-  to move/resize, set **Default look** (fill / border), and manage instances in
-  a compact zebra list (**Add** stays at the top; gear opens a configure
-  dialog). Clock / Weather / System: font, text colour, accent. Equalizer:
-  Spectrum / Bars / Neon wave / Radial, bar shapes, colour modes, peaks,
-  reflection / mirror. Per-widget look overrides live in each dialog. Writes
-  `desktop-widgets.json`; the shell live-reloads.
+  Weather, Equalizer; off by default) hosted by a separate `metis-shell
+  --desktop-widgets` process so a hung widget cannot freeze the edge bar.
+  Enable the layer, turn on **Edit mode** to move/resize, set **Default look**
+  (fill / border), and manage instances in a compact zebra list (**Add** stays
+  at the top; gear opens a configure dialog). Clock / Weather / System: font,
+  text colour, accent. Equalizer: Spectrum / Bars / Neon wave / Radial, bar
+  shapes, colour modes, peaks, reflection / mirror. Per-widget look overrides
+  live in each dialog. Writes `desktop-widgets.json`; the widgets process
+  live-reloads.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
   opacity. Tap **Super** to toggle the menu; start typing while it is open to
@@ -701,8 +705,9 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
 - **Calendars** — calendar accounts (local / CalDAV / Thunderbird / Microsoft
   365) used by the Notification Center calendar.
 - **Input** — mouse, touchpad, and keyboard layout/repeat settings (`input.json`),
-  plus **Keyboard → Shortcuts** for desktop keybinds (`keybinds.json`, live
-  reload). System VT/quit chords are listed but not editable.
+  plus **Keyboard → Shortcuts** to edit desktop keybinds (`keybinds.json`, live
+  reload). **Shortcuts** (sidebar) is a searchable read-only chord guide with a
+  jump to the editor; System VT/quit chords are listed but not editable.
 - **Bluetooth** — adapter on/off, scan for devices (toggle stop, auto-stops after
   30s), pair / connect / trust / remove. Battery percentage and charging state
   appear when the device or driver reports them.
@@ -888,7 +893,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `dismissed.json` | Dismissed calendar reminder IDs |
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard layout/repeat (compositor live-reload) |
-| `keybinds.json` | Desktop shortcuts (chords → actions); Settings → Keyboard → Shortcuts |
+| `keybinds.json` | Desktop shortcuts (chords → actions); browse in Settings → Shortcuts, edit under Keyboard → Shortcuts |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery preference (dim not wired yet) |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
 | `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |

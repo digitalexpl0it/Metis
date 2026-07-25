@@ -154,7 +154,7 @@ understanding relay trust and strong authentication.
 `wayvnc` targets wlroots protocols. Metis does not implement those; a VNC path
 would need either a Smithay screencopy exporter or a portal-consuming VNC server.
 Treat VNC as **unsupported** until a dedicated spike lands (Phase 7 ScreenCast
-backend follow-up / Phase 3 dmabuf).
+backend follow-up; portal dmabuf zero-copy already landed for ScreenCast apps).
 
 #### Multi-user / VT behaviour
 
