@@ -306,28 +306,14 @@ fn load_metas() -> Vec<AppMeta> {
     built
 }
 
+/// Drop junk keys that never map to a real window `app_id` (numeric icons,
+/// FreeDesktop theme tokens, Wine menu stubs). Do **not** strip real app ids —
+/// that used to wipe intentional Text Editor / Settings / GitHub Desktop
+/// overrides every time this page opened.
 fn prune_redundant_overrides() {
     let mut cfg = metis_config::load_decorations_config();
     let before = cfg.overrides.len();
-    cfg.overrides.retain(|key, _mode| {
-        if is_noise_override_key(key) {
-            return false;
-        }
-        if matches!(
-            key.as_str(),
-            "org.gnome.texteditor"
-                | "gnome-text-editor"
-                | "texteditor"
-                | "metis-settings"
-                | "com.metis.settings"
-                | "io.github.shiftey.desktop"
-                | "io.github.shiftkey.githubdesktop"
-                | "github desktop"
-        ) {
-            return false;
-        }
-        true
-    });
+    cfg.overrides.retain(|key, _mode| !is_noise_override_key(key));
     if cfg.overrides.len() != before {
         if let Err(err) = metis_config::save_decorations_config(&cfg) {
             tracing::warn!(%err, "failed to prune decorations.json");
