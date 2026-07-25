@@ -246,21 +246,24 @@ reference.
   and backdrop blur. Clock opens Notification Center (Phase 13).
 - **Phase 2 — Settings app + window decorations:** complete. Standalone
   `metis-settings`, compositor SSD titlebars, edge snapping, XWayland support,
-  Appearance light/dark sync for session GTK apps.
+  Appearance light/dark sync for session GTK apps. (Taskbar / running-apps dock
+  is Phase 2.5 in the roadmap — also complete.)
 - **Phase 3 — Multi-monitor, workspaces & tiling:** complete. Per-output bars and
   desks; independent or linked workspaces; optional scrolling layout; ScreenCast
   dmabuf zero-copy; Stage G multi-GPU DRM (hardware validation still open;
   full `MultiRenderer` transfer deferred).
 - **Phase 4 — System settings expansion:** complete (Input, Bluetooth, Printers,
   Power, Sound, Display).
-- **Phase 5 — display pipeline (VRR / colour / HDR):** in progress — resolution /
-  refresh, arrangement, and duplicate mode on DRM; VRR / HDR remain upcoming.
+- **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** in progress —
+  resolution / refresh, arrangement, duplicate mode, VRR, night light, and Stage 1
+  ICC→CRTC gamma on DRM; HDR and full Stage 2 colour management remain.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
-- **Phase 7 — Remote access:** live-session RDP via `gnome-remote-desktop`
-  (Settings → Remote access).
-- **Phase 8 — Internationalization:** hybrid gettext (shell/settings) + Fluent
-  (compositor); Settings Language & region; onboarding language step. See
-  [`docs/I18N.md`](docs/I18N.md).
+- **Phase 7 — Remote access:** largely complete — live-session RDP via
+  `gnome-remote-desktop` (Settings → Remote access), portal capture + EIS input,
+  RustDesk / compatibility docs. Stretch remaining: first-party remote option.
+- **Phase 8 — Internationalization:** **complete** (2026-07-24). Hybrid gettext
+  (shell/settings) + Fluent (compositor); Settings Language & region; onboarding
+  language step; live Apply rebuilds. See [`docs/I18N.md`](docs/I18N.md).
 - **Phase 9 — Onboarding:** **complete** (2026-07-04); language step with Phase 8.
 - **Phase 10 — Control Center:** **complete** (2026-07-07; process tree + monitor
   picker 2026-07-11).
@@ -268,15 +271,13 @@ reference.
 - **Phase 12 — Native Screenshot Tool:** **complete** (2026-07-09).
 - **Phase 13 — Notification Center:** **complete** (2026-07-10).
 - **Phase 14 — Desktop Widgets:** **complete** (2026-07-18) — optional wallpaper
-  panels (Folders, Apps, Clock, System, Weather, Equalizer); Settings list +
-  configure dialogs; chrome and text style. Extension API deferred.
-- **Configurable shortcuts:** Settings → Shortcuts (guide) + Keyboard → Shortcuts
-  editor + `keybinds.json`.
-- **Portal capture:** Screenshot + ScreenCast (DRM dmabuf zero-copy with MemFd
-  fallback).
+  panels (Folders, Apps, Clock, System, Weather, Equalizer) in a dedicated
+  process; Settings list + configure dialogs; chrome and text style. Extension
+  API deferred.
 
-Optional follow-up: Deck-class / multi-GPU hardware verification, compositor
-**dim on battery** hook, desktop-widget extension API, first-party remote.
+Optional follow-up: Deck-class / multi-GPU hardware validation, compositor
+**dim on battery** hook, desktop-widget extension API, first-party remote,
+Phase 5 HDR / Stage 2 colour.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
