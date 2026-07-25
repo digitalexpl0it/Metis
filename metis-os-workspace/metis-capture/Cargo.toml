@@ -8,6 +8,8 @@ description = "Shared Wayland ext-image-copy-capture client for Metis screenshot
 [dependencies]
 libc = "0.2"
 png = "0.17"
+drm-fourcc = "2.2"
+gbm = "0.18"
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 metis-grid = { workspace = true }

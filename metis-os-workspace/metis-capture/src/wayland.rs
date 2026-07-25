@@ -20,14 +20,17 @@ use wayland_protocols::ext::{
 };
 
 use crate::shm::{BufferFormat, ShmBuffer};
+use crate::dmabuf::DmabufPlanes;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Frame {
     pub width: u32,
     pub height: u32,
     pub stride: u32,
     pub shm_format: Format,
     pub data: Vec<u8>,
+    /// When present, PipeWire can push `SPA_DATA_DmaBuf` instead of MemFd.
+    pub dmabuf: Option<DmabufPlanes>,
 }
 
 #[derive(Debug, Clone)]
@@ -197,6 +200,7 @@ impl AppState {
             stride: shm.format.stride,
             shm_format: shm.format.format,
             data: shm.pixels().to_vec(),
+            dmabuf: None,
         }));
     }
 

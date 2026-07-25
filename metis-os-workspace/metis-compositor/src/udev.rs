@@ -147,6 +147,9 @@ pub struct UdevState {
     pub node: DrmNode,
     /// Render node used to build the [`GlesRenderer`].
     pub render_node: DrmNode,
+    /// Cached dmabuf formats for ScreenCast / image-copy-capture constraints
+    /// (renderer may be briefly `None` while a frame is in flight).
+    pub capture_dmabuf_formats: FormatSet,
     /// Single primary-GPU renderer. Taken out (and restored) around each frame so
     /// `build_render_elements` can borrow the rest of `MetisState`.
     pub renderer: Option<GlesRenderer>,
@@ -226,6 +229,7 @@ pub fn init_udev(
         loop_handle: loop_handle.clone(),
         node,
         render_node: opened.render_node,
+        capture_dmabuf_formats: FormatSet::default(),
         renderer: Some(opened.renderer),
         drm_output_manager: opened.manager,
         drm_scanner: DrmScanner::new(),
@@ -254,6 +258,7 @@ pub fn init_udev(
             tracing::info!(?err, "wl_drm (EGL) bind unavailable");
         }
         let dmabuf_formats = renderer.dmabuf_formats();
+        udev.capture_dmabuf_formats = dmabuf_formats.clone();
         if let Ok(default_feedback) =
             DmabufFeedbackBuilder::new(udev.render_node.dev_id(), dmabuf_formats).build()
         {

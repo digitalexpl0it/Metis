@@ -18,8 +18,15 @@ use wayland_protocols::ext::{
         ext_image_copy_capture_session_v1::{self, ExtImageCopyCaptureSessionV1},
     },
 };
+use wayland_protocols::wp::linux_dmabuf::zv1::client::{
+    zwp_linux_buffer_params_v1::{self, ZwpLinuxBufferParamsV1},
+    zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1,
+};
 
-use metis_capture::{prefer_shm_format, BufferFormat, CaptureOptions, Frame, ShmBuffer};
+use metis_capture::dmabuf::{modifiers_from_array, parse_dev_t};
+use metis_capture::{
+    prefer_shm_format, BufferFormat, CaptureOptions, DmabufBuffer, DmabufOffer, Frame, ShmBuffer,
+};
 
 enum CaptureMode {
     OneShot,
@@ -31,6 +38,9 @@ struct SessionState {
     needs_allocate: bool,
     frame_ready: bool,
     shm: Option<ShmBuffer>,
+    dmabuf: Option<DmabufBuffer>,
+    dmabuf_offer: DmabufOffer,
+    dmabuf_failed: bool,
     _source: ExtImageCaptureSourceV1,
     session: ExtImageCopyCaptureSessionV1,
     frame_pending: bool,
@@ -45,6 +55,7 @@ struct OutputInfo {
 
 struct AppState {
     shm: Option<WlShm>,
+    dmabuf_global: Option<ZwpLinuxDmabufV1>,
     copy_manager: Option<ExtImageCopyCaptureManagerV1>,
     source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
     outputs: Vec<OutputInfo>,
@@ -96,6 +107,9 @@ impl AppState {
             needs_allocate: false,
             frame_ready: false,
             shm: None,
+            dmabuf: None,
+            dmabuf_offer: DmabufOffer::default(),
+            dmabuf_failed: false,
             _source: source,
             session,
             frame_pending: false,
@@ -118,12 +132,29 @@ impl AppState {
             session.constraints.stride = session.constraints.width * 4;
         }
 
-        let Some(shm_global) = self.shm.as_ref() else {
-            self.fail("wl_shm missing");
-            return;
-        };
+        if session.dmabuf.is_none() && !session.dmabuf_failed && session.dmabuf_offer.is_usable() {
+            if let Some(dmabuf_global) = self.dmabuf_global.as_ref() {
+                match DmabufBuffer::allocate(
+                    dmabuf_global,
+                    qh,
+                    &session.dmabuf_offer,
+                    session.constraints.width,
+                    session.constraints.height,
+                ) {
+                    Ok(buffer) => session.dmabuf = Some(buffer),
+                    Err(err) => {
+                        session.dmabuf_failed = true;
+                        tracing::warn!(%err, "dmabuf capture allocation failed; falling back to shm");
+                    }
+                }
+            }
+        }
 
-        if session.shm.is_none() {
+        if session.dmabuf.is_none() && session.shm.is_none() {
+            let Some(shm_global) = self.shm.as_ref() else {
+                self.fail("neither usable dmabuf nor wl_shm is available");
+                return;
+            };
             match ShmBuffer::new(shm_global, qh, session.constraints) {
                 Ok(buf) => session.shm = Some(buf),
                 Err(err) => {
@@ -143,11 +174,14 @@ impl AppState {
         if session.frame_pending {
             return;
         }
-        let Some(shm) = session.shm.as_ref() else {
-            return;
-        };
         let frame = session.session.create_frame(qh, ());
-        frame.attach_buffer(&shm.buffer);
+        if let Some(dmabuf) = session.dmabuf.as_ref() {
+            frame.attach_buffer(&dmabuf.buffer);
+        } else if let Some(shm) = session.shm.as_ref() {
+            frame.attach_buffer(&shm.buffer);
+        } else {
+            return;
+        }
         frame.damage_buffer(
             0,
             0,
@@ -162,20 +196,41 @@ impl AppState {
         let Some(session) = self.session.as_mut() else {
             return;
         };
-        let Some(shm) = session.shm.as_ref() else {
-            self.fail("missing shm buffer on frame ready");
+        let frame = if let Some(dmabuf) = session.dmabuf.as_ref() {
+            let planes = match dmabuf.export_planes() {
+                Ok(planes) => planes,
+                Err(err) => {
+                    session.dmabuf_failed = true;
+                    session.dmabuf = None;
+                    self.fail(format!("export dmabuf capture planes: {err}"));
+                    return;
+                }
+            };
+            Frame {
+                width: dmabuf.width,
+                height: dmabuf.height,
+                stride: dmabuf.stride,
+                shm_format: Format::Argb8888,
+                data: dmabuf.pixels().map_or_else(Vec::new, <[u8]>::to_vec),
+                dmabuf: Some(planes),
+            }
+        } else if let Some(shm) = session.shm.as_ref() {
+            Frame {
+                width: shm.format.width,
+                height: shm.format.height,
+                stride: shm.format.stride,
+                shm_format: shm.format.format,
+                data: shm.pixels().to_vec(),
+                dmabuf: None,
+            }
+        } else {
+            self.fail("missing capture buffer on frame ready");
             return;
         };
-        let frame = Frame {
-            width: shm.format.width,
-            height: shm.format.height,
-            stride: shm.format.stride,
-            shm_format: shm.format.format,
-            data: shm.pixels().to_vec(),
-        };
         if matches!(self.mode, CaptureMode::OneShot) {
-            let session = self.session.take().unwrap();
-            session.session.destroy();
+            if let Some(session) = self.session.take() {
+                session.session.destroy();
+            }
             self.result = Some(Ok(frame));
             return;
         }
@@ -218,7 +273,10 @@ fn bind_all_outputs(
     let registry = globals.registry();
     let globals_list = globals.contents().clone_list();
     let mut outputs = Vec::new();
-    for g in globals_list.into_iter().filter(|g| g.interface == "wl_output") {
+    for g in globals_list
+        .into_iter()
+        .filter(|g| g.interface == "wl_output")
+    {
         let version = g.version.min(4);
         let idx = outputs.len();
         let output: WlOutput = registry.bind(g.name, version, qh, idx);
@@ -232,7 +290,12 @@ fn bind_all_outputs(
 }
 
 fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
-    if let Some(want) = options.connector.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(want) = options
+        .connector
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         let want_l = want.to_ascii_lowercase();
         if let Some(info) = outputs.iter().find(|o| {
             o.name.eq_ignore_ascii_case(want)
@@ -258,17 +321,19 @@ impl CaptureSession {
     pub fn open(options: CaptureOptions) -> Result<Self, String> {
         let conn = Connection::connect_to_env()
             .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
-        let (globals, mut queue) =
-            registry_queue_init::<AppState>(&conn).map_err(|err| format!("registry init: {err}"))?;
+        let (globals, mut queue) = registry_queue_init::<AppState>(&conn)
+            .map_err(|err| format!("registry init: {err}"))?;
         let qh = queue.handle();
 
         let shm = globals.bind(&qh, 1..=1, ()).ok();
+        let dmabuf_global = globals.bind(&qh, 3..=5, ()).ok();
         let copy_manager = globals.bind(&qh, 1..=1, ()).ok();
         let source_manager = globals.bind(&qh, 1..=1, ()).ok();
         let outputs = bind_all_outputs(&globals, &qh);
 
         let mut state = AppState {
             shm,
+            dmabuf_global,
             copy_manager,
             source_manager,
             outputs,
@@ -367,11 +432,30 @@ impl Dispatch<WlRegistry, GlobalListContents> for AppState {
 }
 
 wayland_client::delegate_noop!(AppState: ignore WlShm);
+wayland_client::delegate_noop!(AppState: ignore ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(AppState: ignore ExtOutputImageCaptureSourceManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCopyCaptureManagerV1);
 wayland_client::delegate_noop!(AppState: ignore ExtImageCaptureSourceV1);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_shm_pool::WlShmPool);
 wayland_client::delegate_noop!(AppState: ignore wayland_client::protocol::wl_buffer::WlBuffer);
+
+impl Dispatch<ZwpLinuxBufferParamsV1, ()> for AppState {
+    fn event(
+        state: &mut Self,
+        _proxy: &ZwpLinuxBufferParamsV1,
+        event: zwp_linux_buffer_params_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        if let zwp_linux_buffer_params_v1::Event::Failed = event {
+            if let Some(session) = state.session.as_mut() {
+                session.dmabuf_failed = true;
+            }
+            tracing::warn!("linux-dmabuf buffer creation failed");
+        }
+    }
+}
 
 impl Dispatch<WlOutput, usize> for AppState {
     fn event(
@@ -417,6 +501,17 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
                         prefer_shm_format_local(session.constraints.format, fmt);
                 }
             }
+            ext_image_copy_capture_session_v1::Event::DmabufDevice { device, .. } => {
+                session.dmabuf_offer.device = parse_dev_t(&device);
+            }
+            ext_image_copy_capture_session_v1::Event::DmabufFormat {
+                format, modifiers, ..
+            } => {
+                session
+                    .dmabuf_offer
+                    .formats
+                    .push((format, modifiers_from_array(&modifiers)));
+            }
             ext_image_copy_capture_session_v1::Event::Done { .. } => {
                 session.needs_allocate = true;
             }
@@ -426,7 +521,10 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
             _ => {}
         }
         if state.result.is_none()
-            && state.session.as_ref().is_some_and(|session| session.needs_allocate)
+            && state
+                .session
+                .as_ref()
+                .is_some_and(|session| session.needs_allocate)
         {
             if let Some(session) = state.session.as_mut() {
                 session.needs_allocate = false;
@@ -458,7 +556,10 @@ impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for AppState {
             _ => {}
         }
         if state.result.is_none()
-            && state.session.as_ref().is_some_and(|session| session.frame_ready)
+            && state
+                .session
+                .as_ref()
+                .is_some_and(|session| session.frame_ready)
         {
             if let Some(session) = state.session.as_mut() {
                 session.frame_ready = false;

@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **ScreenCast dmabuf zero-copy (Phase 3)** — DRM compositor advertises capture
+  dmabuf formats and renders into client GBM buffers; `metis-portal` prefers
+  linux-dmabuf + PipeWire `SPA_DATA_DmaBuf` with MemFd fallback. Removes the
+  per-frame GLES `copy_framebuffer` readback on the live cast path.
 - **Settings → Shortcuts** — searchable, grouped read-only guide of current
   desktop chords (plus reserved System binds); jump to Keyboard to edit.
 - **Desktop-widget process isolation** — compositor spawns

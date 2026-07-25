@@ -5,8 +5,9 @@
 Language & region, onboarding language step, RTL, live Apply rebuilds (Settings,
 edge bar, NC, desktop widgets), catalogs in `.deb` CI. **Phase 7** (Remote access)
 is largely complete — RDP via portal PipeWire, RustDesk/VNC docs, multi-monitor
-ScreenCast connector select; remaining stretch: first-party remote + dmabuf
-zero-copy. **Phase 14**
+ScreenCast connector select; remaining stretch: first-party remote. **Phase 3**
+ScreenCast dmabuf zero-copy landed (2026-07-24); remaining: **full multi-GPU**.
+**Phase 14**
 (Desktop Widgets) is
 **complete** (2026-07-18) —
 Folders / Apps / Clock / System / Weather / Equalizer builtins, Settings list +
@@ -18,8 +19,8 @@ Tool) is **complete** (2026-07-09) — PrtSc overlay, `metis-capture`, theme-awa
 toolbar, and compositor capture exclusion. **Phase 11** (Gaming Platform 2.0) is
 **complete** (2026-07-07) — `gaming.json`, Flatpak zero-config, gaming health
 checks, `metis-gamingd`, onboarding gaming step, and hybrid PRIME / scanout
-polish. **Phase 3** is complete except deferred **full multi-GPU** compositing and
-**ScreenCast dmabuf zero-copy**. **Phase 4** (settings-app expansion) is complete.
+polish. **Phase 3** is complete except deferred **full multi-GPU** compositing.
+**Phase 4** (settings-app expansion) is complete.
 **Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
 access), **Phase 9** (onboarding — done
@@ -344,13 +345,13 @@ so each milestone is shippable on its own:
       Registered in `metis.portal` + `metis-portals.conf`.
 - [x] **ScreenCast portal (live streaming)** — `metis-portal` registers
       `org.freedesktop.impl.portal.ScreenCast`; persistent
-      `ext-image-copy-capture-v1` session + ~30 Hz frame pump pushes BGRx frames
-      into a real PipeWire output stream node (`pipewire` crate on a dedicated
-      thread). Verify with OBS “Video Capture Device (PipeWire)” under a live
-      session. Post-Phase-3 follow-up: dmabuf zero-copy export (see
-      `docs/PERF_AUDIT.md` P0).
-- [ ] **ScreenCast dmabuf zero-copy** — export dmabuf from compositor capture +
-      PipeWire memfd import (perf pass; SHM pump is functional at 1080p30 today).
+      `ext-image-copy-capture-v1` session + ~30 Hz frame pump pushes frames into
+      a PipeWire output stream. DRM sessions advertise dmabuf capture and the
+      portal prefers GBM/`SPA_DATA_DmaBuf` with MemFd fallback (2026-07-24).
+- [x] **ScreenCast dmabuf zero-copy** — compositor advertises
+      `DmabufConstraints` and renders into client dmabufs (no GLES readback);
+      portal allocates via linux-dmabuf + GBM and pushes `SPA_DATA_DmaBuf` when
+      the peer accepts it, otherwise MemFd from a linear mmap (2026-07-24).
 
 ---
 
@@ -710,8 +711,8 @@ latency and clear setup docs.
 - [x] **ScreenCast as capture backend** — GRD RDP already consumes Mutter
       ScreenCast → `metis-portal` PipeWire (memfd BGRx). **2026-07-24:** multi-
       monitor `RecordMonitor(connector)` selects the matching `wl_output` by
-      name for the live pump (portal + Mutter shim). **Follow-up:** dmabuf
-      zero-copy (Phase 3 PERF item) for lower CPU/latency.
+      name for the live pump (portal + Mutter shim). **2026-07-24:** dmabuf
+      zero-copy path (GBM capture + PipeWire `SPA_DATA_DmaBuf`, MemFd fallback).
 - [ ] **First-party remote option** (stretch) — lightweight Metis remote viewer/
       host or official RustDesk/RDP preset in `metis-session` (TBD; depends on
       security review and maintenance cost)

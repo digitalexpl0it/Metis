@@ -8,6 +8,7 @@ use std::time::Duration;
 use ashpd::PortalError;
 use wayland_client::protocol::wl_shm::Format;
 
+use metis_capture::dmabuf::format_is_bgr_order;
 use metis_capture::CaptureOptions;
 
 use crate::capture::session::CaptureSession;
@@ -96,23 +97,54 @@ pub fn spawn_screencast_pump(
                 let start = std::time::Instant::now();
                 match session.capture_next_frame() {
                     Ok(frame) => {
-                        if frame.data.iter().all(|&b| b == 0) {
+                        let dmabuf_fourcc = frame.dmabuf.as_ref().map(|planes| planes.fourcc);
+                        if frame.dmabuf.is_none() && frame.data.iter().all(|&b| b == 0) {
                             tracing::warn!("screencast frame all zeros — compositor may not be rendering");
                             if elapsed_under(start, frame_interval) {
                                 thread::sleep(frame_interval - start.elapsed());
                             }
                             continue;
                         }
-                        let pixels = frame_to_bgrx(
-                            frame.shm_format,
-                            &frame.data,
-                            frame.width,
-                            frame.height,
-                            frame.stride,
-                        );
-                        if let Err(err) = pipewire.push_frame(node_id, pixels) {
-                            tracing::warn!(%err, "pipewire push_frame failed");
-                        } else {
+
+                        let mut sent = false;
+                        if let Some(planes) = frame.dmabuf {
+                            match pipewire.push_dmabuf_frame(node_id, planes) {
+                                Ok(()) => sent = true,
+                                Err(err) => {
+                                    tracing::debug!(%err, "pipewire dmabuf push unavailable; using MemFd fallback");
+                                }
+                            }
+                        }
+
+                        if !sent && !frame.data.is_empty() {
+                            let pixels = match dmabuf_fourcc {
+                                Some(fourcc) if format_is_bgr_order(fourcc) => bgra_to_bgrx(
+                                    &frame.data,
+                                    frame.width,
+                                    frame.height,
+                                    frame.stride,
+                                ),
+                                Some(_) => rgba_to_bgrx(
+                                    &frame.data,
+                                    frame.width,
+                                    frame.height,
+                                    frame.stride,
+                                ),
+                                None => frame_to_bgrx(
+                                    frame.shm_format,
+                                    &frame.data,
+                                    frame.width,
+                                    frame.height,
+                                    frame.stride,
+                                ),
+                            };
+                            match pipewire.push_frame(node_id, pixels) {
+                                Ok(()) => sent = true,
+                                Err(err) => tracing::warn!(%err, "pipewire push_frame failed"),
+                            }
+                        }
+
+                        if sent {
                             frames_sent += 1;
                             if frames_sent == 1 {
                                 tracing::info!(
@@ -122,6 +154,10 @@ pub fn spawn_screencast_pump(
                                     "screencast first frame pushed to pipewire"
                                 );
                             }
+                        } else if frame.data.is_empty() {
+                            tracing::warn!(
+                                "pipewire rejected dmabuf and capture buffer was not mappable"
+                            );
                         }
                     }
                     Err(err) => tracing::warn!(%err, "screencast frame capture failed"),

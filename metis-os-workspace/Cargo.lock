@@ -2262,6 +2262,8 @@ dependencies = [
 name = "metis-capture"
 version = "0.1.0"
 dependencies = [
+ "drm-fourcc",
+ "gbm",
  "libc",
  "metis-grid",
  "png 0.17.16",

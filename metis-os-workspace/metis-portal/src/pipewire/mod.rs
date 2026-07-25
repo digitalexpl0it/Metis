@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -13,6 +13,9 @@ use pipewire as pw;
 use pw::{properties::properties, spa};
 use spa::param::video::VideoInfoRaw;
 use spa::pod::Pod;
+
+use metis_capture::dmabuf::format_is_bgr_order;
+use metis_capture::DmabufPlanes;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StreamHandle {
@@ -30,6 +33,11 @@ enum PwCommand {
         node_id: u32,
         pixels: Vec<u8>,
     },
+    PushDmabufFrame {
+        node_id: u32,
+        planes: DmabufPlanes,
+        reply: Sender<Result<(), String>>,
+    },
     DestroyStream {
         node_id: u32,
     },
@@ -40,6 +48,9 @@ enum PwCommand {
 /// the command loop (PushFrame flushes memfd buffers on the PipeWire thread).
 struct StreamSharedState {
     frame: Mutex<Vec<u8>>,
+    dmabuf: Mutex<Option<DmabufPlanes>>,
+    dmabuf_supported: AtomicBool,
+    use_dmabuf: AtomicBool,
     width: Mutex<u32>,
     height: Mutex<u32>,
     stride: Mutex<i32>,
@@ -115,6 +126,21 @@ impl PipeWireHub {
             .map_err(|err| PortalError::Failed(format!("pipewire push send: {err}")))
     }
 
+    pub fn push_dmabuf_frame(&self, node_id: u32, planes: DmabufPlanes) -> Result<(), PortalError> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        self.cmd_tx
+            .send(PwCommand::PushDmabufFrame {
+                node_id,
+                planes,
+                reply: reply_tx,
+            })
+            .map_err(|err| PortalError::Failed(format!("pipewire dmabuf send: {err}")))?;
+        reply_rx
+            .recv_timeout(Duration::from_millis(250))
+            .map_err(|err| PortalError::Failed(format!("pipewire dmabuf push timeout: {err}")))?
+            .map_err(PortalError::Failed)
+    }
+
     pub fn destroy_stream(&self, node_id: u32) {
         let _ = self.cmd_tx.send(PwCommand::DestroyStream { node_id });
     }
@@ -178,6 +204,12 @@ fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
                 },
                 PwCommand::PushFrame { node_id, pixels } => {
                     if let Some(slot) = streams.get(&node_id) {
+                        slot.shared.use_dmabuf.store(false, Ordering::Release);
+                        slot.shared
+                            .dmabuf
+                            .lock()
+                            .unwrap_or_else(|err| err.into_inner())
+                            .take();
                         if let Ok(mut frame) = slot.shared.frame.lock() {
                             *frame = pixels;
                         }
@@ -186,6 +218,50 @@ fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
                             tracing::warn!(%err, node_id, "pipewire trigger_process failed");
                         }
                     }
+                }
+                PwCommand::PushDmabufFrame {
+                    node_id,
+                    planes,
+                    reply,
+                } => {
+                    let result = if let Some(slot) = streams.get(&node_id) {
+                        if !slot.shared.dmabuf_supported.load(Ordering::Acquire) {
+                            Err("peer did not negotiate DmaBuf-capable buffers".into())
+                        } else if planes.fds.len() != 1
+                            || planes.offsets.len() != 1
+                            || planes.strides.len() != 1
+                        {
+                            Err("only single-plane RGB DmaBuf frames are supported".into())
+                        } else if !format_is_bgr_order(planes.fourcc) {
+                            Err("DmaBuf pixel order does not match negotiated BGRx/BGRA".into())
+                        } else if planes.modifier != 0 {
+                            Err("non-linear DmaBuf modifiers are not advertised to PipeWire".into())
+                        } else {
+                            *slot
+                                .shared
+                                .dmabuf
+                                .lock()
+                                .unwrap_or_else(|err| err.into_inner()) = Some(planes);
+                            slot.shared.use_dmabuf.store(true, Ordering::Release);
+                            let _ = slot.stream.set_active(true);
+                            let trigger_result = slot
+                                .stream
+                                .trigger_process()
+                                .map_err(|err| format!("pipewire trigger_process: {err}"));
+                            if trigger_result.is_err() {
+                                slot.shared.use_dmabuf.store(false, Ordering::Release);
+                                slot.shared
+                                    .dmabuf
+                                    .lock()
+                                    .unwrap_or_else(|err| err.into_inner())
+                                    .take();
+                            }
+                            trigger_result
+                        }
+                    } else {
+                        Err(format!("unknown pipewire node {node_id}"))
+                    };
+                    let _ = reply.send(result);
                 }
                 PwCommand::DestroyStream { node_id } => {
                     streams.remove(&node_id);
@@ -202,17 +278,15 @@ fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
             if node_id != pw::constants::ID_ANY {
                 let pending_stream = pending.remove(i);
                 tracing::info!(node_id, "pipewire screencast node ready");
-                let _ = pending_stream
-                    .reply
-                    .send(Ok(StreamHandle { node_id }));
+                let _ = pending_stream.reply.send(Ok(StreamHandle { node_id }));
                 streams.insert(node_id, pending_stream.slot);
                 continue;
             }
             if pending[i].started.elapsed() > Duration::from_secs(5) {
                 let pending_stream = pending.remove(i);
-                let _ = pending_stream.reply.send(Err(
-                    "pipewire stream did not receive a node id".into(),
-                ));
+                let _ = pending_stream
+                    .reply
+                    .send(Err("pipewire stream did not receive a node id".into()));
                 continue;
             }
             i += 1;
@@ -234,6 +308,9 @@ fn create_video_stream(
     let stride = (width * 4) as i32;
     let shared = Arc::new(StreamSharedState {
         frame: Mutex::new(vec![0u8; (width * height * 4) as usize]),
+        dmabuf: Mutex::new(None),
+        dmabuf_supported: AtomicBool::new(false),
+        use_dmabuf: AtomicBool::new(false),
         width: Mutex::new(width),
         height: Mutex::new(height),
         stride: Mutex::new(stride),
@@ -269,8 +346,7 @@ fn create_video_stream(
                 return;
             }
 
-            let Ok((media_type, media_subtype)) =
-                pw::spa::param::format_utils::parse_format(param)
+            let Ok((media_type, media_subtype)) = pw::spa::param::format_utils::parse_format(param)
             else {
                 return;
             };
@@ -288,19 +364,39 @@ fn create_video_stream(
             let width = if peer.size().width > 0 {
                 peer.size().width
             } else {
-                *user_data.shared.width.lock().unwrap_or_else(|e| e.into_inner())
+                *user_data
+                    .shared
+                    .width
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
             };
             let height = if peer.size().height > 0 {
                 peer.size().height
             } else {
-                *user_data.shared.height.lock().unwrap_or_else(|e| e.into_inner())
+                *user_data
+                    .shared
+                    .height
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
             };
             let stride = (width * 4) as i32;
 
             user_data.format = negotiated_format(width, height, peer.format());
-            *user_data.shared.width.lock().unwrap_or_else(|e| e.into_inner()) = width;
-            *user_data.shared.height.lock().unwrap_or_else(|e| e.into_inner()) = height;
-            *user_data.shared.stride.lock().unwrap_or_else(|e| e.into_inner()) = stride;
+            *user_data
+                .shared
+                .width
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = width;
+            *user_data
+                .shared
+                .height
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = height;
+            *user_data
+                .shared
+                .stride
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = stride;
 
             let Ok(param_bytes) = build_buffer_params(stride, height) else {
                 tracing::warn!("pipewire failed to build buffer params");
@@ -316,7 +412,12 @@ fn create_video_stream(
             }
             match stream.update_params(&mut pod_refs) {
                 Ok(()) => {
-                    tracing::info!(width, height, stride, "pipewire screencast buffers negotiated");
+                    tracing::info!(
+                        width,
+                        height,
+                        stride,
+                        "pipewire screencast buffers negotiated"
+                    );
                 }
                 Err(err) => tracing::warn!(%err, "pipewire update_params failed"),
             }
@@ -336,14 +437,26 @@ fn create_video_stream(
                 .height
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
+            let dmabuf_bit = 1u32 << spa::sys::SPA_DATA_DmaBuf;
+            let supports_dmabuf = unsafe {
+                let spa_buf = (*pw_buf).buffer;
+                !spa_buf.is_null()
+                    && (*spa_buf).n_datas > 0
+                    && !(*spa_buf).datas.is_null()
+                    && (*(*spa_buf).datas).type_ & dmabuf_bit != 0
+            };
+            if supports_dmabuf {
+                user_data
+                    .shared
+                    .dmabuf_supported
+                    .store(true, Ordering::Release);
+            }
             if let Err(err) = unsafe { alloc_memfd_buffer(pw_buf, stride, height) } {
                 tracing::error!(%err, "pipewire add_buffer failed");
             }
         })
-        .remove_buffer(|_stream, _user_data, pw_buf| {
-            unsafe {
-                free_memfd_buffer(pw_buf);
-            }
+        .remove_buffer(|_stream, _user_data, pw_buf| unsafe {
+            free_memfd_buffer(pw_buf);
         })
         .process(|stream, user_data| {
             process_output_buffer(stream, &user_data.shared);
@@ -361,8 +474,8 @@ fn create_video_stream(
     let mut format_pods = build_enum_formats(width, height)?;
     let mut params: Vec<&Pod> = Vec::with_capacity(format_pods.len());
     for bytes in &format_pods {
-        let pod = Pod::from_bytes(bytes)
-            .ok_or_else(|| "invalid pipewire format pod".to_string())?;
+        let pod =
+            Pod::from_bytes(bytes).ok_or_else(|| "invalid pipewire format pod".to_string())?;
         params.push(pod);
     }
     stream
@@ -405,6 +518,14 @@ unsafe fn alloc_memfd_buffer(
         ));
     }
 
+    alloc_memfd_data(d, stride, height)
+}
+
+unsafe fn alloc_memfd_data(
+    d: &mut spa::sys::spa_data,
+    stride: i32,
+    height: u32,
+) -> Result<(), String> {
     let maxsize = (stride as u32).saturating_mul(height);
     if maxsize == 0 {
         return Err("zero screencast buffer size".into());
@@ -442,7 +563,8 @@ unsafe fn alloc_memfd_buffer(
         return Err(format!("mmap failed: {}", std::io::Error::last_os_error()));
     }
 
-    d.type_ = spa::sys::SPA_DATA_MemFd as u32;
+    release_spa_data(d);
+    d.type_ = spa::sys::SPA_DATA_MemFd;
     d.flags = spa::sys::SPA_DATA_FLAG_READWRITE | spa::sys::SPA_DATA_FLAG_MAPPABLE;
     d.fd = fd as i64;
     d.mapoffset = 0;
@@ -468,13 +590,21 @@ unsafe fn free_memfd_buffer(pw_buf: *mut pw::sys::pw_buffer) {
     if spa.n_datas == 0 || spa.datas.is_null() {
         return;
     }
-    let d = &*spa.datas;
+    let d = &mut *spa.datas;
+    release_spa_data(d);
+}
+
+unsafe fn release_spa_data(d: &mut spa::sys::spa_data) {
     if !d.data.is_null() && d.maxsize > 0 {
         libc::munmap(d.data as *mut _, d.maxsize as usize);
     }
     if d.fd >= 0 {
         libc::close(d.fd as libc::c_int);
     }
+    d.fd = -1;
+    d.data = std::ptr::null_mut();
+    d.maxsize = 0;
+    d.mapoffset = 0;
 }
 
 unsafe fn fill_screencast_frame(
@@ -486,12 +616,17 @@ unsafe fn fill_screencast_frame(
         return false;
     }
     let d = &mut *spa.datas;
-    if d.data.is_null() || d.maxsize == 0 {
-        return false;
-    }
 
     let height = *state.height.lock().unwrap_or_else(|e| e.into_inner());
     let stride = *state.stride.lock().unwrap_or_else(|e| e.into_inner());
+    if d.type_ == spa::sys::SPA_DATA_DmaBuf && d.data.is_null() {
+        if alloc_memfd_data(d, stride, height).is_err() {
+            return false;
+        }
+    }
+    if d.data.is_null() || d.maxsize == 0 {
+        return false;
+    }
     let needed = (stride as u32).saturating_mul(height) as usize;
     let slice = std::slice::from_raw_parts_mut(d.data as *mut u8, needed.min(d.maxsize as usize));
 
@@ -517,6 +652,53 @@ unsafe fn fill_screencast_frame(
         (*d.chunk).flags = 0;
     }
     true
+}
+
+unsafe fn install_dmabuf_frame(
+    spa_buf: *mut spa::sys::spa_buffer,
+    state: &StreamSharedState,
+) -> Result<bool, String> {
+    let Some(planes) = state
+        .dmabuf
+        .lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .take()
+    else {
+        return Ok(false);
+    };
+    let spa = &mut *spa_buf;
+    if spa.n_datas < planes.fds.len() as u32 || spa.datas.is_null() {
+        return Err("PipeWire buffer has too few planes for DmaBuf frame".into());
+    }
+
+    for (index, fd) in planes.fds.iter().enumerate() {
+        let dup_fd = libc::fcntl(
+            std::os::fd::AsRawFd::as_raw_fd(fd),
+            libc::F_DUPFD_CLOEXEC,
+            0,
+        );
+        if dup_fd < 0 {
+            return Err(format!(
+                "duplicate DmaBuf fd: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let data = &mut *spa.datas.add(index);
+        release_spa_data(data);
+        data.type_ = spa::sys::SPA_DATA_DmaBuf;
+        data.flags = 0;
+        data.fd = dup_fd as i64;
+        data.mapoffset = planes.offsets[index];
+        data.maxsize = planes.strides[index].saturating_mul(planes.height);
+        data.data = std::ptr::null_mut();
+        if !data.chunk.is_null() {
+            (*data.chunk).offset = 0;
+            (*data.chunk).size = data.maxsize;
+            (*data.chunk).stride = planes.strides[index] as i32;
+            (*data.chunk).flags = 0;
+        }
+    }
+    Ok(true)
 }
 
 #[repr(C)]
@@ -560,10 +742,32 @@ fn process_output_buffer(stream: &pw::stream::StreamRef, state: &StreamSharedSta
     }
     let spa_buf = unsafe { (*pw_buf).buffer };
     if !spa_buf.is_null() {
-        let filled = unsafe { fill_screencast_frame(spa_buf, state) };
+        let filled = match unsafe { install_dmabuf_frame(spa_buf, state) } {
+            Ok(true) => true,
+            Ok(false) if state.use_dmabuf.load(Ordering::Acquire) => {
+                unsafe {
+                    let spa = &mut *spa_buf;
+                    if spa.n_datas > 0 && !spa.datas.is_null() {
+                        let data = &mut *spa.datas;
+                        if !data.chunk.is_null() {
+                            (*data.chunk).size = 0;
+                        }
+                    }
+                }
+                false
+            }
+            Ok(false) => unsafe { fill_screencast_frame(spa_buf, state) },
+            Err(err) => {
+                tracing::warn!(%err, "failed to install PipeWire DmaBuf frame");
+                false
+            }
+        };
         if filled {
             unsafe { set_header_meta(spa_buf, state) };
-            let mut total = state.frames_queued.lock().unwrap_or_else(|e| e.into_inner());
+            let mut total = state
+                .frames_queued
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let first = *total == 0;
             *total += 1;
             if first {
@@ -603,6 +807,8 @@ fn build_buffer_params(stride: i32, height: u32) -> Result<Vec<Vec<u8>>, String>
 
     let buffer_size = (stride as u32).saturating_mul(height);
     let memfd_mask = 1i32 << spa::sys::SPA_DATA_MemFd;
+    let dmabuf_mask = 1i32 << spa::sys::SPA_DATA_DmaBuf;
+    let data_type_mask = memfd_mask | dmabuf_mask;
 
     let buffers = spa::pod::Object {
         type_: spa::utils::SpaTypes::ObjectParamBuffers.as_raw(),
@@ -631,7 +837,7 @@ fn build_buffer_params(stride: i32, height: u32) -> Result<Vec<Vec<u8>>, String>
                     ChoiceFlags::empty(),
                     ChoiceEnum::Flags {
                         default: memfd_mask,
-                        flags: vec![memfd_mask],
+                        flags: vec![data_type_mask],
                     },
                 ))),
             ),
@@ -752,13 +958,11 @@ fn build_enum_formats(width: u32, height: u32) -> Result<Vec<Vec<u8>>, String> {
 }
 
 fn serialize_pod(obj: pw::spa::pod::Object) -> Result<Vec<u8>, String> {
-    Ok(
-        pw::spa::pod::serialize::PodSerializer::serialize(
-            Cursor::new(Vec::new()),
-            &pw::spa::pod::Value::Object(obj),
-        )
-        .map_err(|err| format!("serialize pod: {err}"))?
-        .0
-        .into_inner(),
+    Ok(pw::spa::pod::serialize::PodSerializer::serialize(
+        Cursor::new(Vec::new()),
+        &pw::spa::pod::Value::Object(obj),
     )
+    .map_err(|err| format!("serialize pod: {err}"))?
+    .0
+    .into_inner())
 }

@@ -54,21 +54,20 @@ throttles, async portal warm-up). It is **not yet gaming- or streaming-optimized
 
 ## Hotspots & risks (priority order)
 
-### P0 — ScreenCast / continuous capture (when implemented)
+### P0 — ScreenCast / continuous capture
 
-**File:** `metis-compositor/src/image_capture.rs`, `metis-portal/src/capture/`
+**Status (2026-07-24):** DRM sessions advertise dmabuf capture constraints.
+The compositor renders ScreenCast frames into client GBM buffers (no
+`copy_framebuffer` readback). `metis-portal` prefers linux-dmabuf + PipeWire
+`SPA_DATA_DmaBuf`, with MemFd BGRx fallback for peers that reject DmaBuf
+(e.g. some GRD paths). Nested winit remains SHM-only.
 
-Each screenshot today:
+**Remaining gap:** multi-plane / non-linear modifiers may still take the MemFd
+fallback; profile on hybrid NVIDIA stacks. Full multi-GPU (`GpuManager`) is
+still open under Phase 3.
 
-1. Rebuilds full render element list for the output.
-2. Renders to an offscreen GLES buffer.
-3. `copy_framebuffer` → CPU, then SHM write.
-
-Fine for occasional PNGs; **unacceptable at 30–60 Hz** without dmabuf export and
-a PipeWire zero-copy path.
-
-**Recommendation:** dmabuf capture session + register with PipeWire; avoid
-`pixels().to_vec()` in the portal client loop.
+**Recommendation:** validate OBS / gnome-remote-desktop under a live DRM
+session; watch portal logs for `dmabuf` vs MemFd negotiation.
 
 ### P1 — Fullscreen direct scanout (hybrid PRIME)
 
@@ -190,10 +189,10 @@ ls -lh metis-os-workspace/target/{release,release-small}/metis-*
 
 ## Recommended roadmap (perf)
 
-1. **ScreenCast** with dmabuf + PipeWire (P0).
+1. **ScreenCast** with dmabuf + PipeWire (P0) — landed 2026-07-24; validate on DRM.
 2. **Inhibit portal** — prevent idle dim during games (correctness + fewer wakeups).
 3. **Gamescope** launch-option testing on Metis (P1 gaming path).
 4. **Split `state.rs`** when refactoring (P2 maintainability).
-5. **Phase 5 VRR** — latency/smoothness on supported panels.
+5. **Phase 5 HDR** — wide-gamut / 10-bit path (VRR already shipped).
 
 See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 5–6.
