@@ -665,10 +665,14 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   list on real hardware), **Duplicate displays** (mirror clone with scale-to-fit
   letterboxing on DRM hardware), and multi-monitor arrangement (drag preview when
   two or more outputs are connected; hidden while duplicating; **Save display
-  settings** with a keep/revert confirmation). Scale and **Active** apply live;
+  settings** with a keep/revert confirmation). Scale, **Active**, **Adaptive
+  sync** (VRR), and **HDR** (only when the monitor EDID advertises HDR10 /
+  ST.2084 — many laptop panels do not) apply live;
   duplicate mode, arrangement, and resolution changes are batched behind save.
-  Night-light preferences apply live in the compositor (warm overlay; schedule
-  not wired yet). Rotation is still upcoming.
+  Night-light preferences apply live in the compositor (warm overlay; skipped
+  while HDR is active on that output). With **HDR** on, the compositor also
+  tone-maps the desktop into PQ (reference white ≈ 203 nits). Rotation is still
+  upcoming.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and
@@ -899,7 +903,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |
 | `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | Record of applied Flatpak gaming overrides (managed by `metis-gaming`) |
-| `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, night-light prefs |
+| `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, VRR / HDR toggles, night-light prefs |
 
 ### Key `bar.json` fields
 

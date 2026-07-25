@@ -232,5 +232,8 @@ fn apply_drm_mode(
         .map_err(|err| format!("{err:?}"))
         .map(|_| {
             surface.pending = true;
+            // Mode-set resets connector HDR blobs / Colorspace; force re-apply.
+            surface.hdr_active = false;
+            surface.scanout_format_logged = false;
         })
 }

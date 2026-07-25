@@ -123,6 +123,9 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
     if crate::output_vrr::apply_output_vrrs(state, cfg) {
         changed = true;
     }
+    if crate::output_hdr::apply_output_hdrs(state, cfg) {
+        changed = true;
+    }
     crate::color_management::apply_color_profiles(state, cfg);
     // Upload each output's ICC vcgt calibration to its CRTC gamma ramp.
     crate::output_gamma::apply_output_gamma(state);
@@ -284,6 +287,8 @@ pub fn output_info_for(
         && prefs.enabled;
     let vrr_support = crate::output_vrr::query_vrr_support(state, &name);
     let vrr_active = crate::output_vrr::query_vrr_active(state, &name);
+    let hdr_available = crate::output_hdr::query_hdr_available(state, &name);
+    let hdr_active = crate::output_hdr::query_hdr_active(state, &name);
     metis_protocol::OutputInfo {
         name,
         primary: primary.is_some_and(|p| p == output.name()),
@@ -296,5 +301,7 @@ pub fn output_info_for(
         mirror_source: is_mirror_source,
         vrr_available: crate::output_vrr::vrr_available(vrr_support),
         vrr_active,
+        hdr_available,
+        hdr_active,
     }
 }

@@ -739,6 +739,59 @@ fn build_output_panel(
         });
     }
 
+    // Stale pref from when we offered HDR on SDR panels (DRM prop only).
+    if !out.hdr_available && output_prefs(&cfg.borrow(), &out.name).hdr_enabled {
+        {
+            let mut c = cfg.borrow_mut();
+            let entry = c.outputs.entry(out.name.clone()).or_default();
+            entry.hdr_enabled = false;
+        }
+        save_and_apply(&cfg.borrow());
+    }
+
+    if out.hdr_available {
+        let hdr = gtk::Switch::new();
+        hdr.set_active(output_prefs(&cfg.borrow(), &out.name).hdr_enabled);
+        live_body.append(&ui::row(&tr("HDR"), &hdr));
+        let hdr_hint = gtk::Label::new(Some(&tr(
+            "Signals HDR10 to the display and tone-maps the desktop (SDR→PQ). \
+             True HDR client content and full colour management are still follow-up."
+        )));
+        hdr_hint.set_wrap(true);
+        hdr_hint.set_xalign(0.0);
+        hdr_hint.add_css_class("metis-settings-hint");
+        live_body.append(&hdr_hint);
+        let name = out.name.clone();
+        let cfg = cfg.clone();
+        let outputs = outputs.clone();
+        hdr.connect_active_notify({
+            let cfg = cfg.clone();
+            let name = name.clone();
+            let outputs = outputs.clone();
+            move |sw| {
+                let active = sw.is_active();
+                let cfg = cfg.clone();
+                let name = name.clone();
+                let outputs = outputs.clone();
+                glib::idle_add_local_once(move || {
+                    {
+                        let mut c = cfg.borrow_mut();
+                        let entry = c.outputs.entry(name.clone()).or_default();
+                        entry.hdr_enabled = active;
+                    }
+                    save_and_apply(&cfg.borrow());
+                    glib::timeout_add_seconds_local(1, {
+                        let outputs = outputs.clone();
+                        move || {
+                            *outputs.borrow_mut() = runtime::list_outputs();
+                            glib::ControlFlow::Break
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     body.append(&live_card);
 
     let (mode_card, mode_body) = ui::section(&tr("Display mode"));
@@ -801,10 +854,12 @@ fn build_output_panel(
     profile_label.set_xalign(0.0);
     profile_label.set_wrap(true);
     profile_label.add_css_class("metis-settings-hint");
+    let default_profile_label =
+        tr("Default (sRGB) — Stage 1 vcgt calibration when a profile is set");
     profile_label.set_text(if profile_path.is_empty() {
-        "Default (sRGB) — compositor colour pipeline apply pending"
+        default_profile_label.as_str()
     } else {
-        &profile_path
+        profile_path.as_str()
     });
     color_body.append(&profile_label);
     let profile_actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -820,8 +875,8 @@ fn build_output_panel(
     profile_actions.append(&clear_profile);
     color_body.append(&profile_actions);
     let color_hint = gtk::Label::new(Some(&tr(
-        "Saved to outputs.json and exposed to Wayland clients via wp_color_management_v1. \
-         GPU colour transforms in the compositor render path are still follow-up work."
+        "Saved to outputs.json. The compositor applies the profile's vcgt tag to the \
+         CRTC gamma ramp. Full GPU gamut mapping (Stage 2) is still follow-up work."
         )));
     color_hint.set_wrap(true);
     color_hint.set_xalign(0.0);

@@ -9,6 +9,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 5 HDR encode (H2)** — with HDR on, the DRM compositor composites the
+  SDR desktop offscreen and blits through an sRGB→linear→ST.2084 PQ shader
+  (203‑nit reference white) so the panel shows correctly mapped HDR10 rather
+  than raw SDR levels. Falls back to the prior scanout path if encode fails.
+- **Phase 5 HDR foundation (H1)** — DRM sessions require monitor EDID ST.2084/
+  HDR10 plus `HDR_OUTPUT_METADATA`, expose Settings → Display **HDR** (live) and
+  `outputs.json` `hdr_enabled`, and apply/clear Default/RGB Colorspace + HDR10
+  static metadata (+ `max_bpc=10`). Logs the negotiated primary-plane Fourcc
+  (10-bit preferred). Night light is skipped on HDR-active outputs.
 - **Phase 3 Stage G multi-GPU DRM backend** — compositor now opens every GPU on
   the seat through Smithay `GpuManager`, keeps DRM scanners/output managers/CRTC
   surfaces per device, renders each output with its device renderer, early-imports
@@ -40,6 +49,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **HDR toggle on SDR laptop panels (washed-out desktop)** — `hdr_available`
+  now requires the monitor EDID to advertise ST.2084/HDR10, not merely a DRM
+  `HDR_OUTPUT_METADATA` property (common on Intel/AMD eDP). Settings clears a
+  stale `hdr_enabled` when the panel is not HDR-capable.
+- **HDR looked warm / tan on laptop panels** — SDR→PQ path was forcing BT.2020
+  Colorspace and BT.2020 mastering metadata without a gamut convert, and CRTC
+  gamma still ran on the PQ signal. Keep Default/RGB Colorspace, Rec.709
+  mastering + ~203‑nit CLL, and identity gamma while HDR is active.
 - **Metis Menu hover flickered search + titlebars** — with the grab-less menu
   open, pointer motion over the app list ran `maintain_focus_stacking` into
   windows under the translucent popover, ping-ponging Exclusive keyboard focus

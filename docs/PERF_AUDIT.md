@@ -193,6 +193,7 @@ ls -lh metis-os-workspace/target/{release,release-small}/metis-*
 2. **Inhibit portal** — prevent idle dim during games (correctness + fewer wakeups).
 3. **Gamescope** launch-option testing on Metis (P1 gaming path).
 4. **Split `state.rs`** when refactoring (P2 maintainability).
-5. **Phase 5 HDR** — wide-gamut / 10-bit path (VRR already shipped).
+5. **Phase 5 HDR H3 / Stage 2 colour** — float scene-linear + 3D-LUT / protocol
+   HDR TFs (H1 signaling + H2 SDR→PQ encode already shipped).
 
 See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 5–6.

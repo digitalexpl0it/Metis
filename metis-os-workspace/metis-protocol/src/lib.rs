@@ -300,6 +300,13 @@ pub struct OutputInfo {
     /// VRR is currently active on the CRTC (may differ from saved pref until apply).
     #[serde(default)]
     pub vrr_active: bool,
+    /// DRM connector exposes HDR signaling (`Colorspace` BT.2020 and/or
+    /// `HDR_OUTPUT_METADATA`).
+    #[serde(default)]
+    pub hdr_available: bool,
+    /// HDR output signaling is currently applied on this connector.
+    #[serde(default)]
+    pub hdr_active: bool,
 }
 
 fn default_output_scale() -> f64 {

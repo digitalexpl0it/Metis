@@ -33,8 +33,18 @@ impl RenderTargetInfo<'_> {
 }
 
 /// Whether night light should tint the current render target.
-pub fn night_light_active(cfg: &OutputsConfig, _output_name: Option<&str>) -> bool {
-    metis_config::night_light_effective(cfg)
+pub fn night_light_active(cfg: &OutputsConfig, output_name: Option<&str>) -> bool {
+    if !metis_config::night_light_effective(cfg) {
+        return false;
+    }
+    // HDR signaling fights the warm SDR overlay — skip on HDR-active outputs.
+    if let Some(name) = output_name {
+        let prefs = metis_config::output_prefs(cfg, name);
+        if prefs.hdr_enabled {
+            return false;
+        }
+    }
+    true
 }
 
 /// True when the warm overlay should be composited for `target`.
@@ -45,6 +55,11 @@ pub fn should_render_night_light(state: &MetisState, target: &RenderTargetInfo<'
     // Remote-desktop / portal capture must never pick up the warmth layer.
     if state.image_capture.screencast_active() || state.image_capture.has_pending() {
         return false;
+    }
+    if let Some(name) = target.output_name {
+        if crate::output_hdr::hdr_active_for_output(state, name) {
+            return false;
+        }
     }
     let cfg = state.output_runtime.cached();
     night_light_active(cfg, target.output_name)

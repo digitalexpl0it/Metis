@@ -27,7 +27,13 @@ pub fn apply_output_gamma(state: &MetisState) {
             if !state.is_output_enabled(&name) {
                 continue;
             }
-            let icc = state.color_mgmt.icc_bytes_for_output(&name);
+            // Hardware gamma on a PQ signal skews colour (warm/muddy cast). Keep
+            // the CRTC ramp identity while HDR encode is active.
+            let icc = if surface.hdr_active {
+                None
+            } else {
+                state.color_mgmt.icc_bytes_for_output(&name)
+            };
             sync_gamma_for_crtc(backend, *crtc, &name, icc.as_deref());
         }
     }

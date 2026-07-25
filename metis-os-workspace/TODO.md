@@ -21,7 +21,8 @@ toolbar, and compositor capture exclusion. **Phase 11** (Gaming Platform 2.0) is
 checks, `metis-gamingd`, onboarding gaming step, and hybrid PRIME / scanout
 polish. **Phase 3** is complete (multi-GPU hardware validation remains).
 **Phase 4** (settings-app expansion) is complete.
-**Phase 5** is in progress (HDR / full colour management remain). **Phase 6**
+**Phase 5** is in progress (HDR H1+H2 landed 2026-07-24; Stage 2 colour / H3
+remain). **Phase 6**
 (Flatpak, Steam & gaming v1) is **complete** (2026-07-05). **Phase 7** (remote
 access), **Phase 9** (onboarding — done
 2026-07-04; language step landed with Phase 8), and **Phase 10** (Control Center — v2 shipped 2026-07-07; process tree
@@ -475,9 +476,23 @@ Phase 3) — none of these are possible under the nested winit dev session.
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
       compositor toggles the warm overlay inside the schedule while the master
       night-light switch is on
-- [ ] **HDR** — wide-gamut / 10-bit GLES render path + DRM colour pipeline on top of
-      colour management (long-term; gated on protocol + Smithay maturity). A genuinely
-      rare thing for a lightweight DE — worth doing right rather than fast
+- [x] **HDR foundation (H1, 2026-07-24)** — detect HDR-capable DRM connectors
+      (`HDR_OUTPUT_METADATA` **and** EDID ST.2084/HDR10); per-output `hdr_enabled` in
+      `outputs.json` + Settings → Display toggle; apply/clear Colorspace +
+      HDR10 static metadata blob + `max_bpc=10`; log negotiated 10-bit vs 8-bit
+      primary-plane scanout format; skip night-light overlay while HDR is active.
+      Nested winit / SDR eDP (DRM prop without EDID HDR) report `hdr_available=false`.
+- [x] **HDR encode (H2, 2026-07-24)** — when `hdr_active`, DRM path composites
+      SDR offscreen then blits through an sRGB→linear→ST.2084 PQ texture shader
+      (BT.2408 203‑nit reference white) so enabling HDR visibly maps the desktop
+      into the HDR10 signal (`hdr_encode.rs`). Falls back to SDR scanout if the
+      shader/offscreen path fails. **Cast polish:** keep Default/RGB Colorspace +
+      Rec.709 mastering metadata (not BT.2020 without gamut convert); identity
+      CRTC gamma while HDR is active (avoids warm/tan laptop overlay).
+  - [ ] **HDR H3 / Stage 2 colour (follow-up)** — GLES 3D-LUT gamut mapping +
+        safer `wp_color_management` HDR TFs / float scene-linear composite once
+        upstream wayland-rs UAF is fixed; optional HLG / per-surface HDR content
+        / true BT.2020 Colorspace when content is wide-gamut
 
 ---
 

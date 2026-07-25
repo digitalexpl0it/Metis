@@ -147,6 +147,12 @@ pub struct SurfaceData {
     /// Render/scanout dmabuf feedback for this display, `None` if the feedback
     /// could not be built (falls back to the default global feedback).
     pub dmabuf_feedback: Option<SurfaceDmabufFeedback>,
+    /// Last applied `HDR_OUTPUT_METADATA` blob id (destroyed on clear/replace).
+    pub hdr_metadata_blob: Option<u64>,
+    /// HDR Colorspace / metadata currently applied on this connector.
+    pub hdr_active: bool,
+    /// Whether we already logged the negotiated primary-plane Fourcc.
+    pub scanout_format_logged: bool,
 }
 
 /// All DRM/udev backend state, stored in `MetisState::udev`.
@@ -952,6 +958,9 @@ impl MetisState {
                 queued: false,
                 pending: true,
                 dmabuf_feedback,
+                hdr_metadata_blob: None,
+                hdr_active: false,
+                scanout_format_logged: false,
             },
         );
         tracing::info!(%name, ?position, "output connected");
@@ -1280,13 +1289,45 @@ impl MetisState {
             }
 
             crate::output_vrr::prepare_vrr_for_render(self, id);
+            crate::output_hdr::maybe_log_scanout_format(self, id);
+
+            let hdr_active = self
+                .udev
+                .as_ref()
+                .and_then(|u| u.surface(id))
+                .is_some_and(|s| s.hdr_active);
+
+            let (frame_elements, clear): (Vec<OutputStack>, [f32; 4]) = if hdr_active {
+                let size = output
+                    .current_mode()
+                    .map(|m| m.size)
+                    .unwrap_or_default();
+                match crate::hdr_encode::encode_output_stack(
+                    &mut self.hdr_encode,
+                    renderer,
+                    &elements,
+                    size,
+                    scale,
+                ) {
+                    Some(pq) => {
+                        (
+                            vec![OutputStack::HdrEncode(pq)],
+                            crate::hdr_encode::HDR_CLEAR,
+                        )
+                    }
+                    None => (elements, CLEAR_COLOR),
+                }
+            } else {
+                (elements, CLEAR_COLOR)
+            };
+
             let Some(surface) = self.udev.as_mut().and_then(|udev| udev.surface_mut(id)) else {
                 return;
             };
             match surface.drm_output.render_frame(
                 renderer,
-                &elements,
-                CLEAR_COLOR,
+                &frame_elements,
+                clear,
                 FrameFlags::DEFAULT,
             ) {
                 Ok(res) => {
@@ -1572,8 +1613,9 @@ impl MetisState {
                         surface.pending = true;
                     }
                 }
-                // A VT switch resets the CRTC gamma ramp; re-upload calibration.
+                // A VT switch resets CRTC gamma and connector HDR blobs; re-apply.
                 crate::output_gamma::apply_output_gamma(self);
+                crate::output_hdr::reapply_output_hdrs(self);
                 self.damaged = true;
                 self.drm_dispatch_damage();
             }

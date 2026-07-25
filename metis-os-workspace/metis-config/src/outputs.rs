@@ -39,8 +39,12 @@ pub struct OutputPrefs {
     /// supports it.
     #[serde(default)]
     pub vrr_enabled: bool,
-    /// Optional ICC colour profile path (`.icc` / `.icm`). Saved for compositor
-    /// colour pipeline; `wp_color_management` apply is follow-up work.
+    /// HDR output signaling (DRM Colorspace + HDR_OUTPUT_METADATA) when the
+    /// connector advertises HDR capability. Compositor PQ encode is follow-up.
+    #[serde(default)]
+    pub hdr_enabled: bool,
+    /// Optional ICC colour profile path (`.icc` / `.icm`). Stage 1 applies the
+    /// profile's `vcgt` calibration to the CRTC gamma ramp.
     #[serde(default)]
     pub color_profile: Option<String>,
     /// Night-light warm shift enabled on this output (Phase 5 precursor).
@@ -67,6 +71,7 @@ impl Default for OutputPrefs {
             mode_height: None,
             mode_refresh_millihz: None,
             vrr_enabled: false,
+            hdr_enabled: false,
             color_profile: None,
             night_light: false,
         }

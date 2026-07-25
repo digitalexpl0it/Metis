@@ -252,6 +252,7 @@ pub struct MetisState {
 
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
+    pub hdr_encode: crate::hdr_encode::HdrEncodeRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
     pub decoration_overrides: crate::decoration_overrides::DecorationsRuntime,
     pub input_runtime: crate::device_input::InputRuntime,
@@ -891,6 +892,7 @@ impl MetisState {
             snap_preview: None,
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
+            hdr_encode: crate::hdr_encode::HdrEncodeRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
             decoration_overrides: crate::decoration_overrides::DecorationsRuntime::load(),
             input_runtime: crate::device_input::InputRuntime::new(),
