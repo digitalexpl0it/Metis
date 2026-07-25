@@ -70,6 +70,21 @@ fn owned_string(value: &str) -> OwnedValue {
     })
 }
 
+/// Spec: `org.freedesktop.appearance` `color-scheme` is type `u` (uint32).
+/// ashpd's `OwnedValue::from(ColorScheme)` serializes the integer literal as
+/// signed `i`, which breaks Chromium/Electron (`PopVariantOfUint32` fails —
+/// GitHub Desktop logs dark_mode_manager_linux.cc "Failed to read color-scheme").
+fn owned_color_scheme(scheme: ColorScheme) -> OwnedValue {
+    let value: u32 = match scheme {
+        ColorScheme::PreferDark => 1,
+        ColorScheme::PreferLight => 2,
+        ColorScheme::NoPreference => 0,
+    };
+    Value::from(value)
+        .try_into()
+        .unwrap_or_else(|_| OwnedValue::from(value))
+}
+
 fn namespace_allowed(namespaces: &[String], ns: &str) -> bool {
     namespaces.is_empty() || namespaces.iter().any(|n| n == ns)
 }
@@ -78,7 +93,7 @@ fn appearance_namespace(snapshot: &Snapshot) -> Namespace {
     let mut map = HashMap::new();
     map.insert(
         COLOR_SCHEME_KEY.to_owned(),
-        OwnedValue::from(snapshot.color_scheme),
+        owned_color_scheme(snapshot.color_scheme),
     );
     map
 }
@@ -107,7 +122,7 @@ fn wm_namespace() -> Namespace {
 
 fn read_key(snapshot: &Snapshot, namespace: &str, key: &str) -> Result<OwnedValue, PortalError> {
     match (namespace, key) {
-        (APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY) => Ok(OwnedValue::from(snapshot.color_scheme)),
+        (APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY) => Ok(owned_color_scheme(snapshot.color_scheme)),
         (NS_WM, KEY_BUTTON_LAYOUT) => Ok(owned_string(SESSION_WM_BUTTON_LAYOUT)),
         (NS_INTERFACE, KEY_DECO_LAYOUT) => Ok(owned_string(SESSION_GTK_DECORATION_LAYOUT)),
         (NS_INTERFACE, KEY_GTK_THEME) => Ok(owned_string(&snapshot.gtk_theme)),
@@ -133,7 +148,17 @@ async fn emit_appearance(snapshot: &Snapshot) {
         return;
     };
     if let Err(err) = emitter
-        .emit_color_scheme_changed(snapshot.color_scheme)
+        .emit_changed(
+            APPEARANCE_NAMESPACE,
+            COLOR_SCHEME_KEY,
+            // Must be `u`, not ashpd's ColorScheme→`i` conversion (Chromium
+            // DarkModeManagerLinux requires uint32).
+            Value::from(match snapshot.color_scheme {
+                ColorScheme::PreferDark => 1u32,
+                ColorScheme::PreferLight => 2u32,
+                ColorScheme::NoPreference => 0u32,
+            }),
+        )
         .await
     {
         tracing::warn!(%err, "portal: emit color-scheme failed");
