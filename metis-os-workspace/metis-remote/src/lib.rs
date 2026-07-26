@@ -35,6 +35,9 @@ pub struct RemoteStatus {
     /// `nft`, `ufw`, or empty.
     #[serde(default)]
     pub firewall_backend: String,
+    /// Last firewall apply/clear detail (shown under Security, not as a share error).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub firewall_detail: Option<String>,
     pub error: Option<String>,
 }
 
@@ -57,21 +60,25 @@ pub fn status() -> RemoteStatus {
     if snap.addresses.is_empty() {
         snap.addresses = lan_addresses();
     }
-    if snap.config_enabled
-        && snap.lan_only
-        && !snap.firewall_applied
-        && snap.error.is_none()
-    {
-        snap.error = Some(
-            "LAN-only firewall is not applied — RDP may be reachable beyond the LAN \
-             (install nftables or ufw, or approve the pkexec prompt)"
-                .into(),
-        );
+    if snap.config_enabled && snap.lan_only && !snap.firewall_applied {
+        snap.firewall_detail = cfg.firewall_last_error.clone().or_else(|| {
+            Some(
+                "LAN-only firewall is not applied yet — RDP may be reachable beyond your LAN. \
+                 Turning LAN only on (while sharing) applies rules automatically; \
+                 a PolicyKit password dialog may appear. Or use Retry under Security."
+                    .into(),
+            )
+        });
+    } else {
+        snap.firewall_detail = cfg.firewall_last_error.clone();
     }
     snap
 }
 
 /// Enable sharing per `remote.json` (starts headless daemon + RDP).
+///
+/// Returns once RDP is up and config is saved. LAN firewall apply (pkexec) runs
+/// in the background so Settings never sticks on "Starting…" waiting for admin.
 pub fn enable() -> Result<(), String> {
     let mut cfg = load_remote_config();
     if !gnome_rdp::grdctl_available() {
@@ -87,27 +94,63 @@ pub fn enable() -> Result<(), String> {
     enable_sharing()?;
     cfg.enabled = true;
     save_remote_config(&cfg).map_err(|e| e.to_string())?;
-    if cfg.lan_only {
-        if let Err(err) = firewall::apply() {
-            // Keep sharing on; Settings toggle stays enabled. `status()` surfaces
-            // `firewall_applied: false` so the UI can warn honestly.
-            tracing::warn!(%err, "LAN-only firewall apply failed — RDP may be reachable beyond the LAN");
-        }
-    } else {
-        let _ = firewall::clear();
-    }
+
+    let lan_only = cfg.lan_only;
+    std::thread::Builder::new()
+        .name("metis-remote-fw-enable".into())
+        .spawn(move || {
+            if lan_only {
+                if let Err(err) = firewall::apply() {
+                    tracing::warn!(%err, "LAN-only firewall apply failed — RDP may be reachable beyond the LAN");
+                }
+            } else if let Err(err) = firewall::clear() {
+                tracing::warn!(%err, "firewall clear on enable(lan_only=false) failed");
+            }
+        })
+        .ok();
     Ok(())
 }
 
-/// Disable RDP and stop the headless daemon; clears `enabled` in config.
+/// Disable RDP and clear `enabled` in config.
+///
+/// Returns as soon as RDP listen is off and config is saved so Settings can
+/// update immediately. Stopping the daemon and clearing firewall rules runs
+/// in the background (firewall clear may need pkexec).
 pub fn disable() -> Result<(), String> {
     let mut cfg = load_remote_config();
+    // Instant: stop accepting connections before anything else.
     if gnome_rdp::grdctl_available() {
-        disable_sharing()?;
+        let _ = pause_sharing();
     }
-    let _ = firewall::clear();
     cfg.enabled = false;
     save_remote_config(&cfg).map_err(|e| e.to_string())?;
+
+    std::thread::Builder::new()
+        .name("metis-remote-disable".into())
+        .spawn(|| {
+            if gnome_rdp::grdctl_available() {
+                if let Err(err) = disable_sharing() {
+                    tracing::warn!(%err, "background disable_sharing failed");
+                }
+            }
+            match firewall::status() {
+                fw if fw.applied => {
+                    if let Err(err) = firewall::clear() {
+                        tracing::warn!(%err, "firewall clear after disable failed");
+                    }
+                }
+                _ => {
+                    // Ensure persisted flag is cleared even if live probe was stale.
+                    let mut cfg = load_remote_config();
+                    if cfg.firewall_applied {
+                        cfg.firewall_applied = false;
+                        cfg.firewall_backend.clear();
+                        let _ = save_remote_config(&cfg);
+                    }
+                }
+            }
+        })
+        .map_err(|e| format!("spawn disable cleanup: {e}"))?;
     Ok(())
 }
 
@@ -137,19 +180,34 @@ pub fn resume() -> Result<(), String> {
 }
 
 /// Persist and optionally re-apply LAN-only firewall when sharing is active.
+///
+/// Config is saved immediately; pkexec firewall work runs in the background so
+/// the Settings toggle never hangs.
 pub fn set_lan_only(lan_only: bool) -> Result<(), String> {
+    if lan_only {
+        // Fail fast (no pkexec) when nothing can enforce rules.
+        firewall::enforceable_backend()?;
+    }
     let mut cfg = load_remote_config();
     cfg.lan_only = lan_only;
     save_remote_config(&cfg).map_err(|e| e.to_string())?;
-    if cfg.enabled {
-        if lan_only {
-            firewall::apply().map(|_| ())?;
-        } else {
-            firewall::clear().map(|_| ())?;
-        }
-    } else if !lan_only {
-        let _ = firewall::clear();
-    }
+    let sharing_on = cfg.enabled;
+    std::thread::Builder::new()
+        .name("metis-remote-fw-lan".into())
+        .spawn(move || {
+            if sharing_on {
+                if lan_only {
+                    if let Err(err) = firewall::apply() {
+                        tracing::warn!(%err, "LAN-only firewall apply failed");
+                    }
+                } else if let Err(err) = firewall::clear() {
+                    tracing::warn!(%err, "LAN-only firewall clear failed");
+                }
+            } else if !lan_only {
+                let _ = firewall::clear();
+            }
+        })
+        .ok();
     Ok(())
 }
 

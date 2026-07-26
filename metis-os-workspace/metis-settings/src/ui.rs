@@ -363,12 +363,35 @@ pub fn swallow_empty_backspace(entry: &gtk::Entry) {
 
 /// Run `action` on the next main-loop idle turn so GTK can paint the switch
 /// state before any file I/O or IPC in the handler.
+///
+/// **Important:** If you suppress programmatic `set_active` with a flag (e.g.
+/// `toggling`), check that flag with [`defer_switch_active_notify_when`] — a
+/// check *inside* `action` runs too late (after the idle turn), so a status
+/// poll can re-fire enable/disable after the user toggled.
 pub fn defer_switch_active_notify<F>(sw: &gtk::Switch, action: F) -> glib::SignalHandlerId
 where
     F: Fn(bool) + 'static,
 {
+    defer_switch_active_notify_when(sw, || true, action)
+}
+
+/// Like [`defer_switch_active_notify`], but only schedules `action` when
+/// `allow()` is true **at notify time** (before the idle defer).
+pub fn defer_switch_active_notify_when<P, F>(
+    sw: &gtk::Switch,
+    allow: P,
+    action: F,
+) -> glib::SignalHandlerId
+where
+    P: Fn() -> bool + 'static,
+    F: Fn(bool) + 'static,
+{
     let action = std::rc::Rc::new(action);
+    let allow = std::rc::Rc::new(allow);
     sw.connect_active_notify(move |switch| {
+        if !allow() {
+            return;
+        }
         let active = switch.is_active();
         let action = action.clone();
         glib::idle_add_local_once(move || action(active));

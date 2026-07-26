@@ -3,6 +3,8 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use gio::prelude::*;
+use gtk::prelude::*;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -33,6 +35,8 @@ pub struct RemoteSnapshot {
     pub firewall_applied: bool,
     #[serde(default)]
     pub firewall_backend: String,
+    #[serde(default)]
+    pub firewall_detail: Option<String>,
     pub error: Option<String>,
 }
 
@@ -52,6 +56,7 @@ impl Default for RemoteSnapshot {
             lan_only: true,
             firewall_applied: false,
             firewall_backend: String::new(),
+            firewall_detail: None,
             error: None,
         }
     }
@@ -147,6 +152,11 @@ pub fn set_lan_only(lan_only: bool) -> Result<(), String> {
     run_remote(&["set-lan-only", flag]).map(|_| ())
 }
 
+/// Apply LAN-only firewall rules (may show a PolicyKit password dialog).
+pub fn apply_firewall() -> Result<(), String> {
+    run_remote(&["firewall", "apply"]).map(|_| ())
+}
+
 /// Set RDP credentials. Password is piped on stdin — never placed on argv.
 pub fn set_credentials(username: &str, password: &str) -> Result<(), String> {
     let bin = metis_remote_bin();
@@ -200,4 +210,37 @@ pub fn connection_hint(snap: &RemoteSnapshot) -> String {
         .cloned()
         .unwrap_or_else(|| snap.hostname.clone());
     format!("{}:{}", host, snap.port)
+}
+
+/// Desktop notification for sharing state changes.
+///
+/// Uses `notify-send` so Metis's `org.freedesktop.Notifications` daemon (Notification
+/// Center) receives the message. GTK `Application::send_notification` alone often
+/// never reaches the shell's NC.
+pub fn notify_sharing(title: &str, body: &str) {
+    let sent = Command::new("notify-send")
+        .args([
+            "-a",
+            "Metis",
+            "-u",
+            "normal",
+            "--hint=string:desktop-entry:metis-settings",
+            title,
+            body,
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if sent {
+        return;
+    }
+    // Fallback when notify-send is missing.
+    let app = gtk::Application::default();
+    let note = gio::Notification::new(title);
+    note.set_body(Some(body));
+    note.set_priority(gio::NotificationPriority::Normal);
+    app.send_notification(Some("metis-remote-sharing"), &note);
 }

@@ -3,8 +3,15 @@
 //! When `remote.json` has `lan_only: true`, Metis applies an idempotent nftables
 //! (preferred) or ufw rule set that accepts TCP 3389 only from private /
 //! loopback / link-local ranges and drops other inbound traffic to that port.
+//!
+//! Unprivileged `nft list` / `ufw status` often cannot see rules (permission
+//! denied). After a successful apply/clear we therefore persist
+//! `firewall_applied` in `remote.json` so Settings status stays honest.
 
+use std::path::Path;
 use std::process::{Command, Output};
+
+use metis_config::{load_remote_config, save_remote_config};
 
 const NFT_TABLE: &str = "metis_rdp";
 const UFW_COMMENT: &str = "metis-rdp-lan-only";
@@ -46,49 +53,173 @@ fn is_root() -> bool {
         .unwrap_or(false)
 }
 
-fn nft_available() -> bool {
+fn resolve_bin(name: &str) -> Option<String> {
+    for dir in ["/usr/sbin", "/sbin", "/usr/bin", "/bin"] {
+        let candidate = format!("{dir}/{name}");
+        if Path::new(&candidate).is_file() {
+            return Some(candidate);
+        }
+    }
     Command::new("sh")
-        .args(["-c", "command -v nft >/dev/null 2>&1"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .args(["-c", &format!("command -v {name} 2>/dev/null")])
+        .output()
+        .ok()
+        .and_then(|o| {
+            if !o.status.success() {
+                return None;
+            }
+            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if path.is_empty() {
+                None
+            } else {
+                Some(path)
+            }
+        })
+}
+
+fn nft_bin() -> Option<String> {
+    resolve_bin("nft")
+}
+
+fn ufw_bin() -> Option<String> {
+    resolve_bin("ufw")
+}
+
+fn nft_available() -> bool {
+    nft_bin().is_some()
 }
 
 fn ufw_available() -> bool {
-    Command::new("sh")
-        .args(["-c", "command -v ufw >/dev/null 2>&1"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    ufw_bin().is_some()
+}
+
+/// `ufw status` reports "Status: active" only when the firewall is enabled.
+fn ufw_is_active() -> bool {
+    let Some(ufw) = ufw_bin() else {
+        return false;
+    };
+    let Ok(output) = run(&ufw, &["status"]) else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&output.stdout).to_lowercase();
+    text.contains("status: active")
 }
 
 fn nft_table_present() -> bool {
-    run("nft", &["list", "table", "inet", NFT_TABLE])
+    let Some(nft) = nft_bin() else {
+        return false;
+    };
+    run(&nft, &["list", "table", "inet", NFT_TABLE])
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
 
 fn ufw_rules_present() -> bool {
-    let Ok(output) = run("ufw", &["status", "numbered"]) else {
+    let Some(ufw) = ufw_bin() else {
+        return false;
+    };
+    let Ok(output) = run(&ufw, &["status", "numbered"]) else {
         return false;
     };
     let text = String::from_utf8_lossy(&output.stdout);
     text.contains(UFW_COMMENT)
 }
 
-/// Report whether LAN-only rules appear active.
-pub fn status() -> FirewallStatus {
+fn persist(applied: bool, backend: &str) {
+    let mut cfg = load_remote_config();
+    cfg.firewall_applied = applied;
+    cfg.firewall_backend = if applied {
+        backend.to_string()
+    } else {
+        String::new()
+    };
+    if applied {
+        cfg.firewall_last_error = None;
+    }
+    if let Err(err) = save_remote_config(&cfg) {
+        tracing::warn!(%err, "failed to persist firewall_applied in remote.json");
+    }
+}
+
+fn persist_error(err: &str) {
+    let mut cfg = load_remote_config();
+    cfg.firewall_applied = false;
+    cfg.firewall_backend.clear();
+    cfg.firewall_last_error = Some(err.to_string());
+    if let Err(e) = save_remote_config(&cfg) {
+        tracing::warn!(%e, "failed to persist firewall_last_error");
+    }
+}
+
+fn preferred_backend_label() -> String {
+    if nft_available() {
+        "nft".into()
+    } else if ufw_available() && ufw_is_active() {
+        "ufw".into()
+    } else {
+        String::new()
+    }
+}
+
+/// Which backend we can use to enforce LAN-only rules (no pkexec).
+pub fn enforceable_backend() -> Result<&'static str, String> {
+    if nft_available() {
+        return Ok("nft");
+    }
+    if ufw_available() {
+        if ufw_is_active() {
+            return Ok("ufw");
+        }
+        return Err(
+            "ufw is installed but inactive — run `sudo ufw enable`, or install nftables \
+             (`sudo apt install nftables`) so Metis can restrict RDP to the LAN"
+                .into(),
+        );
+    }
+    Err(
+        "Neither nftables (`nft`) nor an active ufw is available — install nftables \
+         (recommended) or enable ufw to enforce LAN-only RDP"
+            .into(),
+    )
+}
+
+/// Live probe only — may return false negatives when not root.
+fn probe_live() -> Option<FirewallStatus> {
     if nft_available() && nft_table_present() {
-        return FirewallStatus {
+        return Some(FirewallStatus {
             applied: true,
             backend: "nft".into(),
             detail: None,
-        };
+        });
     }
-    if ufw_available() && ufw_rules_present() {
-        return FirewallStatus {
+    // Only treat ufw rules as live if ufw itself is active.
+    if ufw_available() && ufw_is_active() && ufw_rules_present() {
+        return Some(FirewallStatus {
             applied: true,
             backend: "ufw".into(),
+            detail: None,
+        });
+    }
+    None
+}
+
+/// Report whether LAN-only rules appear active (live probe, else persisted).
+pub fn status() -> FirewallStatus {
+    if let Some(live) = probe_live() {
+        // Keep remote.json in sync when we can see rules.
+        persist(true, &live.backend);
+        return live;
+    }
+    let cfg = load_remote_config();
+    if cfg.firewall_applied {
+        let backend = if cfg.firewall_backend.is_empty() {
+            preferred_backend_label()
+        } else {
+            cfg.firewall_backend
+        };
+        return FirewallStatus {
+            applied: true,
+            backend,
             detail: None,
         };
     }
@@ -101,20 +232,87 @@ pub fn status() -> FirewallStatus {
 
 /// Apply LAN-only rules. Escalates via `pkexec` when not root.
 pub fn apply() -> Result<FirewallStatus, String> {
-    if is_root() {
-        return apply_as_root();
+    // Idempotent fast path: already applied — skip another pkexec round-trip.
+    let current = status();
+    if current.applied {
+        return Ok(current);
     }
-    escalate(&["firewall", "apply-as-root"])?;
-    Ok(status())
+    // Clear a stale failure so Settings shows "Applying…" instead of the old error.
+    {
+        let mut cfg = load_remote_config();
+        if cfg.firewall_last_error.take().is_some() {
+            let _ = save_remote_config(&cfg);
+        }
+    }
+    let backend = match enforceable_backend() {
+        Ok(b) => b,
+        Err(err) => {
+            persist_error(&err);
+            return Err(err);
+        }
+    };
+    let result = if is_root() {
+        match apply_as_root() {
+            Ok(s) => s,
+            Err(err) => {
+                persist_error(&err);
+                return Err(err);
+            }
+        }
+    } else {
+        match escalate(&["firewall", "apply-as-root"]) {
+            Ok(()) => FirewallStatus {
+                applied: true,
+                backend: backend.to_string(),
+                detail: None,
+            },
+            Err(err) => {
+                let msg = if err.contains("pkexec") || err.contains("cancelled") || err.contains("denied") {
+                    format!(
+                        "{err}. No password dialog? Metis needs a PolicyKit agent \
+                         (e.g. install `policykit-1-gnome` or `mate-polkit`) in the session, \
+                         or run: pkexec metis-remote firewall apply"
+                    )
+                } else {
+                    err
+                };
+                persist_error(&msg);
+                return Err(msg);
+            }
+        }
+    };
+    if result.applied {
+        persist(true, &result.backend);
+    }
+    Ok(result)
 }
 
 /// Clear LAN-only rules. Escalates via `pkexec` when not root.
+///
+/// No-ops (no pkexec) when Metis rules are not present — otherwise disable
+/// would hang on a PolicyKit prompt even when there is nothing to clear.
 pub fn clear() -> Result<FirewallStatus, String> {
-    if is_root() {
-        return clear_as_root();
+    let current = status();
+    if !current.applied {
+        persist(false, "");
+        return Ok(FirewallStatus {
+            applied: false,
+            backend: String::new(),
+            detail: current.detail,
+        });
     }
-    escalate(&["firewall", "clear-as-root"])?;
-    Ok(status())
+    let result = if is_root() {
+        clear_as_root()?
+    } else {
+        escalate(&["firewall", "clear-as-root"])?;
+        FirewallStatus {
+            applied: false,
+            backend: String::new(),
+            detail: None,
+        }
+    };
+    persist(false, "");
+    Ok(result)
 }
 
 /// Privileged entry used under `pkexec` / already-root.
@@ -122,6 +320,7 @@ pub fn apply_as_root() -> Result<FirewallStatus, String> {
     if !is_root() {
         return Err("firewall apply-as-root requires root".into());
     }
+    // Prefer nftables — works without requiring a separately enabled ufw service.
     if nft_available() {
         apply_nft()?;
         return Ok(FirewallStatus {
@@ -131,6 +330,13 @@ pub fn apply_as_root() -> Result<FirewallStatus, String> {
         });
     }
     if ufw_available() {
+        if !ufw_is_active() {
+            return Err(
+                "ufw is installed but inactive — run `sudo ufw enable`, or install nftables \
+                 (`sudo apt install nftables`)"
+                    .into(),
+            );
+        }
         apply_ufw()?;
         return Ok(FirewallStatus {
             applied: true,
@@ -139,7 +345,8 @@ pub fn apply_as_root() -> Result<FirewallStatus, String> {
         });
     }
     Err(
-        "Neither nftables (`nft`) nor ufw is available — install one to enforce LAN-only RDP"
+        "Neither nftables (`nft`) nor an active ufw is available — install nftables \
+         (recommended) or enable ufw to enforce LAN-only RDP"
             .into(),
     )
 }
@@ -150,9 +357,15 @@ pub fn clear_as_root() -> Result<FirewallStatus, String> {
         return Err("firewall clear-as-root requires root".into());
     }
     let mut cleared = false;
-    if nft_available() && nft_table_present() {
-        clear_nft()?;
-        cleared = true;
+    // Always attempt clear when invoked as root — live probe may fail mid-clear.
+    if nft_available() {
+        if nft_table_present() {
+            clear_nft()?;
+            cleared = true;
+        } else {
+            // Table may exist but be unlistable inconsistently — try delete anyway.
+            let _ = clear_nft();
+        }
     }
     if ufw_available() && ufw_rules_present() {
         clear_ufw()?;
@@ -171,17 +384,31 @@ pub fn clear_as_root() -> Result<FirewallStatus, String> {
 
 fn escalate(args: &[&str]) -> Result<(), String> {
     let bin = std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
-    let output = Command::new("pkexec")
+    // Bound wait: without a PolicyKit agent, bare `pkexec` can hang forever and
+    // leave Settings stuck on "Applying…". Always wrap with `timeout`.
+    let output = Command::new("timeout")
+        .args(["--signal=TERM", "--kill-after=5s", "45s"])
+        .arg("pkexec")
         .arg(&bin)
         .args(args)
         .output()
         .map_err(|e| {
             format!(
-                "pkexec failed ({e}) — install policykit-1 or run as root to apply LAN-only firewall rules"
+                "failed to run timeout/pkexec ({e}) — install coreutils + policykit-1, \
+                 or run as root to apply LAN-only firewall rules"
             )
         })?;
     if output.status.success() {
         return Ok(());
+    }
+    let code = output.status.code();
+    if code == Some(124) || code == Some(137) {
+        return Err(
+            "Timed out waiting for admin approval. Install a PolicyKit agent \
+             (e.g. `policykit-1-gnome`) so a password dialog can appear, then use \
+             Retry under Security — or run: pkexec metis-remote firewall apply"
+                .into(),
+        );
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -191,33 +418,32 @@ fn escalate(args: &[&str]) -> Result<(), String> {
         stdout.trim().to_string()
     };
     Err(if detail.is_empty() {
-        "pkexec firewall helper failed (permission denied or cancelled)".into()
+        "Admin approval failed or was cancelled (no password dialog usually means \
+         no PolicyKit agent is running in this session)"
+            .into()
     } else {
         detail
     })
 }
 
 fn apply_nft() -> Result<(), String> {
+    let nft = nft_bin().ok_or_else(|| "nft not found".to_string())?;
     // Replace any previous table so re-apply is idempotent.
-    let _ = run("nft", &["delete", "table", "inet", NFT_TABLE]);
+    let _ = run(&nft, &["delete", "table", "inet", NFT_TABLE]);
 
     let mut script = String::from("table inet metis_rdp {\n");
     script.push_str("  chain input {\n");
     script.push_str("    type filter hook input priority filter; policy accept;\n");
     for cidr in LAN_V4 {
-        script.push_str(&format!(
-            "    tcp dport {PORT} ip saddr {cidr} accept\n"
-        ));
+        script.push_str(&format!("    tcp dport {PORT} ip saddr {cidr} accept\n"));
     }
     for cidr in LAN_V6 {
-        script.push_str(&format!(
-            "    tcp dport {PORT} ip6 saddr {cidr} accept\n"
-        ));
+        script.push_str(&format!("    tcp dport {PORT} ip6 saddr {cidr} accept\n"));
     }
     script.push_str(&format!("    tcp dport {PORT} drop\n"));
     script.push_str("  }\n}\n");
 
-    let status = Command::new("nft")
+    let status = Command::new(&nft)
         .arg("-f")
         .arg("-")
         .stdin(std::process::Stdio::piped())
@@ -243,7 +469,8 @@ fn apply_nft() -> Result<(), String> {
 }
 
 fn clear_nft() -> Result<(), String> {
-    let out = run("nft", &["delete", "table", "inet", NFT_TABLE])?;
+    let nft = nft_bin().ok_or_else(|| "nft not found".to_string())?;
+    let out = run(&nft, &["delete", "table", "inet", NFT_TABLE])?;
     if out.status.success()
         || String::from_utf8_lossy(&out.stderr).contains("No such file")
         || String::from_utf8_lossy(&out.stderr).contains("does not exist")
@@ -258,11 +485,11 @@ fn clear_nft() -> Result<(), String> {
 }
 
 fn apply_ufw() -> Result<(), String> {
-    // Ensure previous Metis rules are gone so re-apply stays idempotent.
+    let ufw = ufw_bin().ok_or_else(|| "ufw not found".to_string())?;
     let _ = clear_ufw();
     for cidr in LAN_V4 {
         let out = run(
-            "ufw",
+            &ufw,
             &[
                 "allow",
                 "from",
@@ -286,7 +513,7 @@ fn apply_ufw() -> Result<(), String> {
     }
     for cidr in LAN_V6 {
         let out = run(
-            "ufw",
+            &ufw,
             &[
                 "allow",
                 "from",
@@ -308,9 +535,8 @@ fn apply_ufw() -> Result<(), String> {
             ));
         }
     }
-    // Deny other inbound 3389 (after allows).
     let out = run(
-        "ufw",
+        &ufw,
         &[
             "deny",
             "in",
@@ -334,9 +560,11 @@ fn apply_ufw() -> Result<(), String> {
 }
 
 fn clear_ufw() -> Result<(), String> {
-    // Delete by matching comment repeatedly until gone (ufw renumbers).
+    let Some(ufw) = ufw_bin() else {
+        return Ok(());
+    };
     for _ in 0..32 {
-        let Ok(output) = run("ufw", &["status", "numbered"]) else {
+        let Ok(output) = run(&ufw, &["status", "numbered"]) else {
             break;
         };
         let text = String::from_utf8_lossy(&output.stdout);
@@ -353,7 +581,7 @@ fn clear_ufw() -> Result<(), String> {
         };
         let _ = Command::new("sh")
             .arg("-c")
-            .arg(format!("yes | ufw delete {num}"))
+            .arg(format!("yes | {ufw} delete {num}"))
             .output();
     }
     Ok(())

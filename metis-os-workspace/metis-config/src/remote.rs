@@ -27,6 +27,16 @@ pub struct RemoteConfig {
     /// accepts only private / loopback / link-local sources.
     #[serde(default = "default_true")]
     pub lan_only: bool,
+    /// Last successful Metis LAN-only firewall apply. Needed because unprivileged
+    /// `nft list` / `ufw status` often cannot see rules even when they exist.
+    #[serde(default)]
+    pub firewall_applied: bool,
+    /// `nft`, `ufw`, or empty — backend used for the last successful apply.
+    #[serde(default)]
+    pub firewall_backend: String,
+    /// Last firewall apply/clear failure (cleared on success). Shown in Settings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub firewall_last_error: Option<String>,
 }
 
 fn default_auto_start() -> bool {
@@ -44,6 +54,9 @@ impl Default for RemoteConfig {
             backend: RemoteBackend::default(),
             auto_start: default_auto_start(),
             lan_only: default_true(),
+            firewall_applied: false,
+            firewall_backend: String::new(),
+            firewall_last_error: None,
         }
     }
 }

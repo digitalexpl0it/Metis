@@ -498,6 +498,22 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-section-body > label.metis-settings-hint {{
             padding: 4px 16px 10px;
         }}
+        .metis-settings-section-body > label.metis-settings-error {{
+            padding: 10px 16px 8px;
+            margin: 0;
+        }}
+        .metis-settings-banner {{
+            margin: 0 16px 12px;
+            padding: 12px 14px;
+            border-radius: {rs}px;
+            background-color: color-mix(in srgb, {raised} 85%, transparent);
+            border: 1px solid color-mix(in srgb, {border} 70%, transparent);
+        }}
+        label.metis-settings-error {{
+            color: {error};
+            font-size: 13px;
+            font-weight: 500;
+        }}
         .metis-settings-actions {{
             padding: 4px 16px 14px;
             gap: 8px;

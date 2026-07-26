@@ -112,6 +112,7 @@ pub fn status_snapshot() -> RemoteStatus {
             lan_only: true,
             firewall_applied: false,
             firewall_backend: String::new(),
+            firewall_detail: None,
             error: Some(
                 "Install gnome-remote-desktop (Ubuntu: sudo apt install gnome-remote-desktop)"
                     .into(),
@@ -149,6 +150,7 @@ pub fn status_snapshot() -> RemoteStatus {
         lan_only: true,
         firewall_applied: false,
         firewall_backend: String::new(),
+        firewall_detail: None,
         error,
     }
 }
