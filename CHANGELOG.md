@@ -9,6 +9,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Security
 
+- **cargo audit CI** — bump `crossbeam-epoch` 0.9.20, `quinn-proto` 0.11.15,
+  `quick-xml` 0.41 (direct + via `wayland-scanner` 0.31.11) to clear
+  RUSTSEC-2026-0204 / 0194 / 0195 / 0185.
 - **Phase 15 — Security hardening** — `cargo audit` in release + PR CI;
   `overflow-checks` + `panic = "abort"` on release profiles; argv-only Launch
   (no `sh -lc`); Metis Polkit policies + `metis-remote pk-apt-install` /
