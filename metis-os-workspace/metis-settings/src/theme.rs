@@ -59,15 +59,41 @@ pub fn install() {
 /// the theme mode or any colour so the settings window (and its titlebar) update
 /// live — mirroring the shell's own live theme reload.
 pub fn reapply() {
+    // Keep session gsettings / portal FileChooser in sync with on-disk Appearance.
+    metis_config::sync_session_appearance_from_config();
+    reapply_tokens(&active_tokens(), active_mode_is_dark());
+}
+
+/// Apply a specific mode's tokens even when `config.json` could not be saved
+/// (e.g. root-owned file). Keeps Settings looking correct while surfacing the
+/// save error; other apps still need a successful save.
+pub fn reapply_for_mode(mode: ThemeMode) {
+    let name = match mode {
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+        ThemeMode::System => {
+            if prefers_dark() {
+                "dark"
+            } else {
+                "light"
+            }
+        }
+    };
+    let tokens = metis_config::load_theme_tokens(name);
+    let dark = matches!(mode, ThemeMode::Dark)
+        || (matches!(mode, ThemeMode::System) && prefers_dark());
+    reapply_tokens(&tokens, dark);
+}
+
+fn reapply_tokens(tokens: &ThemeTokens, dark: bool) {
     // Flip GTK's built-in Adwaita variant so default widget chrome (dropdowns,
     // popovers, scales, switches, scrollbars) switches light/dark too — our CSS
     // only restyles our own classes, not GTK's internal widget nodes.
     if let Some(settings) = gtk::Settings::default() {
-        settings.set_gtk_application_prefer_dark_theme(active_mode_is_dark());
+        settings.set_gtk_application_prefer_dark_theme(dark);
     }
     // Keep session gsettings / portal FileChooser in sync with Appearance.
-    metis_config::sync_session_appearance_from_config();
-    let tokens = active_tokens();
+    // Caller is responsible for which mode was chosen (may differ from disk).
     PROVIDERS.with(|p| {
         if let Some((base, extra)) = p.borrow().as_ref() {
             // The shared stylesheet sets `window { background-color: transparent }`
@@ -76,7 +102,7 @@ pub fn reapply() {
             // solid, wallpaper bleeds through and every scroll frame re-composites the
             // desktop (hitch / "pause then catch up"). Append opaque override LAST in
             // the *same* provider; dialog sheets re-assert transparent in settings_css.
-            let mut css = metis_config::build_stylesheet(&tokens);
+            let mut css = metis_config::build_stylesheet(tokens);
             css.push_str(&format!(
                 "\nwindow, window.background {{ background-color: {} !important; }}\n\
                  window.metis-settings-password-dialog,\n\
@@ -86,7 +112,7 @@ pub fn reapply() {
                 tokens.bg
             ));
             base.load_from_data(&css);
-            extra.load_from_data(&settings_css(&tokens));
+            extra.load_from_data(&settings_css(tokens));
         }
     });
 }

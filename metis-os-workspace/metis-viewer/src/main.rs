@@ -1,6 +1,7 @@
 //! Metis Viewer — GTK4 RDP connect UI over FreeRDP (host remains GRD).
 
 mod freerdp;
+mod theme;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,7 +25,22 @@ fn main() {
         )
         .init();
 
+    // Running as root makes ~/.config/metis root-owned and breaks Appearance saves
+    // for the real user — Viewer then forever reads a stale "dark" preference.
+    if effective_uid() == 0 {
+        eprintln!(
+            "metis-viewer: refuse to run as root.\n\
+             Launch as your normal user (not sudo), e.g. metis-viewer\n\
+             or Settings → Remote access → Connect with Metis Viewer…"
+        );
+        std::process::exit(1);
+    }
+
     metis_i18n::init();
+
+    // Before GTK init — inherited Adwaita:dark from an older spawn must not
+    // override Appearance → Light.
+    theme::sync_gtk_theme_env();
 
     let prefill = parse_cli();
 
@@ -40,6 +56,27 @@ fn main() {
     // Hand GApplication only argv0 so custom flags are not rejected.
     let argv0: Vec<String> = std::env::args().take(1).collect();
     app.run_with_args(&argv0);
+}
+
+fn effective_uid() -> u32 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("Uid:"))
+                .and_then(|l| l.split_whitespace().nth(2)) // effective uid
+                .and_then(|u| u.parse().ok())
+        })
+        .unwrap_or(0)
+}
+
+fn running_under_metis() -> bool {
+    if std::env::var_os("METIS_SESSION").is_some() {
+        return true;
+    }
+    std::env::var("XDG_CURRENT_DESKTOP")
+        .map(|d| d.to_ascii_lowercase().contains("metis"))
+        .unwrap_or(false)
 }
 
 fn parse_cli() -> CliPrefill {
@@ -72,35 +109,87 @@ fn parse_cli() -> CliPrefill {
 
 fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     if let Some(win) = app.active_window() {
+        // Re-read Appearance in case the user switched Light/Dark while we were open.
+        theme::reapply();
         win.present();
         return;
     }
 
+    theme::install();
+
+    // Under Metis, the compositor draws SSD — never show GTK CSD (double titlebar).
+    let under_metis = running_under_metis();
     let window = gtk::ApplicationWindow::builder()
         .application(app)
-        .title(&tr("Metis Viewer"))
-        .default_width(420)
-        .default_height(480)
+        .title(tr("Metis Viewer"))
+        .default_width(440)
+        .default_height(560)
         .resizable(true)
+        .decorated(!under_metis)
         .build();
+    window.add_css_class("metis-viewer-window");
+    window.set_opacity(1.0);
+    if under_metis {
+        window.add_css_class("metis-viewer-ssd");
+        window.set_decorated(false);
+        window.set_titlebar(gtk::Widget::NONE);
+    }
 
-    let outer = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    outer.set_margin_top(16);
-    outer.set_margin_bottom(16);
-    outer.set_margin_start(16);
-    outer.set_margin_end(16);
+    // Solid root fill — wallpaper must never show through gaps in the widget tree.
+    let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    root.add_css_class("metis-viewer-root");
+    root.set_hexpand(true);
+    root.set_vexpand(true);
+    root.set_opacity(1.0);
 
-    let intro = gtk::Label::new(Some(&tr(
-        "Connect to a Metis (or any) RDP host. Sharing on the host is \
-         Settings → Remote access; this app is the client.",
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 16);
+    page.add_css_class("metis-viewer-page");
+    page.set_margin_top(20);
+    page.set_margin_bottom(24);
+    page.set_margin_start(24);
+    page.set_margin_end(24);
+    page.set_hexpand(true);
+    page.set_vexpand(true);
+
+    // In-content header (Metis SSD already shows the window title).
+    let header = gtk::Box::new(gtk::Orientation::Horizontal, 14);
+    let icon = gtk::Image::from_icon_name("network-workgroup-symbolic");
+    icon.set_pixel_size(36);
+    icon.add_css_class("metis-viewer-header-icon");
+    header.append(&icon);
+    let titles = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    let title = gtk::Label::new(Some(&tr("Remote Desktop")));
+    title.set_xalign(0.0);
+    title.add_css_class("metis-viewer-title");
+    let subtitle = gtk::Label::new(Some(&tr(
+        "Connect to a Metis or RDP host. Sharing is enabled on the host under \
+         Settings → Remote access.",
     )));
-    intro.set_xalign(0.0);
-    intro.set_wrap(true);
-    intro.add_css_class("dim-label");
-    outer.append(&intro);
+    subtitle.set_xalign(0.0);
+    subtitle.set_wrap(true);
+    subtitle.add_css_class("metis-viewer-subtitle");
+    titles.append(&title);
+    titles.append(&subtitle);
+    titles.set_hexpand(true);
+    header.append(&titles);
+    page.append(&header);
+
+    let freerdp = freerdp::resolve_freerdp();
+    if freerdp.is_none() {
+        page.append(&missing_freerdp_banner());
+    }
+
+    // Connection card
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    card.add_css_class("metis-viewer-card");
+    let card_title = gtk::Label::new(Some(&tr("Connection")));
+    card_title.set_xalign(0.0);
+    card_title.add_css_class("metis-viewer-card-title");
+    card.append(&card_title);
 
     let host_entry = gtk::Entry::new();
-    host_entry.set_placeholder_text(Some(&tr("Host or IP")));
+    host_entry.set_placeholder_text(Some(&tr("Hostname or IP")));
+    host_entry.set_hexpand(true);
     if let Some(h) = &prefill.host {
         host_entry.set_text(h);
     }
@@ -109,13 +198,29 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     port_entry.set_placeholder_text(Some("3389"));
     port_entry.set_input_purpose(gtk::InputPurpose::Digits);
     port_entry.set_max_length(5);
-    port_entry.set_width_chars(6);
-    port_entry.set_text(
-        &prefill
-            .port
-            .unwrap_or(3389)
-            .to_string(),
-    );
+    port_entry.set_width_chars(5);
+    port_entry.set_max_width_chars(5);
+    port_entry.set_text(&prefill.port.unwrap_or(3389).to_string());
+
+    // Host + port on one row (port stays narrow).
+    let host_port = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+    host_port.add_css_class("metis-viewer-field");
+    let host_col = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    host_col.set_hexpand(true);
+    let host_lbl = gtk::Label::new(Some(&tr("Host")));
+    host_lbl.set_xalign(0.0);
+    host_lbl.add_css_class("metis-viewer-field-label");
+    host_col.append(&host_lbl);
+    host_col.append(&host_entry);
+    let port_col = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let port_lbl = gtk::Label::new(Some(&tr("Port")));
+    port_lbl.set_xalign(0.0);
+    port_lbl.add_css_class("metis-viewer-field-label");
+    port_col.append(&port_lbl);
+    port_col.append(&port_entry);
+    host_port.append(&host_col);
+    host_port.append(&port_col);
+    card.append(&host_port);
 
     let user_entry = gtk::Entry::new();
     user_entry.set_placeholder_text(Some(&tr("Username")));
@@ -126,67 +231,90 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
             user_entry.set_text(&u);
         }
     }
+    card.append(&field_box(&tr("Username"), &user_entry));
 
     let pass_entry = gtk::PasswordEntry::new();
     pass_entry.set_show_peek_icon(true);
-    pass_entry.set_placeholder_text(Some(&tr("Password (optional — FreeRDP may prompt)")));
-
-    outer.append(&labeled_field(&tr("Host"), &host_entry));
-    outer.append(&labeled_field(&tr("Port"), &port_entry));
-    outer.append(&labeled_field(&tr("Username"), &user_entry));
-    outer.append(&labeled_field(&tr("Password"), pass_entry.upcast_ref::<gtk::Widget>()));
+    pass_entry.set_placeholder_text(Some(&tr("Optional")));
+    card.append(&field_box(&tr("Password"), &pass_entry));
+    let pass_hint = gtk::Label::new(Some(&tr(
+        "Leave blank to let FreeRDP prompt. Passwords are never saved.",
+    )));
+    pass_hint.set_xalign(0.0);
+    pass_hint.set_wrap(true);
+    pass_hint.add_css_class("metis-viewer-hint");
+    card.append(&pass_hint);
+    page.append(&card);
 
     let status = gtk::Label::new(None);
     status.set_xalign(0.0);
     status.set_wrap(true);
-    status.add_css_class("dim-label");
-
-    match freerdp::resolve_freerdp() {
-        Some(bin) => {
-            status.set_text(&format!("{} {}", tr("Using"), bin.display()));
-        }
-        None => {
-            status.set_text(&freerdp::freerdp_install_hint());
-            status.remove_css_class("dim-label");
-            status.add_css_class("error");
-        }
+    status.add_css_class("metis-viewer-status");
+    if let Some(bin) = &freerdp {
+        status.set_text(&format!(
+            "{} {} · {}",
+            tr("Ready —"),
+            bin.display(),
+            theme::effective_theme_name()
+        ));
+        status.add_css_class("metis-viewer-ready");
     }
-    outer.append(&status);
+    page.append(&status);
 
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    actions.add_css_class("metis-viewer-actions");
+    actions.set_halign(gtk::Align::End);
     let connect_btn = gtk::Button::with_label(&tr("Connect"));
     connect_btn.add_css_class("suggested-action");
-    connect_btn.set_halign(gtk::Align::Start);
-    outer.append(&connect_btn);
+    connect_btn.set_sensitive(freerdp.is_some());
+    actions.append(&connect_btn);
+    page.append(&actions);
 
-    let recent_label = gtk::Label::new(Some(&tr("Recent")));
-    recent_label.set_xalign(0.0);
-    recent_label.set_margin_top(8);
-    outer.append(&recent_label);
+    let recent_header = gtk::Label::new(Some(&tr("Recent")));
+    recent_header.set_xalign(0.0);
+    recent_header.add_css_class("metis-viewer-card-title");
+    recent_header.set_margin_top(4);
+    page.append(&recent_header);
 
+    let recent_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    recent_box.add_css_class("metis-viewer-recent");
+    recent_box.set_visible(false);
     let recent_list = gtk::ListBox::new();
     recent_list.set_selection_mode(gtk::SelectionMode::None);
-    recent_list.add_css_class("boxed-list");
-    let recent_scroll = gtk::ScrolledWindow::builder()
-        .vexpand(true)
-        .hexpand(true)
-        .min_content_height(120)
-        .child(&recent_list)
-        .build();
-    outer.append(&recent_scroll);
+    recent_list.set_show_separators(false);
+    recent_box.append(&recent_list);
+    page.append(&recent_box);
+
+    let recent_empty = gtk::Label::new(Some(&tr("No recent hosts yet.")));
+    recent_empty.set_xalign(0.0);
+    recent_empty.add_css_class("metis-viewer-empty");
+    page.append(&recent_empty);
 
     let host_for_btn = host_entry.clone();
     let port_for_btn = port_entry.clone();
     let user_for_btn = user_entry.clone();
     let pass_for_btn = pass_entry.clone();
     let status_for_btn = status.clone();
-    let recent_for_btn = recent_list.clone();
+    let recent_list_ref = recent_list.clone();
+    let recent_box_ref = recent_box.clone();
+    let recent_empty_ref = recent_empty.clone();
     let connect_busy = Rc::new(RefCell::new(false));
+    let connect_btn_ref = connect_btn.clone();
 
-    connect_btn.connect_clicked(move |_| {
+    let do_connect = Rc::new(move || {
         if *connect_busy.borrow() {
             return;
         }
+        if freerdp::resolve_freerdp().is_none() {
+            set_status(
+                &status_for_btn,
+                &freerdp::freerdp_install_hint(),
+                StatusKind::Error,
+            );
+            return;
+        }
         *connect_busy.borrow_mut() = true;
+        connect_btn_ref.set_sensitive(false);
 
         let host = host_for_btn.text().to_string();
         let port_text = port_for_btn.text().to_string();
@@ -195,12 +323,27 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
 
         let port: u16 = match port_text.trim().parse() {
             Ok(0) | Err(_) => {
-                status_for_btn.set_text(&tr("Enter a valid port (1–65535)."));
+                set_status(
+                    &status_for_btn,
+                    &tr("Enter a valid port (1–65535)."),
+                    StatusKind::Error,
+                );
                 *connect_busy.borrow_mut() = false;
+                connect_btn_ref.set_sensitive(true);
                 return;
             }
             Ok(p) => p,
         };
+        if host.trim().is_empty() {
+            set_status(
+                &status_for_btn,
+                &tr("Enter a host name or IP address."),
+                StatusKind::Error,
+            );
+            *connect_busy.borrow_mut() = false;
+            connect_btn_ref.set_sensitive(true);
+            return;
+        }
 
         let req = freerdp::ConnectRequest {
             host: host.clone(),
@@ -215,12 +358,11 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
 
         match freerdp::spawn_freerdp(&req) {
             Ok(bin) => {
-                status_for_btn.set_text(&format!(
-                    "{} {} — {}",
-                    tr("Started"),
-                    bin.display(),
-                    tr("password is never saved")
-                ));
+                set_status(
+                    &status_for_btn,
+                    &format!("{} {}", tr("Connecting with"), bin.display()),
+                    StatusKind::Ok,
+                );
                 let entry = ViewerHost {
                     host: host.trim().to_string(),
                     port,
@@ -229,33 +371,121 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
                 if let Err(e) = remember_host(entry) {
                     tracing::warn!("viewer.json save failed: {e}");
                 }
-                refill_recent(&recent_for_btn, &host_for_btn, &port_for_btn, &user_for_btn);
+                refill_recent(
+                    &recent_list_ref,
+                    &recent_box_ref,
+                    &recent_empty_ref,
+                    &host_for_btn,
+                    &port_for_btn,
+                    &user_for_btn,
+                );
             }
             Err(e) => {
-                status_for_btn.set_text(&e);
+                set_status(&status_for_btn, &e, StatusKind::Error);
             }
         }
         *connect_busy.borrow_mut() = false;
+        connect_btn_ref.set_sensitive(freerdp::resolve_freerdp().is_some());
     });
 
-    refill_recent(&recent_list, &host_entry, &port_entry, &user_entry);
+    let do_connect_click = do_connect.clone();
+    connect_btn.connect_clicked(move |_| {
+        do_connect_click();
+    });
 
-    window.set_child(Some(&outer));
+    // Enter in any field starts connect.
+    for entry in [&host_entry, &port_entry, &user_entry] {
+        let do_connect_key = do_connect.clone();
+        entry.connect_activate(move |_| {
+            do_connect_key();
+        });
+    }
+    {
+        let do_connect_key = do_connect.clone();
+        pass_entry.connect_activate(move |_| {
+            do_connect_key();
+        });
+    }
+
+    refill_recent(
+        &recent_list,
+        &recent_box,
+        &recent_empty,
+        &host_entry,
+        &port_entry,
+        &user_entry,
+    );
+
+    let scroller = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .child(&page)
+        .build();
+    scroller.add_css_class("metis-viewer-page");
+    scroller.set_hexpand(true);
+    scroller.set_vexpand(true);
+    scroller.set_opacity(1.0);
+    root.append(&scroller);
+    window.set_child(Some(&root));
+    window.connect_map(|_| {
+        theme::reapply();
+    });
     window.present();
+    host_entry.grab_focus();
 }
 
-fn labeled_field(title: &str, widget: &impl IsA<gtk::Widget>) -> gtk::Box {
-    let col = gtk::Box::new(gtk::Orientation::Vertical, 4);
-    let label = gtk::Label::new(Some(title));
-    label.set_xalign(0.0);
-    label.add_css_class("caption-heading");
-    col.append(&label);
+fn missing_freerdp_banner() -> gtk::Box {
+    let banner = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    banner.add_css_class("metis-viewer-banner");
+    let title = gtk::Label::new(Some(&tr("FreeRDP is required")));
+    title.set_xalign(0.0);
+    title.add_css_class("metis-viewer-banner-title");
+    let body = gtk::Label::new(Some("sudo apt install freerdp3-wayland"));
+    body.set_xalign(0.0);
+    body.set_selectable(true);
+    body.add_css_class("metis-viewer-banner-body");
+    let alt = gtk::Label::new(Some(&tr("Or install freerdp2-x11 if Wayland FreeRDP is unavailable.")));
+    alt.set_xalign(0.0);
+    alt.set_wrap(true);
+    alt.add_css_class("metis-viewer-subtitle");
+    alt.set_margin_top(6);
+    banner.append(&title);
+    banner.append(&body);
+    banner.append(&alt);
+    banner
+}
+
+fn field_box(label: &str, widget: &impl IsA<gtk::Widget>) -> gtk::Box {
+    let col = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    col.add_css_class("metis-viewer-field");
+    let lbl = gtk::Label::new(Some(label));
+    lbl.set_xalign(0.0);
+    lbl.add_css_class("metis-viewer-field-label");
+    col.append(&lbl);
     col.append(widget);
     col
 }
 
+enum StatusKind {
+    Ok,
+    Error,
+}
+
+fn set_status(label: &gtk::Label, text: &str, kind: StatusKind) {
+    label.set_text(text);
+    label.remove_css_class("error");
+    label.remove_css_class("ok");
+    label.remove_css_class("metis-viewer-ready");
+    match kind {
+        StatusKind::Error => label.add_css_class("error"),
+        StatusKind::Ok => label.add_css_class("ok"),
+    }
+}
+
 fn refill_recent(
     list: &gtk::ListBox,
+    card: &gtk::Box,
+    empty: &gtk::Label,
     host_entry: &gtk::Entry,
     port_entry: &gtk::Entry,
     user_entry: &gtk::Entry,
@@ -265,27 +495,35 @@ fn refill_recent(
     }
     let cfg = metis_config::load_viewer_config();
     if cfg.recent.is_empty() {
-        let empty = gtk::Label::new(Some(&tr("No recent hosts yet.")));
-        empty.set_xalign(0.0);
-        empty.add_css_class("dim-label");
-        empty.set_margin_top(8);
-        empty.set_margin_bottom(8);
-        empty.set_margin_start(8);
-        empty.set_margin_end(8);
-        list.append(&empty);
+        card.set_visible(false);
+        empty.set_visible(true);
         return;
     }
+    empty.set_visible(false);
+    card.set_visible(true);
     for entry in cfg.recent {
         let row = gtk::ListBoxRow::new();
+        row.set_activatable(true);
         let btn = gtk::Button::new();
         btn.set_has_frame(false);
-        let label = gtk::Label::new(Some(&format!(
-            "{}:{}  {}",
-            entry.host, entry.port, entry.username
-        )));
-        label.set_xalign(0.0);
-        label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-        btn.set_child(Some(&label));
+        btn.add_css_class("metis-viewer-recent-row");
+        let col = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        col.set_hexpand(true);
+        let host_l = gtk::Label::new(Some(&format!("{}:{}", entry.host, entry.port)));
+        host_l.set_xalign(0.0);
+        host_l.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        host_l.add_css_class("metis-viewer-recent-host");
+        let meta = if entry.username.is_empty() {
+            tr("No username").to_string()
+        } else {
+            entry.username.clone()
+        };
+        let meta_l = gtk::Label::new(Some(&meta));
+        meta_l.set_xalign(0.0);
+        meta_l.add_css_class("metis-viewer-recent-meta");
+        col.append(&host_l);
+        col.append(&meta_l);
+        btn.set_child(Some(&col));
         let h = host_entry.clone();
         let p = port_entry.clone();
         let u = user_entry.clone();

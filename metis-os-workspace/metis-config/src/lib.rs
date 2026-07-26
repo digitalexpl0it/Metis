@@ -151,8 +151,39 @@ pub fn load_app_config() -> AppConfig {
 
 pub fn save_app_config(config: &AppConfig) -> std::io::Result<()> {
     ensure_config_dirs()?;
+    let path = app_config_path();
     let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
-    std::fs::write(app_config_path(), json)
+    // Atomic replace so a partial write cannot leave a corrupt file.
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, &json).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "permission denied writing {} — is the file owned by root? \
+                     Run: sudo chown -R \"$USER:$USER\" ~/.config/metis",
+                    path.display()
+                ),
+            )
+        } else {
+            e
+        }
+    })?;
+    std::fs::rename(&tmp, &path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "permission denied replacing {} — is it owned by root? \
+                     Run: sudo chown -R \"$USER:$USER\" ~/.config/metis",
+                    path.display()
+                ),
+            )
+        } else {
+            e
+        }
+    })
 }
 
 pub fn load_theme_preference() -> Option<ThemeMode> {
@@ -172,7 +203,44 @@ pub fn save_theme_preference(mode: ThemeMode) -> std::io::Result<()> {
         ThemeMode::System => "system",
     }
     .into();
-    save_app_config(&cfg)
+    let result = save_app_config(&cfg);
+    // Always stamp the chosen mode so apps (Metis Viewer) can follow Appearance
+    // even when config.json is momentarily unwritable.
+    let _ = write_appearance_mode_stamp(mode);
+    result
+}
+
+/// Sidecar written on every Appearance Light/Dark click (`appearance.mode`).
+pub fn write_appearance_mode_stamp(mode: ThemeMode) -> std::io::Result<()> {
+    ensure_config_dirs()?;
+    let label = match mode {
+        ThemeMode::Light => "light",
+        ThemeMode::Dark => "dark",
+        ThemeMode::System => "system",
+    };
+    let path = config_dir().join("appearance.mode");
+    let tmp = path.with_extension("mode.tmp");
+    std::fs::write(&tmp, format!("{label}\n"))?;
+    std::fs::rename(tmp, path)
+}
+
+/// Read [`write_appearance_mode_stamp`], if present.
+pub fn load_appearance_mode_stamp() -> Option<ThemeMode> {
+    let path = config_dir().join("appearance.mode");
+    let text = std::fs::read_to_string(path).ok()?;
+    match text.trim() {
+        "light" => Some(ThemeMode::Light),
+        "dark" => Some(ThemeMode::Dark),
+        "system" => Some(ThemeMode::System),
+        _ => None,
+    }
+}
+
+/// Preference for UI theming: stamp (latest Appearance click) then `config.json`.
+pub fn load_theme_preference_for_ui() -> ThemeMode {
+    load_appearance_mode_stamp()
+        .or_else(load_theme_preference)
+        .unwrap_or(ThemeMode::Dark)
 }
 
 pub fn load_graphics_profile() -> graphics::GraphicsProfile {

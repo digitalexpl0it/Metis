@@ -7,10 +7,8 @@ use std::process::{Command, Stdio};
 const CANDIDATES: &[&str] = &["wlfreerdp3", "wlfreerdp", "xfreerdp3", "xfreerdp"];
 
 pub fn freerdp_install_hint() -> String {
-    "FreeRDP was not found under /usr/bin.\n\
-     Install a client (Ubuntu):\n\
-     sudo apt install freerdp3-wayland\n\
-     # or: sudo apt install freerdp2-x11"
+    "FreeRDP is not installed. On Ubuntu: sudo apt install freerdp3-wayland \
+     (or freerdp2-x11)."
         .into()
 }
 

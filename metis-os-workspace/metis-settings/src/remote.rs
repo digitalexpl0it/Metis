@@ -240,6 +240,17 @@ fn metis_viewer_bin() -> String {
 pub fn open_viewer(host: Option<&str>, port: Option<u16>, username: Option<&str>) -> Result<(), String> {
     let bin = metis_viewer_bin();
     let mut cmd = Command::new(&bin);
+    // Match Appearance even if this Settings process still has a stale GTK_THEME
+    // from when the compositor spawned it (e.g. user switched Light after login).
+    let mode = metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
+    match metis_config::appearance_gtk_theme_env(mode) {
+        Some(theme) => {
+            cmd.env("GTK_THEME", theme);
+        }
+        None => {
+            cmd.env_remove("GTK_THEME");
+        }
+    }
     if let Some(h) = host {
         if !h.is_empty() {
             cmd.args(["--host", h]);

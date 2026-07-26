@@ -200,13 +200,46 @@ pub fn build() -> gtk::Widget {
         let buttons = buttons.clone();
         let suppress = suppress.clone();
         let suppress_mode = suppress_mode.clone();
+        let save_error = gtk::Label::new(None);
+        save_error.set_xalign(0.0);
+        save_error.set_wrap(true);
+        save_error.add_css_class("metis-settings-error");
+        save_error.set_visible(false);
+        mode_body.append(&save_error);
+        let save_error = save_error.clone();
         Rc::new(move |mode: ThemeMode| {
             if suppress_mode.get() {
                 return;
             }
             if let Err(err) = metis_config::save_theme_preference(mode.clone()) {
                 tracing::warn!(%err, "failed to save theme preference");
+                // Stamp still written inside save_theme_preference before the
+                // config.json write — but if ensure_config_dirs failed earlier,
+                // force the stamp so Viewer can follow this click.
+                let _ = metis_config::write_appearance_mode_stamp(mode.clone());
+                save_error.set_text(&format!(
+                    "{} ({err}). {} ~/.config/metis (e.g. sudo chown -R \"$USER:$USER\" ~/.config/metis).",
+                    tr("Could not save theme preference"),
+                    tr("Check ownership of"),
+                ));
+                save_error.set_visible(true);
+                // Apply the chosen mode live even when disk is unwritable — otherwise
+                // reapply() would re-read stale "dark" from config.json.
+                metis_config::apply_session_appearance_gsettings(mode.clone());
+                let name = effective_name(&mode);
+                let tokens = metis_config::load_theme_tokens(&name);
+                refresh_buttons(&buttons, &tokens, &suppress);
+                {
+                    let mut s = state.borrow_mut();
+                    s.name = name;
+                    s.tokens = tokens;
+                }
+                crate::theme::reapply_for_mode(mode.clone());
+                runtime::send("reload-theme");
+                return;
             }
+            save_error.set_visible(false);
+            save_error.set_text("");
             metis_config::apply_session_appearance_gsettings(mode.clone());
             let name = effective_name(&mode);
             let tokens = metis_config::load_theme_tokens(&name);
