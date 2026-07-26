@@ -732,9 +732,10 @@ latency and clear setup docs.
 ### C. Security & session policy
 
 - [x] **Firewall / LAN-only defaults** — `remote.json` `lan_only: true` (default);
-      Settings toggle; `metis-remote firewall apply|clear` (nftables preferred,
-      ufw fallback, `pkexec` when needed). Status reports `firewall_applied` /
-      `firewall_backend` (2026-07-25).
+      Settings **Security** toggle; apply on enable / LAN-on while sharing
+      (Retry under Security if needed); `metis-remote firewall apply|clear`
+      (nftables preferred, ufw fallback, timed `pkexec`). Status reports
+      `firewall_applied` / `firewall_backend` / last error (2026-07-25).
 - [x] **Credential hygiene** — `metis-remote set-credentials <user>` reads the
       password from stdin; Settings pipes it (never on Metis argv). `grdctl` still
       requires argv (GRD limitation). Documented in USER_GUIDE (2026-07-25).

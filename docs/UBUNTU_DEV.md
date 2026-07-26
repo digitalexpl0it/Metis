@@ -84,7 +84,12 @@ grdctl --headless status
 xfreerdp /v:$(hostname -I | awk '{print $1}'):3389 /u:$USER /p:'your-strong-password' /dynamic-resolution
 ```
 
-Metis integration: `~/.config/metis/remote.json` + `metis-remote {status|enable|disable|autostart|set-credentials}`; Settings page **Remote access**; `metis-session` calls `metis-remote autostart` when enabled.
+Metis integration: `~/.config/metis/remote.json` + `metis-remote
+{status|enable|disable|autostart|set-credentials|firewall|…}`; Settings page
+**Remote access**; `metis-session` calls `metis-remote autostart` when enabled.
+LAN-only firewall apply uses timed `pkexec` — install `nftables` (preferred) and
+a PolicyKit agent in the session (`policykit-1-gnome` or `mate-polkit`) so the
+admin password dialog can appear. See USER_GUIDE → Remote desktop.
 
 #### Compatibility matrix
 

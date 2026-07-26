@@ -786,10 +786,12 @@ files.
 3. Click **Set password…** and choose the RDP username and password clients will
    use. Settings pipes the password into `metis-remote` on stdin — never put the
    password on a shell command line.
-4. Leave **LAN only (firewall)** on (default). Enabling sharing applies nftables
-   or ufw rules so TCP **3389** accepts only private, loopback, and link-local
-   sources (may prompt via PolicyKit).
-5. Turn on **Allow desktop session sharing**.
+4. Leave **LAN only (firewall)** on under **Security** (default). That preference
+   alone does not open a password dialog — rules are applied when sharing is on.
+5. Turn on **Allow desktop session sharing**. Metis then applies nftables (preferred)
+   or active ufw rules so TCP **3389** accepts only private, loopback, and
+   link-local sources. A PolicyKit password dialog may appear; status and any
+   **Retry firewall apply** live under **Security**.
 6. Copy the connection address (hostname or LAN IP plus port **3389**) and connect
    from another machine on your network.
 
@@ -810,10 +812,12 @@ xfreerdp /v:HOST:3389 /u:USERNAME /p:PASSWORD /dynamic-resolution
 that is a GNOME Remote Desktop limitation; minimize how long that process runs.)
 
 **Security.** `remote.json` defaults to `"lan_only": true`. Metis applies named
-firewall rules (`metis-rdp-lan-only` / nft table `inet metis_rdp`) on enable and
-clears them on disable or when you turn LAN only off (Settings warns first). Do
-not expose RDP to the internet without a VPN or strong perimeter controls.
-Manual check: `metis-remote firewall status`.
+firewall rules (`metis-rdp-lan-only` / nft table `inet metis_rdp`) when sharing
+is enabled with LAN only on, and clears them on disable or when you turn LAN
+only off (Settings warns first). Firewall status appears under the Security
+card — not as a separate step on the sharing card. Do not expose RDP to the
+internet without a VPN or strong perimeter controls. Manual check:
+`metis-remote firewall status`.
 
 **Session lock.** While the session is locked (`Super+L`), Metis pauses RDP listen
 (`metis-remote pause`) without clearing `remote.json.enabled`, and blocks capture
@@ -830,9 +834,13 @@ UTF-8) — Metis does not advertise local image clipboard mimes to RDP.
 
 **Troubleshooting.** If the page shows an install hint, install
 `gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
-set a password first. If status warns that LAN-only firewall is not applied,
-install `nftables` or `ufw` and approve the admin prompt. PipeWire and the Metis
-ScreenCast portal must be running in the DRM session — re-run
+set a password first. If **Security** says firewall rules are not applied (or
+Retry fails / times out), install `nftables` (recommended) or enable `ufw`
+(`sudo ufw enable`), and ensure a PolicyKit agent is running in the Metis
+session so a password dialog can appear (e.g. `policykit-1-gnome` or
+`mate-polkit`). Without an agent, `pkexec` waits until it times out. You can
+also run `pkexec metis-remote firewall apply` from a terminal. PipeWire and the
+Metis ScreenCast portal must be running in the DRM session — re-run
 `./run-metis.sh --install-session` if portal capture is broken. Check status:
 `metis-remote status` (JSON).
 
@@ -999,6 +1007,7 @@ changes live.
 | Verify the shell is reachable | `./run-metis.sh --verify` |
 | Compare compositor vs shell grid | `./run-metis.sh --verify-grid` |
 | Remote desktop toggle greyed out | Install `gnome-remote-desktop`; set a password on **Settings → Remote access** before enabling |
+| LAN firewall not applied / Retry times out | Install `nftables` (or active `ufw`); install a PolicyKit agent (`policykit-1-gnome` / `mate-polkit`); use **Retry firewall apply** under Security, or `pkexec metis-remote firewall apply` |
 | RDP connects but screen is black | Confirm you are on a DRM session (not nested dev); unlock if the session is locked; check `metis-remote status` and PipeWire/portal stack |
 | `metis-remote` not found | Rebuild with `./run-metis.sh --install-session` (installs `metis-remote` to `/usr/local/bin`) |
 

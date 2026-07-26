@@ -19,6 +19,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Remote access LAN firewall UX** — Enabling sharing with **LAN only** on
+  applies firewall rules automatically; status and **Retry** live under
+  Security (no separate “Apply LAN firewall…” under sharing). `pkexec` is
+  wrapped with a timeout so Settings cannot stick on “Applying…” when no
+  PolicyKit agent is present; failures surface under Security. USER_GUIDE
+  updated (PolicyKit agent / nftables troubleshooting).
 - **GitHub Desktop / Electron dark-mode portal parse** — Settings portal
   `org.freedesktop.appearance` `color-scheme` was serialized as signed `i`
   (ashpd default) instead of the spec type `u`. Chromium's
