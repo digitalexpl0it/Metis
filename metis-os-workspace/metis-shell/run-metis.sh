@@ -314,7 +314,7 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
             BUILD_ARGS+=("$prof")
         fi
     fi
-    if ! cargo build "${BUILD_ARGS[@]}" -p metis-compositor -p metis-shell -p metis-settings -p metis-portal -p metis-remote -p metis-gaming; then
+    if ! cargo build "${BUILD_ARGS[@]}" -p metis-compositor -p metis-shell -p metis-settings -p metis-portal -p metis-remote -p metis-viewer -p metis-gaming; then
         echo "ERROR: release build failed." >&2
         exit 1
     fi
@@ -344,6 +344,9 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     if [[ -x "$REL/metis-remote" ]]; then
         $SUDO install -Dm755 "$REL/metis-remote" "$BIN_DST/metis-remote"
     fi
+    if [[ -x "$REL/metis-viewer" ]]; then
+        $SUDO install -Dm755 "$REL/metis-viewer" "$BIN_DST/metis-viewer"
+    fi
     if [[ -x "$REL/metis-gamingd" ]]; then
         $SUDO install -Dm755 "$REL/metis-gamingd" "$BIN_DST/metis-gamingd"
     fi
@@ -364,12 +367,13 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     echo "Installing session entry to $SESSIONS_DST/metis.desktop …"
     $SUDO install -Dm644 "$ASSETS_DIR/metis.desktop" "$SESSIONS_DST/metis.desktop"
 
-    echo "Installing Metis Settings icon and desktop entry …"
+    echo "Installing Metis Settings / Viewer desktop entries …"
     ICONS_DST="${METIS_ICONS_DIR:-/usr/share/icons/hicolor}"
     APPS_DST="${METIS_APPS_DIR:-/usr/share/applications}"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$ICONS_DST/48x48/apps/metis-settings.png"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.png" "$ICONS_DST/256x256/apps/metis-settings.png"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.desktop" "$APPS_DST/metis-settings.desktop"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-viewer.desktop" "$APPS_DST/metis-viewer.desktop"
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         $SUDO gtk-update-icon-cache -f -t "$ICONS_DST" >/dev/null 2>&1 || true
     fi
@@ -566,7 +570,7 @@ binary_needs_rebuild() {
     local workspace="$WORKSPACE"
     local newest_src
     newest_src="$(find "$workspace/metis-compositor" "$workspace/metis-shell" "$workspace/metis-grid" "$workspace/metis-protocol" \
-        "$workspace/metis-config" "$workspace/metis-secrets" "$workspace/metis-settings" \
+        "$workspace/metis-config" "$workspace/metis-secrets" "$workspace/metis-settings" "$workspace/metis-viewer" \
         -name '*.rs' -newer "$bin" 2>/dev/null | head -1)"
     if [[ -n "$newest_src" ]]; then
         log "Source changed since last build ($newest_src) — rebuild required."
@@ -832,11 +836,11 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
                 BUILD_ARGS+=("$prof")
             fi
         fi
-        BUILD_CMD=(cargo build "${BUILD_ARGS[@]}" -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-gaming)
+        BUILD_CMD=(cargo build "${BUILD_ARGS[@]}" -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-gaming)
     else
         SHELL_BIN="$TARGET_DIR/debug/metis-shell"
         COMP_BIN="$TARGET_DIR/debug/metis-compositor"
-        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-gaming)
+        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-gaming)
     fi
 
     if [[ "$FORCE_BUILD" -eq 1 ]] || binary_needs_rebuild "$SHELL_BIN" || binary_needs_rebuild "$COMP_BIN"; then

@@ -752,9 +752,9 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   with battery status. See [Power profiles](#power-profiles-settings--power) below.
 - **Remote access** — GNOME-style desktop sharing toggle: enable RDP to your
   **live** Metis session via `gnome-remote-desktop` (headless). Set credentials,
-  copy the connection address, and connect from Microsoft Remote Desktop, Remmina,
-  or FreeRDP. Requires a real (DRM) session — not nested dev. Open with
-  `metis-cmd settings remote`.
+  copy the connection address, or open **Metis Viewer** / connect with Remmina /
+  FreeRDP. Requires a real (DRM) session — not nested dev. Open with
+  `metis-cmd settings remote` or `metis-cmd viewer`.
 - **Sound** — default output and input device selection (bar volume widget
   unchanged).
 
@@ -802,8 +802,9 @@ files.
    or active ufw rules so TCP **3389** accepts only private, loopback, and
    link-local sources. A PolicyKit password dialog may appear; status and any
    **Retry firewall apply** live under **Security**.
-6. Copy the connection address (hostname or LAN IP plus port **3389**) and connect
-   from another machine on your network.
+6. Copy the connection address (hostname or LAN IP plus port **3389**), or click
+   **Connect with Metis Viewer…** to open the first-party client with host/port
+   prefilled.
 
 **CLI credentials (if needed):**
 
@@ -811,11 +812,29 @@ files.
 printf '%s\n' 'your-password' | metis-remote set-credentials YOUR_USER
 ```
 
-**Clients.** Windows: *Remote Desktop Connection* (`mstsc`). macOS: *Microsoft
-Remote Desktop* from the App Store. Linux:
+#### Metis Viewer (RDP client)
+
+**Metis Viewer** (`metis-viewer`) is the first-party RDP *client* — a GTK connect
+dialog that spawns FreeRDP (`wlfreerdp3` → `wlfreerdp` → `xfreerdp3` →
+`xfreerdp`, searched under `/usr/bin` only; argv spawn, no shell). Host sharing
+stays **Settings → Remote access** + `gnome-remote-desktop` / `metis-remote`.
+
+1. Install a FreeRDP client on the machine that will connect (Ubuntu):
+   `sudo apt install freerdp3-wayland`  
+   (or `freerdp2-x11` if Wayland FreeRDP is unavailable).
+2. Open **Metis Viewer** from the app launcher, `metis-cmd viewer`, or
+   **Settings → Remote access → Connect with Metis Viewer…**.
+3. Enter host, port (default **3389**), username, and optionally password.
+   Recent hosts are stored in `~/.config/metis/viewer.json` (**no passwords**).
+   If the password field is left empty, FreeRDP prompts interactively; if filled,
+   Metis passes `/p:` only on the FreeRDP child argv (never logged, never
+   written to config).
+
+**Other clients.** Windows: *Remote Desktop Connection* (`mstsc`). macOS:
+*Microsoft Remote Desktop* from the App Store. Linux CLI:
 
 ```bash
-xfreerdp /v:HOST:3389 /u:USERNAME /p:PASSWORD /dynamic-resolution
+xfreerdp /v:HOST:3389 /u:USERNAME /dynamic-resolution
 ```
 
 (`grdctl` still receives the password on its argv when Metis sets credentials —
@@ -850,9 +869,10 @@ paths are advertised to RDP; remote images are written under
 
 **Troubleshooting.** If the page shows an install hint, install
 `gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
-set a password first. If **Security** says firewall rules are not applied (or
-Retry fails / times out), install `nftables` (recommended) or enable `ufw`
-(`sudo ufw enable`), and ensure a PolicyKit agent is running in the Metis
+set a password first. If Metis Viewer says FreeRDP was not found, install
+`freerdp3-wayland` or `freerdp2-x11`. If **Security** says firewall rules are not
+applied (or Retry fails / times out), install `nftables` (recommended) or enable
+`ufw` (`sudo ufw enable`), and ensure a PolicyKit agent is running in the Metis
 session so a password dialog can appear (e.g. `policykit-1-gnome` or
 `mate-polkit`). Without an agent, `pkexec` waits until it times out. You can
 also run `pkexec metis-remote firewall apply` from a terminal. PipeWire and the
@@ -863,8 +883,8 @@ Metis ScreenCast portal must be running in the DRM session — re-run
 RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are **not** driven by
 Settings → Remote access. For host-install notes, ports, and the compatibility
 matrix (including multi-user / VT behaviour), see
-[`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop). Optional Metis
-orchestration of RustDesk / a first-party viewer remains a later-phase follow-up.
+[`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop). A Settings RustDesk
+preset remains deferred; host sharing stays GRD.
 
 ### System dashboard (Control Center)
 

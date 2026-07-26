@@ -27,6 +27,7 @@ pub mod screenshot;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
+pub mod viewer;
 
 use serde::{Deserialize, Serialize};
 
@@ -312,6 +313,10 @@ pub use power::{
 };
 pub use remote::{
     load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
+};
+pub use viewer::{
+    load_viewer_config, remember_host, save_viewer_config, viewer_config_path, ViewerConfig,
+    ViewerHost,
 };
 pub use sanitize::{is_safe_nm_token, validate_nm_id, validate_ssid, validate_vpn_data_fragment};
 pub use screenshot::{

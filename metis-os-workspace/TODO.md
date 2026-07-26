@@ -2,7 +2,8 @@
 
 **Current phase:** Phases **1–15** are complete for their shipped product bars.
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
-spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Active: Phase 15 §F stretch** (first-party remote / fingerprint; **image RDP
+spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Active: Phase 15 §F stretch**
+(fingerprint / RustDesk Settings preset; **first-party viewer + image RDP
 clipboard done 2026-07-26**).
 **Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
 iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
@@ -694,8 +695,9 @@ Mode. Track compatibility either way:
 
 **Status: complete for the GNOME RDP path (2026-07-25 security closeout).** Metis
 hardens session sharing via `metis-remote` + `gnome-remote-desktop` + portal
-clipboard/input. **Deferred to Phase 15 / stretch:** first-party remote viewer/
-host and deep per-app X11 isolation.
+clipboard/input. **Phase 15 §F:** first-party **viewer** shipped (`metis-viewer`);
+host remains GRD. Still deferred: RustDesk Settings preset; Metis-native host
+protocol. Deep per-app X11 isolation shipped as Phase 15 §E opt-in.
 
 Let you **remote into a Metis machine from another device** (laptop, tablet,
 phone) with full interactive control — not just “share screen” in a call.
@@ -742,9 +744,10 @@ latency and clear setup docs.
       monitor `RecordMonitor(connector)` selects the matching `wl_output` by
       name for the live pump (portal + Mutter shim). **2026-07-24:** dmabuf
       zero-copy path (GBM capture + PipeWire `SPA_DATA_DmaBuf`, MemFd fallback).
-- [ ] **First-party remote option** (stretch → Phase 15 §F) — lightweight Metis
-      remote viewer/host or official RustDesk/RDP preset in `metis-session`
-      (deferred; higher RAM/CPU than hardening the existing GRD path)
+- [x] **First-party remote viewer** (Phase 15 §F, 2026-07-26) — `metis-viewer`
+      GTK connect UI spawns FreeRDP (argv-only); host remains GRD + `metis-remote`.
+      Settings **Connect with Metis Viewer…**; recent hosts in `viewer.json`
+      (no passwords). **Still open:** RustDesk Settings preset; fingerprint lock.
 
 ### C. Security & session policy
 
@@ -1350,16 +1353,16 @@ server does not.
 
 ### F. Stretch / related (not phase gates)
 
-- [ ] **First-party remote viewer/host** — from Phase 7 §B; only after security
-      review and a clear maintenance story.
+- [x] **First-party remote viewer** (2026-07-26) — `metis-viewer` GTK + FreeRDP
+      client; GRD host unchanged. RustDesk Settings preset still open.
 - [x] **Image RDP clipboard** (2026-07-26) — `metis-portal` Mutter clipboard shim
       advertises/serves local `image/png|jpeg|bmp` from compositor durable paths
       (≤10 MiB) and accepts remote image writes into `$XDG_RUNTIME_DIR/metis/clipboard/`
       then `SetClipboard`. Text path unchanged; lock still pauses RDP.
 - [ ] **Fingerprint / greeter niceties** on the lock screen.
 
-**Suggested order:** image clipboard (done) → fingerprint/greeter → first-party
-remote as appetite allows.
+**Suggested order:** image clipboard (done) → first-party viewer (done) →
+fingerprint/greeter → RustDesk Settings preset as appetite allows.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).
@@ -1373,7 +1376,8 @@ Config lives under `~/.config/metis/`. Written on first run: `bar.json`,
 on demand: `config.json` (on preference change), `menu.json` (launcher defaults /
 pins), `wallpaper.json` (background pick), `weather.json` (weather setup),
 `dismissed.json`, `desk.json` (compositor app-grid), `briefing.json` (optional,
-user-created), `desktop-widgets.json` *(Phase 14)*.
+user-created), `desktop-widgets.json` *(Phase 14)*, `viewer.json` (Metis Viewer
+recent hosts; no passwords).
 
 | File | Purpose |
 |------|---------|

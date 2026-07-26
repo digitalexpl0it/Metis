@@ -11,6 +11,7 @@ members = [
     "metis-settings",
     "metis-portal",
     "metis-remote",
+    "metis-viewer",
     "metis-gaming",
     "metis-capture",
 ]

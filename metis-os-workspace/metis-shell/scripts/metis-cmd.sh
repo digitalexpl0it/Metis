@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
-# Send a runtime command to the running Metis shell.
+# Send a runtime command to the running Metis shell, or launch helpers.
 set -euo pipefail
+
+if [[ "${1:-}" == "viewer" ]]; then
+    shift
+    exec metis-viewer "$@"
+fi
+
 RUNTIME="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR not set — run under a Wayland session (./run-metis.sh --session)}"
 CMD_FILE="$RUNTIME/metis/command"
 CMD_LOG="$RUNTIME/metis/cmd.log"
 mkdir -m 700 -p "$(dirname "$CMD_FILE")"
 chmod 700 "$(dirname "$CMD_FILE")" 2>/dev/null || true
 if [[ $# -lt 1 ]]; then
-    echo "Usage: metis-cmd.sh {close-popovers|reload-bar|reload-dashboard|reload-desktop-widgets|reload-theme|reload-weather|reload-calendars|reload-gaming|optimize-gaming --yes|show-onboarding|screenshot|settings [page]}" >&2
+    echo "Usage: metis-cmd.sh {close-popovers|reload-bar|reload-dashboard|reload-desktop-widgets|reload-theme|reload-weather|reload-calendars|reload-gaming|optimize-gaming --yes|show-onboarding|screenshot|settings [page]|viewer [--host …]}" >&2
     echo "  settings page: appearance | weather | network | calendars | remote | …" >&2
+    echo "  viewer: launches metis-viewer (RDP client UI); does not write the shell command file" >&2
     echo "  optimize-gaming requires --yes (applies Flatpak --device=all overrides)" >&2
     exit 2
 fi

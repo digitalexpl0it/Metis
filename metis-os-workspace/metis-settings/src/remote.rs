@@ -212,6 +212,55 @@ pub fn connection_hint(snap: &RemoteSnapshot) -> String {
     format!("{}:{}", host, snap.port)
 }
 
+/// Split `host:port` from [`connection_hint`] (last `:` separates port).
+pub fn parse_connection_hint(hint: &str) -> (String, u16) {
+    if let Some((host, port_s)) = hint.rsplit_once(':') {
+        if let Ok(port) = port_s.parse::<u16>() {
+            if !host.is_empty() && port != 0 {
+                return (host.to_string(), port);
+            }
+        }
+    }
+    (hint.to_string(), 3389)
+}
+
+fn metis_viewer_bin() -> String {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("metis-viewer");
+            if sibling.is_file() {
+                return sibling.to_string_lossy().into_owned();
+            }
+        }
+    }
+    "metis-viewer".into()
+}
+
+/// Launch Metis Viewer with optional host/port prefill (argv only; no shell).
+pub fn open_viewer(host: Option<&str>, port: Option<u16>, username: Option<&str>) -> Result<(), String> {
+    let bin = metis_viewer_bin();
+    let mut cmd = Command::new(&bin);
+    if let Some(h) = host {
+        if !h.is_empty() {
+            cmd.args(["--host", h]);
+        }
+    }
+    if let Some(p) = port {
+        cmd.args(["--port", &p.to_string()]);
+    }
+    if let Some(u) = username {
+        if !u.is_empty() {
+            cmd.args(["--user", u]);
+        }
+    }
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("failed to start {bin}: {e}"))?;
+    Ok(())
+}
+
 /// Desktop notification for sharing state changes.
 ///
 /// Uses `notify-send` so Metis's `org.freedesktop.Notifications` daemon (Notification

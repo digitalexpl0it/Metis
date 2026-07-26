@@ -9,10 +9,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 15 §F Metis Viewer** — first-party RDP client (`metis-viewer`): GTK
+  connect UI spawns FreeRDP under `/usr/bin` (argv-only; no shell). Recent hosts
+  in `viewer.json` without passwords. Settings → Remote access → **Connect with
+  Metis Viewer…**; `metis-cmd viewer`. Host sharing remains GRD + `metis-remote`.
+  RustDesk Settings preset and fingerprint lock remain open.
 - **Phase 15 §F image RDP clipboard** — portal Mutter clipboard shim syncs
   `image/png|jpeg|bmp` both ways (≤10 MiB, path-allowlisted under runtime
-  `clipboard/`). Text path unchanged. First-party remote viewer and fingerprint
-  lock remain open.
+  `clipboard/`). Text path unchanged.
 - **Phase 3 multi-GPU hardware validation** — closed on hybrid iGPU+dGPU: HDMI
   projector output, gaming PRIME offload (fast), pointer/input stable. Explicit
   Smithay `MultiRenderer` primary→secondary transfer remains deferred.

@@ -33,11 +33,12 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 
 | Path | Role |
 |------|------|
-| `/usr/bin/metis-{compositor,shell,settings,portal,remote,gamingd}` | Binaries |
+| `/usr/bin/metis-{compositor,shell,settings,portal,remote,viewer,gamingd}` | Binaries |
 | `/usr/bin/metis-session` | Greeter session launcher |
 | `/usr/share/wayland-sessions/metis.desktop` | Session entry |
 | `/usr/share/xdg-desktop-portal/…` | Portal backend registration |
 | `/usr/share/applications/metis-settings.desktop` + hicolor icons | Settings launcher |
+| `/usr/share/applications/metis-viewer.desktop` | Metis Viewer (RDP client UI) |
 | `/usr/share/metis/wallpapers/` | Bundled wallpapers (onboarding / Appearance) |
 | `/usr/share/metis/locale/` | i18n catalogs (gettext `.mo` + Fluent `.ftl`) |
 | `/etc/pam.d/metis` | Lock-screen PAM service |
@@ -49,7 +50,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, `liblcms2-2`, … | Required to start a Metis session; kitty is the default terminal; lcms2 for Stage 2 colour LUTs |
 | **Bundled** | `libgtk4-layer-shell.so.0` | Not packaged on Ubuntu 24.04 — built in CI / copied from the build host into the `.deb` |
 | **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse** | Keyring, portal helpers, and removable-volume mount/eject/LUKS (apt installs by default) |
-| **Suggests** | `gnome-remote-desktop`, `nftables`, `policykit-1-gnome` (or another Polkit agent), `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer` | Optional features (RDP + LAN firewall need `gnome-remote-desktop` + nftables/Polkit) |
+| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `nftables`, `policykit-1-gnome` (or another Polkit agent), `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer` | Optional features (RDP host needs `gnome-remote-desktop`; Metis Viewer needs FreeRDP; LAN firewall needs nftables/Polkit) |
 
 Optional Suggests are also offered in the first-run **Optional software** onboarding
 step (detect → grey out if present → toggles → **Install selected** via

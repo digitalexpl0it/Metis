@@ -131,8 +131,11 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let copy_btn = gtk::Button::with_label(&tr("Copy connection address"));
     copy_btn.set_halign(gtk::Align::Start);
 
+    let viewer_btn = gtk::Button::with_label(&tr("Connect with Metis Viewer…"));
+    viewer_btn.set_halign(gtk::Align::Start);
+
     let clients_hint = gtk::Label::new(Some(&tr(
-        "Connect with Microsoft Remote Desktop, Remmina, or FreeRDP. \
+        "Connect with Metis Viewer, Microsoft Remote Desktop, Remmina, or FreeRDP. \
          Use the username and password you set above — empty credentials will not work."
         )));
     clients_hint.set_xalign(0.0);
@@ -143,6 +146,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     actions.add_css_class("metis-settings-actions");
     actions.append(&change_pw_btn);
     actions.append(&copy_btn);
+    actions.append(&viewer_btn);
     actions.append(&clients_hint);
     status_body.append(&actions);
     content.append(&status_card);
@@ -174,7 +178,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         "When LAN only is on and sharing is enabled, Metis applies firewall rules \
          automatically (nftables preferred; ufw only if active). A PolicyKit password \
          dialog may appear. Use a strong password. While locked (Super+L), RDP listen \
-         pauses. Clipboard sync is text-only."
+         pauses. Clipboard sync includes text and images."
         )));
     hint_label.set_xalign(0.0);
     hint_label.set_wrap(true);
@@ -537,6 +541,28 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             sections_copy
                 .hint_label
                 .set_text(&format!("Copied: {text}"));
+        });
+    }
+
+    {
+        let sections_viewer = sections.clone();
+        viewer_btn.connect_clicked(move |_| {
+            let snap = remote::load_snapshot();
+            let hint = remote::connection_hint(&snap);
+            let (host, port) = remote::parse_connection_hint(&hint);
+            let user = snap.username.as_deref();
+            match remote::open_viewer(Some(&host), Some(port), user) {
+                Ok(()) => {
+                    sections_viewer
+                        .hint_label
+                        .set_text(&tr("Opening Metis Viewer…"));
+                }
+                Err(err) => {
+                    *sections_viewer.action_error.borrow_mut() = Some(err.clone());
+                    sections_viewer.error_label.set_text(&err);
+                    sections_viewer.error_label.set_visible(true);
+                }
+            }
         });
     }
 

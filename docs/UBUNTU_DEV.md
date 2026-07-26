@@ -100,7 +100,8 @@ off by default (`xwayland_abstract_socket: false`).
 
 | Tool | Status | Capture / input | Notes |
 |------|--------|-----------------|-------|
-| **gnome-remote-desktop (RDP)** | **Supported (v1)** | Portal / PipeWire via `metis-portal`; EIS remote input | Settings toggle; text clipboard; LAN-only defaults; multi-monitor `RecordMonitor` selects by connector name |
+| **gnome-remote-desktop (RDP)** | **Supported (v1)** | Portal / PipeWire via `metis-portal`; EIS remote input | Settings toggle; text+image clipboard; LAN-only defaults; multi-monitor `RecordMonitor` selects by connector name |
+| **Metis Viewer (`metis-viewer`)** | **Supported (v1 client)** | FreeRDP → GRD host | GTK connect UI; argv spawn of `wlfreerdp3`/`xfreerdp…`; recent hosts in `viewer.json` (no passwords) |
 | **RustDesk** | **Documented (host install)** | Prefer portal/PipeWire on Wayland; own capture may fail | Not in Settings/`metis-remote` yet — see below |
 | **wayvnc** | **Spike / unsupported** | Needs compositor screencopy or portal consumer | No Metis integration; Smithay capture path TBD |
 | **TigerVNC / x11vnc** | **Not applicable** | X11 | Metis is Wayland-first; do not expect these to attach to the DRM session |

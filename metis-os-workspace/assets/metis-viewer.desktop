@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Metis Viewer
+GenericName=Remote Desktop
+Comment=Connect to a Metis or RDP host with FreeRDP
+Exec=metis-viewer
+TryExec=metis-viewer
+Icon=metis-settings
+Type=Application
+Categories=Network;RemoteAccess;GTK;
+StartupWMClass=com.metis.Viewer
+Keywords=metis;rdp;remote;freerdp;viewer;
