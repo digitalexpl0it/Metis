@@ -194,7 +194,8 @@ ls -lh metis-os-workspace/target/{release,release-small}/metis-*
 3. **Gamescope** launch-option testing on Metis (P1 gaming path).
 4. **Split `state.rs`** when refactoring (P2 maintainability).
 5. **Phase 5 colour follow-ups** — default-on `wp_color_management_v1` (blocked
-   on upstream wayland-rs UAF), true per-surface HDR decode / HLG desktop encode
-   (Stage 2 3D-LUT + H1/H2 shipped 2026-07-25).
+   on upstream wayland-rs **server/sys** ObjectData UAF; 0.3.16 does not fix —
+   see `docs/upstream/wayland-rs-server-objectdata-uaf.md`), true per-surface
+   HDR decode / HLG desktop encode (Stage 2 3D-LUT + H1–H3 shipped 2026-07-25).
 
 See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 5–6.

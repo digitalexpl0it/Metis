@@ -59,12 +59,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 5 colour protocol closeout** — product Display pipeline remains
+  closed (ICC `vcgt` / Stage 2 3D-LUT, HDR H1–H3, VRR, night light). Default-on
+  `wp_color_management_v1` stays deferred: reconfirmed that `wayland-backend`
+  0.3.16 only fixes client/sys races (`server_impl` unchanged), so Metis keeps
+  `METIS_COLOR_MGMT=1` opt-in. Upstream issue draft at
+  `docs/upstream/wayland-rs-server-objectdata-uaf.md`. USER_GUIDE notes the gate.
 - **Phase 5 complete (HDR H3 / Stage 2 colour)** — ICC profiles bake a 33³
   sRGB→display GLES 3D-LUT (`lcms2`); DRM scanout uses a unified post-pass
   (high-bit offscreen when available → optional LUT → optional SDR→PQ). CRTC
   `vcgt` is skipped when the LUT owns the output. Opt-in
   `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises PQ/HLG/BT.2020 and
-  records parametric TF/primaries; remains default-off (upstream wayland-rs UAF).
+  records parametric TF/primaries; remains default-off (upstream wayland-rs
+  **server/sys** ObjectData UAF; 0.3.16 does not fix it).
   Requires `liblcms2-dev` to build.
 - **Phase 5 HDR encode (H2)** — with HDR on, the DRM compositor composites the
   SDR desktop offscreen and blits through an sRGB→linear→ST.2084 PQ shader

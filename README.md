@@ -256,9 +256,10 @@ reference.
   Power, Sound, Display).
 - **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** **complete**
   (2026-07-25) — resolution / refresh, arrangement, duplicate mode, VRR, night
-  light, Stage 1 ICC→CRTC gamma, Stage 2 GLES 3D-LUT, HDR H1+H2 (EDID-gated)
+  light, Stage 1 ICC→CRTC gamma, Stage 2 GLES 3D-LUT, HDR H1–H3 (EDID-gated)
   with unified LUT→PQ post-pass. Default-on `wp_color_management_v1` deferred
-  (upstream wayland-rs UAF); true per-surface HDR content remains stretch.
+  (upstream wayland-rs **server/sys** ObjectData UAF; opt-in via
+  `METIS_COLOR_MGMT=1`); true per-surface HDR content remains stretch.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
 - **Phase 7 — Remote access:** largely complete — live-session RDP via
   `gnome-remote-desktop` (Settings → Remote access), portal capture + EIS input,

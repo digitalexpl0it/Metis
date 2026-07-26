@@ -685,7 +685,11 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   while HDR is active on that output). With **HDR** on, the compositor also
   tone-maps the desktop into PQ (reference white ≈ 203 nits). Per-output **ICC
   colour profiles** apply a GLES 3D LUT when possible (otherwise the profile
-  `vcgt` drives CRTC gamma). Rotation is still upcoming.
+  `vcgt` drives CRTC gamma). The Wayland `wp_color_management_v1` protocol is
+  **experimental and off by default** — set `METIS_COLOR_MGMT=1` only for
+  testing; advertising it to Chromium/Ozone can crash the session (upstream
+  wayland-rs server ObjectData bug). Hardware ICC / LUT / HDR do **not** need
+  that env var. Rotation is still upcoming.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and

@@ -44,15 +44,24 @@ pub struct ColorManagementState {
 ///
 /// Root cause (reproduced deterministically in a nested `--session` under gdb):
 /// the corruption is a use-after-free of a wayland `ObjectData` `Arc` inside
-/// `wayland-backend`'s `resource_dispatcher`, **not** in Metis code. It fires
-/// when Chromium destroys a `wp_image_description_v1` and immediately reuses the
-/// freed protocol id for a `wp_image_description_info_v1` in the same dispatch
-/// batch. None of our `unsafe` (the ICC memfd path) runs in the crashing trace —
-/// only safe handlers (`get_information` → parametric info events). The fix
-/// therefore lives in the wayland-rs/Smithay-fork object lifecycle (or a
-/// dependency bump), so the global stays disabled by default until that lands.
-/// Per-output ICC `vcgt` hardware gamma calibration ([`crate::output_gamma`]) is
-/// independent of this global and remains active.
+/// `wayland-backend`'s **server/sys** `resource_dispatcher`, **not** in Metis
+/// code. It fires when Chromium destroys a `wp_image_description_v1` and
+/// immediately reuses the freed protocol id for a `wp_image_description_info_v1`
+/// in the same dispatch batch. None of our `unsafe` (the ICC memfd path) runs
+/// in the crashing trace — only safe handlers (`get_information` → parametric
+/// info events).
+///
+/// Reconfirmed 2026-07-25: crates.io `wayland-backend` **0.3.16** /
+/// `wayland-server` **0.31.14** only fix **client/sys** races; `server_impl` is
+/// unchanged, so a dependency bump alone does not clear this path. Metis still
+/// locks 0.3.15 / 0.31.13 via smithay. The global stays disabled by default until
+/// a **server-side** fix lands and Chromium retest passes — then flip this gate
+/// to default-on (optional `METIS_COLOR_MGMT=0` opt-out). Rejected workarounds:
+/// Chromium blacklist, disabling `get_information`, or dropping `use_system_lib`
+/// only for colour management.
+///
+/// Per-output ICC `vcgt` / Stage 2 3D-LUT ([`crate::output_gamma`],
+/// [`crate::color_lut`]) are independent of this global and remain active.
 pub fn color_protocol_enabled() -> bool {
     std::env::var("METIS_COLOR_MGMT").is_ok_and(|v| {
         matches!(

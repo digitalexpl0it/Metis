@@ -3,9 +3,9 @@
 **Current phase:** Phases **1–15** are complete for their shipped product bars.
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
 spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. Stretch §F
-remains open. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and
+remains open. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1–H3 and
 Stage 2 GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
-(upstream wayland-rs UAF). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
+(upstream wayland-rs **server/sys** ObjectData UAF — see Phase 5 §B). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
 (remote access security closeout) complete 2026-07-25. **Phase 3** multi-GPU
 hardware validation remains open. See individual phase sections for deferred
 follow-ups.
@@ -431,31 +431,36 @@ Phase 3) — none of these are possible under the nested winit dev session.
       `vcgt` calibration curves are parsed (`color_management/vcgt.rs`) and
       uploaded to each CRTC's hardware gamma ramp (`output_gamma.rs`), re-applied
       after outputs reload, connector bring-up, mode-set, and VT resume.
-      `wp_color_management_v1` is hardened (no request can leave a `New<>`
-      uninitialised / panic the session; description records are reclaimed on
-      destroy) but remains **opt-in** (`METIS_COLOR_MGMT=1`): advertising the
-      global still crashes the session with heap corruption
-      (`malloc_consolidate(): unaligned fastbin chunk`), blanking the display.
+      Stage 2 GLES 3D-LUT shipped (see H3 below). `wp_color_management_v1` is
+      hardened (no request can leave a `New<>` uninitialised / panic the session;
+      description records are reclaimed on destroy) but remains **opt-in**
+      (`METIS_COLOR_MGMT=1`): advertising the global still crashes the session
+      with heap corruption (`malloc_consolidate(): unaligned fastbin chunk`),
+      blanking the display.
       **Root-caused (2026-07-02):** reproduced deterministically (~4 s) in a
       nested `--session` under gdb with a Chromium client, matching the hardware
       signature. The abort is a use-after-free dropping a wayland `ObjectData`
-      `Arc` inside `wayland-backend`'s `resource_dispatcher` — **not** Metis code —
-      when Chromium destroys a `wp_image_description_v1` and reuses its freed id
-      for a       `wp_image_description_info_v1` in the same dispatch batch. No Metis
-      `unsafe` runs in the crash trace, and the description-cleanup fix did not
-      change it. A dependency bump was ruled out: `wayland-backend 0.3.15` /
-      `wayland-server 0.31.13` are already the newest published, and bumping
-      `wayland-protocols` to 0.32.13 (only adds the `windows_bt2100` v3 feature)
-      reproduced the identical crash. **Decision:** leave the global **opt-in**
-      and wait for an upstream wayland-rs/Smithay fix; the generic destroy+id-reuse
-      pattern works for every other client, so this is a colour-management-path
-      bug in the sys backend, not a version lag. **Follow-up when revisited:** an
-      ASAN build to pin the exact faulting allocation, or bisect which generated
-      info event triggers it; then **Stage 2** — GLES
-      offscreen 3D-LUT for full sRGB→display gamut mapping (profiles without
-      `vcgt`, per-surface content conversion) and the HDR path below.
-      _Hardware gamma calibration verified live (warm `vcgt` test profile applied
-      a visible tint, `calibrated=true`); still to confirm survival across a real
+      `Arc` inside `wayland-backend`'s **server/sys** `resource_dispatcher` —
+      **not** Metis code — when Chromium destroys a `wp_image_description_v1` and
+      reuses its freed id for a `wp_image_description_info_v1` in the same
+      dispatch batch. No Metis `unsafe` runs in the crash trace.
+      **Reconfirmed (2026-07-25 closeout):** crates.io `wayland-backend` **0.3.16**
+      / `wayland-server` **0.31.14** only fix **client/sys** races (`server_impl`
+      unchanged); Metis still locks **0.3.15** / **0.31.13** via smithay. Bumping
+      alone will not clear the Chromium path. **Rejected ship workarounds:**
+      default-on now; Chromium/Electron blacklist; disabling `get_information`;
+      dropping `use_system_lib` only for colour management (whole-compositor
+      backend change, unproven). **Decision:** keep the global **opt-in** until a
+      **server-side** wayland-rs fix is in the lockfile and nested Chromium retest
+      (~4 s) stays clean — then flip `color_protocol_enabled()` to default-on.
+      Upstream issue draft:
+      [`docs/upstream/wayland-rs-server-objectdata-uaf.md`](../docs/upstream/wayland-rs-server-objectdata-uaf.md)
+      (file with [`docs/upstream/README.md`](../docs/upstream/README.md); replace this
+      path with the [Smithay/wayland-rs](https://github.com/Smithay/wayland-rs)
+      issue URL when opened). **Follow-up when
+      revisited:** ASAN build to pin the faulting allocation; after upstream fix,
+      default-on gate + Chromium/Cursor retest.
+      _Hardware gamma / LUT verified live; still to confirm survival across a real
       mode-set/VT switch._
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
       compositor toggles the warm overlay inside the schedule while the master
@@ -477,10 +482,12 @@ Phase 3) — none of these are possible under the nested winit dev session.
       33³ atlas) for ICC sRGB→display gamut mapping; high-bit offscreen when
       available; unified LUT→PQ post-pass; skip CRTC `vcgt` when LUT owns the
       output. Opt-in `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises
-      PQ/HLG/BT.2020 and stores parametric TF/primaries; default-off until
-      upstream wayland-rs ObjectData UAF is fixed. **Deferred:** default-on colour
-      protocol, true per-surface HDR decode, HLG desktop encode, DRM BT.2020
-      Colorspace for SDR desktop.
+      PQ/HLG/BT.2020 and stores parametric TF/primaries; **default-off** until
+      upstream wayland-rs **server/sys** ObjectData UAF is fixed (0.3.16 does not
+      fix it — see §B). **Phase 5 product scope closed** with this residual gate.
+      **Deferred stretch (not blocking Phase 5):** default-on colour protocol,
+      true per-surface HDR decode, HLG desktop encode, DRM BT.2020 Colorspace for
+      SDR desktop.
 ---
 
 ## Phase 6 — Flatpak, Steam & gaming

@@ -1,7 +1,8 @@
 //! Per-output ICC profiles from `outputs.json` and the `wp_color_management_v1`
 //! Wayland protocol (staging). Stage 1 applies `vcgt` via CRTC gamma; Stage 2
 //! bakes a GLES 3D LUT ([`crate::color_lut`]). The protocol global stays opt-in
-//! (`METIS_COLOR_MGMT`) until the upstream wayland-rs UAF is fixed.
+//! (`METIS_COLOR_MGMT=1`) until a **server-side** wayland-rs ObjectData UAF fix
+//! lands (0.3.16 only touched client/sys — see [`protocol::color_protocol_enabled`]).
 
 mod protocol;
 pub(crate) mod vcgt;
