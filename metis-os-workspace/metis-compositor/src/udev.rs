@@ -151,6 +151,8 @@ pub struct SurfaceData {
     pub hdr_metadata_blob: Option<u64>,
     /// HDR Colorspace / metadata currently applied on this connector.
     pub hdr_active: bool,
+    /// Encode transfer matching the last applied HDR metadata (PQ vs HLG).
+    pub hdr_transfer: crate::hdr_encode::HdrTransfer,
     /// Whether we already logged the negotiated primary-plane Fourcc.
     pub scanout_format_logged: bool,
 }
@@ -978,6 +980,7 @@ impl MetisState {
                 dmabuf_feedback,
                 hdr_metadata_blob: None,
                 hdr_active: false,
+                hdr_transfer: crate::hdr_encode::HdrTransfer::default(),
                 scanout_format_logged: false,
             },
         );
@@ -1346,11 +1349,12 @@ impl MetisState {
             crate::output_vrr::prepare_vrr_for_render(self, id);
             crate::output_hdr::maybe_log_scanout_format(self, id);
 
-            let hdr_active = self
+            let (hdr_active, hdr_transfer) = self
                 .udev
                 .as_ref()
                 .and_then(|u| u.surface(id))
-                .is_some_and(|s| s.hdr_active);
+                .map(|s| (s.hdr_active, s.hdr_transfer))
+                .unwrap_or((false, crate::hdr_encode::HdrTransfer::Pq));
 
             let output_name = output.name();
             if self.color_mgmt.profiles_dirty {
@@ -1374,6 +1378,7 @@ impl MetisState {
                         .unwrap_or_default(),
                     scale,
                     hdr_active,
+                    hdr_transfer,
                 ) {
                     (pass.elements, pass.clear)
                 } else {
@@ -1672,7 +1677,12 @@ impl MetisState {
                         surface.pending = true;
                     }
                 }
-                // A VT switch resets CRTC gamma and connector HDR blobs; re-apply.
+                // A VT switch resets CRTC gamma and connector HDR blobs; GL colour
+                // resources may also be invalid after DRM pause — dirty + drop them
+                // so the next frame rebakes LUT atlases and recompiles HDR encode.
+                self.color_mgmt.profiles_dirty = true;
+                self.color_lut.invalidate_gl();
+                self.hdr_encode.invalidate_gl();
                 crate::output_gamma::apply_output_gamma(self);
                 crate::output_hdr::reapply_output_hdrs(self);
                 self.damaged = true;

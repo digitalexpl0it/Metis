@@ -5,6 +5,21 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-26]
+
+### Added
+
+- **Phase 5 HDR stretch** — SDR→HDR encode applies Rec.709→BT.2020 before PQ;
+  mastering metadata uses BT.2020 primaries and prefers DRM BT.2020 Colorspace.
+  EDID HLG detection enables HDR on HLG-only panels with HLG encode (EOTF=3);
+  ST.2084 still preferred when both are present. VT resume dirties ICC profiles
+  and invalidates LUT / HDR GL programs so they rebake after DRM pause.
+
+### Fixed
+
+- **Settings Display ICC clear** — label reads “Default (sRGB)” (removed stale
+  “pipeline apply pending” copy).
+
 ## [2026-07-25]
 
 ### Security

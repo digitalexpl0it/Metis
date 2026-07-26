@@ -942,7 +942,7 @@ fn build_output_panel(
     profile_label.set_wrap(true);
     profile_label.add_css_class("metis-settings-hint");
     let default_profile_label =
-        tr("Default (sRGB) — Stage 1 vcgt calibration when a profile is set");
+        tr("Default (sRGB)");
     profile_label.set_text(if profile_path.is_empty() {
         default_profile_label.as_str()
     } else {
@@ -1033,9 +1033,7 @@ fn build_output_panel(
                     let mut c = cfg.borrow_mut();
                     c.outputs.entry(name.clone()).or_default().color_profile = None;
                 }
-                profile_label.set_text(
-                    "Default (sRGB) — compositor colour pipeline apply pending",
-                );
+                profile_label.set_text("Default (sRGB)");
                 clear_profile.set_sensitive(false);
                 save_and_apply(&cfg.borrow());
             }

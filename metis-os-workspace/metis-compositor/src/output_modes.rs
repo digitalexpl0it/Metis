@@ -246,6 +246,7 @@ fn apply_drm_mode(
             surface.pending = true;
             // Mode-set resets connector HDR blobs / Colorspace; force re-apply.
             surface.hdr_active = false;
+            surface.hdr_transfer = crate::hdr_encode::HdrTransfer::default();
             surface.scanout_format_logged = false;
         })
 }

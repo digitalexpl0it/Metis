@@ -4,7 +4,8 @@
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
 spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. Stretch §F
 remains open. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1–H3 and
-Stage 2 GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
+Stage 2 GLES 3D-LUT colour; 2026-07-26 stretch added BT.2020 encode + HLG path
+and VT LUT invalidate. Default-on `wp_color_management_v1` remains deferred
 (upstream wayland-rs **server/sys** ObjectData UAF — see Phase 5 §B). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
 (remote access security closeout) complete 2026-07-25. **Phase 3** multi-GPU
 hardware validation remains open. See individual phase sections for deferred
@@ -459,8 +460,9 @@ Phase 3) — none of these are possible under the nested winit dev session.
       [`docs/upstream/wayland-rs-server-objectdata-uaf.md`](../docs/upstream/wayland-rs-server-objectdata-uaf.md)).
       **Follow-up when revisited:** ASAN build to pin the faulting allocation;
       after upstream fix, default-on gate + Chromium/Cursor retest.
-      _Hardware gamma / LUT verified live; still to confirm survival across a real
-      mode-set/VT switch._
+      Mode-set / VT resume re-apply for CRTC gamma + HDR blobs is **wired**;
+      VT also invalidates LUT/HDR GL atlases (2026-07-26). Hardware QA across a
+      real mode-set/VT switch remains welcome.
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
       compositor toggles the warm overlay inside the schedule while the master
       night-light switch is on
@@ -474,9 +476,7 @@ Phase 3) — none of these are possible under the nested winit dev session.
       SDR offscreen then blits through an sRGB→linear→ST.2084 PQ texture shader
       (BT.2408 203‑nit reference white) so enabling HDR visibly maps the desktop
       into the HDR10 signal (`hdr_encode.rs`). Falls back to SDR scanout if the
-      shader/offscreen path fails. **Cast polish:** keep Default/RGB Colorspace +
-      Rec.709 mastering metadata (not BT.2020 without gamut convert); identity
-      CRTC gamma while HDR is active (avoids warm/tan laptop overlay).
+      shader/offscreen path fails. Identity CRTC gamma while HDR is active.
 - [x] **HDR H3 / Stage 2 colour (2026-07-25)** — GLES 3D-LUT (`lcms2` bake,
       33³ atlas) for ICC sRGB→display gamut mapping; high-bit offscreen when
       available; unified LUT→PQ post-pass; skip CRTC `vcgt` when LUT owns the
@@ -484,9 +484,13 @@ Phase 3) — none of these are possible under the nested winit dev session.
       PQ/HLG/BT.2020 and stores parametric TF/primaries; **default-off** until
       upstream wayland-rs **server/sys** ObjectData UAF is fixed (0.3.16 does not
       fix it — see §B). **Phase 5 product scope closed** with this residual gate.
-      **Deferred stretch (not blocking Phase 5):** default-on colour protocol,
-      true per-surface HDR decode, HLG desktop encode, DRM BT.2020 Colorspace for
-      SDR desktop.
+- [x] **HDR stretch (2026-07-26)** — Rec.709→BT.2020 in encode + BT.2020 mastering
+      metadata / prefer DRM BT.2020 Colorspace; HLG EDID detection + HLG encode
+      (EOTF=3) when HLG-only (PQ preferred when both); VT resume invalidates LUT/
+      HDR GL and dirties ICC rebake. Mode-set/VT gamma+HDR re-apply is **wired**
+      (hardware QA still welcome). **Still deferred:** default-on colour protocol
+      ([wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949)), true
+      per-surface HDR decode.
 ---
 
 ## Phase 6 — Flatpak, Steam & gaming

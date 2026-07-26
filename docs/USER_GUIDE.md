@@ -678,14 +678,16 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   letterboxing on DRM hardware), and multi-monitor arrangement (drag preview when
   two or more outputs are connected; hidden while duplicating; **Save display
   settings** with a keep/revert confirmation). Scale, **Active**, **Adaptive
-  sync** (VRR), and **HDR** (only when the monitor EDID advertises HDR10 /
-  ST.2084 — many laptop panels do not) apply live;
+  sync** (VRR), and **HDR** (when the monitor EDID advertises HDR10 / ST.2084
+  or HLG — many laptop panels do not) apply live;
   duplicate mode, arrangement, and resolution changes are batched behind save.
   Night-light preferences apply live in the compositor (warm overlay; skipped
-  while HDR is active on that output). With **HDR** on, the compositor also
-  tone-maps the desktop into PQ (reference white ≈ 203 nits). Per-output **ICC
-  colour profiles** apply a GLES 3D LUT when possible (otherwise the profile
-  `vcgt` drives CRTC gamma). The Wayland `wp_color_management_v1` protocol is
+  while HDR is active on that output). With **HDR** on, the compositor
+  tone-maps the desktop through Rec.709→BT.2020 then **PQ** (preferred when
+  EDID has ST.2084) or **HLG** (HLG-only panels); reference white ≈ 203 nits.
+  Per-output **ICC colour profiles** apply a GLES 3D LUT when possible
+  (otherwise the profile `vcgt` drives CRTC gamma). The Wayland
+  `wp_color_management_v1` protocol is
   **experimental and off by default** — set `METIS_COLOR_MGMT=1` only for
   testing; advertising it to Chromium/Ozone can crash the session (upstream
   wayland-rs server ObjectData bug). Hardware ICC / LUT / HDR do **not** need

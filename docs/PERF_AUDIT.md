@@ -196,7 +196,6 @@ ls -lh metis-os-workspace/target/{release,release-small}/metis-*
 5. **Phase 5 colour follow-ups** — default-on `wp_color_management_v1` (blocked
    on upstream wayland-rs **server/sys** ObjectData UAF; 0.3.16 does not fix —
    [wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949)), true
-   per-surface HDR decode / HLG desktop encode (Stage 2 3D-LUT + H1–H3 shipped
-   2026-07-25).
+   per-surface HDR decode (BT.2020 + HLG encode shipped 2026-07-26).
 
 See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 5–6.

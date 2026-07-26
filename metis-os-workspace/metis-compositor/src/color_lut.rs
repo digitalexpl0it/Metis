@@ -53,6 +53,14 @@ struct LutBlitProgram {
 }
 
 impl ColorLutRuntime {
+    /// Drop cached GL atlases / blit program (e.g. after VT resume when the
+    /// GLES context may have lost resources). Next `sync_profiles` rebakes.
+    pub fn invalidate_gl(&mut self) {
+        self.entries.clear();
+        self.lut_active.clear();
+        self.blit = None;
+    }
+
     /// True when a GLES LUT is ready for `output_name` (vcgt should stay identity).
     pub fn lut_owns_output(&self, output_name: &str) -> bool {
         self.lut_active.get(output_name).copied().unwrap_or(false)

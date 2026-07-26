@@ -1,7 +1,7 @@
-//! Unified DRM colour post-pass: optional Stage 2 3D-LUT + optional HDR H2 PQ.
+//! Unified DRM colour post-pass: optional Stage 2 3D-LUT + optional HDR encode.
 //!
 //! Pipeline: composite elements → (prefer 10-bit / float offscreen) → LUT blit →
-//! PQ encode (when HDR active) → single fullscreen scanout element.
+//! PQ or HLG encode (when HDR active) → single fullscreen scanout element.
 
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::damage::OutputDamageTracker;
@@ -13,7 +13,7 @@ use smithay::backend::renderer::{Bind, Offscreen};
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
 use crate::color_lut::ColorLutRuntime;
-use crate::hdr_encode::{HdrEncodeRuntime, HDR_CLEAR, REFERENCE_WHITE_NITS};
+use crate::hdr_encode::{HdrEncodeRuntime, HdrTransfer, HDR_CLEAR, REFERENCE_WHITE_NITS};
 use crate::render::{OutputStack, CLEAR_COLOR};
 
 /// Result of the colour post-pass ready for `render_frame`.
@@ -22,7 +22,7 @@ pub struct ColourPassResult {
     pub clear: [f32; 4],
 }
 
-/// Composite `elements`, optionally apply the output LUT, optionally PQ-encode.
+/// Composite `elements`, optionally apply the output LUT, optionally HDR-encode.
 ///
 /// Returns `None` when neither LUT nor HDR is active (caller scans out `elements`
 /// directly). On GL failure falls back toward a simpler path and may return
@@ -36,6 +36,7 @@ pub fn apply_colour_post_pass(
     size: Size<i32, Physical>,
     scale: Scale<f64>,
     hdr_active: bool,
+    hdr_transfer: HdrTransfer,
 ) -> Option<ColourPassResult> {
     let wants_lut = lut_runtime.lut_owns_output(output_name);
     if !wants_lut && !hdr_active {
@@ -55,8 +56,11 @@ pub fn apply_colour_post_pass(
     }
 
     if hdr_active {
-        hdr_runtime.ensure_program(renderer);
-        let program = hdr_runtime.program.clone()?;
+        hdr_runtime.ensure_program(renderer, hdr_transfer);
+        let program = match hdr_transfer {
+            HdrTransfer::Pq => hdr_runtime.pq_program.clone()?,
+            HdrTransfer::Hlg => hdr_runtime.hlg_program.clone()?,
+        };
         let buffer = TextureBuffer::from_texture(renderer, scene, 1, Transform::Normal, None);
         let src_rect = Rectangle::<f64, Logical>::new(
             Point::from((0.0, 0.0)),
@@ -70,13 +74,13 @@ pub fn apply_colour_post_pass(
             Some(Size::from((size.w, size.h))),
             Kind::Unspecified,
         );
-        let pq = TextureShaderElement::new(
+        let encoded = TextureShaderElement::new(
             inner,
             program,
             vec![Uniform::new("reference_white", REFERENCE_WHITE_NITS)],
         );
         return Some(ColourPassResult {
-            elements: vec![OutputStack::HdrEncode(pq)],
+            elements: vec![OutputStack::HdrEncode(encoded)],
             clear: HDR_CLEAR,
         });
     }
