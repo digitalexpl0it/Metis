@@ -250,8 +250,9 @@ reference.
   is Phase 2.5 in the roadmap — also complete.)
 - **Phase 3 — Multi-monitor, workspaces & tiling:** complete. Per-output bars and
   desks; independent or linked workspaces; optional scrolling layout; ScreenCast
-  dmabuf zero-copy; Stage G multi-GPU DRM (hardware validation still open;
-  full `MultiRenderer` transfer deferred).
+  dmabuf zero-copy; Stage G multi-GPU DRM (**hardware validation 2026-07-26** on
+  hybrid iGPU+dGPU: HDMI projector, gaming PRIME, input); full `MultiRenderer`
+  transfer remains deferred.
 - **Phase 4 — System settings expansion:** complete (Input, Bluetooth, Printers,
   Power, Sound, Display).
 - **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** **complete**
@@ -278,8 +279,8 @@ reference.
   process; Settings list + configure dialogs; chrome and text style. Extension
   API deferred.
 
-Optional follow-up: Deck-class / multi-GPU hardware validation, compositor
-**dim on battery** hook, desktop-widget extension API, first-party remote,
+Optional follow-up: compositor **dim on battery** hook, desktop-widget extension
+API, Phase 15 §F (first-party remote / image RDP clipboard / fingerprint),
 default-on colour-management protocol (upstream wayland-rs), per-surface HDR.
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed

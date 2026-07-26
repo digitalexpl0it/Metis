@@ -2,14 +2,16 @@
 
 **Current phase:** Phases **1–15** are complete for their shipped product bars.
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
-spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. Stretch §F
-remains open. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1–H3 and
-Stage 2 GLES 3D-LUT colour; 2026-07-26 stretch added BT.2020 encode + HLG path
-and VT LUT invalidate. Default-on `wp_color_management_v1` remains deferred
-(upstream wayland-rs **server/sys** ObjectData UAF — see Phase 5 §B). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
-(remote access security closeout) complete 2026-07-25. **Phase 3** multi-GPU
-hardware validation remains open. See individual phase sections for deferred
-follow-ups.
+spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Active: Phase 15 §F stretch** (first-party remote / fingerprint; **image RDP
+clipboard done 2026-07-26**).
+**Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
+iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
+closed 2026-07-25 with HDR H1–H3 and Stage 2 GLES 3D-LUT colour; 2026-07-26
+stretch added BT.2020 encode + HLG path and VT LUT invalidate. Default-on
+`wp_color_management_v1` remains deferred (upstream wayland-rs **server/sys**
+ObjectData UAF — see Phase 5 §B). **Phase 8** (i18n) complete 2026-07-24.
+**Phase 7** (remote access security closeout) complete 2026-07-25. See
+individual phase sections for deferred follow-ups.
 
 ---
 
@@ -319,7 +321,11 @@ so each milestone is shippable on its own:
         remains a follow-up; the local output renderer is used as the safe
         fallback. Custom blur is disabled when the output render node differs
         from the primary. Wallpaper/decoration GL caches are invalidated on
-        renderer-context switches. Multi-GPU hardware validation remains.
+        renderer-context switches. **Hardware validation (2026-07-26):** hybrid
+        iGPU+dGPU laptop — HDMI projector output, gaming PRIME offload (fast),
+        pointer/input stable. **Deferred stretch:** explicit Smithay
+        `MultiRenderer` primary→secondary transfer (local renderer remains the
+        safe path).
 - [x] **Settings portal (`org.freedesktop.portal.Settings`)** — `metis-portal`
       serves color-scheme (`u` uint32 per xdg-desktop-portal spec), gtk-theme,
       and empty decoration/button layouts from `metis-config` so GTK /
@@ -728,8 +734,9 @@ latency and clear setup docs.
 - [x] **RDP clipboard bridge (v1)** — `metis-portal` Mutter session clipboard
       D-Bus (`EnableClipboard`, `SetSelection`, `SelectionRead`/`Write`); compositor
       `ClipboardChanged` events forwarded to active GRD sessions (2026-07-05).
-      **2026-07-25:** text-only contract — never advertise local `image/*` to GRD.
-      **Follow-up:** image clipboard after a real image path exists.
+      **2026-07-26:** image clipboard (`image/png|jpeg|bmp`) via portal shim;
+      text path unchanged. **Follow-up:** format conversion when client asks for
+      BMP but local store is PNG-only.
 - [x] **ScreenCast as capture backend** — GRD RDP already consumes Mutter
       ScreenCast → `metis-portal` PipeWire (memfd BGRx). **2026-07-24:** multi-
       monitor `RecordMonitor(connector)` selects the matching `wl_output` by
@@ -1345,12 +1352,14 @@ server does not.
 
 - [ ] **First-party remote viewer/host** — from Phase 7 §B; only after security
       review and a clear maintenance story.
-- [ ] **Image RDP clipboard** — only after a real image path exists (text-only
-      contract stays until then).
+- [x] **Image RDP clipboard** (2026-07-26) — `metis-portal` Mutter clipboard shim
+      advertises/serves local `image/png|jpeg|bmp` from compositor durable paths
+      (≤10 MiB) and accepts remote image writes into `$XDG_RUNTIME_DIR/metis/clipboard/`
+      then `SetClipboard`. Text path unchanged; lock still pauses RDP.
 - [ ] **Fingerprint / greeter niceties** on the lock screen.
 
-**Suggested order:** §A → §B → §C → §D → §E (architecture) → §F as appetite
-allows.
+**Suggested order:** image clipboard (done) → fingerprint/greeter → first-party
+remote as appetite allows.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).

@@ -9,6 +9,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 15 §F image RDP clipboard** — portal Mutter clipboard shim syncs
+  `image/png|jpeg|bmp` both ways (≤10 MiB, path-allowlisted under runtime
+  `clipboard/`). Text path unchanged. First-party remote viewer and fingerprint
+  lock remain open.
+- **Phase 3 multi-GPU hardware validation** — closed on hybrid iGPU+dGPU: HDMI
+  projector output, gaming PRIME offload (fast), pointer/input stable. Explicit
+  Smithay `MultiRenderer` primary→secondary transfer remains deferred.
 - **Phase 5 HDR stretch** — SDR→HDR encode applies Rec.709→BT.2020 before PQ;
   mastering metadata uses BT.2020 primaries and prefers DRM BT.2020 Colorspace.
   EDID HLG detection enables HDR on HLG-only panels with HLG encode (EOTF=3);
@@ -17,6 +24,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Settings scroll hitch / wallpaper bleed** — page and nav scrollers are opaque
+  again; removed section hover box-shadow and page-icon scale transitions that
+  forced wallpaper re-composite under an ARGB Settings window while scrolling.
+  Modal password/widget sheets still use transparent windows for rounded cards.
 - **Settings Display ICC clear** — label reads “Default (sRGB)” (removed stale
   “pipeline apply pending” copy).
 

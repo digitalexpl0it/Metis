@@ -64,7 +64,8 @@ The compositor renders ScreenCast frames into client GBM buffers (no
 
 **Remaining gap:** multi-plane / non-linear modifiers may still take the MemFd
 fallback; profile on hybrid NVIDIA stacks. Full multi-GPU (`GpuManager`) is
-still open under Phase 3.
+**validated 2026-07-26** on hybrid iGPU+dGPU (HDMI projector, gaming PRIME);
+explicit `MultiRenderer` transfer remains deferred.
 
 **Recommendation:** validate OBS / gnome-remote-desktop under a live DRM
 session; watch portal logs for `dmabuf` vs MemFd negotiation.

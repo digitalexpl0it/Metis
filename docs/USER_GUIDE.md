@@ -843,8 +843,10 @@ still quits the session as an escape hatch.
 autostart` at login so you do not need to reopen Settings each time.
 
 **Clipboard.** Text copy/paste between the Metis session and an RDP client is
-synced via the portal's Mutter clipboard bridge. **Text only** (`text/plain`,
-UTF-8) — Metis does not advertise local image clipboard mimes to RDP.
+synced via the portal's Mutter clipboard bridge. **Text and images**
+(`text/plain`, `image/png` / `jpeg` / `bmp`, ≤10 MB) — local durable clipboard
+paths are advertised to RDP; remote images are written under
+`$XDG_RUNTIME_DIR/metis/clipboard/` then set on the compositor.
 
 **Troubleshooting.** If the page shows an install hint, install
 `gnome-remote-desktop` and re-login. If enable fails with “Set RDP credentials”,
@@ -1007,6 +1009,7 @@ changes live.
 
 | Symptom | Try |
 |---------|-----|
+| Settings window shows desktop wallpaper through the body, or scrolling hitchs | Rebuild/restart Settings — page chrome is opaque; see [`CHANGELOG.md`](../CHANGELOG.md) 2026-07-26. Modal password/widget sheets intentionally stay transparent outside the rounded card. |
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk-4-layer-shell` is installed |
 | Electron app (e.g. Claude Desktop) opens then immediately closes | Metis launches Electron/Chromium apps on native Wayland by default (`ELECTRON_OZONE_PLATFORM_HINT=auto`, and `CLAUDE_USE_WAYLAND=1` for Claude), which is stable; their XWayland path can quit on launch. Re-login after `./run-metis.sh --install-session` so the session env applies. To force XWayland for one app, launch it with `ELECTRON_OZONE_PLATFORM_HINT=x11` (or `CLAUDE_USE_WAYLAND=0`) |
 | GitHub Desktop / Electron logs `Failed to read color-scheme` (`dark_mode_manager_linux.cc`) | Rebuild/restart `metis-portal` (session reinstall). Confirm the portal returns uint32: `busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop org.freedesktop.portal.Settings Read ss org.freedesktop.appearance color-scheme` should print `v v u …` (not `i`). See [`CHANGELOG.md`](../CHANGELOG.md) 2026-07-25 |

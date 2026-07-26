@@ -1,16 +1,22 @@
 //! Remote-desktop clipboard bridge for gnome-remote-desktop.
 //!
 //! Mutter's `org.gnome.Mutter.RemoteDesktop.Session` uses option dicts and fd
-//! passing — not the wrong `(as, v)` shape that caused `UnknownMethod` errors.
+//! passing. Local Metis clipboard may include text and images (durable paths
+//! under `$XDG_RUNTIME_DIR/metis/clipboard/`); both are synced to RDP within a
+//! 10 MiB cap matching the compositor.
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::os::fd::{FromRawFd, OwnedFd};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use zbus::zvariant::Value;
 
 use crate::compositor_ipc;
+
+/// Match compositor `MAX_CLIPBOARD_BYTES`.
+const MAX_CLIPBOARD_BYTES: usize = 10 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct ClipboardSession {
@@ -26,6 +32,7 @@ struct Inner {
     remote_mimes: Vec<String>,
     transfer_serial: u32,
     pending_write_serial: Option<u32>,
+    pending_write_mime: Option<String>,
     last_local: Option<LocalClip>,
 }
 
@@ -45,6 +52,7 @@ impl ClipboardSession {
                 remote_mimes: Vec::new(),
                 transfer_serial: 0,
                 pending_write_serial: None,
+                pending_write_mime: None,
                 last_local: None,
             })),
             conn,
@@ -76,6 +84,7 @@ impl ClipboardSession {
         inner.remote_owner = false;
         inner.remote_mimes.clear();
         inner.pending_write_serial = None;
+        inner.pending_write_mime = None;
         Ok(())
     }
 
@@ -88,6 +97,7 @@ impl ClipboardSession {
         if mimes.is_empty() {
             inner.remote_owner = false;
             inner.remote_mimes.clear();
+            inner.pending_write_mime = None;
             drop(inner);
             self.emit_owner_changed(false, &[]);
         } else {
@@ -95,6 +105,11 @@ impl ClipboardSession {
             inner.remote_mimes = mimes.clone();
             drop(inner);
             self.emit_owner_changed(true, &mimes);
+            // Eagerly pull remote content into Metis so paste works without a
+            // separate local SelectionSource request path.
+            if let Some(mime) = preferred_remote_mime(&mimes) {
+                self.request_transfer(&mime);
+            }
         }
         Ok(())
     }
@@ -115,7 +130,13 @@ impl ClipboardSession {
                 "SelectionWrite serial mismatch — accepting anyway"
             );
         }
+        let mime = inner
+            .pending_write_mime
+            .clone()
+            .or_else(|| preferred_remote_mime(&inner.remote_mimes))
+            .unwrap_or_else(|| "text/plain;charset=utf-8".into());
         inner.pending_write_serial = None;
+        inner.pending_write_mime = None;
         drop(inner);
 
         let (read_fd, write_fd) = pipe::pipe().map_err(|err| format!("pipe: {err}"))?;
@@ -125,11 +146,30 @@ impl ClipboardSession {
             .spawn(move || {
                 let mut file = std::fs::File::from(read_for_thread);
                 let mut buf = Vec::new();
-                if file.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
-                    if let Ok(text) = std::str::from_utf8(&buf) {
-                        compositor_ipc::set_clipboard("text/plain;charset=utf-8", Some(text), None);
+                let mut chunk = [0u8; 64 * 1024];
+                loop {
+                    match file.read(&mut chunk) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            if buf.len() + n > MAX_CLIPBOARD_BYTES {
+                                tracing::warn!(
+                                    %mime,
+                                    "RDP clipboard write exceeded {MAX_CLIPBOARD_BYTES} bytes — dropping"
+                                );
+                                return;
+                            }
+                            buf.extend_from_slice(&chunk[..n]);
+                        }
+                        Err(err) => {
+                            tracing::warn!(%err, %mime, "RDP clipboard write read failed");
+                            return;
+                        }
                     }
                 }
+                if buf.is_empty() {
+                    return;
+                }
+                apply_remote_clipboard_bytes(&mime, &buf);
             })
             .ok();
         Ok(write_fd)
@@ -158,7 +198,7 @@ impl ClipboardSession {
         drop(inner);
 
         let data = local_clip_bytes(&local, mime_type)?;
-        let (mut read_fd, write_fd) = pipe::pipe().map_err(|err| format!("pipe: {err}"))?;
+        let (read_fd, write_fd) = pipe::pipe().map_err(|err| format!("pipe: {err}"))?;
         let write_for_thread = write_fd.try_clone().map_err(|err| format!("pipe clone: {err}"))?;
         std::thread::spawn(move || {
             let mut file = std::fs::File::from(write_for_thread);
@@ -178,6 +218,7 @@ impl ClipboardSession {
             }
             inner.transfer_serial = inner.transfer_serial.saturating_add(1);
             inner.pending_write_serial = Some(inner.transfer_serial);
+            inner.pending_write_mime = Some(mime_type.to_string());
             inner.transfer_serial
         };
         let _ = self.conn.emit_signal(
@@ -203,18 +244,21 @@ impl ClipboardSession {
         if !enabled {
             return;
         }
-        // Ignore image-only local selections for RDP (text-only contract).
+
         let is_text = preview_text.is_some()
             || mime.contains("text")
             || mime.eq_ignore_ascii_case("UTF8_STRING");
-        if !is_text {
-            let _ = image_path;
+        let is_image = image_path.is_some() || is_image_mime(mime);
+        if !is_text && !is_image {
             return;
         }
+
         let local = LocalClip {
             mime: mime.to_string(),
             text: preview_text.map(str::to_string),
-            image_path: None,
+            image_path: image_path
+                .filter(|p| !p.is_empty())
+                .map(str::to_string),
         };
         let mimes = local_mimes(&local);
         if mimes.is_empty() {
@@ -246,41 +290,254 @@ impl ClipboardSession {
     }
 }
 
-fn mime_types_from_options(_options: &HashMap<&str, Value<'_>>) -> Vec<String> {
-    // GRD advertises text clipboard mimes; exact parsing of the options dict is
-    // best-effort — empty still enables the sync path.
+fn mime_types_from_options(options: &HashMap<&str, Value<'_>>) -> Vec<String> {
+    if let Some(raw) = options.get("mime-types") {
+        if let Some(list) = parse_string_array(raw) {
+            let filtered: Vec<String> = list
+                .into_iter()
+                .filter(|m| is_text_mime(m) || is_image_mime(m))
+                .collect();
+            if !filtered.is_empty() {
+                return filtered;
+            }
+        }
+    }
+    // Fallback when GRD omits mime-types or sends an opaque variant.
     vec![
         "text/plain;charset=utf-8".into(),
         "text/plain".into(),
         "UTF8_STRING".into(),
+        "image/png".into(),
+        "image/jpeg".into(),
+        "image/bmp".into(),
     ]
 }
 
+fn parse_string_array(value: &Value<'_>) -> Option<Vec<String>> {
+    if let Ok(list) = <Vec<String>>::try_from(value.clone()) {
+        if !list.is_empty() {
+            return Some(list);
+        }
+    }
+    match value {
+        Value::Array(arr) => {
+            let mut out = Vec::new();
+            for item in arr.iter() {
+                if let Ok(s) = String::try_from(item.clone()) {
+                    out.push(s);
+                } else if let Ok(s) = <&str>::try_from(item) {
+                    out.push(s.to_string());
+                }
+            }
+            if out.is_empty() {
+                None
+            } else {
+                Some(out)
+            }
+        }
+        Value::Str(s) => Some(vec![s.as_str().to_string()]),
+        _ => None,
+    }
+}
+
+fn preferred_remote_mime(mimes: &[String]) -> Option<String> {
+    mimes
+        .iter()
+        .find(|m| is_text_mime(m))
+        .cloned()
+        .or_else(|| {
+            mimes
+                .iter()
+                .find(|m| is_image_mime(m))
+                .cloned()
+        })
+}
+
 fn local_mimes(local: &LocalClip) -> Vec<String> {
-    // Text-only RDP clipboard contract: never advertise image/* to GRD.
+    let mut out = Vec::new();
     if local.text.is_some()
         || local.mime.contains("text")
         || local.mime.eq_ignore_ascii_case("UTF8_STRING")
     {
-        vec![
+        out.extend([
             "text/plain;charset=utf-8".into(),
             "text/plain".into(),
             "UTF8_STRING".into(),
-        ]
-    } else {
-        Vec::new()
+        ]);
     }
+    if let Some(path) = &local.image_path {
+        let mime = image_mime_for_path(path).unwrap_or_else(|| normalize_image_mime(&local.mime));
+        if is_image_mime(&mime) {
+            // Advertise the concrete type first, then common GRD aliases.
+            push_unique(&mut out, mime.clone());
+            if mime != "image/png" {
+                push_unique(&mut out, "image/png".into());
+            }
+            if mime != "image/bmp" {
+                push_unique(&mut out, "image/bmp".into());
+            }
+            if mime != "image/jpeg" {
+                push_unique(&mut out, "image/jpeg".into());
+            }
+        }
+    } else if is_image_mime(&local.mime) {
+        push_unique(&mut out, normalize_image_mime(&local.mime));
+    }
+    out
 }
 
 fn local_clip_bytes(local: &LocalClip, mime_type: &str) -> Result<Vec<u8>, String> {
-    if mime_type.contains("text") || mime_type == "UTF8_STRING" {
+    if is_text_mime(mime_type) {
         if let Some(text) = &local.text {
-            return Ok(text.as_bytes().to_vec());
+            let bytes = text.as_bytes();
+            if bytes.len() > MAX_CLIPBOARD_BYTES {
+                return Err("clipboard text too large".into());
+            }
+            return Ok(bytes.to_vec());
         }
     }
-    // Image clipboard is intentionally unsupported for RDP until a real path exists.
-    let _ = &local.image_path;
-    Err("RDP clipboard is text-only".into())
+    if is_image_mime(mime_type) {
+        let Some(path) = &local.image_path else {
+            return Err("no local image clipboard".into());
+        };
+        let path = validate_clipboard_image_path(path)?;
+        let meta = std::fs::metadata(&path).map_err(|e| format!("image stat: {e}"))?;
+        if meta.len() as usize > MAX_CLIPBOARD_BYTES {
+            return Err("clipboard image too large".into());
+        }
+        // Serve native file bytes. RDP clients often ask for image/bmp while we
+        // store PNG — still return the file; GRD/clients that cannot decode will
+        // fall through other advertised types on a later SelectionRead.
+        let data = std::fs::read(&path).map_err(|e| format!("image read: {e}"))?;
+        if data.len() > MAX_CLIPBOARD_BYTES {
+            return Err("clipboard image too large".into());
+        }
+        return Ok(data);
+    }
+    Err(format!("unsupported clipboard mime {mime_type}"))
+}
+
+fn apply_remote_clipboard_bytes(mime: &str, buf: &[u8]) {
+    if is_text_mime(mime) {
+        match std::str::from_utf8(buf) {
+            Ok(text) => {
+                compositor_ipc::set_clipboard("text/plain;charset=utf-8", Some(text), None);
+            }
+            Err(_) => {
+                tracing::warn!(%mime, "remote text clipboard was not UTF-8 — dropping");
+            }
+        }
+        return;
+    }
+    if is_image_mime(mime) {
+        match write_remote_image(mime, buf) {
+            Ok(path) => {
+                let store_mime = normalize_image_mime(mime);
+                compositor_ipc::set_clipboard(&store_mime, None, Some(&path));
+            }
+            Err(err) => tracing::warn!(%err, %mime, "failed to store remote image clipboard"),
+        }
+        return;
+    }
+    tracing::debug!(%mime, "ignoring unsupported remote clipboard mime");
+}
+
+fn write_remote_image(mime: &str, data: &[u8]) -> Result<String, String> {
+    if data.len() > MAX_CLIPBOARD_BYTES {
+        return Err("image exceeds size cap".into());
+    }
+    let dir = clipboard_image_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir clipboard: {e}"))?;
+    let ext = image_extension(mime);
+    let name = format!(
+        "rdp-{}-{}.{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0),
+        ext
+    );
+    let path = dir.join(name);
+    std::fs::write(&path, data).map_err(|e| format!("write image: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+fn clipboard_image_dir() -> Result<PathBuf, String> {
+    Ok(metis_protocol::runtime_dir().join("clipboard"))
+}
+
+fn validate_clipboard_image_path(path: &str) -> Result<PathBuf, String> {
+    let path = Path::new(path);
+    let canon = path
+        .canonicalize()
+        .map_err(|e| format!("invalid clipboard path: {e}"))?;
+    let root = clipboard_image_dir()?
+        .canonicalize()
+        .unwrap_or_else(|_| metis_protocol::runtime_dir().join("clipboard"));
+    if !canon.starts_with(&root) {
+        return Err("clipboard image path outside runtime clipboard dir".into());
+    }
+    Ok(canon)
+}
+
+fn is_text_mime(mime: &str) -> bool {
+    let m = mime.trim();
+    m.contains("text") || m.eq_ignore_ascii_case("UTF8_STRING") || m.eq_ignore_ascii_case("TEXT")
+}
+
+fn is_image_mime(mime: &str) -> bool {
+    let m = mime.to_ascii_lowercase();
+    m.starts_with("image/png")
+        || m.starts_with("image/jpeg")
+        || m.starts_with("image/jpg")
+        || m.starts_with("image/bmp")
+        || m.starts_with("image/x-ms-bmp")
+        || m.starts_with("image/x-bmp")
+        || m.contains("png") && m.starts_with("image/")
+        || m.contains("jpeg") && m.starts_with("image/")
+}
+
+fn normalize_image_mime(mime: &str) -> String {
+    let m = mime.to_ascii_lowercase();
+    if m.contains("jpeg") || m.contains("jpg") {
+        "image/jpeg".into()
+    } else if m.contains("bmp") {
+        "image/bmp".into()
+    } else {
+        "image/png".into()
+    }
+}
+
+fn image_mime_for_path(path: &str) -> Option<String> {
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())?;
+    match ext.as_str() {
+        "png" => Some("image/png".into()),
+        "jpg" | "jpeg" => Some("image/jpeg".into()),
+        "bmp" => Some("image/bmp".into()),
+        "webp" => None, // GRD/RDP: skip webp advertise; native file still local-only
+        _ => None,
+    }
+}
+
+fn image_extension(mime: &str) -> &'static str {
+    let m = mime.to_ascii_lowercase();
+    if m.contains("jpeg") || m.contains("jpg") {
+        "jpg"
+    } else if m.contains("bmp") {
+        "bmp"
+    } else {
+        "png"
+    }
+}
+
+fn push_unique(out: &mut Vec<String>, mime: String) {
+    if !out.iter().any(|m| m == &mime) {
+        out.push(mime);
+    }
 }
 
 mod pipe {
@@ -299,5 +556,36 @@ mod pipe {
                 OwnedFd::from_raw_fd(fds[1]),
             ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_mimes_advertise_image_and_text() {
+        let local = LocalClip {
+            mime: "image/png".into(),
+            text: Some("hi".into()),
+            image_path: Some("/tmp/x.png".into()),
+        };
+        let mimes = local_mimes(&local);
+        assert!(mimes.iter().any(|m| m.contains("text")));
+        assert!(mimes.iter().any(|m| m == "image/png"));
+    }
+
+    #[test]
+    fn preferred_mime_prefers_text_then_image() {
+        let mimes = vec!["image/png".into(), "text/plain".into()];
+        assert_eq!(
+            preferred_remote_mime(&mimes).as_deref(),
+            Some("text/plain")
+        );
+        let images = vec!["image/jpeg".into(), "image/png".into()];
+        assert_eq!(
+            preferred_remote_mime(&images).as_deref(),
+            Some("image/jpeg")
+        );
     }
 }

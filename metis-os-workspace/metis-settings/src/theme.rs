@@ -73,12 +73,16 @@ pub fn reapply() {
             // The shared stylesheet sets `window { background-color: transparent }`
             // so the shell's layer-shell overlays (bar, popovers) can show through.
             // The settings app is a real opaque toplevel, though — without forcing it
-            // solid, a transparent window behind it (e.g. a terminal) bleeds through
-            // the body. Append the opaque override LAST in the *same* provider so it
-            // always wins by source order, regardless of cross-provider cascade.
+            // solid, wallpaper bleeds through and every scroll frame re-composites the
+            // desktop (hitch / "pause then catch up"). Append opaque override LAST in
+            // the *same* provider; dialog sheets re-assert transparent in settings_css.
             let mut css = metis_config::build_stylesheet(&tokens);
             css.push_str(&format!(
-                "\nwindow, window.background {{ background-color: {} !important; }}\n",
+                "\nwindow, window.background {{ background-color: {} !important; }}\n\
+                 window.metis-settings-password-dialog,\n\
+                 window.metis-settings-widget-dialog {{\n\
+                     background-color: transparent !important;\n\
+                 }}\n",
                 tokens.bg
             ));
             base.load_from_data(&css);
@@ -136,7 +140,7 @@ fn settings_css(t: &ThemeTokens) -> String {
         window.metis-settings-widget-dialog,
         window.metis-settings-window.metis-settings-password-dialog,
         window.metis-settings-window.metis-settings-widget-dialog {{
-            background-color: transparent;
+            background-color: transparent !important;
             color: {text};
         }}
         .metis-settings-dialog-sheet {{
@@ -307,11 +311,11 @@ fn settings_css(t: &ThemeTokens) -> String {
             box-shadow: 0 0 0 3px color-mix(in srgb, {accent} 22%, transparent);
         }}
         .metis-settings-nav-scroll {{
-            background-color: transparent;
+            background-color: {surface};
         }}
         .metis-settings-nav list,
         .metis-settings-sidebar list {{
-            background-color: transparent;
+            background-color: {surface};
             padding: 4px 10px 8px;
         }}
         .metis-settings-nav-section-row {{
@@ -333,7 +337,6 @@ fn settings_css(t: &ThemeTokens) -> String {
             padding: 0;
             margin: 2px 0;
             min-height: 36px;
-            transition: background-color 160ms ease, transform 120ms ease;
         }}
         .metis-settings-nav-row-inner {{
             padding: 6px 10px 6px 8px;
@@ -384,8 +387,13 @@ fn settings_css(t: &ThemeTokens) -> String {
         }}
 
         .metis-settings-content {{ background-color: {bg}; }}
-        .metis-settings-scroller {{
-            background-color: transparent;
+        .metis-settings-scroller,
+        .metis-settings-scroller > viewport,
+        .metis-settings-scroller viewport {{
+            background-color: {bg};
+        }}
+        .metis-settings-root {{
+            background-color: {bg};
         }}
 
         .metis-settings-page {{ background-color: {bg}; }}
@@ -397,11 +405,6 @@ fn settings_css(t: &ThemeTokens) -> String {
             border-radius: 14px;
             background-color: color-mix(in srgb, {accent} 14%, {surface});
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-            transition: transform 200ms ease, box-shadow 200ms ease;
-        }}
-        .metis-settings-page-header:hover .metis-settings-page-icon-wrap {{
-            transform: scale(1.03);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
         }}
         .metis-nav-hue-blue .metis-settings-page-icon {{ color: #0a84ff; }}
         .metis-nav-hue-purple .metis-settings-page-icon {{ color: #bf5af2; }}
@@ -434,10 +437,6 @@ fn settings_css(t: &ThemeTokens) -> String {
             padding: 0;
             margin-bottom: 14px;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-            transition: box-shadow 180ms ease, border-color 180ms ease;
-        }}
-        .metis-settings-section:hover {{
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
         }}
         .metis-settings-section-header {{
             margin: 14px 16px 6px;
