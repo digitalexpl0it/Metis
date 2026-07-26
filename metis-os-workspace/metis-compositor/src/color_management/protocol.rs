@@ -54,11 +54,12 @@ pub struct ColorManagementState {
 /// Reconfirmed 2026-07-25: crates.io `wayland-backend` **0.3.16** /
 /// `wayland-server` **0.31.14** only fix **client/sys** races; `server_impl` is
 /// unchanged, so a dependency bump alone does not clear this path. Metis still
-/// locks 0.3.15 / 0.31.13 via smithay. The global stays disabled by default until
-/// a **server-side** fix lands and Chromium retest passes — then flip this gate
-/// to default-on (optional `METIS_COLOR_MGMT=0` opt-out). Rejected workarounds:
-/// Chromium blacklist, disabling `get_information`, or dropping `use_system_lib`
-/// only for colour management.
+/// locks 0.3.15 / 0.31.13 via smithay. Tracked upstream as
+/// <https://github.com/Smithay/wayland-rs/issues/949>. The global stays disabled
+/// by default until a **server-side** fix lands and Chromium retest passes — then
+/// flip this gate to default-on (optional `METIS_COLOR_MGMT=0` opt-out). Rejected
+/// workarounds: Chromium blacklist, disabling `get_information`, or dropping
+/// `use_system_lib` only for colour management.
 ///
 /// Per-output ICC `vcgt` / Stage 2 3D-LUT ([`crate::output_gamma`],
 /// [`crate::color_lut`]) are independent of this global and remain active.

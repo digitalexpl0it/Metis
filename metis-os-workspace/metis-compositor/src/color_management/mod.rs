@@ -2,7 +2,8 @@
 //! Wayland protocol (staging). Stage 1 applies `vcgt` via CRTC gamma; Stage 2
 //! bakes a GLES 3D LUT ([`crate::color_lut`]). The protocol global stays opt-in
 //! (`METIS_COLOR_MGMT=1`) until a **server-side** wayland-rs ObjectData UAF fix
-//! lands (0.3.16 only touched client/sys — see [`protocol::color_protocol_enabled`]).
+//! lands (0.3.16 only touched client/sys — see [`protocol::color_protocol_enabled`]
+//! and <https://github.com/Smithay/wayland-rs/issues/949>).
 
 mod protocol;
 pub(crate) mod vcgt;

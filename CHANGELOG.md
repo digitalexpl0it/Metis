@@ -63,8 +63,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   closed (ICC `vcgt` / Stage 2 3D-LUT, HDR H1–H3, VRR, night light). Default-on
   `wp_color_management_v1` stays deferred: reconfirmed that `wayland-backend`
   0.3.16 only fixes client/sys races (`server_impl` unchanged), so Metis keeps
-  `METIS_COLOR_MGMT=1` opt-in. Upstream issue draft at
-  `docs/upstream/wayland-rs-server-objectdata-uaf.md`. USER_GUIDE notes the gate.
+  `METIS_COLOR_MGMT=1` opt-in. Filed upstream as
+  [wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949).
+  USER_GUIDE notes the gate.
 - **Phase 5 complete (HDR H3 / Stage 2 colour)** — ICC profiles bake a 33³
   sRGB→display GLES 3D-LUT (`lcms2`); DRM scanout uses a unified post-pass
   (high-bit offscreen when available → optional LUT → optional SDR→PQ). CRTC

@@ -453,13 +453,12 @@ Phase 3) — none of these are possible under the nested winit dev session.
       backend change, unproven). **Decision:** keep the global **opt-in** until a
       **server-side** wayland-rs fix is in the lockfile and nested Chromium retest
       (~4 s) stays clean — then flip `color_protocol_enabled()` to default-on.
-      Upstream issue draft:
-      [`docs/upstream/wayland-rs-server-objectdata-uaf.md`](../docs/upstream/wayland-rs-server-objectdata-uaf.md)
-      (file with [`docs/upstream/README.md`](../docs/upstream/README.md); replace this
-      path with the [Smithay/wayland-rs](https://github.com/Smithay/wayland-rs)
-      issue URL when opened). **Follow-up when
-      revisited:** ASAN build to pin the faulting allocation; after upstream fix,
-      default-on gate + Chromium/Cursor retest.
+      Upstream:
+      [Smithay/wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949)
+      (local copy:
+      [`docs/upstream/wayland-rs-server-objectdata-uaf.md`](../docs/upstream/wayland-rs-server-objectdata-uaf.md)).
+      **Follow-up when revisited:** ASAN build to pin the faulting allocation;
+      after upstream fix, default-on gate + Chromium/Cursor retest.
       _Hardware gamma / LUT verified live; still to confirm survival across a real
       mode-set/VT switch._
 - [x] **Night light schedule** — local-time From/To window in Settings → Display;
