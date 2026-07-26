@@ -201,10 +201,11 @@ fn pkexec_apt_install(packages: &[&str], label: &str) -> Result<String, String> 
             packages.join(" ")
         ));
     }
+    let bin = metis_remote_bin();
     let status = std::process::Command::new("pkexec")
-        .args(["apt-get", "install", "-y", "--"])
+        .arg(&bin)
+        .arg("pk-apt-install")
         .args(packages)
-        .env("DEBIAN_FRONTEND", "noninteractive")
         .status()
         .map_err(|e| format!("failed to start pkexec: {e}"))?;
     if status.success() {
@@ -215,6 +216,22 @@ fn pkexec_apt_install(packages: &[&str], label: &str) -> Result<String, String> 
             packages.join(" ")
         ))
     }
+}
+
+fn metis_remote_bin() -> String {
+    const INSTALLED: &str = "/usr/bin/metis-remote";
+    if std::path::Path::new(INSTALLED).is_file() {
+        return INSTALLED.into();
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("metis-remote");
+            if sibling.is_file() {
+                return sibling.to_string_lossy().into_owned();
+            }
+        }
+    }
+    "metis-remote".into()
 }
 
 fn add_user_to_input_group() -> Result<String, String> {
@@ -230,8 +247,10 @@ fn add_user_to_input_group() -> Result<String, String> {
             "pkexec not found — run: sudo usermod -aG input $USER  (then log out)".into(),
         );
     }
+    let bin = metis_remote_bin();
     let status = std::process::Command::new("pkexec")
-        .args(["usermod", "-aG", "input", &user])
+        .arg(&bin)
+        .args(["pk-add-input-group", &user])
         .status()
         .map_err(|e| format!("failed to start pkexec: {e}"))?;
     if status.success() {

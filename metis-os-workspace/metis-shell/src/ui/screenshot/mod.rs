@@ -936,8 +936,10 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
         }
     }
     if matches!(action, AfterCaptureAction::Open) {
-        let program = format!("xdg-open {}", shell_escape(path));
-        let _ = crate::compositor::launch_program(&program);
+        let _ = crate::compositor::launch_argv([
+            "xdg-open".to_string(),
+            path.display().to_string(),
+        ]);
     }
     toast_message(&metis_i18n::tr("Screenshot captured"));
 }
@@ -958,15 +960,6 @@ fn capture_path(config: &ScreenshotConfig) -> PathBuf {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     dir.join(format!("metis-{stamp}.png"))
-}
-
-fn shell_escape(path: &PathBuf) -> String {
-    let text = path.display().to_string();
-    if text.contains(' ') || text.contains('\'') {
-        format!("'{text}'")
-    } else {
-        text
-    }
 }
 
 pub fn dismiss() {

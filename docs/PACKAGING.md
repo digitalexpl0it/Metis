@@ -84,9 +84,28 @@ Environment:
 Workflow: [`.github/workflows/release-deb.yml`](../.github/workflows/release-deb.yml)
 
 1. Push a version tag: `git tag v0.1.0 && git push origin v0.1.0`
-2. CI builds on `ubuntu-24.04`, runs `package-deb.sh`, uploads the `.deb` to the
-   GitHub Release for that tag.
+2. CI installs Rust, runs **`cargo audit`** in `metis-os-workspace/` (fails on
+   unignored advisories), then builds on `ubuntu-24.04`, runs `package-deb.sh`,
+   and uploads the `.deb` to the GitHub Release for that tag.
 3. **workflow_dispatch** builds a prerelease tagged `test-<sha>` for smoke tests.
+
+PRs that touch `Cargo.lock` / `Cargo.toml` also run
+[`.github/workflows/audit.yml`](../.github/workflows/audit.yml).
+
+### `cargo audit` ignore policy
+
+Config: [`metis-os-workspace/audit.toml`](../metis-os-workspace/audit.toml).
+Only ignore a RUSTSEC advisory when there is no usable patched crate yet **and**
+you document why the issue is unreachable (or accepted) plus a tracking note.
+Remove ignores as soon as an upgrade lands. Do not merge silent `ignore = []`
+placeholders for active CVEs.
+
+### Residual C ABI risk
+
+Metis’s Rust crates sit on top of C libraries (GTK4, lcms2, OpenSSL / rustls
+backends, libinput, libseat, PipeWire, PAM, etc.). Memory-safety guarantees stop
+at those FFI boundaries — keep the host packages updated via distro security
+updates. Release builds also enable `overflow-checks` and `panic = "abort"`.
 
 ## Developer install (not packaging)
 

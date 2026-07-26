@@ -1064,10 +1064,11 @@ fn run_pkexec_apt_install(packages: &[String]) -> Result<(), String> {
             apt_install_command(&packages.iter().map(|s| s.as_str()).collect::<Vec<_>>())
         ));
     }
+    let bin = metis_remote_bin();
     let status = std::process::Command::new("pkexec")
-        .args(["apt-get", "install", "-y", "--"])
+        .arg(&bin)
+        .arg("pk-apt-install")
         .args(packages)
-        .env("DEBIAN_FRONTEND", "noninteractive")
         .status()
         .map_err(|e| metis_i18n::tr("failed to start pkexec: %1").replace("%1", &e.to_string()))?;
     if status.success() {
@@ -1079,6 +1080,22 @@ fn run_pkexec_apt_install(packages: &[String]) -> Result<(), String> {
             apt_install_command(&packages.iter().map(|s| s.as_str()).collect::<Vec<_>>())
         ))
     }
+}
+
+fn metis_remote_bin() -> String {
+    const INSTALLED: &str = "/usr/bin/metis-remote";
+    if std::path::Path::new(INSTALLED).is_file() {
+        return INSTALLED.into();
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let sibling = dir.join("metis-remote");
+            if sibling.is_file() {
+                return sibling.to_string_lossy().into_owned();
+            }
+        }
+    }
+    "metis-remote".into()
 }
 
 fn build_optional_software() -> gtk::Widget {

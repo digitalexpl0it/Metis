@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use metis_protocol::{CompositorCommand, CompositorEvent};
 
 use crate::events::{accept_event_subscribers, init_events_listener};
-use crate::state::MetisState;
+use crate::state::{IpcCaps, MetisState};
 
 pub fn init_ipc(state: &mut MetisState) -> Result<(), Box<dyn std::error::Error>> {
     let runtime = metis_protocol::ensure_runtime_dir()?;
@@ -68,11 +68,15 @@ pub fn drain_ipc(state: &mut MetisState) {
             None => continue,
         };
 
-        let reply = match serde_json::from_str::<CompositorCommand>(&request) {
-            Ok(cmd) => {
-                let evt = state.handle_ipc(cmd);
-                serde_json::to_string(&evt).unwrap_or_default()
-            }
+        let reply = match parse_ipc_request(&request) {
+            Ok((token, cmd)) => match resolve_ipc_caps(state, token.as_deref()) {
+                Ok(caps) => {
+                    let evt = state.handle_ipc_with_caps(cmd, caps);
+                    serde_json::to_string(&evt).unwrap_or_default()
+                }
+                Err(message) => serde_json::to_string(&CompositorEvent::Error { message })
+                    .unwrap_or_default(),
+            },
             Err(err) => serde_json::to_string(&CompositorEvent::Error {
                 message: err.to_string(),
             })
@@ -127,5 +131,36 @@ fn read_request_line(stream: &mut std::os::unix::net::UnixStream) -> Option<Stri
         None
     } else {
         Some(line)
+    }
+}
+
+fn parse_ipc_request(request: &str) -> Result<(Option<String>, CompositorCommand), String> {
+    let mut value: serde_json::Value =
+        serde_json::from_str(request).map_err(|e| e.to_string())?;
+    let token = value
+        .get("token")
+        .and_then(|t| t.as_str())
+        .map(str::to_string);
+    if let Some(obj) = value.as_object_mut() {
+        obj.remove("token");
+    }
+    let cmd: CompositorCommand = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    Ok((token, cmd))
+}
+
+fn resolve_ipc_caps(state: &MetisState, token: Option<&str>) -> Result<IpcCaps, String> {
+    match token {
+        None => Ok(IpcCaps::Full),
+        Some(t) => {
+            if state
+                .widgets_ipc_token
+                .as_deref()
+                .is_some_and(|expected| expected == t)
+            {
+                Ok(IpcCaps::Widgets)
+            } else {
+                Err("invalid or expired IPC capability token".into())
+            }
+        }
     }
 }

@@ -11,12 +11,24 @@ const SYSTEMD_UNIT: &str = "gnome-remote-desktop.service";
 const HEADLESS_UNIT: &str = "gnome-remote-desktop-headless.service";
 const DEFAULT_PORT: u16 = 3389;
 
+fn bin_on_path(name: &str) -> bool {
+    for dir in ["/usr/sbin", "/sbin", "/usr/bin", "/bin"] {
+        if std::path::Path::new(&format!("{dir}/{name}")).is_file() {
+            return true;
+        }
+    }
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            if dir.join(name).is_file() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub fn grdctl_available() -> bool {
-    Command::new("sh")
-        .args(["-c", "command -v grdctl"])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    bin_on_path("grdctl")
 }
 
 pub fn mutter_apis_available() -> bool {
@@ -85,14 +97,16 @@ fn daemon_active() -> bool {
 }
 
 fn rdp_port_listening(port: u16) -> bool {
-    Command::new("sh")
-        .args([
-            "-c",
-            &format!("ss -tln 2>/dev/null | rg -q ':{port} '"),
-        ])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    let output = Command::new("ss")
+        .args(["-tln"])
+        .output()
+        .ok();
+    let Some(output) = output else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let needle = format!(":{port} ");
+    text.lines().any(|line| line.contains(&needle))
 }
 
 pub fn status_snapshot() -> RemoteStatus {
@@ -394,12 +408,7 @@ fn ensure_tls_cert() -> Result<(), String> {
 }
 
 fn generate_tls_cert(cert: &std::path::Path, key: &std::path::Path) -> Result<(), String> {
-    if Command::new("sh")
-        .args(["-c", "command -v winpr-makecert"])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
+    if bin_on_path("winpr-makecert") {
         let dir = cert.parent().ok_or("cert path has no parent")?;
         let status = Command::new("winpr-makecert")
             .args(["-silent", "-rdp", "-path", &dir.to_string_lossy(), "tls"])
@@ -410,12 +419,7 @@ fn generate_tls_cert(cert: &std::path::Path, key: &std::path::Path) -> Result<()
         }
     }
 
-    if !Command::new("sh")
-        .args(["-c", "command -v openssl"])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
+    if !bin_on_path("openssl") {
         return Err("openssl not found — install openssl to generate the RDP TLS certificate".into());
     }
 

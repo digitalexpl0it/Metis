@@ -22,6 +22,7 @@ pub mod menu;
 pub mod outputs;
 pub mod power;
 pub mod remote;
+pub mod sanitize;
 pub mod screenshot;
 pub mod theme;
 pub mod wallpaper;
@@ -48,9 +49,23 @@ pub struct AppConfig {
     pub graphics_profile: graphics::GraphicsProfile,
     /// When true, XWayland also listens on the abstract Unix socket
     /// (`@/tmp/.X11-unix/...`). Default false for slightly tighter local exposure;
-    /// one shared X11 server remains either way.
+    /// one shared X11 server remains either way unless `xwayland_mode` is isolated.
     #[serde(default = "default_false")]
     pub xwayland_abstract_socket: bool,
+    /// X11 isolation mode (Phase 15 §E). `shared` (default) = one XWayland for all
+    /// X11 clients. `isolated` = opt-in second XWayland for gaming/Proton launches
+    /// so Steam/games do not share an X server with random X11 apps.
+    #[serde(default)]
+    pub xwayland_mode: XwaylandMode,
+}
+
+/// How many XWayland servers Metis runs (Phase 15 §E).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum XwaylandMode {
+    #[default]
+    Shared,
+    Isolated,
 }
 
 fn default_theme() -> String {
@@ -74,6 +89,7 @@ impl Default for AppConfig {
             show_briefing_on_login: default_show_briefing(),
             graphics_profile: graphics::GraphicsProfile::default(),
             xwayland_abstract_socket: default_false(),
+            xwayland_mode: XwaylandMode::default(),
         }
     }
 }
@@ -297,6 +313,7 @@ pub use power::{
 pub use remote::{
     load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
 };
+pub use sanitize::{is_safe_nm_token, validate_nm_id, validate_ssid, validate_vpn_data_fragment};
 pub use screenshot::{
     expand_save_dir, load_screenshot_config, save_default_screenshot_config,
     save_screenshot_config, screenshot_config_path, AfterCaptureAction, ScreenshotConfig,
@@ -365,8 +382,9 @@ pub use clocks::{
 };
 pub use css::build_stylesheet;
 pub use menu::{
-    binary_in_path, load_menu_config, menu_config_path, save_menu_config, MenuConfig,
-    KNOWN_FILE_MANAGERS, KNOWN_TERMINALS,
+    argv_in_terminal, binary_in_path, load_menu_config, menu_config_path, resolve_executable,
+    resolve_file_manager, resolve_terminal, save_menu_config, MenuConfig, KNOWN_FILE_MANAGERS,
+    KNOWN_TERMINALS,
 };
 pub use theme::{SemanticColors, ThemeMode, ThemeTokens};
 pub use wallpaper::{

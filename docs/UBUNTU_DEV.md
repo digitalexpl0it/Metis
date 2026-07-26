@@ -91,6 +91,11 @@ LAN-only firewall apply uses timed `pkexec` — install `nftables` (preferred) a
 a PolicyKit agent in the session (`policykit-1-gnome` or `mate-polkit`) so the
 admin password dialog can appear. See USER_GUIDE → Remote desktop.
 
+**XWayland:** default one shared server (`xwayland_mode: shared`). Opt-in
+`xwayland_mode: isolated` in `config.json` starts a second gaming bucket
+(Steam/Proton `DISPLAY`); see USER_GUIDE isolation notes. Abstract socket stays
+off by default (`xwayland_abstract_socket: false`).
+
 #### Compatibility matrix
 
 | Tool | Status | Capture / input | Notes |

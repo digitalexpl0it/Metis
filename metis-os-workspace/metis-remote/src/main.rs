@@ -3,8 +3,9 @@
 use std::io::Read;
 
 use metis_remote::{
-    autostart_from_config, disable, enable, firewall_apply, firewall_apply_as_root, firewall_clear,
-    firewall_clear_as_root, firewall_status, pause, resume, set_lan_only, set_password, status,
+    add_input_group, apt_install, autostart_from_config, disable, enable, firewall_apply,
+    firewall_apply_as_root, firewall_clear, firewall_clear_as_root, firewall_status, pause,
+    privileged_exe, resume, set_lan_only, set_password, status,
 };
 use zeroize::Zeroize;
 
@@ -109,6 +110,22 @@ fn run(args: Vec<String>) -> Result<(), String> {
                     .into(),
             ),
         },
+        Some("pk-apt-install") => {
+            let pkgs: Vec<String> = args.into_iter().skip(1).collect();
+            apt_install(&pkgs)
+        }
+        Some("pk-add-input-group") => {
+            let user = args
+                .get(1)
+                .cloned()
+                .ok_or_else(|| "usage: metis-remote pk-add-input-group <username>".to_string())?;
+            add_input_group(&user)
+        }
+        // Dev helper: show which binary pkexec would use.
+        Some("pk-exe") => {
+            println!("{}", privileged_exe().display());
+            Ok(())
+        }
         Some(cmd) => Err(format!("unknown command: {cmd}")),
     }
 }

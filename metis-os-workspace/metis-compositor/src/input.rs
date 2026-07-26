@@ -361,27 +361,19 @@ impl MetisState {
                     time,
                     |state, modifiers, keysym| {
                         // Locked: capture every key into the password field and
-                        // never forward it to a client. Ctrl+Alt VT-switch / quit
-                        // escape hatches on the DRM backend stay live so a wedged
-                        // lock screen can always be recovered.
+                        // never forward it to a client. Ctrl+Alt+Backspace still
+                        // quits the DRM session (escape hatch). Ctrl+Alt+F<n> VT
+                        // switches are blocked while locked (Phase 15 §C).
                         if state.lock.locked {
                             if key_state == KeyState::Pressed {
                                 let sym = u32::from(keysym.modified_sym());
-                                if state.is_drm_backend() && modifiers.ctrl && modifiers.alt {
-                                    if sym == keysyms::KEY_BackSpace {
-                                        state.drm_quit();
-                                        return FilterResult::Intercept(());
-                                    }
-                                    let vt_sym = keysym
-                                        .raw_latin_sym_or_raw_current_sym()
-                                        .map(u32::from)
-                                        .unwrap_or(sym);
-                                    if let Some(vt) =
-                                        vt_from_keysym(sym).or_else(|| vt_from_keysym(vt_sym))
-                                    {
-                                        state.drm_change_vt(vt);
-                                        return FilterResult::Intercept(());
-                                    }
+                                if state.is_drm_backend()
+                                    && modifiers.ctrl
+                                    && modifiers.alt
+                                    && sym == keysyms::KEY_BackSpace
+                                {
+                                    state.drm_quit();
+                                    return FilterResult::Intercept(());
                                 }
                                 match sym {
                                     keysyms::KEY_Return | keysyms::KEY_KP_Enter => {

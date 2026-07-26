@@ -136,6 +136,7 @@ stage_tree() {
         "$STAGE/usr/share/icons/hicolor/256x256/apps" \
         "$STAGE/usr/share/metis/wallpapers" \
         "$STAGE/usr/share/metis/locale" \
+        "$STAGE/usr/share/polkit-1/actions" \
         "$STAGE/etc/pam.d"
 
     local rel="$CARGO_TARGET_DIR/release"
@@ -152,6 +153,8 @@ stage_tree() {
     install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$STAGE/usr/share/icons/hicolor/48x48/apps/metis-settings.png"
     install -Dm644 "$ASSETS_DIR/metis-settings.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/metis-settings.png"
     install -Dm644 "$ASSETS_DIR/pam-metis" "$STAGE/etc/pam.d/metis"
+    install -Dm644 "$WORKSPACE/packaging/polkit/org.metis.policy" \
+        "$STAGE/usr/share/polkit-1/actions/org.metis.policy"
 
     log "Staging bundled wallpapers…"
     local wp

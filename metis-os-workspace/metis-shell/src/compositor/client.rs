@@ -84,8 +84,21 @@ pub fn apply_grid_layout(layout: GridLayout, gutter_px: u32) -> std::io::Result<
 }
 
 pub fn launch_program(program: &str) -> std::io::Result<()> {
+    launch_argv(metis_protocol::split_command_line(program))
+}
+
+/// Spawn via compositor IPC using an argv vector (no shell).
+pub fn launch_argv(argv: impl IntoIterator<Item = impl Into<String>>) -> std::io::Result<()> {
+    let argv: Vec<String> = argv.into_iter().map(Into::into).collect();
+    if argv.is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "empty launch argv",
+        ));
+    }
     let _ = send_command(CompositorCommand::Launch {
-        program: program.to_string(),
+        argv,
+        program: String::new(),
     })?;
     Ok(())
 }
@@ -140,7 +153,15 @@ fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
         )
     })?;
     stream.set_read_timeout(Some(Duration::from_millis(400)))?;
-    let payload = serde_json::to_string(&cmd).map_err(std::io::Error::other)?;
+    let mut payload = serde_json::to_value(&cmd).map_err(std::io::Error::other)?;
+    if let Ok(token) = std::env::var("METIS_IPC_TOKEN") {
+        if !token.is_empty() {
+            if let Some(obj) = payload.as_object_mut() {
+                obj.insert("token".into(), serde_json::Value::String(token));
+            }
+        }
+    }
+    let payload = serde_json::to_string(&payload).map_err(std::io::Error::other)?;
     writeln!(stream, "{payload}")?;
     stream.flush()?;
     let mut reader = BufReader::new(stream);

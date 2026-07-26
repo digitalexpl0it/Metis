@@ -44,14 +44,36 @@ impl MetisState {
     /// Spawn the XWayland server and, once it is ready, start the X11 window
     /// manager. Best-effort: if `Xwayland` is missing or fails to start we log a
     /// warning and continue with a Wayland-only session.
+    ///
+    /// With `config.json` `"xwayland_mode": "isolated"`, also starts a second
+    /// gaming bucket so Steam/Proton can use a separate `DISPLAY` (Phase 15 §E).
     pub fn start_xwayland(&mut self, loop_handle: LoopHandle<'static, MetisState>) {
         use std::process::Stdio;
+        use metis_config::XwaylandMode;
 
-        let open_abstract = metis_config::load_app_config().xwayland_abstract_socket;
+        let cfg = metis_config::load_app_config();
+        let open_abstract = cfg.xwayland_abstract_socket;
+        let isolated = cfg.xwayland_mode == XwaylandMode::Isolated;
         tracing::info!(
             open_abstract_socket = open_abstract,
+            ?cfg.xwayland_mode,
             "starting XWayland"
         );
+
+        self.spawn_one_xwayland(loop_handle.clone(), open_abstract, false);
+        if isolated {
+            tracing::info!("xwayland_mode=isolated — starting gaming XWayland bucket");
+            self.spawn_one_xwayland(loop_handle, open_abstract, true);
+        }
+    }
+
+    fn spawn_one_xwayland(
+        &mut self,
+        loop_handle: LoopHandle<'static, MetisState>,
+        open_abstract: bool,
+        gaming_bucket: bool,
+    ) {
+        use std::process::Stdio;
 
         let (xwayland, client) = match XWayland::spawn(
             &self.display_handle,
@@ -64,7 +86,11 @@ impl MetisState {
         ) {
             Ok(pair) => pair,
             Err(err) => {
-                tracing::warn!(%err, "could not spawn XWayland — X11 apps will be unavailable");
+                tracing::warn!(
+                    %err,
+                    gaming_bucket,
+                    "could not spawn XWayland — X11 apps will be unavailable"
+                );
                 return;
             }
         };
@@ -78,27 +104,40 @@ impl MetisState {
             } => {
                 match X11Wm::start_wm(wm_handle.clone(), &dh, x11_socket, client.clone()) {
                     Ok(wm) => {
-                        state.xwm = Some(wm);
-                        state.xdisplay = Some(display_number);
-                        // Make the X11 display discoverable to processes the
-                        // compositor spawns later (spawn_client also sets it).
-                        unsafe {
-                            std::env::set_var("DISPLAY", format!(":{display_number}"));
+                        let id = wm.id();
+                        if gaming_bucket {
+                            state.xwm_gaming_id = Some(id);
+                            state.xwm_gaming = Some(wm);
+                            state.xdisplay_gaming = Some(display_number);
+                            tracing::info!(
+                                display = display_number,
+                                "gaming XWayland ready (isolated bucket)"
+                            );
+                        } else {
+                            state.xwm = Some(wm);
+                            state.xdisplay = Some(display_number);
+                            // Default DISPLAY for non-gaming spawns.
+                            unsafe {
+                                std::env::set_var("DISPLAY", format!(":{display_number}"));
+                            }
+                            tracing::info!(
+                                display = display_number,
+                                "XWayland ready — X11 apps supported"
+                            );
                         }
-                        tracing::info!(display = display_number, "XWayland ready — X11 apps supported");
                     }
                     Err(err) => {
-                        tracing::error!(%err, "failed to start the X11 window manager");
+                        tracing::error!(%err, gaming_bucket, "failed to start the X11 window manager");
                     }
                 }
             }
             XWaylandEvent::Error => {
-                tracing::warn!("XWayland crashed during startup");
+                tracing::warn!(gaming_bucket, "XWayland crashed during startup");
             }
         });
 
         if let Err(err) = inserted {
-            tracing::error!(%err, "failed to insert XWayland source into the event loop");
+            tracing::error!(%err, gaming_bucket, "failed to insert XWayland source into the event loop");
         }
     }
 
@@ -237,8 +276,16 @@ impl XWaylandShellHandler for MetisState {
 }
 
 impl XwmHandler for MetisState {
-    fn xwm_state(&mut self, _xwm: XwmId) -> &mut X11Wm {
-        self.xwm.as_mut().expect("xwm called without a running X11Wm")
+    fn xwm_state(&mut self, xwm: XwmId) -> &mut X11Wm {
+        if self.xwm_gaming_id == Some(xwm) {
+            return self
+                .xwm_gaming
+                .as_mut()
+                .expect("gaming xwm id set without X11Wm");
+        }
+        self.xwm
+            .as_mut()
+            .expect("xwm called without a running X11Wm")
     }
 
     fn new_window(&mut self, _xwm: XwmId, _window: X11Surface) {}

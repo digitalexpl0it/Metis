@@ -549,14 +549,14 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
         tip,
         "system-file-manager-symbolic",
         &tr("Files"),
-        || launch_quick_action(launch_file_manager_snippet()),
+        || launch_quick_action_argv(launch_file_manager_argv()),
     ));
     rail.append(&rail_button(
         overlay,
         tip,
         "utilities-terminal-symbolic",
         &tr("Terminal"),
-        || launch_quick_action(launch_terminal_snippet()),
+        || launch_quick_action_argv(launch_terminal_argv().unwrap_or_default()),
     ));
     rail.append(&rail_button(
         overlay,
@@ -577,7 +577,9 @@ fn build_rail(overlay: &gtk::Overlay, tip: &gtk::Label) -> gtk::Box {
             tip,
             "input-gaming-symbolic",
             &tr("Big Picture"),
-            move || launch_quick_action(cmd.clone()),
+            move || {
+                launch_quick_action_argv(metis_protocol::split_command_line(&cmd));
+            },
         ));
     }
 
@@ -1006,75 +1008,27 @@ fn clear_box(container: &gtk::Box) {
 }
 
 /// Escape a value for safe interpolation inside a double-quoted shell word.
-fn shell_dquote(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('$', "\\$")
-        .replace('`', "\\`")
+fn launch_terminal_argv() -> Option<Vec<String>> {
+    metis_config::resolve_terminal().map(|t| vec![t])
 }
 
-/// Build a launch snippet that tries (in order) the user's chosen program, then
-/// the environment hint, then each known candidate, then `final_fallback`. Passed
-/// straight to the compositor, which runs space-containing programs via `sh -lc`,
-/// so `$VAR` expansion and `command -v` probing work as written.
-///
-/// The chosen value is probed on its own line so a custom path containing spaces
-/// stays a single argument (the candidate loop can only hold whitespace-free names).
-fn build_launch_snippet(
-    chosen: Option<&str>,
-    env_hint: &str,
-    candidates: &[(&str, &str)],
-    args: &str,
-    final_fallback: &str,
-) -> String {
-    let mut snippet = String::new();
-    if let Some(chosen) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
-        let c = shell_dquote(chosen);
-        snippet.push_str(&format!(
-            "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\"{args}; fi; "
-        ));
+fn launch_file_manager_argv() -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
+    if let Some(fm) = metis_config::resolve_file_manager() {
+        vec![fm, home]
+    } else {
+        vec!["xdg-open".into(), home]
     }
-    snippet.push_str(&format!("for x in \"{env_hint}\""));
-    for (bin, _) in candidates {
-        snippet.push(' ');
-        snippet.push_str(bin);
-    }
-    snippet.push_str(&format!(
-        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\"{args}; done"
-    ));
-    if !final_fallback.is_empty() {
-        snippet.push_str("; ");
-        snippet.push_str(final_fallback);
-    }
-    snippet
 }
 
-fn launch_terminal_snippet() -> String {
-    let cfg = metis_config::load_menu_config();
-    build_launch_snippet(
-        cfg.terminal.as_deref(),
-        "$TERMINAL",
-        metis_config::KNOWN_TERMINALS,
-        "",
-        "",
-    )
-}
-
-fn launch_file_manager_snippet() -> String {
-    let cfg = metis_config::load_menu_config();
-    build_launch_snippet(
-        cfg.file_manager.as_deref(),
-        "$FILE_MANAGER",
-        metis_config::KNOWN_FILE_MANAGERS,
-        " \"$HOME\"",
-        "exec xdg-open \"$HOME\"",
-    )
-}
-
-fn launch_quick_action(snippet: String) {
+fn launch_quick_action_argv(argv: Vec<String>) {
     // Close before the launched window grabs focus (see `app_row`).
     super::super::dropdown::close_all();
-    if let Err(err) = crate::compositor::launch_program(&snippet) {
+    if argv.is_empty() {
+        tracing::warn!("quick action: no executable resolved");
+        return;
+    }
+    if let Err(err) = crate::compositor::launch_argv(argv) {
         tracing::warn!(%err, "failed to launch quick action");
     }
 }

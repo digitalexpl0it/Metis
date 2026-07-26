@@ -1,0 +1,15 @@
+# cargo-audit configuration (Phase 15 §A).
+# https://github.com/rustsec/rustsec/tree/main/cargo-audit
+#
+# Ignore policy: only add an advisory here when:
+#   1. There is no patched crate version usable in Metis yet, AND
+#   2. The vulnerability is not reachable on our code paths (document why), OR
+#   3. Upstream has accepted the risk and we mirror that with a ticket link.
+# Remove ignores as soon as an upgrade is available.
+# Run: `cargo audit` from metis-os-workspace/ (CI fails on unignored advisories).
+
+[advisories]
+ignore = [
+    # Example (do not leave placeholder ignores):
+    # "RUSTSEC-YYYY-NNNN",  # reason + tracking issue
+]

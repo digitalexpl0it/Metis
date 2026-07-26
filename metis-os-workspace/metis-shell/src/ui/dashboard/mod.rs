@@ -1815,91 +1815,44 @@ fn class_label(class: ProcessClass) -> String {
 
 fn launch_process_monitor() {
     let dash = metis_config::load_dashboard_config();
-    let menu = metis_config::load_menu_config();
-    let term = menu.terminal.as_deref();
-    let snippet = match dash
+    let candidates: Vec<String> = match dash
         .process_monitor
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
     {
-        Some(chosen) => {
-            let try_one = process_monitor_try_snippet(chosen, term);
-            format!(
-                "{try_one}; command -v notify-send >/dev/null 2>&1 && \
-                 notify-send -a Metis 'Process monitor' 'Could not launch {chosen}'"
-            )
+        Some(chosen) => vec![chosen.to_string()],
+        None => metis_config::KNOWN_PROCESS_MONITORS
+            .iter()
+            .map(|(bin, _)| (*bin).to_string())
+            .collect(),
+    };
+    for bin in &candidates {
+        if !metis_config::binary_in_path(bin) {
+            continue;
         }
-        None => auto_process_monitor_snippet(term),
-    };
-    if let Err(err) = crate::compositor::launch_program(&snippet) {
-        tracing::warn!(%err, "failed to launch process monitor");
-    }
-}
-
-fn auto_process_monitor_snippet(term: Option<&str>) -> String {
-    let mut parts = Vec::new();
-    for (bin, _) in metis_config::KNOWN_PROCESS_MONITORS {
-        parts.push(process_monitor_try_snippet(bin, term));
-    }
-    parts.push(
-        "command -v notify-send >/dev/null 2>&1 && \
-         notify-send -a Metis 'No process monitor found' \
-         'Install btop, htop, or a system monitor — or set one in Settings → Control Center.'"
-            .to_string(),
-    );
-    parts.join("; ")
-}
-
-fn process_monitor_try_snippet(bin: &str, term: Option<&str>) -> String {
-    let bin = bin.trim();
-    let q = shell_dquote(bin);
-    let exists = if bin.starts_with('/') {
-        format!("[ -x \"{q}\" ]")
-    } else {
-        format!("command -v \"{q}\" >/dev/null 2>&1")
-    };
-    if metis_config::process_monitor_needs_terminal(bin) {
-        let run = terminal_exec_program_snippet(term, bin);
-        format!("if {exists}; then {run}; fi")
-    } else {
-        format!("if {exists}; then exec \"{q}\"; fi")
-    }
-}
-
-fn shell_dquote(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('$', "\\$")
-        .replace('`', "\\`")
-}
-
-/// Launch `program` inside a terminal (`$term -e program`), preferring the Menu
-/// terminal setting then `$TERMINAL` / known terminals.
-fn terminal_exec_program_snippet(chosen: Option<&str>, program: &str) -> String {
-    let prog = shell_dquote(program);
-    let mut snippet = String::new();
-    if let Some(chosen) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
-        let c = shell_dquote(chosen);
-        if chosen.starts_with('/') {
-            snippet.push_str(&format!(
-                "if [ -x \"{c}\" ]; then exec \"{c}\" -e \"{prog}\"; fi; "
-            ));
+        let argv = if metis_config::process_monitor_needs_terminal(bin) {
+            let Some(term) = metis_config::resolve_terminal() else {
+                continue;
+            };
+            metis_config::argv_in_terminal(&term, bin)
         } else {
-            snippet.push_str(&format!(
-                "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\" -e \"{prog}\"; fi; "
-            ));
+            vec![bin.clone()]
+        };
+        if let Err(err) = crate::compositor::launch_argv(argv) {
+            tracing::warn!(%err, bin, "failed to launch process monitor");
+            continue;
         }
+        return;
     }
-    snippet.push_str("for x in \"$TERMINAL\"");
-    for (bin, _) in metis_config::KNOWN_TERMINALS {
-        snippet.push(' ');
-        snippet.push_str(bin);
-    }
-    snippet.push_str(&format!(
-        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\" -e \"{prog}\"; done"
-    ));
-    snippet
+    let _ = std::process::Command::new("notify-send")
+        .args([
+            "-a",
+            "Metis",
+            "No process monitor found",
+            "Install btop, htop, or a system monitor — or set one in Settings → Control Center.",
+        ])
+        .spawn();
 }
 
 fn set_temp_label(label: &gtk::Label, temp: Option<f32>) {

@@ -147,9 +147,15 @@ pub struct MetisState {
     pub xwayland_shell_state: smithay::wayland::xwayland_shell::XWaylandShellState,
     /// Live X11 window manager, populated when the XWayland server signals ready.
     pub xwm: Option<smithay::xwayland::X11Wm>,
+    /// Optional second X11Wm for the gaming bucket (`xwayland_mode: isolated`).
+    pub xwm_gaming: Option<smithay::xwayland::X11Wm>,
     /// X11 display number (e.g. `0` → `:0`) for the running XWayland server, used
     /// to set `DISPLAY` on X11 child processes.
     pub xdisplay: Option<u32>,
+    /// DISPLAY number for the gaming XWayland bucket (isolated mode).
+    pub xdisplay_gaming: Option<u32>,
+    /// XwmId of the gaming bucket (for `xwm_state` routing).
+    pub xwm_gaming_id: Option<smithay::xwayland::xwm::XwmId>,
     /// Pre-fullscreen geometry for mapped X11 windows (keyed by X11 window id).
     pub(crate) x11_fullscreen_restore: std::collections::HashMap<u32, Rectangle<i32, Logical>>,
     /// Per-output set of window ids currently in true-fullscreen (Wayland + X11);
@@ -231,6 +237,8 @@ pub struct MetisState {
     pub widgets_cmd: Option<String>,
     pub widgets_pid: Option<u32>,
     pub widgets_last_spawn: Option<std::time::Instant>,
+    /// Shared secret for the widgets process IPC scope (Phase 15 §D).
+    pub widgets_ipc_token: Option<String>,
     pub child_processes: Vec<std::process::Child>,
 
     pub cursor_status: smithay::input::pointer::CursorImageStatus,
@@ -659,13 +667,20 @@ fn apply_spawned_client_env(
     program: &str,
     socket: &std::ffi::OsStr,
     xdisplay: Option<u32>,
+    xdisplay_gaming: Option<u32>,
     client_gpu: Option<&ClientGpuHint>,
     dgpu_offload: Option<&DgpuOffload>,
     prefer_dgpu: bool,
 ) {
     cmd.env("WAYLAND_DISPLAY", socket);
     cmd.env("METIS_SESSION", "1");
-    match xdisplay {
+    // Isolated mode: steer gaming/Proton launches onto the gaming XWayland bucket.
+    let display = if prefer_dgpu {
+        xdisplay_gaming.or(xdisplay)
+    } else {
+        xdisplay
+    };
+    match display {
         Some(n) => {
             cmd.env("DISPLAY", format!(":{n}"));
         }
@@ -752,6 +767,29 @@ fn apply_spawned_client_env(
             }
         }
     }
+}
+
+/// Privilege scope for a compositor IPC request (Phase 15 §D).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IpcCaps {
+    /// Bar / Settings / full session control plane.
+    Full,
+    /// Desktop-widgets helper: Launch + read-only / light reload only.
+    Widgets,
+}
+
+fn widgets_command_allowed(cmd: &CompositorCommand) -> bool {
+    matches!(
+        cmd,
+        CompositorCommand::Ping
+            | CompositorCommand::GetMonitor
+            | CompositorCommand::ListOutputs
+            | CompositorCommand::ListWindows
+            | CompositorCommand::GetLayout
+            | CompositorCommand::Launch { .. }
+            | CompositorCommand::ApplyBackground
+            | CompositorCommand::ReloadLocale
+    )
 }
 
 impl MetisState {
@@ -843,7 +881,10 @@ impl MetisState {
             seat,
             xwayland_shell_state,
             xwm: None,
+            xwm_gaming: None,
             xdisplay: None,
+            xdisplay_gaming: None,
+            xwm_gaming_id: None,
             x11_fullscreen_restore: std::collections::HashMap::new(),
             output_fullscreen_windows: std::collections::HashMap::new(),
             fs_offset_warned: std::collections::HashSet::new(),
@@ -884,6 +925,7 @@ impl MetisState {
             widgets_cmd: None,
             widgets_pid: None,
             widgets_last_spawn: None,
+            widgets_ipc_token: None,
             child_processes: Vec::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             hover_cursor: None,
@@ -1906,7 +1948,16 @@ impl MetisState {
 
     fn spawn_widgets_process(&mut self, program: &str) {
         let before = self.child_processes.len();
-        self.spawn_client(program);
+        let token = Self::new_widgets_ipc_token();
+        self.widgets_ipc_token = Some(token.clone());
+        let argv = metis_protocol::split_command_line(program);
+        self.spawn_client_argv_with_env(
+            &argv,
+            &[
+                ("METIS_IPC_TOKEN", token.as_str()),
+                ("METIS_IPC_SCOPE", "widgets"),
+            ],
+        );
         self.widgets_last_spawn = Some(std::time::Instant::now());
         if self.child_processes.len() > before {
             if let Some(child) = self.child_processes.last() {
@@ -1914,6 +1965,7 @@ impl MetisState {
             }
         } else {
             self.widgets_pid = None;
+            self.widgets_ipc_token = None;
         }
     }
 
@@ -1953,54 +2005,68 @@ impl MetisState {
     }
 
     pub fn spawn_client(&mut self, program: &str) {
+        let argv = metis_protocol::split_command_line(program);
+        self.spawn_client_argv(&argv);
+    }
+
+    fn new_widgets_ipc_token() -> String {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let pid = std::process::id() as u128;
+        format!("{nanos:032x}{pid:08x}")
+    }
+
+    /// Spawn a client from argv — never via `sh -c`.
+    pub fn spawn_client_argv(&mut self, argv: &[String]) {
+        self.spawn_client_argv_with_env(argv, &[]);
+    }
+
+    pub fn spawn_client_argv_with_env(&mut self, argv: &[String], extra_env: &[(&str, &str)]) {
+        if argv.is_empty() {
+            tracing::warn!("spawn_client_argv: empty argv");
+            return;
+        }
         // Metis binaries (shell, settings) live alongside the compositor in the
         // cargo target dir, which is usually not on PATH. Resolve a bare program
         // name to its sibling-of-current-exe absolute path so `Launch` works.
-        fn resolve_sibling_program(program: &str) -> String {
-            let (bin, rest) = match program.split_once(' ') {
-                Some((b, r)) => (b, Some(r)),
-                None => (program, None),
-            };
-            if bin.contains('/') {
-                return program.to_string();
-            }
+        let mut argv = argv.to_vec();
+        if !argv[0].contains('/') {
             if let Ok(exe) = std::env::current_exe() {
                 if let Some(dir) = exe.parent() {
-                    let candidate = dir.join(bin);
+                    let candidate = dir.join(&argv[0]);
                     if candidate.is_file() {
-                        let p = candidate.display().to_string();
-                        return match rest {
-                            Some(r) => format!("{p} {r}"),
-                            None => p,
-                        };
+                        argv[0] = candidate.display().to_string();
                     }
                 }
             }
-            program.to_string()
         }
-        let program = resolve_sibling_program(program);
-        let program = program.as_str();
 
-        let mut cmd = if program.contains(' ') {
-            let mut c = std::process::Command::new("sh");
-            c.arg("-lc").arg(program);
-            c
-        } else {
-            std::process::Command::new(program)
-        };
+        let program_joined = argv.join(" ");
+        let mut cmd = std::process::Command::new(&argv[0]);
+        cmd.args(&argv[1..]);
+        for (k, v) in extra_env {
+            cmd.env(k, v);
+        }
 
         // Games/launchers run on the discrete GPU; desktop apps on the iGPU.
         // `gaming.json` + METIS_GAME_GPU override the heuristic.
         let prefer_dgpu =
-            metis_config::prefer_dgpu_for_launch(program, &self.gaming_config);
+            metis_config::prefer_dgpu_for_launch(&program_joined, &self.gaming_config);
         if prefer_dgpu && self.dgpu_offload.is_some() {
-            tracing::info!(program, "spawn: steering launch onto discrete GPU (PRIME offload)");
+            tracing::info!(
+                program = %program_joined,
+                "spawn: steering launch onto discrete GPU (PRIME offload)"
+            );
         }
         apply_spawned_client_env(
             &mut cmd,
-            program,
+            &program_joined,
             &self.socket_name,
             self.xdisplay,
+            self.xdisplay_gaming,
             self.client_gpu.as_ref(),
             self.dgpu_offload.as_ref(),
             prefer_dgpu,
@@ -2012,21 +2078,24 @@ impl MetisState {
             Ok(child) => {
                 let pid = child.id();
                 tracing::info!(
-                    program,
+                    program = %program_joined,
                     pid,
                     wayland_display = ?self.socket_name,
                     "spawned client"
                 );
-                if metis_config::command_prefers_dgpu(program) && prefer_dgpu {
-                    self.event_bus.emit(&metis_protocol::CompositorEvent::GameSession {
-                        active: true,
-                        label: Some(program.to_string()),
-                        pid: Some(pid),
-                    });
+                if metis_config::command_prefers_dgpu(&program_joined) && prefer_dgpu {
+                    self.event_bus
+                        .emit(&metis_protocol::CompositorEvent::GameSession {
+                            active: true,
+                            label: Some(program_joined.clone()),
+                            pid: Some(pid),
+                        });
                 }
                 self.child_processes.push(child);
             }
-            Err(err) => tracing::warn!(program, %err, "failed to spawn client"),
+            Err(err) => {
+                tracing::warn!(program = %program_joined, %err, "failed to spawn client")
+            }
         }
     }
 
@@ -7616,7 +7685,22 @@ impl MetisState {
     }
 
     pub fn handle_ipc(&mut self, cmd: CompositorCommand) -> metis_protocol::CompositorEvent {
+        self.handle_ipc_with_caps(cmd, IpcCaps::Full)
+    }
+
+    pub fn handle_ipc_with_caps(
+        &mut self,
+        cmd: CompositorCommand,
+        caps: IpcCaps,
+    ) -> metis_protocol::CompositorEvent {
         use metis_protocol::CompositorEvent;
+        if caps == IpcCaps::Widgets {
+            if !widgets_command_allowed(&cmd) {
+                return CompositorEvent::Error {
+                    message: "IPC command not allowed for desktop-widgets capability".into(),
+                };
+            }
+        }
         // While locked, refuse commands that could focus/reveal a client, launch
         // programs, touch the clipboard, or elevate a capture — a locked screen
         // must not be manipulable or screenshot-able from IPC. Read-only queries
@@ -7889,11 +7973,9 @@ impl MetisState {
                 CompositorEvent::LayoutApplied
             }
             CompositorCommand::SubscribeEvents => CompositorEvent::Pong,
-            CompositorCommand::Launch { program } => {
-                // Route through spawn_client so the child inherits the nested
-                // Wayland env (WAYLAND_DISPLAY, GDK_BACKEND, cursor theme) and is
-                // tracked for cleanup — a bare `sh -c` had no Wayland display.
-                self.spawn_client(&program);
+            CompositorCommand::Launch { argv, program } => {
+                let argv = metis_protocol::launch_argv(&argv, &program);
+                self.spawn_client_argv(&argv);
                 CompositorEvent::Pong
             }
             CompositorCommand::EndSession => {

@@ -472,11 +472,15 @@ the Metis titlebar.
 
 **X11 vs Wayland isolation.** Native Wayland clients cannot be keylogged or
 surface-sniffed by X11/XWayland apps — rootless XWayland does not see Wayland
-input or buffers. All X11 clients share one XWayland server, so a malicious X11
-app can still attack other X11 apps (classic X11↔X11). Metis does not claim
-per-app XSECURITY sandboxes today. By default Metis starts XWayland **without**
-the abstract Unix socket (`config.json` → `"xwayland_abstract_socket": false`);
-set it to `true` if a legacy local client needs `@/tmp/.X11-unix/...`.
+input or buffers. By default all X11 clients share **one** XWayland server
+(`config.json` → `"xwayland_mode": "shared"`), so a malicious X11 app can still
+attack other X11 apps (classic X11↔X11). Metis does **not** claim XSECURITY
+sandboxes. Opt-in `"xwayland_mode": "isolated"` starts a second XWayland for
+gaming/Proton launches (separate `DISPLAY`) so Steam/games do not share an X
+server with random desktop X11 apps — still experimental; measure RAM before
+relying on it. By default Metis also starts XWayland **without** the abstract
+Unix socket (`"xwayland_abstract_socket": false`); set it to `true` if a legacy
+local client needs `@/tmp/.X11-unix/...`.
 
 - **Move** — drag the titlebar.
 - **Close / minimize / maximize** — the three titlebar buttons (× / − / +).
@@ -809,7 +813,9 @@ xfreerdp /v:HOST:3389 /u:USERNAME /p:PASSWORD /dynamic-resolution
 ```
 
 (`grdctl` still receives the password on its argv when Metis sets credentials —
-that is a GNOME Remote Desktop limitation; minimize how long that process runs.)
+that is a GNOME Remote Desktop limitation; minimize how long that process runs.
+Prefer `printf '%s\\n' '…' | metis-remote set-credentials USER` so the password
+never appears on a Metis argv.)
 
 **Security.** `remote.json` defaults to `"lan_only": true`. Metis applies named
 firewall rules (`metis-rdp-lan-only` / nft table `inet metis_rdp`) when sharing
@@ -822,7 +828,9 @@ internet without a VPN or strong perimeter controls. Manual check:
 **Session lock.** While the session is locked (`Super+L`), Metis pauses RDP listen
 (`metis-remote pause`) without clearing `remote.json.enabled`, and blocks capture
 and input injection. Unlock resumes sharing if it was still enabled. Remote
-clients cannot view or control the desktop while locked.
+clients cannot view or control the desktop while locked. On a DRM session,
+**Ctrl+Alt+F\<n\>** (VT switch) is blocked while locked; **Ctrl+Alt+Backspace**
+still quits the session as an escape hatch.
 
 **Auto-start.** When `remote.json` has `"enabled": true` and `"auto_start": true`
 (the defaults after you turn sharing on), `metis-session` runs `metis-remote
@@ -913,9 +921,19 @@ end session); that is the intended same-session control plane. If
 `XDG_RUNTIME_DIR` is unset, Metis fails closed rather than falling back to
 `/tmp/metis`.
 
+The isolated **desktop-widgets** process is spawned with a short-lived
+`METIS_IPC_TOKEN` and may only use a **widgets** capability (Launch, list
+windows/outputs, light reloads) — it cannot EndSession, inject input, or start
+capture overlays. The edge bar and Settings keep the full-privilege channel
+(no token).
+
 While the session is locked, IPC also rejects focus/launch/clipboard/capture/
 workspace/session-control and remote-input inject commands. Desktop sharing also
 pauses RDP listen until unlock (see Remote desktop above).
+
+**Native libraries.** GTK, lcms2, OpenSSL/system TLS, libinput, and similar C
+dependencies are outside Rust’s safety model — rely on distro security updates
+for those packages (see [`PACKAGING.md`](PACKAGING.md)).
 
 ### Nested dev sessions (GNOME / host compositor)
 

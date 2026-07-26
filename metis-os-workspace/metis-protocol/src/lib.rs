@@ -69,7 +69,14 @@ pub enum CompositorCommand {
     /// the settings "New workspace layout" default changes, so it acts as a live
     /// global on/off rather than only seeding future workspaces).
     SetDefaultLayout { kind: LayoutKind },
-    Launch { program: String },
+    /// Spawn a client. Prefer `argv` (no shell). If `argv` is empty, `program` is
+    /// split with [`split_command_line`] — never passed to `sh -c`.
+    Launch {
+        #[serde(default)]
+        argv: Vec<String>,
+        #[serde(default)]
+        program: String,
+    },
     /// End the Metis session: stop the compositor event loop so the session host
     /// (run script / display manager) tears the session down cleanly. Used by the
     /// app menu's "Log Out" action.
@@ -446,6 +453,50 @@ pub fn peer_uid_is_euid(stream: &std::os::unix::net::UnixStream) -> std::io::Res
 #[cfg(not(unix))]
 pub fn peer_uid_is_euid(_stream: &std::os::unix::net::UnixStream) -> std::io::Result<bool> {
     Ok(true)
+}
+
+/// Split a command line into argv without invoking a shell.
+///
+/// Supports simple single/double quotes. Does **not** expand `$VAR`, backticks,
+/// or globs — callers that need path resolution must do it in Rust.
+pub fn split_command_line(line: &str) -> Vec<String> {
+    let mut argv = Vec::new();
+    let mut cur = String::new();
+    let mut chars = line.chars().peekable();
+    let mut in_single = false;
+    let mut in_double = false;
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            '\\' if in_double => {
+                if let Some(n) = chars.next() {
+                    cur.push(n);
+                }
+            }
+            c if c.is_whitespace() && !in_single && !in_double => {
+                if !cur.is_empty() {
+                    argv.push(std::mem::take(&mut cur));
+                }
+            }
+            _ => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        argv.push(cur);
+    }
+    argv
+}
+
+/// Resolve [`CompositorCommand::Launch`] into argv (prefer explicit `argv`).
+pub fn launch_argv(argv: &[String], program: &str) -> Vec<String> {
+    if !argv.is_empty() {
+        argv.to_vec()
+    } else if program.trim().is_empty() {
+        Vec::new()
+    } else {
+        split_command_line(program)
+    }
 }
 
 /// Send one JSON command to the compositor IPC socket and read the reply line.

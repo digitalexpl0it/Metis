@@ -68,6 +68,13 @@ jobs:
         with:
           workspaces: metis-os-workspace -> target
 
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit Rust dependencies
+        working-directory: metis-os-workspace
+        run: cargo audit
+
       - name: Resolve version
         id: ver
         run: |

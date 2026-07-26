@@ -101,3 +101,50 @@ pub fn save_menu_config(config: &MenuConfig) -> std::io::Result<()> {
     let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
     std::fs::write(menu_config_path(), json)
 }
+
+/// Pick the first usable executable from user choice → env var → known list.
+/// Never invokes a shell.
+pub fn resolve_executable(
+    chosen: Option<&str>,
+    env_var: &str,
+    known: &[(&str, &str)],
+) -> Option<String> {
+    if let Some(c) = chosen.map(str::trim).filter(|s| !s.is_empty()) {
+        if binary_in_path(c) {
+            return Some(c.to_string());
+        }
+    }
+    if let Ok(v) = std::env::var(env_var) {
+        let v = v.trim();
+        if !v.is_empty() && binary_in_path(v) {
+            return Some(v.to_string());
+        }
+    }
+    for (bin, _) in known {
+        if binary_in_path(bin) {
+            return Some((*bin).to_string());
+        }
+    }
+    None
+}
+
+/// Resolve the configured/auto-detected terminal binary.
+pub fn resolve_terminal() -> Option<String> {
+    let cfg = load_menu_config();
+    resolve_executable(cfg.terminal.as_deref(), "TERMINAL", KNOWN_TERMINALS)
+}
+
+/// Resolve the configured/auto-detected file manager binary.
+pub fn resolve_file_manager() -> Option<String> {
+    let cfg = load_menu_config();
+    resolve_executable(
+        cfg.file_manager.as_deref(),
+        "FILE_MANAGER",
+        KNOWN_FILE_MANAGERS,
+    )
+}
+
+/// Argv to run `program` inside `terminal` without a shell (`term -e program`).
+pub fn argv_in_terminal(terminal: &str, program: &str) -> Vec<String> {
+    vec![terminal.to_string(), "-e".to_string(), program.to_string()]
+}

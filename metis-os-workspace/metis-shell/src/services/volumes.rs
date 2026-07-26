@@ -646,38 +646,16 @@ pub fn eject(id: &str) {
 }
 
 pub fn open_in_file_manager(path: &Path) {
-    let path_s = path.to_string_lossy();
-    let quoted = shell_dquote(&path_s);
-    let cfg = metis_config::load_menu_config();
-    let mut snippet = String::new();
-    if let Some(chosen) = cfg
-        .file_manager
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        let c = shell_dquote(chosen);
-        snippet.push_str(&format!(
-            "if command -v \"{c}\" >/dev/null 2>&1; then exec \"{c}\" {quoted}; fi; "
-        ));
-    }
-    snippet.push_str("for x in \"$FILE_MANAGER\"");
-    for (bin, _) in metis_config::KNOWN_FILE_MANAGERS {
-        snippet.push(' ');
-        snippet.push_str(bin);
-    }
-    snippet.push_str(&format!(
-        "; do command -v \"$x\" >/dev/null 2>&1 && exec \"$x\" {quoted}; done"
-    ));
-    snippet.push_str(&format!("; exec xdg-open {quoted}"));
-    if let Err(err) = crate::compositor::launch_program(&snippet) {
+    let path_s = path.to_string_lossy().into_owned();
+    let argv = if let Some(fm) = metis_config::resolve_file_manager() {
+        vec![fm, path_s]
+    } else {
+        vec!["xdg-open".into(), path_s]
+    };
+    if let Err(err) = crate::compositor::launch_argv(argv) {
         tracing::warn!(%err, path = %path.display(), "failed to open volume in file manager");
         toast_error(&format!("Could not open {}", path.display()));
     }
-}
-
-fn shell_dquote(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn toast_error(message: &str) {

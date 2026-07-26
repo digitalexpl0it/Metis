@@ -1,9 +1,9 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phases **1–14** are complete for their shipped product bars.
-**Phase 15** (Security hardening) is next — supply-chain / compiler mitigations,
-spawn + Polkit hygiene, lock/VT policy, capability-scoped IPC, and deeper X11
-isolation. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and
+**Current phase:** Phases **1–15** are complete for their shipped product bars.
+**Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
+spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. Stretch §F
+remains open. **Phase 5** (Display pipeline) closed 2026-07-25 with HDR H1+H2 and
 Stage 2 GLES 3D-LUT colour; default-on `wp_color_management_v1` remains deferred
 (upstream wayland-rs UAF). **Phase 8** (i18n) complete 2026-07-24. **Phase 7**
 (remote access security closeout) complete 2026-07-25. **Phase 3** multi-GPU
@@ -756,10 +756,9 @@ latency and clear setup docs.
 - [x] **Calendar keyring cleanup** — delete CalDAV / M365 secrets on account remove.
 - [x] **XWayland abstract socket** — `config.json` `xwayland_abstract_socket`
       default **false** (2026-07-25). Residual: one shared X11 server remains.
-- [ ] **Deeper X11 isolation** (→ Phase 15 §E) — optional separate XWayland
-      instances per untrusted app and/or research XSECURITY under rootless
-      XWayland (often limited). Documented residual: all X11 clients share one
-      server (X11↔X11); Wayland clients stay isolated.
+- [x] **Deeper X11 isolation** (Phase 15 §E, 2026-07-25) — opt-in
+      `xwayland_mode: isolated` two-bucket prototype (default stays shared).
+      XSECURITY research note in USER_GUIDE.
 
 ---
 
@@ -1257,47 +1256,47 @@ shared X server.
 
 ### A. Supply chain & compiler mitigations (quick wins)
 
-- [ ] **`cargo-audit` in release CI** — run `cargo audit` (or `cargo deny`) in
+- [x] **`cargo-audit` in release CI** — run `cargo audit` (or `cargo deny`) in
       `.github/workflows/release-deb.yml` before the `.deb` build; fail the job
       on unignored advisories. Document ignore policy for accepted risks.
-- [ ] **Dev / PR audit optional** — lightweight `cargo audit` job on PRs that
+- [x] **Dev / PR audit optional** — lightweight `cargo audit` job on PRs that
       touch `Cargo.lock` (or nightly), so CVEs surface before tag day.
-- [ ] **Release profile hardening** — enable `overflow-checks = true` on
+- [x] **Release profile hardening** — enable `overflow-checks = true` on
       `[profile.release]` (and inherit in `release-small`); set
       `panic = "abort"` on default `release` (already on `release-small`) to
       avoid unwind metadata leaks. Re-benchmark compositor hot path; document
       any intentional opt-outs per crate if needed.
-- [ ] **Document residual C ABI risk** — USER_GUIDE / PACKAGING note that GTK,
+- [x] **Document residual C ABI risk** — USER_GUIDE / PACKAGING note that GTK,
       lcms2, OpenSSL, libinput, etc. remain outside Rust’s safety model; point
       at distro security updates.
 
 ### B. Process spawn & Polkit
 
-- [ ] **Ban shell interpolation for user input** — audit `Command::new("sh")` /
+- [x] **Ban shell interpolation for user input** — audit `Command::new("sh")` /
       `-c` across compositor, shell, settings, remote, gaming; replace with
       argv vectors (`.arg()` / `.args()`). Keep `sh -c` only for fixed literals
       with no interpolated untrusted data (or eliminate entirely).
-- [ ] **SSID / VPN / process-name sanitization** — validate and pass NetworkManager
+- [x] **SSID / VPN / process-name sanitization** — validate and pass NetworkManager
       / systemctl / related arguments as discrete argv; reject control chars and
       unexpected separators where tools accept free-form names.
-- [ ] **Metis Polkit policies** — ship `.policy` (and optional `.rules`) for
+- [x] **Metis Polkit policies** — ship `.policy` (and optional `.rules`) for
       privileged helpers (`metis-remote firewall`, optional software install,
       group membership changes, etc.) bound to Metis desktop IDs; prefer
       `pkexec` of a fixed helper binary + subcommand over free-form command
       strings. Document required PolicyKit prompts in USER_GUIDE.
-- [ ] **Minimize credential lifetime on argv** — where third-party tools still
+- [x] **Minimize credential lifetime on argv** — where third-party tools still
       require argv secrets (`grdctl`), document and keep the window as short as
       possible (already noted for RDP); prefer stdin/socket APIs when upstream
       allows.
 
 ### C. Session lock & VT switching
 
-- [ ] **Decide lock/VT product policy** — pick one and document:
+- [x] **Decide lock/VT product policy** — pick one and document:
       (1) **Block** Ctrl+Alt+F\<n\> while locked (keep Ctrl+Alt+Backspace quit as
       escape hatch), or (2) **Allow** VT switch but blank/lock DRM outputs and
       require re-auth on return, or (3) leave current escape-hatch behavior with
       an explicit USER_GUIDE security note. Default recommendation: (1) or (2).
-- [ ] **Implement chosen policy** — gate `drm_change_vt` on `lock.locked` (and
+- [x] **Implement chosen policy** — gate `drm_change_vt` on `lock.locked` (and
       optionally idle-blank); on VT resume while session still “locked”, re-show
       lock UI before client input/capture.
 - [ ] **`ext-session-lock-v1` (optional follow-up)** — protocol support for
@@ -1305,15 +1304,15 @@ shared X server.
 
 ### D. Capability-scoped IPC (widgets & helpers)
 
-- [ ] **Command allowlists per channel** — `command-widgets` (and any future
+- [x] **Command allowlists per channel** — `command-widgets` (and any future
       helper sockets) accept only a documented subset (e.g. reload widgets,
       update weather state) — refuse `Launch`, geometry/window manip, session
       end, inject, etc. Keep bar/main channel for privileged DE control.
-- [ ] **Capability tokens (v1)** — compositor issues short-lived, scoped tokens
+- [x] **Capability tokens (v1)** — compositor issues short-lived, scoped tokens
       when spawning `--desktop-widgets` (and similar); widget process must
       present token + command; reject mismatched scope. Same-UID SO_PEERCRED
       remains necessary but not sufficient.
-- [ ] **Docs** — USER_GUIDE IPC trust model: same-UID baseline, per-channel
+- [x] **Docs** — USER_GUIDE IPC trust model: same-UID baseline, per-channel
       allowlists, token scopes, what a compromised widget can / cannot do.
 
 ### E. Deeper X11 / XWayland isolation
@@ -1321,15 +1320,15 @@ shared X server.
 Carried from Phase 7 residual. Wayland clients stay isolated; X11↔X11 on one
 server does not.
 
-- [ ] **Per-app / per-sandbox XWayland** — research + prototype separate rootless
+- [x] **Per-app / per-sandbox XWayland** — research + prototype separate rootless
       XWayland instances for untrusted classes (e.g. Flatpak X11, Steam/Proton
       bucket vs random native X11). Measure RAM/CPU vs single server.
-- [ ] **Launch policy** — Settings or `config.json` knob: shared XWayland
+- [x] **Launch policy** — Settings or `config.json` knob: shared XWayland
       (compat) vs isolated buckets (hardened). Default stays shared until
       isolation is stable.
-- [ ] **Abstract socket remains default-off** — keep `xwayland_abstract_socket:
+- [x] **Abstract socket remains default-off** — keep `xwayland_abstract_socket:
       false`; document when enabling it is necessary.
-- [ ] **XSECURITY research note** — document usefulness (often limited under
+- [x] **XSECURITY research note** — document usefulness (often limited under
       rootless XWayland); do not claim sandboxing we cannot enforce.
 
 ### F. Stretch / related (not phase gates)

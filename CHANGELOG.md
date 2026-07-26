@@ -7,15 +7,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [2026-07-25]
 
-### Added
+### Security
 
-- **Phase 5 complete (HDR H3 / Stage 2 colour)** — ICC profiles bake a 33³
-  sRGB→display GLES 3D-LUT (`lcms2`); DRM scanout uses a unified post-pass
-  (high-bit offscreen when available → optional LUT → optional SDR→PQ). CRTC
-  `vcgt` is skipped when the LUT owns the output. Opt-in
-  `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises PQ/HLG/BT.2020 and
-  records parametric TF/primaries; remains default-off (upstream wayland-rs UAF).
-  Requires `liblcms2-dev` to build.
+- **Phase 15 — Security hardening** — `cargo audit` in release + PR CI;
+  `overflow-checks` + `panic = "abort"` on release profiles; argv-only Launch
+  (no `sh -lc`); Metis Polkit policies + `metis-remote pk-apt-install` /
+  `pk-add-input-group`; NM SSID/id sanitizers; lock blocks Ctrl+Alt+Fn VT switch
+  (Backspace quit kept); desktop-widgets IPC capability token; opt-in
+  `xwayland_mode: isolated` gaming XWayland bucket. Stretch §F (remote viewer,
+  image clipboard, fingerprint) remains open.
+- **Phase 7 remote security closeout** — LAN-only RDP firewall enforcement
+  (`metis-remote firewall` via nftables/ufw + Settings toggle); RDP password via
+  stdin (not Metis argv); lock pauses RDP listen and unlock resumes if still
+  enabled; RDP clipboard text-only (no local image mimes); XWayland abstract
+  socket default-off (`config.json` `xwayland_abstract_socket`).
+- **IPC hardening** — `$XDG_RUNTIME_DIR/metis` is `0700`; compositor sockets and
+  command/clipboard files are `0600`; accepts require same-UID `SO_PEERCRED`;
+  insecure `/tmp/metis` fallback removed (fail closed if `XDG_RUNTIME_DIR` is
+  unset). Lock screen IPC denylist expanded (close window, end session,
+  workspace moves, screenshot overlay, inject, …).
+- **Flatpak gaming optimize consent** — Settings shows a permission dialog before
+  overrides; `metis-cmd optimize-gaming` requires `--yes` (or
+  `METIS_GAMING_OPTIMIZE_YES=1`); shell/gamingd ignore bare optimize commands.
+- **Calendar keyring hygiene** — removing a calendar account deletes its CalDAV
+  password / M365 refresh token from the Secret Service.
+- **Docs** — USER_GUIDE / UBUNTU_DEV / PACKAGING cover IPC trust model, Polkit,
+  C ABI residual risk, and X11 isolation modes.
 
 ### Fixed
 
@@ -40,30 +57,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   real click arm in the bar and Settings; unarmed offs are refused at the
   nmcli spawn site.
 
-### Security
-
-- **Phase 7 remote security closeout** — LAN-only RDP firewall enforcement
-  (`metis-remote firewall` via nftables/ufw + Settings toggle); RDP password via
-  stdin (not Metis argv); lock pauses RDP listen and unlock resumes if still
-  enabled; RDP clipboard text-only (no local image mimes); XWayland abstract
-  socket default-off (`config.json` `xwayland_abstract_socket`). First-party
-  remote viewer and deep X11 isolation remain deferred.
-- **IPC hardening** — `$XDG_RUNTIME_DIR/metis` is `0700`; compositor sockets and
-  command/clipboard files are `0600`; accepts require same-UID `SO_PEERCRED`;
-  insecure `/tmp/metis` fallback removed (fail closed if `XDG_RUNTIME_DIR` is
-  unset). Lock screen IPC denylist expanded (close window, end session,
-  workspace moves, screenshot overlay, inject, …).
-- **Flatpak gaming optimize consent** — Settings shows a permission dialog before
-  overrides; `metis-cmd optimize-gaming` requires `--yes` (or
-  `METIS_GAMING_OPTIMIZE_YES=1`); shell/gamingd ignore bare optimize commands.
-- **Calendar keyring hygiene** — removing a calendar account deletes its CalDAV
-  password / M365 refresh token from the Secret Service.
-- **Docs** — USER_GUIDE / UBUNTU_DEV cover IPC trust model, calendar secrets in
-  keyring, and X11↔X11 vs Wayland isolation (deeper X isolation tracked as TODO
-  Phase 15 / stretch).
-
 ### Added
 
+- **Phase 5 complete (HDR H3 / Stage 2 colour)** — ICC profiles bake a 33³
+  sRGB→display GLES 3D-LUT (`lcms2`); DRM scanout uses a unified post-pass
+  (high-bit offscreen when available → optional LUT → optional SDR→PQ). CRTC
+  `vcgt` is skipped when the LUT owns the output. Opt-in
+  `wp_color_management_v1` (`METIS_COLOR_MGMT=1`) advertises PQ/HLG/BT.2020 and
+  records parametric TF/primaries; remains default-off (upstream wayland-rs UAF).
+  Requires `liblcms2-dev` to build.
 - **Phase 5 HDR encode (H2)** — with HDR on, the DRM compositor composites the
   SDR desktop offscreen and blits through an sRGB→linear→ST.2084 PQ shader
   (203‑nit reference white) so the panel shows correctly mapped HDR10 rather

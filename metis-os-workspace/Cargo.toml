@@ -44,11 +44,14 @@ opt-level = 3
 
 # Default release: balance runtime perf (compositor GL path) with smaller installs.
 # LTO + single codegen unit shrink binaries noticeably vs stock `cargo build --release`.
+# Phase 15: overflow checks + abort-on-panic (inherited by release-small).
 [profile.release]
 opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+overflow-checks = true
+panic = "abort"
 
 # Smallest installed footprint (`cargo build --profile release-small`, or
 # `./run-metis.sh --install-session --release-small`). Slightly slower builds;
@@ -57,7 +60,6 @@ strip = "symbols"
 inherits = "release"
 opt-level = "s"
 lto = "fat"
-panic = "abort"
 
 # Keep the compositor on full speed even in release-small — GLES/Smithay dominate.
 [profile.release-small.package.metis-compositor]

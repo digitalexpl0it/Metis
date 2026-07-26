@@ -23,22 +23,14 @@ pub fn list_output_modes(output: &str) -> (Vec<metis_protocol::OutputModeInfo>, 
 }
 
 pub fn send(cmd: &str) {
-    let path = metis_protocol::runtime_command_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    if let Err(err) = std::fs::write(&path, format!("{cmd}\n")) {
+    if let Err(err) = metis_protocol::write_runtime_command(cmd) {
         tracing::warn!(%err, cmd, "failed to write runtime command");
     }
 }
 
 /// Send a one-shot command to the desktop-widgets process (not the edge bar).
 pub fn send_widgets(cmd: &str) {
-    let path = metis_protocol::runtime_command_path_widgets();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    if let Err(err) = std::fs::write(&path, format!("{cmd}\n")) {
+    if let Err(err) = metis_protocol::write_runtime_command_widgets(cmd) {
         tracing::warn!(%err, cmd, "failed to write widgets runtime command");
     }
 }

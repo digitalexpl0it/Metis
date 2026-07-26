@@ -391,15 +391,18 @@ fn launch_desktop_file(path: &Path) {
 }
 
 fn clean_exec(exec: &str) -> String {
-    exec.split_whitespace()
+    metis_protocol::split_command_line(exec)
+        .into_iter()
         .filter(|tok| !(tok.len() == 2 && tok.starts_with('%')))
         .collect::<Vec<_>>()
         .join(" ")
 }
 
 fn open_with_default(path: &Path) {
-    let quoted = shell_dquote(&path.to_string_lossy());
-    if let Err(err) = crate::compositor::launch_program(&format!("xdg-open {quoted}")) {
+    if let Err(err) = crate::compositor::launch_argv([
+        "xdg-open".to_string(),
+        path.display().to_string(),
+    ]) {
         tracing::warn!(%err, path = %path.display(), "xdg-open failed");
     }
 }
@@ -417,10 +420,6 @@ fn open_with_picker(path: &Path) {
 
 fn active_window() -> Option<gtk::Window> {
     gtk::Application::default().active_window()
-}
-
-fn shell_dquote(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn menu_button(label: &str, popover: &gtk::Popover, on_click: Rc<dyn Fn()>) -> gtk::Button {

@@ -286,6 +286,10 @@ pub fn active_wifi_connection() -> Option<ActiveConn> {
 }
 
 pub fn connect_wifi(ssid: String, password: Option<String>) {
+    if let Err(err) = metis_config::validate_ssid(&ssid) {
+        eprintln!("metis-settings: refusing Wi-Fi connect: {err}");
+        return;
+    }
     let mut args = vec![
         "dev".to_string(),
         "wifi".to_string(),
@@ -632,6 +636,7 @@ fn vpn_toggle(
     password: Option<&str>,
     timeout: Duration,
 ) -> Result<(), String> {
+    metis_config::validate_nm_id(target)?;
     let passwd_path = if action == "up" {
         password.and_then(|pw| write_vpn_passwd_file(pw).ok())
     } else {

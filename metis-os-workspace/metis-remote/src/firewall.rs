@@ -54,27 +54,22 @@ fn is_root() -> bool {
 }
 
 fn resolve_bin(name: &str) -> Option<String> {
+    // Fixed locations only — never `sh -c command -v` (Phase 15 §B).
     for dir in ["/usr/sbin", "/sbin", "/usr/bin", "/bin"] {
         let candidate = format!("{dir}/{name}");
         if Path::new(&candidate).is_file() {
             return Some(candidate);
         }
     }
-    Command::new("sh")
-        .args(["-c", &format!("command -v {name} 2>/dev/null")])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if !o.status.success() {
-                return None;
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate.display().to_string());
             }
-            let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if path.is_empty() {
-                None
-            } else {
-                Some(path)
-            }
-        })
+        }
+    }
+    None
 }
 
 fn nft_bin() -> Option<String> {
@@ -383,7 +378,7 @@ pub fn clear_as_root() -> Result<FirewallStatus, String> {
 }
 
 fn escalate(args: &[&str]) -> Result<(), String> {
-    let bin = std::env::current_exe().map_err(|e| format!("current exe: {e}"))?;
+    let bin = crate::pkhelpers::privileged_exe();
     // Bound wait: without a PolicyKit agent, bare `pkexec` can hang forever and
     // leave Settings stuck on "Applying…". Always wrap with `timeout`.
     let output = Command::new("timeout")
@@ -579,10 +574,18 @@ fn clear_ufw() -> Result<(), String> {
         }) else {
             break;
         };
-        let _ = Command::new("sh")
-            .arg("-c")
-            .arg(format!("yes | {ufw} delete {num}"))
-            .output();
+        let mut child = Command::new(&ufw)
+            .args(["delete", &num])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("ufw delete spawn: {e}"))?;
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(b"y\n");
+        }
+        let _ = child.wait();
     }
     Ok(())
 }

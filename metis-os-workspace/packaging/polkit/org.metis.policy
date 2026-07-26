@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<!-- Metis Phase 15 — privileged helpers. Installed to /usr/share/polkit-1/actions/ -->
+<policyconfig>
+  <vendor>Metis</vendor>
+  <vendor_url>https://github.com/digitalexpl0it/Metis</vendor_url>
+
+  <action id="org.metis.remote.firewall.apply">
+    <description>Apply Metis LAN-only RDP firewall rules</description>
+    <message>Authentication is required to restrict Remote Desktop (RDP) to the LAN</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">firewall</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv2">apply-as-root</annotate>
+  </action>
+
+  <action id="org.metis.remote.firewall.clear">
+    <description>Clear Metis LAN-only RDP firewall rules</description>
+    <message>Authentication is required to remove Metis Remote Desktop firewall rules</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">firewall</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv2">clear-as-root</annotate>
+  </action>
+
+  <action id="org.metis.software.apt-install">
+    <description>Install allowlisted Metis optional packages</description>
+    <message>Authentication is required to install optional Metis software</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">pk-apt-install</annotate>
+  </action>
+
+  <action id="org.metis.accounts.add-input-group">
+    <description>Add a user to the input group for controller access</description>
+    <message>Authentication is required to add your account to the input group</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">pk-add-input-group</annotate>
+  </action>
+</policyconfig>

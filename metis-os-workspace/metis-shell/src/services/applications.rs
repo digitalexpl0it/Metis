@@ -151,7 +151,8 @@ fn entry_from_info(info: gio::AppInfo) -> Option<AppEntry> {
 /// Strip freedesktop Exec field codes (`%U`, `%f`, `%i`, ...) so the residual
 /// command line can be spawned directly by the compositor.
 fn clean_exec(exec: &str) -> String {
-    exec.split_whitespace()
+    metis_protocol::split_command_line(exec)
+        .into_iter()
         .filter(|tok| !(tok.len() == 2 && tok.starts_with('%')))
         .collect::<Vec<_>>()
         .join(" ")

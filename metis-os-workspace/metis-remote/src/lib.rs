@@ -3,6 +3,7 @@
 mod firewall;
 mod gnome_rdp;
 mod host;
+mod pkhelpers;
 
 pub use firewall::FirewallStatus;
 pub use gnome_rdp::{
@@ -10,6 +11,9 @@ pub use gnome_rdp::{
     status_snapshot,
 };
 pub use host::{hostname, lan_addresses};
+pub use pkhelpers::{
+    add_input_group, apt_install, privileged_exe, validate_username, APT_ALLOWLIST,
+};
 
 use metis_config::{load_remote_config, save_remote_config};
 use zeroize::Zeroize;
