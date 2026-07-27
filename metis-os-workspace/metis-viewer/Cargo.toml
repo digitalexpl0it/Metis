@@ -17,3 +17,4 @@ metis-config = { workspace = true }
 metis-i18n = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+zeroize = "1"

@@ -2532,6 +2532,7 @@ dependencies = [
  "metis-i18n",
  "tracing",
  "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]

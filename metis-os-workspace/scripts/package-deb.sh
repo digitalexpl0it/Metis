@@ -154,6 +154,8 @@ stage_tree() {
     install -Dm644 "$ASSETS_DIR/metis-viewer.desktop" "$STAGE/usr/share/applications/metis-viewer.desktop"
     install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$STAGE/usr/share/icons/hicolor/48x48/apps/metis-settings.png"
     install -Dm644 "$ASSETS_DIR/metis-settings.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/metis-settings.png"
+    install -Dm644 "$ASSETS_DIR/metis-viewer-48.png" "$STAGE/usr/share/icons/hicolor/48x48/apps/metis-viewer.png"
+    install -Dm644 "$ASSETS_DIR/metis-viewer.png" "$STAGE/usr/share/icons/hicolor/256x256/apps/metis-viewer.png"
     install -Dm644 "$ASSETS_DIR/pam-metis" "$STAGE/etc/pam.d/metis"
     install -Dm644 "$WORKSPACE/packaging/polkit/org.metis.policy" \
         "$STAGE/usr/share/polkit-1/actions/org.metis.policy"

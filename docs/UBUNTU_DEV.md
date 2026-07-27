@@ -102,7 +102,7 @@ off by default (`xwayland_abstract_socket: false`).
 |------|--------|-----------------|-------|
 | **gnome-remote-desktop (RDP)** | **Supported (v1)** | Portal / PipeWire via `metis-portal`; EIS remote input | Settings toggle; text+image clipboard; LAN-only defaults; multi-monitor `RecordMonitor` selects by connector name |
 | **Metis Viewer (`metis-viewer`)** | **Supported (v1 client)** | FreeRDP → GRD host | GTK connect UI; argv spawn of `wlfreerdp3`/`xfreerdp…`; recent hosts in `viewer.json` (no passwords) |
-| **RustDesk** | **Documented (host install)** | Prefer portal/PipeWire on Wayland; own capture may fail | Not in Settings/`metis-remote` yet — see below |
+| **RustDesk** | **Settings preset (detect/open)** | Prefer portal/PipeWire on Wayland; own capture may fail | Settings → Remote access card; not in `metis-remote` — see below |
 | **wayvnc** | **Spike / unsupported** | Needs compositor screencopy or portal consumer | No Metis integration; Smithay capture path TBD |
 | **TigerVNC / x11vnc** | **Not applicable** | X11 | Metis is Wayland-first; do not expect these to attach to the DRM session |
 | **xrdp** | **Out of toggle scope** | Separate X11 login session | Different problem (new login), not session sharing |
@@ -111,11 +111,12 @@ off by default (`xwayland_abstract_socket: false`).
 
 Lock behaviour: compositor refuses capture while locked — remote view freezes until unlock (documented in USER_GUIDE).
 
-#### RustDesk on a Metis host (manual)
+#### RustDesk on a Metis host
 
 RustDesk is a reasonable third-party option when you need ID/relay access instead of
-LAN RDP. Metis does **not** orchestrate it yet (`metis-remote` backend remains
-`gnome_rdp` only).
+LAN RDP. Metis ships a **Settings → Remote access** preset (detect install, open
+app, copy install instructions). It does **not** orchestrate enable/disable,
+credentials, or firewall ports (`metis-remote` backend remains `gnome_rdp` only).
 
 **Install (Ubuntu):**
 

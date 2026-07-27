@@ -4,10 +4,12 @@ mod freerdp;
 mod theme;
 
 use std::cell::RefCell;
+use std::process::Child;
 use std::rc::Rc;
+use std::time::Instant;
 
 use gtk::prelude::*;
-use metis_config::{remember_host, ViewerHost};
+use metis_config::{remember_host, remove_recent, ViewerHost};
 use metis_i18n::tr;
 
 #[derive(Debug, Clone, Default)]
@@ -107,9 +109,10 @@ fn parse_cli() -> CliPrefill {
     out
 }
 
+type ConnectFn = Rc<dyn Fn()>;
+
 fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     if let Some(win) = app.active_window() {
-        // Re-read Appearance in case the user switched Light/Dark while we were open.
         theme::reapply();
         win.present();
         return;
@@ -117,7 +120,6 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
 
     theme::install();
 
-    // Under Metis, the compositor draws SSD — never show GTK CSD (double titlebar).
     let under_metis = running_under_metis();
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -135,7 +137,6 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
         window.set_titlebar(gtk::Widget::NONE);
     }
 
-    // Solid root fill — wallpaper must never show through gaps in the widget tree.
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.add_css_class("metis-viewer-root");
     root.set_hexpand(true);
@@ -151,16 +152,19 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     page.set_hexpand(true);
     page.set_vexpand(true);
 
-    // In-content header (Metis SSD already shows the window title).
+    // Under Metis SSD the compositor already shows the window title — icon + subtitle only.
     let header = gtk::Box::new(gtk::Orientation::Horizontal, 14);
     let icon = gtk::Image::from_icon_name("network-workgroup-symbolic");
     icon.set_pixel_size(36);
     icon.add_css_class("metis-viewer-header-icon");
     header.append(&icon);
     let titles = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    let title = gtk::Label::new(Some(&tr("Remote Desktop")));
-    title.set_xalign(0.0);
-    title.add_css_class("metis-viewer-title");
+    if !under_metis {
+        let title = gtk::Label::new(Some(&tr("Remote Desktop")));
+        title.set_xalign(0.0);
+        title.add_css_class("metis-viewer-title");
+        titles.append(&title);
+    }
     let subtitle = gtk::Label::new(Some(&tr(
         "Connect to a Metis or RDP host. Sharing is enabled on the host under \
          Settings → Remote access.",
@@ -168,7 +172,6 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     subtitle.set_xalign(0.0);
     subtitle.set_wrap(true);
     subtitle.add_css_class("metis-viewer-subtitle");
-    titles.append(&title);
     titles.append(&subtitle);
     titles.set_hexpand(true);
     header.append(&titles);
@@ -179,7 +182,6 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
         page.append(&missing_freerdp_banner());
     }
 
-    // Connection card
     let card = gtk::Box::new(gtk::Orientation::Vertical, 0);
     card.add_css_class("metis-viewer-card");
     let card_title = gtk::Label::new(Some(&tr("Connection")));
@@ -202,7 +204,6 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     port_entry.set_max_width_chars(5);
     port_entry.set_text(&prefill.port.unwrap_or(3389).to_string());
 
-    // Host + port on one row (port stays narrow).
     let host_port = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     host_port.add_css_class("metis-viewer-field");
     let host_col = gtk::Box::new(gtk::Orientation::Vertical, 0);
@@ -238,7 +239,8 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     pass_entry.set_placeholder_text(Some(&tr("Optional")));
     card.append(&field_box(&tr("Password"), &pass_entry));
     let pass_hint = gtk::Label::new(Some(&tr(
-        "Leave blank to let FreeRDP prompt. Passwords are never saved.",
+        "Leave blank to let FreeRDP prompt. Passwords are never saved. If filled, \
+         they are passed on the FreeRDP command line briefly (visible in /proc).",
     )));
     pass_hint.set_xalign(0.0);
     pass_hint.set_wrap(true);
@@ -251,13 +253,14 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     status.set_wrap(true);
     status.add_css_class("metis-viewer-status");
     if let Some(bin) = &freerdp {
-        status.set_text(&format!(
-            "{} {} · {}",
-            tr("Ready —"),
-            bin.display(),
-            theme::effective_theme_name()
-        ));
+        status.set_text(&format!("{} {}", tr("Ready —"), bin.display()));
         status.add_css_class("metis-viewer-ready");
+    } else {
+        set_status(
+            &status,
+            &tr("Connect disabled — install FreeRDP first."),
+            StatusKind::Error,
+        );
     }
     page.append(&status);
 
@@ -267,6 +270,9 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     let connect_btn = gtk::Button::with_label(&tr("Connect"));
     connect_btn.add_css_class("suggested-action");
     connect_btn.set_sensitive(freerdp.is_some());
+    if freerdp.is_none() {
+        connect_btn.set_tooltip_text(Some(&tr("Install FreeRDP to enable Connect")));
+    }
     actions.append(&connect_btn);
     page.append(&actions);
 
@@ -290,121 +296,159 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
     recent_empty.add_css_class("metis-viewer-empty");
     page.append(&recent_empty);
 
-    let host_for_btn = host_entry.clone();
-    let port_for_btn = port_entry.clone();
-    let user_for_btn = user_entry.clone();
-    let pass_for_btn = pass_entry.clone();
-    let status_for_btn = status.clone();
-    let recent_list_ref = recent_list.clone();
-    let recent_box_ref = recent_box.clone();
-    let recent_empty_ref = recent_empty.clone();
     let connect_busy = Rc::new(RefCell::new(false));
-    let connect_btn_ref = connect_btn.clone();
+    let watched_child: Rc<RefCell<Option<Child>>> = Rc::new(RefCell::new(None));
+    // Filled after do_connect is built so recent rows can invoke it.
+    let connect_slot: Rc<RefCell<Option<ConnectFn>>> = Rc::new(RefCell::new(None));
 
-    let do_connect = Rc::new(move || {
-        if *connect_busy.borrow() {
-            return;
-        }
-        if freerdp::resolve_freerdp().is_none() {
-            set_status(
-                &status_for_btn,
-                &freerdp::freerdp_install_hint(),
-                StatusKind::Error,
-            );
-            return;
-        }
-        *connect_busy.borrow_mut() = true;
-        connect_btn_ref.set_sensitive(false);
+    let do_connect: ConnectFn = Rc::new({
+        let connect_busy = connect_busy.clone();
+        let connect_btn = connect_btn.clone();
+        let host_entry = host_entry.clone();
+        let port_entry = port_entry.clone();
+        let user_entry = user_entry.clone();
+        let pass_entry = pass_entry.clone();
+        let status = status.clone();
+        let recent_list = recent_list.clone();
+        let recent_box = recent_box.clone();
+        let recent_empty = recent_empty.clone();
+        let watched_child = watched_child.clone();
+        let connect_slot = connect_slot.clone();
 
-        let host = host_for_btn.text().to_string();
-        let port_text = port_for_btn.text().to_string();
-        let username = user_for_btn.text().to_string();
-        let password = pass_for_btn.text().to_string();
-
-        let port: u16 = match port_text.trim().parse() {
-            Ok(0) | Err(_) => {
+        move || {
+            if *connect_busy.borrow() {
+                return;
+            }
+            if freerdp::resolve_freerdp().is_none() {
                 set_status(
-                    &status_for_btn,
-                    &tr("Enter a valid port (1–65535)."),
+                    &status,
+                    &freerdp::freerdp_install_hint_full(),
+                    StatusKind::Error,
+                );
+                return;
+            }
+            *connect_busy.borrow_mut() = true;
+            connect_btn.set_sensitive(false);
+
+            let host = host_entry.text().to_string();
+            let port_text = port_entry.text().to_string();
+            let username = user_entry.text().to_string();
+            let password = pass_entry.text().to_string();
+
+            let port: u16 = match port_text.trim().parse() {
+                Ok(0) | Err(_) => {
+                    set_status(
+                        &status,
+                        &tr("Enter a valid port (1–65535)."),
+                        StatusKind::Error,
+                    );
+                    *connect_busy.borrow_mut() = false;
+                    connect_btn.set_sensitive(true);
+                    return;
+                }
+                Ok(p) => p,
+            };
+            if host.trim().is_empty() {
+                set_status(
+                    &status,
+                    &tr("Enter a host name or IP address."),
                     StatusKind::Error,
                 );
                 *connect_busy.borrow_mut() = false;
-                connect_btn_ref.set_sensitive(true);
+                connect_btn.set_sensitive(true);
                 return;
             }
-            Ok(p) => p,
-        };
-        if host.trim().is_empty() {
-            set_status(
-                &status_for_btn,
-                &tr("Enter a host name or IP address."),
-                StatusKind::Error,
-            );
-            *connect_busy.borrow_mut() = false;
-            connect_btn_ref.set_sensitive(true);
-            return;
-        }
 
-        let req = freerdp::ConnectRequest {
-            host: host.clone(),
-            port,
-            username: username.clone(),
-            password: if password.is_empty() {
-                None
-            } else {
-                Some(password)
-            },
-        };
+            let req = freerdp::ConnectRequest {
+                host: host.clone(),
+                port,
+                username: username.clone(),
+                password: if password.is_empty() {
+                    None
+                } else {
+                    Some(password)
+                },
+            };
 
-        match freerdp::spawn_freerdp(&req) {
-            Ok(bin) => {
-                set_status(
-                    &status_for_btn,
-                    &format!("{} {}", tr("Connecting with"), bin.display()),
-                    StatusKind::Ok,
-                );
-                let entry = ViewerHost {
-                    host: host.trim().to_string(),
-                    port,
-                    username: username.trim().to_string(),
-                };
-                if let Err(e) = remember_host(entry) {
-                    tracing::warn!("viewer.json save failed: {e}");
+            match freerdp::spawn_freerdp(req) {
+                Ok(spawned) => {
+                    set_status(
+                        &status,
+                        &format!("{} {}", tr("Connecting with"), spawned.binary.display()),
+                        StatusKind::Ok,
+                    );
+                    let entry = ViewerHost {
+                        host: host.trim().to_string(),
+                        port,
+                        username: username.trim().to_string(),
+                    };
+                    if let Err(e) = remember_host(entry) {
+                        tracing::warn!("viewer.json save failed: {e}");
+                    }
+                    let on_connect = connect_slot.borrow().clone();
+                    refill_recent(
+                        &recent_list,
+                        &recent_box,
+                        &recent_empty,
+                        &host_entry,
+                        &port_entry,
+                        &user_entry,
+                        on_connect,
+                    );
+
+                    let started = Instant::now();
+                    *watched_child.borrow_mut() = Some(spawned.child);
+                    let watched = watched_child.clone();
+                    let status_watch = status.clone();
+                    let busy = connect_busy.clone();
+                    let btn = connect_btn.clone();
+                    glib::timeout_add_local(std::time::Duration::from_millis(200), move || {
+                        let mut slot = watched.borrow_mut();
+                        let Some(child) = slot.as_mut() else {
+                            *busy.borrow_mut() = false;
+                            btn.set_sensitive(freerdp::resolve_freerdp().is_some());
+                            return glib::ControlFlow::Break;
+                        };
+                        match freerdp::poll_early_failure(child, started) {
+                            freerdp::EarlyWatch::Running => glib::ControlFlow::Continue,
+                            freerdp::EarlyWatch::Done => {
+                                *slot = None;
+                                *busy.borrow_mut() = false;
+                                btn.set_sensitive(freerdp::resolve_freerdp().is_some());
+                                glib::ControlFlow::Break
+                            }
+                            freerdp::EarlyWatch::Failed(msg) => {
+                                *slot = None;
+                                set_status(&status_watch, &msg, StatusKind::Error);
+                                *busy.borrow_mut() = false;
+                                btn.set_sensitive(freerdp::resolve_freerdp().is_some());
+                                glib::ControlFlow::Break
+                            }
+                        }
+                    });
                 }
-                refill_recent(
-                    &recent_list_ref,
-                    &recent_box_ref,
-                    &recent_empty_ref,
-                    &host_for_btn,
-                    &port_for_btn,
-                    &user_for_btn,
-                );
-            }
-            Err(e) => {
-                set_status(&status_for_btn, &e, StatusKind::Error);
+                Err(e) => {
+                    set_status(&status, &e, StatusKind::Error);
+                    *connect_busy.borrow_mut() = false;
+                    connect_btn.set_sensitive(freerdp::resolve_freerdp().is_some());
+                }
             }
         }
-        *connect_busy.borrow_mut() = false;
-        connect_btn_ref.set_sensitive(freerdp::resolve_freerdp().is_some());
     });
 
-    let do_connect_click = do_connect.clone();
-    connect_btn.connect_clicked(move |_| {
-        do_connect_click();
-    });
+    *connect_slot.borrow_mut() = Some(do_connect.clone());
 
-    // Enter in any field starts connect.
+    {
+        let do_connect = do_connect.clone();
+        connect_btn.connect_clicked(move |_| do_connect());
+    }
     for entry in [&host_entry, &port_entry, &user_entry] {
-        let do_connect_key = do_connect.clone();
-        entry.connect_activate(move |_| {
-            do_connect_key();
-        });
+        let do_connect = do_connect.clone();
+        entry.connect_activate(move |_| do_connect());
     }
     {
-        let do_connect_key = do_connect.clone();
-        pass_entry.connect_activate(move |_| {
-            do_connect_key();
-        });
+        let do_connect = do_connect.clone();
+        pass_entry.connect_activate(move |_| do_connect());
     }
 
     refill_recent(
@@ -414,6 +458,7 @@ fn build_ui(app: &gtk::Application, prefill: CliPrefill) {
         &host_entry,
         &port_entry,
         &user_entry,
+        Some(do_connect),
     );
 
     let scroller = gtk::ScrolledWindow::builder()
@@ -440,11 +485,14 @@ fn missing_freerdp_banner() -> gtk::Box {
     let title = gtk::Label::new(Some(&tr("FreeRDP is required")));
     title.set_xalign(0.0);
     title.add_css_class("metis-viewer-banner-title");
-    let body = gtk::Label::new(Some("sudo apt install freerdp3-wayland"));
+    let body = gtk::Label::new(Some(&freerdp::freerdp_install_hint()));
     body.set_xalign(0.0);
     body.set_selectable(true);
     body.add_css_class("metis-viewer-banner-body");
-    let alt = gtk::Label::new(Some(&tr("Or install freerdp2-x11 if Wayland FreeRDP is unavailable.")));
+    let alt = gtk::Label::new(Some(&tr(
+        "Or install freerdp2-x11 if Wayland FreeRDP is unavailable. Select the \
+         command above to copy it.",
+    )));
     alt.set_xalign(0.0);
     alt.set_wrap(true);
     alt.add_css_class("metis-viewer-subtitle");
@@ -489,6 +537,7 @@ fn refill_recent(
     host_entry: &gtk::Entry,
     port_entry: &gtk::Entry,
     user_entry: &gtk::Entry,
+    on_connect: Option<ConnectFn>,
 ) {
     while let Some(row) = list.row_at_index(0) {
         list.remove(&row);
@@ -501,12 +550,18 @@ fn refill_recent(
     }
     empty.set_visible(false);
     card.set_visible(true);
+
     for entry in cfg.recent {
         let row = gtk::ListBoxRow::new();
-        row.set_activatable(true);
+        row.set_activatable(false);
+
+        let outer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        outer.add_css_class("metis-viewer-recent-row");
+
         let btn = gtk::Button::new();
         btn.set_has_frame(false);
-        btn.add_css_class("metis-viewer-recent-row");
+        btn.set_hexpand(true);
+        btn.set_tooltip_text(Some(&tr("Fill and connect")));
         let col = gtk::Box::new(gtk::Orientation::Vertical, 2);
         col.set_hexpand(true);
         let host_l = gtk::Label::new(Some(&format!("{}:{}", entry.host, entry.port)));
@@ -524,16 +579,55 @@ fn refill_recent(
         col.append(&host_l);
         col.append(&meta_l);
         btn.set_child(Some(&col));
-        let h = host_entry.clone();
-        let p = port_entry.clone();
-        let u = user_entry.clone();
-        let e = entry.clone();
-        btn.connect_clicked(move |_| {
-            h.set_text(&e.host);
-            p.set_text(&e.port.to_string());
-            u.set_text(&e.username);
-        });
-        row.set_child(Some(&btn));
+
+        {
+            let h = host_entry.clone();
+            let p = port_entry.clone();
+            let u = user_entry.clone();
+            let e = entry.clone();
+            let connect = on_connect.clone();
+            btn.connect_clicked(move |_| {
+                h.set_text(&e.host);
+                p.set_text(&e.port.to_string());
+                u.set_text(&e.username);
+                if let Some(f) = &connect {
+                    f();
+                }
+            });
+        }
+        outer.append(&btn);
+
+        let trash = gtk::Button::from_icon_name("user-trash-symbolic");
+        trash.set_has_frame(false);
+        trash.set_tooltip_text(Some(&tr("Remove from recent")));
+        trash.add_css_class("flat");
+        {
+            let list = list.clone();
+            let card = card.clone();
+            let empty = empty.clone();
+            let host_entry = host_entry.clone();
+            let port_entry = port_entry.clone();
+            let user_entry = user_entry.clone();
+            let e = entry.clone();
+            let connect = on_connect.clone();
+            trash.connect_clicked(move |_| {
+                if let Err(err) = remove_recent(&e) {
+                    tracing::warn!("viewer.json remove failed: {err}");
+                }
+                refill_recent(
+                    &list,
+                    &card,
+                    &empty,
+                    &host_entry,
+                    &port_entry,
+                    &user_entry,
+                    connect.clone(),
+                );
+            });
+        }
+        outer.append(&trash);
+
+        row.set_child(Some(&outer));
         list.append(&row);
     }
 }

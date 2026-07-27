@@ -187,6 +187,36 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     sec_body.append(&hint_label);
     content.append(&sec_card);
 
+    // RustDesk third-party preset (detect / open / notes — not metis-remote).
+    let (rd_card, rd_body) = ui::section(&tr("RustDesk (third-party)"));
+    let rd_status = gtk::Label::new(None);
+    rd_status.set_xalign(0.0);
+    rd_status.add_css_class("metis-settings-value");
+    rd_body.append(&readout_row(&tr("Status"), &rd_status));
+
+    let rd_hint = gtk::Label::new(Some(&tr(
+        "ID/relay remote access outside LAN RDP. Prefer PipeWire / portal capture \
+         on Metis (Smithay) — proprietary or wlroots-only screencopy may show a \
+         black screen. Default ports 21115–21119 (TCP; 21116 also UDP). Do not \
+         expose those ports to the public internet without understanding relay trust.",
+    )));
+    rd_hint.set_xalign(0.0);
+    rd_hint.set_wrap(true);
+    rd_hint.add_css_class("metis-settings-hint");
+    rd_hint.set_margin_top(4);
+    rd_body.append(&rd_hint);
+
+    let rd_open_btn = gtk::Button::with_label(&tr("Open RustDesk"));
+    rd_open_btn.set_halign(gtk::Align::Start);
+    let rd_copy_btn = gtk::Button::with_label(&tr("Copy install instructions"));
+    rd_copy_btn.set_halign(gtk::Align::Start);
+    let rd_actions = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    rd_actions.add_css_class("metis-settings-actions");
+    rd_actions.append(&rd_open_btn);
+    rd_actions.append(&rd_copy_btn);
+    rd_body.append(&rd_actions);
+    content.append(&rd_card);
+
     let (login_card, login_body) = ui::section(&tr("Remote login"));
     let login_hint = gtk::Label::new(Some(&tr(
         "Sign in remotely to start a new desktop session (for example xrdp) — planned \
@@ -548,14 +578,23 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         let sections_viewer = sections.clone();
         viewer_btn.connect_clicked(move |_| {
             let snap = remote::load_snapshot();
+            let warnings = remote::viewer_launch_warnings(&snap);
             let hint = remote::connection_hint(&snap);
             let (host, port) = remote::parse_connection_hint(&hint);
             let user = snap.username.as_deref();
             match remote::open_viewer(Some(&host), Some(port), user) {
                 Ok(()) => {
-                    sections_viewer
-                        .hint_label
-                        .set_text(&tr("Opening Metis Viewer…"));
+                    if warnings.is_empty() {
+                        sections_viewer
+                            .hint_label
+                            .set_text(&tr("Opening Metis Viewer…"));
+                    } else {
+                        sections_viewer.hint_label.set_text(&format!(
+                            "{} {}",
+                            tr("Opening Metis Viewer…"),
+                            warnings.join(" ")
+                        ));
+                    }
                 }
                 Err(err) => {
                     *sections_viewer.action_error.borrow_mut() = Some(err.clone());
@@ -563,6 +602,68 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                     sections_viewer.error_label.set_visible(true);
                 }
             }
+        });
+    }
+
+    // RustDesk preset: detect / open / copy install instructions.
+    let refresh_rustdesk = {
+        let rd_status = rd_status.clone();
+        let rd_open_btn = rd_open_btn.clone();
+        Rc::new(move || {
+            let install = remote::detect_rustdesk();
+            rd_status.set_text(&tr(install.status_label()));
+            rd_open_btn.set_sensitive(install.is_installed());
+            if install.is_installed() {
+                rd_open_btn.set_tooltip_text(None);
+            } else {
+                rd_open_btn.set_tooltip_text(Some(&tr(
+                    "Install RustDesk first (Copy install instructions).",
+                )));
+            }
+        })
+    };
+    refresh_rustdesk();
+
+    {
+        let sections_rd = sections.clone();
+        let refresh_rustdesk = refresh_rustdesk.clone();
+        rd_open_btn.connect_clicked(move |_| {
+            let install = remote::detect_rustdesk();
+            match remote::open_rustdesk(&install) {
+                Ok(()) => {
+                    sections_rd
+                        .hint_label
+                        .set_text(&tr("Opening RustDesk…"));
+                    refresh_rustdesk();
+                }
+                Err(err) => {
+                    *sections_rd.action_error.borrow_mut() = Some(err.clone());
+                    sections_rd.error_label.set_text(&err);
+                    sections_rd.error_label.set_visible(true);
+                }
+            }
+        });
+    }
+
+    {
+        let sections_rd = sections.clone();
+        rd_copy_btn.connect_clicked(move |_| {
+            let text = remote::rustdesk_install_instructions();
+            if let Some(display) = gtk::gdk::Display::default() {
+                display.clipboard().set_text(text);
+            }
+            sections_rd
+                .hint_label
+                .set_text(&tr("Copied RustDesk install instructions."));
+        });
+    }
+
+    // Cheap re-detect when the page is already open (e.g. user installed Flatpak).
+    {
+        let refresh_rustdesk = refresh_rustdesk.clone();
+        glib::timeout_add_local(Duration::from_secs(5), move || {
+            refresh_rustdesk();
+            glib::ControlFlow::Continue
         });
     }
 

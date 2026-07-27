@@ -11,9 +11,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 - **Phase 15 §F Metis Viewer** — first-party RDP client (`metis-viewer`): GTK
   connect UI spawns FreeRDP under `/usr/bin` (argv-only; no shell). Recent hosts
-  in `viewer.json` without passwords. Settings → Remote access → **Connect with
-  Metis Viewer…**; `metis-cmd viewer`. Host sharing remains GRD + `metis-remote`.
-  RustDesk Settings preset and fingerprint lock remain open.
+  in `viewer.json` without passwords (one-click connect + remove). Early FreeRDP
+  failure feedback; dedicated `metis-viewer` icon. Settings → Remote access →
+  **Connect with Metis Viewer…** (soft-warns if FreeRDP/sharing/password missing);
+  `metis-cmd viewer`. Host sharing remains GRD + `metis-remote`.
+- **Phase 15 §F RustDesk Settings preset** — Settings → Remote access card:
+  detect system/Flatpak install, **Open RustDesk**, copy install instructions,
+  portal/ports notes. No `metis-remote` backend / firewall orchestration.
+  Fingerprint lock remains open.
 - **Phase 15 §F image RDP clipboard** — portal Mutter clipboard shim syncs
   `image/png|jpeg|bmp` both ways (≤10 MiB, path-allowlisted under runtime
   `clipboard/`). Text path unchanged.

@@ -272,6 +272,124 @@ pub fn open_viewer(host: Option<&str>, port: Option<u16>, username: Option<&str>
     Ok(())
 }
 
+/// Soft warnings before opening Metis Viewer (still launches with prefill).
+pub fn viewer_launch_warnings(snap: &RemoteSnapshot) -> Vec<String> {
+    let mut notes = Vec::new();
+    if !freerdp_installed() {
+        notes.push(
+            "FreeRDP is not installed — Metis Viewer needs freerdp3-wayland (or freerdp2-x11)."
+                .into(),
+        );
+    }
+    if !snap.rdp_enabled && !snap.running && !snap.config_enabled {
+        notes.push("Desktop sharing looks off on this host — enable it before connecting.".into());
+    }
+    if !snap.password_set {
+        notes.push("No remote password is set yet — set one under Remote access first.".into());
+    }
+    notes
+}
+
+fn freerdp_installed() -> bool {
+    const CANDIDATES: &[&str] = &["wlfreerdp3", "wlfreerdp", "xfreerdp3", "xfreerdp"];
+    CANDIDATES.iter().any(|name| {
+        let path = std::path::Path::new("/usr/bin").join(name);
+        is_executable(&path)
+    })
+}
+
+fn is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    match path.metadata() {
+        Ok(meta) if meta.is_file() => meta.permissions().mode() & 0o111 != 0,
+        _ => false,
+    }
+}
+
+const RUSTDESK_FLATPAK_ID: &str = "com.rustdesk.RustDesk";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RustDeskInstall {
+    Missing,
+    Path(std::path::PathBuf),
+    Flatpak,
+}
+
+impl RustDeskInstall {
+    pub fn is_installed(&self) -> bool {
+        !matches!(self, Self::Missing)
+    }
+
+    pub fn status_label(&self) -> &'static str {
+        match self {
+            Self::Missing => "Not installed",
+            Self::Path(_) => "Installed (system)",
+            Self::Flatpak => "Installed (Flatpak)",
+        }
+    }
+}
+
+/// Detect a system or Flatpak RustDesk install (no apt orchestration).
+pub fn detect_rustdesk() -> RustDeskInstall {
+    for dir in ["/usr/bin", "/usr/local/bin"] {
+        let path = std::path::Path::new(dir).join("rustdesk");
+        if is_executable(&path) {
+            return RustDeskInstall::Path(path);
+        }
+    }
+    if flatpak_has_app(RUSTDESK_FLATPAK_ID) {
+        return RustDeskInstall::Flatpak;
+    }
+    RustDeskInstall::Missing
+}
+
+fn flatpak_has_app(app_id: &str) -> bool {
+    Command::new("flatpak")
+        .args(["info", app_id])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Open RustDesk UI (argv only; no shell).
+pub fn open_rustdesk(install: &RustDeskInstall) -> Result<(), String> {
+    match install {
+        RustDeskInstall::Missing => Err(
+            "RustDesk is not installed. Copy the install instructions, then try again.".into(),
+        ),
+        RustDeskInstall::Path(path) => {
+            Command::new(path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .map_err(|e| format!("failed to start {}: {e}", path.display()))?;
+            Ok(())
+        }
+        RustDeskInstall::Flatpak => {
+            Command::new("flatpak")
+                .args(["run", RUSTDESK_FLATPAK_ID])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .map_err(|e| format!("failed to start flatpak RustDesk: {e}"))?;
+            Ok(())
+        }
+    }
+}
+
+/// Install one-liners from UBUNTU_DEV (deb + Flatpak).
+pub fn rustdesk_install_instructions() -> &'static str {
+    "# Official .deb from https://github.com/rustdesk/rustdesk/releases (amd64)\n\
+     sudo apt install -y ./rustdesk-*.deb\n\
+     # or Flatpak:\n\
+     flatpak install flathub com.rustdesk.RustDesk"
+}
+
 /// Desktop notification for sharing state changes.
 ///
 /// Uses `notify-send` so Metis's `org.freedesktop.Notifications` daemon (Notification

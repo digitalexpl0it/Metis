@@ -116,7 +116,7 @@ log() {
     printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
 }
 
-# Keep Metis Settings visible to gio::AppInfo (launcher + taskbar icons).
+# Keep Metis Settings / Viewer visible to gio::AppInfo (launcher + taskbar icons).
 install_metis_settings_user_data() {
     local assets="$WORKSPACE/assets"
     local data="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -126,6 +126,11 @@ install_metis_settings_user_data() {
     install -Dm644 "$assets/metis-settings.desktop" "$data/applications/metis-settings.desktop"
     install -Dm644 "$assets/metis-settings.png" "$data/icons/hicolor/256x256/apps/metis-settings.png"
     install -Dm644 "$assets/metis-settings-48.png" "$data/icons/hicolor/48x48/apps/metis-settings.png"
+    if [[ -f "$assets/metis-viewer.desktop" ]]; then
+        install -Dm644 "$assets/metis-viewer.desktop" "$data/applications/metis-viewer.desktop"
+        install -Dm644 "$assets/metis-viewer.png" "$data/icons/hicolor/256x256/apps/metis-viewer.png"
+        install -Dm644 "$assets/metis-viewer-48.png" "$data/icons/hicolor/48x48/apps/metis-viewer.png"
+    fi
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
     fi
@@ -372,6 +377,8 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     APPS_DST="${METIS_APPS_DIR:-/usr/share/applications}"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings-48.png" "$ICONS_DST/48x48/apps/metis-settings.png"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.png" "$ICONS_DST/256x256/apps/metis-settings.png"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-viewer-48.png" "$ICONS_DST/48x48/apps/metis-viewer.png"
+    $SUDO install -Dm644 "$ASSETS_DIR/metis-viewer.png" "$ICONS_DST/256x256/apps/metis-viewer.png"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-settings.desktop" "$APPS_DST/metis-settings.desktop"
     $SUDO install -Dm644 "$ASSETS_DIR/metis-viewer.desktop" "$APPS_DST/metis-viewer.desktop"
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then

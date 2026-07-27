@@ -826,9 +826,13 @@ stays **Settings → Remote access** + `gnome-remote-desktop` / `metis-remote`.
    **Settings → Remote access → Connect with Metis Viewer…**.
 3. Enter host, port (default **3389**), username, and optionally password.
    Recent hosts are stored in `~/.config/metis/viewer.json` (**no passwords**).
-   If the password field is left empty, FreeRDP prompts interactively; if filled,
-   Metis passes `/p:` only on the FreeRDP child argv (never logged, never
-   written to config).
+   Click a recent row to fill fields and connect; use the trash control to remove
+   an entry. If the password field is left empty, FreeRDP prompts (GUI dialog);
+   if filled, Metis passes `/p:` only on the FreeRDP child argv (never logged,
+   never written to config — briefly visible in `/proc` while FreeRDP starts).
+   Quick FreeRDP failures (auth/connect) surface in the status line within a few
+   seconds. Metis Viewer passes `/cert:ignore` so GNOME Remote Desktop’s
+   self-signed LAN certificates work without an interactive prompt.
 
 **Other clients.** Windows: *Remote Desktop Connection* (`mstsc`). macOS:
 *Microsoft Remote Desktop* from the App Store. Linux CLI:
@@ -880,11 +884,18 @@ Metis ScreenCast portal must be running in the DRM session — re-run
 `./run-metis.sh --install-session` if portal capture is broken. Check status:
 `metis-remote status` (JSON).
 
-RustDesk, VNC (`wayvnc`), and classic `xrdp` login sessions are **not** driven by
-Settings → Remote access. For host-install notes, ports, and the compatibility
-matrix (including multi-user / VT behaviour), see
-[`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop). A Settings RustDesk
-preset remains deferred; host sharing stays GRD.
+VNC (`wayvnc`) and classic `xrdp` login sessions are **not** driven by
+Settings → Remote access. For VNC / compatibility notes, see
+[`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop).
+
+#### RustDesk (third-party preset)
+
+Settings → Remote access includes a **RustDesk (third-party)** card that detects
+a system or Flatpak install, opens the app, and can copy install instructions.
+Metis does **not** orchestrate RustDesk enable/disable, credentials, or firewall
+ports (`metis-remote` remains `gnome_rdp` only). Prefer PipeWire / portal capture
+on Metis; default ports are **21115–21119**. Full host-install notes and
+verification checklist: [`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md).
 
 ### System dashboard (Control Center)
 

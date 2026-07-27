@@ -3,8 +3,8 @@
 **Current phase:** Phases **1–15** are complete for their shipped product bars.
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
 spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Active: Phase 15 §F stretch**
-(fingerprint / RustDesk Settings preset; **first-party viewer + image RDP
-clipboard done 2026-07-26**).
+(fingerprint / greeter niceties; **first-party viewer, RustDesk Settings preset,
+and image RDP clipboard done 2026-07-26**).
 **Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
 iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
 closed 2026-07-25 with HDR H1–H3 and Stage 2 GLES 3D-LUT colour; 2026-07-26
@@ -695,9 +695,10 @@ Mode. Track compatibility either way:
 
 **Status: complete for the GNOME RDP path (2026-07-25 security closeout).** Metis
 hardens session sharing via `metis-remote` + `gnome-remote-desktop` + portal
-clipboard/input. **Phase 15 §F:** first-party **viewer** shipped (`metis-viewer`);
-host remains GRD. Still deferred: RustDesk Settings preset; Metis-native host
-protocol. Deep per-app X11 isolation shipped as Phase 15 §E opt-in.
+clipboard/input. **Phase 15 §F:** first-party **viewer** + RustDesk Settings
+preset shipped; host remains GRD. Still deferred: Metis-native host protocol;
+optional `metis-remote` RustDesk backend. Deep per-app X11 isolation shipped as
+Phase 15 §E opt-in.
 
 Let you **remote into a Metis machine from another device** (laptop, tablet,
 phone) with full interactive control — not just “share screen” in a call.
@@ -747,7 +748,11 @@ latency and clear setup docs.
 - [x] **First-party remote viewer** (Phase 15 §F, 2026-07-26) — `metis-viewer`
       GTK connect UI spawns FreeRDP (argv-only); host remains GRD + `metis-remote`.
       Settings **Connect with Metis Viewer…**; recent hosts in `viewer.json`
-      (no passwords). **Still open:** RustDesk Settings preset; fingerprint lock.
+      (no passwords). Viewer polish: early FreeRDP failure feedback, recent
+      one-click connect/remove, dedicated icon. **Still open:** fingerprint lock.
+- [x] **RustDesk Settings preset** (2026-07-26) — Settings → Remote access card:
+      detect system/Flatpak, Open RustDesk, copy install instructions + ports/
+      portal notes. Optional `metis-remote` RustDesk backend still TBD.
 
 ### C. Security & session policy
 
@@ -1354,7 +1359,9 @@ server does not.
 ### F. Stretch / related (not phase gates)
 
 - [x] **First-party remote viewer** (2026-07-26) — `metis-viewer` GTK + FreeRDP
-      client; GRD host unchanged. RustDesk Settings preset still open.
+      client; GRD host unchanged. Viewer polish + dedicated icon (same day).
+- [x] **RustDesk Settings preset** (2026-07-26) — detect/open/copy-install card;
+      no `metis-remote` backend.
 - [x] **Image RDP clipboard** (2026-07-26) — `metis-portal` Mutter clipboard shim
       advertises/serves local `image/png|jpeg|bmp` from compositor durable paths
       (≤10 MiB) and accepts remote image writes into `$XDG_RUNTIME_DIR/metis/clipboard/`
@@ -1362,7 +1369,7 @@ server does not.
 - [ ] **Fingerprint / greeter niceties** on the lock screen.
 
 **Suggested order:** image clipboard (done) → first-party viewer (done) →
-fingerprint/greeter → RustDesk Settings preset as appetite allows.
+RustDesk preset (done) → fingerprint/greeter as appetite allows.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).

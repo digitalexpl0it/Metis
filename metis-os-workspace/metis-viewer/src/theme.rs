@@ -310,6 +310,9 @@ fn opaque_viewer_css(t: &ThemeTokens) -> String {
             border: 1px solid {border};
             border-radius: {rl}px;
         }}
+        .metis-viewer-recent-row {{
+            padding: 8px 10px;
+        }}
         .metis-viewer-recent-host {{
             font-weight: 600;
             color: {text};

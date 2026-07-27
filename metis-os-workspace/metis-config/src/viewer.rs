@@ -59,3 +59,54 @@ pub fn remember_host(entry: ViewerHost) -> std::io::Result<()> {
     }
     save_viewer_config(&cfg)
 }
+
+/// Remove a recent host matching host+port+user.
+pub fn remove_recent(entry: &ViewerHost) -> std::io::Result<()> {
+    let mut cfg = load_viewer_config();
+    let before = cfg.recent.len();
+    cfg.recent
+        .retain(|h| !(h.host == entry.host && h.port == entry.port && h.username == entry.username));
+    if cfg.recent.len() == before {
+        return Ok(());
+    }
+    save_viewer_config(&cfg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    // Serialize tests that mutate XDG_CONFIG_HOME.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn remember_and_remove_recent_roundtrip() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!(
+            "metis-viewer-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("metis")).unwrap();
+        // SAFETY: serialized test; restored before unlock.
+        std::env::set_var("XDG_CONFIG_HOME", &dir);
+
+        let entry = ViewerHost {
+            host: "192.168.1.10".into(),
+            port: 3389,
+            username: "alice".into(),
+        };
+        remember_host(entry.clone()).unwrap();
+        let cfg = load_viewer_config();
+        assert_eq!(cfg.recent.len(), 1);
+        assert_eq!(cfg.recent[0], entry);
+
+        remove_recent(&entry).unwrap();
+        let cfg = load_viewer_config();
+        assert!(cfg.recent.is_empty());
+
+        std::env::remove_var("XDG_CONFIG_HOME");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
