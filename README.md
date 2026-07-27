@@ -262,9 +262,9 @@ reference.
   `wp_color_management_v1` deferred (upstream wayland-rs **server/sys** ObjectData
   UAF; opt-in via `METIS_COLOR_MGMT=1`); true per-surface HDR content remains stretch.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
-- **Phase 7 — Remote access:** largely complete — live-session RDP via
-  `gnome-remote-desktop` (Settings → Remote access), portal capture + EIS input,
-  RustDesk / compatibility docs. Stretch remaining: first-party remote option.
+- **Phase 7 — Remote access:** complete for GRD session sharing — Settings →
+  Remote access, portal capture + EIS input, Metis Viewer client, RustDesk
+  Settings preset, security closeout. Still deferred: Metis-native host protocol.
 - **Phase 8 — Internationalization:** **complete** (2026-07-24). Hybrid gettext
   (shell/settings) + Fluent (compositor); Settings Language & region; onboarding
   language step; live Apply rebuilds. See [`docs/I18N.md`](docs/I18N.md).
@@ -280,8 +280,10 @@ reference.
   API deferred.
 
 Optional follow-up: compositor **dim on battery** hook, desktop-widget extension
-API, Phase 15 §F (first-party remote / image RDP clipboard / fingerprint),
-default-on colour-management protocol (upstream wayland-rs), per-surface HDR.
+API, `ext-session-lock-v1`, default-on colour-management protocol (upstream
+wayland-rs), per-surface HDR, Metis-native remote host. **Phase 15 §F**
+(viewer, RustDesk preset, image RDP clipboard, lock fingerprint/YubiKey) is done
+(2026-07-26).
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
