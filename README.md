@@ -139,10 +139,11 @@ Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
   volumes (USB / SD / optical / ISO — open, mount/unlock, eject), and clock
   (opens Notification Center). Right-click dock icons to pin/close.
 - **Desktop widgets** *(optional)* — free-floating wallpaper panels (Folders,
-  Apps, Clock, System, Weather, Equalizer) in a dedicated `metis-shell
-  --desktop-widgets` process. Off by default; enable in Settings → Desktop
-  widgets. Edit mode to move/resize; configure via the gear on each instance.
-  Writes `desktop-widgets.json` (live reload).
+  Apps, Clock, System, Weather, Equalizer, plus JSON extension packs) in a
+  dedicated `metis-shell --desktop-widgets` process. Off by default; enable in
+  Settings → Desktop widgets. Edit mode to move/resize; configure via the gear
+  on each instance. Writes `desktop-widgets.json` (live reload). Install packs
+  under `~/.local/share/metis/widgets/<id>/`.
 - **Control Center** — pull the edge bar toward the desktop (or click the grid
   icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
   charts, temperature gauges, and a searchable process list with right-click
@@ -219,7 +220,7 @@ Other files are created on demand:
 | `wallpaper.json` | You pick a background | Wallpaper picture / colour / gradient (+ per-output overrides) |
 | `weather.json` | You configure weather | Bar weather: unit, auto-detect / IP-geolocation, saved locations |
 | `desk.json` | The compositor persists its layout | Compositor window-grid layout (app tiles) |
-| `desktop-widgets.json` | You enable Desktop widgets | Wallpaper widgets: enable, edit mode, chrome, Folders / Apps / Clock / System / Weather / Equalizer instances |
+| `desktop-widgets.json` | You enable Desktop widgets | Wallpaper widgets: enable, edit mode, chrome, builtins + JSON extension instances |
 | `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
 | `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
 | `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
@@ -276,14 +277,15 @@ reference.
 - **Phase 13 — Notification Center:** **complete** (2026-07-10).
 - **Phase 14 — Desktop Widgets:** **complete** (2026-07-18) — optional wallpaper
   panels (Folders, Apps, Clock, System, Weather, Equalizer) in a dedicated
-  process; Settings list + configure dialogs; chrome and text style. Extension
-  API deferred.
+  process; Settings list + configure dialogs; chrome and text style.
+  **Extension API v1** (2026-07-26): JSON declarative packs under
+  `…/metis/widgets/<id>/` (no Electron / scripts / `.so`).
 
-Optional follow-up: compositor **dim on battery** hook, desktop-widget extension
-API, `ext-session-lock-v1`, default-on colour-management protocol (upstream
-wayland-rs), per-surface HDR, Metis-native remote host. **Phase 15 §F**
-(viewer, RustDesk preset, image RDP clipboard, lock fingerprint/YubiKey) is done
-(2026-07-26).
+Optional follow-up: compositor **dim on battery** hook, widget extension §E.2
+(helpers / live binds), `ext-session-lock-v1`, default-on colour-management
+protocol (upstream wayland-rs), per-surface HDR, Metis-native remote host.
+**Phase 15 §F** (viewer, RustDesk preset, image RDP clipboard, lock
+fingerprint/YubiKey) is done (2026-07-26).
 
 See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
 roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and

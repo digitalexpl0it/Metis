@@ -1,0 +1,22 @@
+{
+  "id": "com.metis.example.quicklinks",
+  "name": "Quick Links",
+  "version": "1.0.0",
+  "api": 1,
+  "default_size": [320, 220],
+  "min_size": [240, 160],
+  "settings_schema": [
+    {
+      "key": "title",
+      "type": "string",
+      "label": "Title",
+      "default": "Quick Links"
+    },
+    {
+      "key": "show_docs",
+      "type": "bool",
+      "label": "Show docs button",
+      "default": true
+    }
+  ]
+}

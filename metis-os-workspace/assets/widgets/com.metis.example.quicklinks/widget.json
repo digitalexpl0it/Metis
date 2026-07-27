@@ -1,0 +1,50 @@
+{
+  "type": "column",
+  "spacing": 10,
+  "children": [
+    {
+      "type": "label",
+      "text": "{settings.title}",
+      "style": "title"
+    },
+    {
+      "type": "label",
+      "text": "Example JSON desktop widget (Phase 14 §E).",
+      "style": "muted"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "list",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "button",
+          "label": "Metis on GitHub",
+          "on_click": {
+            "action": "open_uri",
+            "uri": "https://github.com/search?q=metis"
+          }
+        },
+        {
+          "type": "button",
+          "label": "Open Settings",
+          "on_click": {
+            "action": "launch",
+            "id": "metis-settings",
+            "exec": "metis-settings"
+          }
+        },
+        {
+          "type": "button",
+          "label": "Copy tip",
+          "on_click": {
+            "action": "copy_text",
+            "text": "Install packs under ~/.local/share/metis/widgets/<id>/"
+          }
+        }
+      ]
+    }
+  ]
+}

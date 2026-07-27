@@ -1243,21 +1243,24 @@ Config sketch:
 }
 ```
 
-### E. Extension API (deferred)
+### E. Extension API (JSON widgets v1 — 2026-07-26)
 
-Builtins-only for Phase 14. Possible later phase:
+- [x] **Manifest** — widget id, name, version, size hints, settings schema
+      (`~/.local/share/metis/widgets/<id>/manifest.json`)
+- [x] **Host API** — theme CSS classes; hardened `open_uri` (http/https),
+      `launch` (desktop id / PATH basename), `copy_text`; layout size caps
+      (weather/sysinfo live binds deferred)
+- [x] **JSON widgets** — declarative `widget.json` layout DSL rendered in
+      `metis-shell --desktop-widgets`; sandboxed; **no** Electron / scripts /
+      in-process `.so` in v1
+- [ ] **§E.2 follow-ups** — out-of-process helpers, live data bindings,
+      script/WASM runtimes (still explicitly deferred)
 
-- [ ] **Manifest** — widget id, name, version, size hints, settings schema
-- [ ] **Host API** — theme tokens, open URI / launch app, weather + sysinfo
-      subscriptions
-- [ ] **Script / JSON widgets** (or a thin plugin ABI) — sandboxed; no Electron-style
-      plugins in v1
-
-**Phase 14 complete (2026-07-18).**
+**Phase 14 complete (2026-07-18); §E JSON extensions shipped 2026-07-26.**
 
 **Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
 dashboard sampling (done); Phase 2 weather service (done); app launch /
-`launch_id` (done).
+`launch_id` (done); Phase 15 widgets IPC capability token (done).
 
 ---
 

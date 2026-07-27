@@ -28,6 +28,7 @@ pub mod theme;
 pub mod wallpaper;
 pub mod weather;
 pub mod viewer;
+pub mod widget_ext;
 
 use serde::{Deserialize, Serialize};
 
@@ -405,6 +406,15 @@ pub use desktop_widgets::{
     DesktopWidgetChrome, DesktopWidgetChromeOverride, DesktopWidgetInstance, DesktopWidgetKind,
     DesktopWidgetView, DesktopWidgetsConfig, EqualizerBarShape, EqualizerColorMode,
     EqualizerVizStyle, ResolvedDesktopWidgetChrome,
+};
+pub use widget_ext::{
+    default_extension_settings, discover_widget_extensions, find_widget_extension,
+    interpolate_settings, is_safe_icon_name, is_safe_launch_exec, is_safe_launch_id,
+    is_safe_open_uri, is_valid_extension_id, load_widget_extension, load_widget_layout,
+    validate_action, validate_widget_layout, widget_ext_search_dirs, DiscoveredWidgetExt,
+    WidgetExtAction, WidgetExtLabelStyle, WidgetExtManifest, WidgetExtNode, WidgetExtSetting,
+    WidgetExtSettingType, WIDGET_EXT_API, WIDGET_EXT_MAX_COPY, WIDGET_EXT_MAX_DEPTH,
+    WIDGET_EXT_MAX_JSON_BYTES, WIDGET_EXT_MAX_NODES, WIDGET_EXT_MAX_STRING,
 };
 pub use decorations::{
     decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,

@@ -169,6 +169,21 @@ stage_tree() {
     done
     shopt -u nullglob
 
+    log "Staging widget extension packs…"
+    mkdir -p "$STAGE/usr/share/metis/widgets"
+    local pack name
+    if [[ -d "$ASSETS_DIR/widgets" ]]; then
+        for pack in "$ASSETS_DIR/widgets"/*; do
+            [[ -d "$pack" ]] || continue
+            name="$(basename "$pack")"
+            mkdir -p "$STAGE/usr/share/metis/widgets/$name"
+            [[ -f "$pack/manifest.json" ]] && install -Dm644 "$pack/manifest.json" \
+                "$STAGE/usr/share/metis/widgets/$name/manifest.json"
+            [[ -f "$pack/widget.json" ]] && install -Dm644 "$pack/widget.json" \
+                "$STAGE/usr/share/metis/widgets/$name/widget.json"
+        done
+    fi
+
     stage_locale_catalogs
 }
 

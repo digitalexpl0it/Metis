@@ -1,8 +1,10 @@
-//! Builtin desktop-widget body content (Folders, Apps, Clock, System, Weather, Equalizer).
+//! Builtin desktop-widget body content (Folders, Apps, Clock, System, Weather, Equalizer)
+//! plus Phase 14 §E JSON extension packs.
 
 mod apps;
 mod clock;
 mod equalizer;
+mod ext;
 mod folders;
 mod font;
 mod system;
@@ -21,6 +23,7 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
         DesktopWidgetKind::System => system::build(inst),
         DesktopWidgetKind::Weather => weather::build(inst),
         DesktopWidgetKind::Equalizer => equalizer::build(inst),
+        DesktopWidgetKind::Extension => ext::build(inst),
         DesktopWidgetKind::Placeholder => {
             let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
             let hint = gtk::Label::new(Some(&metis_i18n::tr(

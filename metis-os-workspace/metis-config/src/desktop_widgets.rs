@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Built-in desktop widget kinds (v1 + platform placeholder).
+/// Built-in desktop widget kinds (v1 + platform placeholder) and extensions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DesktopWidgetKind {
@@ -22,6 +22,8 @@ pub enum DesktopWidgetKind {
     Equalizer,
     /// Temporary card for platform bring-up (move / resize / lock).
     Placeholder,
+    /// Declarative JSON pack under `…/metis/widgets/<extension_id>/`.
+    Extension,
 }
 
 impl DesktopWidgetKind {
@@ -34,10 +36,11 @@ impl DesktopWidgetKind {
             Self::Weather => "Weather",
             Self::Equalizer => "Equalizer",
             Self::Placeholder => "Placeholder",
+            Self::Extension => "Extension",
         }
     }
 
-    /// Kinds the Settings UI can add today (builtins that have UI).
+    /// Builtin kinds the Settings UI can add (extensions are listed separately).
     pub fn addable() -> &'static [DesktopWidgetKind] {
         &[
             DesktopWidgetKind::Placeholder,
@@ -491,6 +494,16 @@ pub struct DesktopWidgetInstance {
     /// Optional chrome overrides (inherit global when empty / unset).
     #[serde(default, skip_serializing_if = "DesktopWidgetChromeOverride::is_empty")]
     pub chrome: DesktopWidgetChromeOverride,
+    /// Extension pack id when [`Self::kind`] is [`DesktopWidgetKind::Extension`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub extension_id: String,
+    /// Schema-driven settings for extension widgets.
+    #[serde(default, skip_serializing_if = "serde_json_map_is_empty")]
+    pub extension_settings: serde_json::Map<String, serde_json::Value>,
+}
+
+fn serde_json_map_is_empty(m: &serde_json::Map<String, serde_json::Value>) -> bool {
+    m.is_empty()
 }
 
 impl DesktopWidgetInstance {
@@ -501,7 +514,9 @@ impl DesktopWidgetInstance {
             DesktopWidgetKind::System => (300, 200),
             DesktopWidgetKind::Folders | DesktopWidgetKind::Apps => (360, 280),
             DesktopWidgetKind::Equalizer => (480, 160),
-            DesktopWidgetKind::Placeholder => (default_w(), default_h()),
+            DesktopWidgetKind::Placeholder | DesktopWidgetKind::Extension => {
+                (default_w(), default_h())
+            }
         };
         // Apps feel denser as a list; Folders default to an icon grid.
         let view = match kind {
@@ -536,7 +551,37 @@ impl DesktopWidgetInstance {
             peak_color: default_peak_color(),
             show_reflection: true,
             chrome: DesktopWidgetChromeOverride::default(),
+            extension_id: String::new(),
+            extension_settings: serde_json::Map::new(),
         }
+    }
+
+    /// Create an extension instance from a discovered manifest.
+    pub fn new_extension(manifest: &crate::widget_ext::WidgetExtManifest) -> Self {
+        let mut inst = Self::new(DesktopWidgetKind::Extension);
+        inst.extension_id = manifest.id.clone();
+        inst.w = manifest.default_size[0].max(120);
+        inst.h = manifest.default_size[1].max(80);
+        if let Some([mw, mh]) = manifest.min_size {
+            inst.w = inst.w.max(mw);
+            inst.h = inst.h.max(mh);
+        }
+        inst.extension_settings =
+            crate::widget_ext::default_extension_settings(&manifest.settings_schema);
+        inst
+    }
+
+    /// Display title for lists / card chrome.
+    pub fn display_title(&self) -> String {
+        if self.kind == DesktopWidgetKind::Extension {
+            if let Some(ext) = crate::widget_ext::find_widget_extension(&self.extension_id) {
+                return ext.manifest.name;
+            }
+            if !self.extension_id.is_empty() {
+                return self.extension_id.clone();
+            }
+        }
+        self.kind.label().to_string()
     }
 
     /// True for kinds that honour the optional [`Self::font`] /

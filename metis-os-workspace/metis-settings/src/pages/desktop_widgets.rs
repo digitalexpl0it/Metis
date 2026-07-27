@@ -18,9 +18,10 @@ use std::time::Duration;
 
 use gtk::prelude::*;
 use metis_config::{
-    load_desktop_widgets_config, load_menu_config, save_desktop_widgets_config,
-    DesktopWidgetChromeOverride, DesktopWidgetInstance, DesktopWidgetKind, DesktopWidgetView,
-    DesktopWidgetsConfig, EqualizerBarShape, EqualizerColorMode, EqualizerVizStyle,
+    discover_widget_extensions, find_widget_extension, load_desktop_widgets_config,
+    load_menu_config, save_desktop_widgets_config, DesktopWidgetChromeOverride,
+    DesktopWidgetInstance, DesktopWidgetKind, DesktopWidgetView, DesktopWidgetsConfig,
+    EqualizerBarShape, EqualizerColorMode, EqualizerVizStyle, WidgetExtSettingType,
 };
 
 use crate::pages::appearance_common::{color_dialog_button, hex_to_rgba, rgba_to_hex};
@@ -227,15 +228,14 @@ pub fn build() -> gtk::Widget {
     add_row.set_halign(gtk::Align::Fill);
     add_row.set_hexpand(true);
     add_row.add_css_class("metis-widget-add-row");
-    let kind_labels: Vec<&str> = DesktopWidgetKind::addable()
-        .iter()
-        .map(|k| k.label())
-        .collect();
-    let kind_dd = gtk::DropDown::from_strings(&kind_labels);
+    let (add_choices, add_labels) = build_add_choices();
+    let add_choices = Rc::new(add_choices);
+    let label_refs: Vec<&str> = add_labels.iter().map(|s| s.as_str()).collect();
+    let kind_dd = gtk::DropDown::from_strings(&label_refs);
     // Default to Folders (skip Placeholder at index 0).
-    let folders_idx = DesktopWidgetKind::addable()
+    let folders_idx = add_choices
         .iter()
-        .position(|k| *k == DesktopWidgetKind::Folders)
+        .position(|c| matches!(c, AddChoice::Builtin(DesktopWidgetKind::Folders)))
         .unwrap_or(0) as u32;
     kind_dd.set_selected(folders_idx);
     kind_dd.set_hexpand(true);
@@ -246,7 +246,8 @@ pub fn build() -> gtk::Widget {
     list_body.append(&add_row);
 
     let empty = gtk::Label::new(Some(&tr(
-        "No widgets yet. Pick a type above and click Add widget."
+        "No widgets yet. Pick a type above and click Add widget. JSON extensions \
+         install under ~/.local/share/metis/widgets/."
         )));
     empty.set_xalign(0.0);
     empty.add_css_class("metis-settings-hint");
@@ -316,15 +317,27 @@ pub fn build() -> gtk::Widget {
         let refresh_list = refresh_list.clone();
         let chrome_debounce = chrome_debounce.clone();
         let add_btn_ref = add_btn.clone();
+        let add_choices = add_choices.clone();
         add_btn.connect_clicked(move |_| {
             let idx = kind_dd.selected() as usize;
-            let kind = DesktopWidgetKind::addable()
+            let choice = add_choices
                 .get(idx)
-                .copied()
-                .unwrap_or(DesktopWidgetKind::Folders);
+                .cloned()
+                .unwrap_or(AddChoice::Builtin(DesktopWidgetKind::Folders));
             let mut new_id = None;
             mutate_from_disk(&cfg, |disk| {
-                let inst = DesktopWidgetInstance::new(kind);
+                let inst = match &choice {
+                    AddChoice::Builtin(kind) => DesktopWidgetInstance::new(*kind),
+                    AddChoice::Extension(ext_id) => {
+                        if let Some(ext) = find_widget_extension(ext_id) {
+                            DesktopWidgetInstance::new_extension(&ext.manifest)
+                        } else {
+                            let mut i = DesktopWidgetInstance::new(DesktopWidgetKind::Extension);
+                            i.extension_id = ext_id.clone();
+                            i
+                        }
+                    }
+                };
                 new_id = Some(inst.id.clone());
                 disk.instances.push(inst);
             });
@@ -358,7 +371,28 @@ fn kind_icon(kind: DesktopWidgetKind) -> &'static str {
         DesktopWidgetKind::Weather => "weather-few-clouds-symbolic",
         DesktopWidgetKind::Equalizer => "multimedia-equalizer-symbolic",
         DesktopWidgetKind::Placeholder => "view-grid-symbolic",
+        DesktopWidgetKind::Extension => "application-x-addon-symbolic",
     }
+}
+
+#[derive(Clone)]
+enum AddChoice {
+    Builtin(DesktopWidgetKind),
+    Extension(String),
+}
+
+fn build_add_choices() -> (Vec<AddChoice>, Vec<String>) {
+    let mut choices = Vec::new();
+    let mut labels = Vec::new();
+    for kind in DesktopWidgetKind::addable() {
+        choices.push(AddChoice::Builtin(*kind));
+        labels.push(kind.label().to_string());
+    }
+    for ext in discover_widget_extensions() {
+        choices.push(AddChoice::Extension(ext.manifest.id.clone()));
+        labels.push(format!("{} (extension)", ext.manifest.name));
+    }
+    (choices, labels)
 }
 
 fn instance_subtitle(inst: &DesktopWidgetInstance) -> String {
@@ -386,6 +420,13 @@ fn instance_subtitle(inst: &DesktopWidgetInstance) -> String {
                 "Theme font".into()
             } else {
                 inst.font.clone()
+            }
+        }
+        DesktopWidgetKind::Extension => {
+            if inst.extension_id.is_empty() {
+                "Extension".into()
+            } else {
+                inst.extension_id.clone()
             }
         }
         _ => String::new(),
@@ -426,7 +467,7 @@ fn instance_row(
     text.set_hexpand(true);
     text.set_valign(gtk::Align::Center);
 
-    let title = gtk::Label::new(Some(inst.kind.label()));
+    let title = gtk::Label::new(Some(&inst.display_title()));
     title.set_xalign(0.0);
     title.add_css_class("metis-widget-list-title");
     text.append(&title);
@@ -517,7 +558,7 @@ fn open_configure_dialog(
     };
 
     let mut builder = gtk::Window::builder()
-        .title(format!("{} widget", inst.kind.label()))
+        .title(format!("{} widget", inst.display_title()))
         .modal(true)
         .decorated(false)
         .resizable(true)
@@ -542,7 +583,7 @@ fn open_configure_dialog(
     header_icon.set_pixel_size(24);
     header_icon.add_css_class("metis-widget-list-icon");
     header.append(&header_icon);
-    let heading = gtk::Label::new(Some(&format!("{} settings", inst.kind.label())));
+    let heading = gtk::Label::new(Some(&format!("{} settings", inst.display_title())));
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
     heading.add_css_class("metis-settings-section-title");
@@ -791,6 +832,9 @@ fn fill_configure_body(
                 rebuild_body.clone(),
             ));
         }
+        DesktopWidgetKind::Extension => {
+            body.append(&extension_options(inst, cfg.clone()));
+        }
         _ => {}
     }
 
@@ -800,6 +844,134 @@ fn fill_configure_body(
         chrome_debounce,
         rebuild_body,
     ));
+}
+
+fn extension_options(
+    inst: &DesktopWidgetInstance,
+    cfg: Rc<RefCell<DesktopWidgetsConfig>>,
+) -> gtk::Widget {
+    let col = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    let id_label = gtk::Label::new(Some(&format!("id: {}", inst.extension_id)));
+    id_label.set_xalign(0.0);
+    id_label.set_selectable(true);
+    id_label.add_css_class("metis-settings-hint");
+    col.append(&id_label);
+
+    let path_hint = if let Some(ext) = find_widget_extension(&inst.extension_id) {
+        format!("Pack: {}", ext.root.display())
+    } else {
+        format!(
+            "Pack missing — place under ~/.local/share/metis/widgets/{}/",
+            if inst.extension_id.is_empty() {
+                "<id>"
+            } else {
+                &inst.extension_id
+            }
+        )
+    };
+    let path_l = gtk::Label::new(Some(&path_hint));
+    path_l.set_xalign(0.0);
+    path_l.set_wrap(true);
+    path_l.set_selectable(true);
+    path_l.add_css_class("metis-settings-hint");
+    col.append(&path_l);
+
+    let Some(ext) = find_widget_extension(&inst.extension_id) else {
+        return col.upcast();
+    };
+    if ext.manifest.settings_schema.is_empty() {
+        let none = gtk::Label::new(Some(&tr("This extension has no settings.")));
+        none.set_xalign(0.0);
+        none.add_css_class("metis-settings-hint");
+        col.append(&none);
+        return col.upcast();
+    }
+
+    for setting in &ext.manifest.settings_schema {
+        let key = setting.key.clone();
+        let label = if setting.label.is_empty() {
+            setting.key.clone()
+        } else {
+            setting.label.clone()
+        };
+        let current = inst
+            .extension_settings
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| setting.default.clone());
+        match setting.setting_type {
+            WidgetExtSettingType::Bool => {
+                let sw = gtk::Switch::new();
+                sw.set_active(current.as_bool().unwrap_or(false));
+                sw.set_halign(gtk::Align::End);
+                let id = inst.id.clone();
+                let key = key.clone();
+                let cfg = cfg.clone();
+                sw.connect_state_set(move |_, on| {
+                    mutate_from_disk(&cfg, |disk| {
+                        if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
+                            inst.extension_settings
+                                .insert(key.clone(), serde_json::Value::Bool(on));
+                        }
+                    });
+                    glib::Propagation::Proceed
+                });
+                col.append(&ui::row(&label, &sw));
+            }
+            WidgetExtSettingType::Number => {
+                let entry = gtk::Entry::new();
+                let text = match &current {
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => "0".into(),
+                };
+                entry.set_text(&text);
+                entry.set_input_purpose(gtk::InputPurpose::Number);
+                entry.set_hexpand(true);
+                let id = inst.id.clone();
+                let key = key.clone();
+                let cfg = cfg.clone();
+                entry.connect_changed(move |e| {
+                    let raw = e.text().to_string();
+                    let val = raw
+                        .parse::<f64>()
+                        .ok()
+                        .and_then(serde_json::Number::from_f64)
+                        .map(serde_json::Value::Number)
+                        .unwrap_or(serde_json::Value::String(raw));
+                    mutate_from_disk(&cfg, |disk| {
+                        if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
+                            inst.extension_settings.insert(key.clone(), val);
+                        }
+                    });
+                });
+                col.append(&ui::row(&label, &entry));
+            }
+            WidgetExtSettingType::String => {
+                let entry = gtk::Entry::new();
+                let text = match &current {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                entry.set_text(&text);
+                entry.set_hexpand(true);
+                let id = inst.id.clone();
+                let key = key.clone();
+                let cfg = cfg.clone();
+                entry.connect_changed(move |e| {
+                    let text = e.text().to_string();
+                    mutate_from_disk(&cfg, |disk| {
+                        if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
+                            inst.extension_settings
+                                .insert(key.clone(), serde_json::Value::String(text));
+                        }
+                    });
+                });
+                col.append(&ui::row(&label, &entry));
+            }
+        }
+    }
+    col.upcast()
 }
 
 fn equalizer_options(

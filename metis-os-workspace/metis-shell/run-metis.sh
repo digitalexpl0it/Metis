@@ -397,6 +397,24 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     done
     shopt -u nullglob
 
+    # Example / system JSON widget extension packs (Phase 14 §E).
+    WIDGETS_DST="${METIS_WIDGETS_DIR:-/usr/share/metis/widgets}"
+    if [[ -d "$ASSETS_DIR/widgets" ]]; then
+        echo "Installing widget extension packs to $WIDGETS_DST …"
+        $SUDO mkdir -p "$WIDGETS_DST"
+        for pack in "$ASSETS_DIR/widgets"/*; do
+            [[ -d "$pack" ]] || continue
+            name="$(basename "$pack")"
+            $SUDO mkdir -p "$WIDGETS_DST/$name"
+            if [[ -f "$pack/manifest.json" ]]; then
+                $SUDO install -Dm644 "$pack/manifest.json" "$WIDGETS_DST/$name/manifest.json"
+            fi
+            if [[ -f "$pack/widget.json" ]]; then
+                $SUDO install -Dm644 "$pack/widget.json" "$WIDGETS_DST/$name/widget.json"
+            fi
+        done
+    fi
+
     # i18n catalogs (gettext .mo + Fluent .ftl).
     LOCALE_SRC="$(cd "$(dirname "$0")/.." && pwd)/assets/locale"
     # Prefer workspace assets next to this script's package root.

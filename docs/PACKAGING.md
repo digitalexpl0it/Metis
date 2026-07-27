@@ -41,6 +41,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | `/usr/share/applications/metis-viewer.desktop` | Metis Viewer (RDP client UI) |
 | `/usr/share/icons/hicolor/*/apps/metis-viewer.png` | Metis Viewer icon (48 + 256) |
 | `/usr/share/metis/wallpapers/` | Bundled wallpapers (onboarding / Appearance) |
+| `/usr/share/metis/widgets/` | JSON desktop widget extension packs (Phase 14 §E) |
 | `/usr/share/metis/locale/` | i18n catalogs (gettext `.mo` + Fluent `.ftl`) |
 | `/etc/pam.d/metis` | Lock-screen PAM service |
 

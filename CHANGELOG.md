@@ -9,6 +9,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 14 §E Widget Extension API v1** — declarative JSON desktop widgets:
+  `manifest.json` + `widget.json` under `~/.local/share/metis/widgets/<id>/`
+  (also `/usr/share/metis/widgets/`). Host renders layout DSL; actions
+  `open_uri` / `launch` / `copy_text`. Settings Add lists discovered packs;
+  schema-driven configure. Example: `com.metis.example.quicklinks`. No scripts
+  or in-process plugins.
+
+### Security
+
+- **Widget extension host hardening** — `open_uri` allowlists `http`/`https`
+  only (no `file:` / bare paths / UriLauncher→FileLauncher fallback); `launch`
+  accepts desktop ids or a single PATH basename (no absolute paths, argv, or
+  shell metacharacters; shells/interpreters denylisted); action fields are not
+  settings-interpolated; `widget.json` size/depth/node caps; actions validated
+  on load and again at click.
 - **Phase 15 §F Metis Viewer** — first-party RDP client (`metis-viewer`): GTK
   connect UI spawns FreeRDP under `/usr/bin` (argv-only; no shell). Recent hosts
   in `viewer.json` without passwords (one-click connect + remove). Early FreeRDP

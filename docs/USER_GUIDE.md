@@ -723,15 +723,25 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   vs scrolling). The **Windows** card covers titlebar opacity, the title pill
   border, and the window frame border.
 - **Desktop widgets** — optional wallpaper panels (Folders, Apps, Clock, System,
-  Weather, Equalizer; off by default) hosted by a separate `metis-shell
-  --desktop-widgets` process so a hung widget cannot freeze the edge bar.
-  Enable the layer, turn on **Edit mode** to move/resize, set **Default look**
-  (fill / border), and manage instances in a compact zebra list (**Add** stays
-  at the top; gear opens a configure dialog). Clock / Weather / System: font,
-  text colour, accent. Equalizer: Spectrum / Bars / Neon wave / Radial, bar
-  shapes, colour modes, peaks, reflection / mirror. Per-widget look overrides
-  live in each dialog. Writes `desktop-widgets.json`; the widgets process
-  live-reloads.
+  Weather, Equalizer, plus **JSON extensions**; off by default) hosted by a
+  separate `metis-shell --desktop-widgets` process so a hung widget cannot freeze
+  the edge bar. Enable the layer, turn on **Edit mode** to move/resize, set
+  **Default look** (fill / border), and manage instances in a compact zebra list
+  (**Add** stays at the top; gear opens a configure dialog). Clock / Weather /
+  System: font, text colour, accent. Equalizer: Spectrum / Bars / Neon wave /
+  Radial, bar shapes, colour modes, peaks, reflection / mirror. Per-widget look
+  overrides live in each dialog. Writes `desktop-widgets.json`; the widgets
+  process live-reloads.
+
+  **Extensions (Phase 14 §E).** Install a pack under
+  `~/.local/share/metis/widgets/<id>/` (or `/usr/share/metis/widgets/<id>/`) with
+  `manifest.json` + `widget.json`. Settings → Desktop widgets lists discovered
+  packs in the Add dropdown. Declarative layout only (labels, icons, buttons,
+  lists); button actions: `open_uri` (**http/https only**), `launch` (desktop
+  id or a single PATH basename — no shell/argv/paths; interpreters denylisted),
+  `copy_text`. Settings placeholders apply to labels/copy text only — **not**
+  to URI/launch targets. No scripts or in-process plugins. Example pack:
+  `com.metis.example.quicklinks`.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
   opacity. Tap **Super** to toggle the menu; start typing while it is open to

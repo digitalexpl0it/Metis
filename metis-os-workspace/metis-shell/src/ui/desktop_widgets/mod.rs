@@ -496,7 +496,7 @@ fn build_card(
         header.add_css_class("metis-dw-header");
         if inst.show_title {
             header.set_height_request(28);
-            let title = gtk::Label::new(Some(&metis_i18n::tr(inst.kind.label())));
+            let title = gtk::Label::new(Some(&metis_i18n::tr(&inst.display_title())));
             title.add_css_class("metis-dw-title");
             title.set_xalign(0.0);
             title.set_hexpand(true);
