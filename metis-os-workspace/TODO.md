@@ -2,9 +2,10 @@
 
 **Current phase:** Phases **1–15** are complete for their shipped product bars.
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
-spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Active: Phase 15 §F stretch**
-(fingerprint / greeter niceties; **first-party viewer, RustDesk Settings preset,
-and image RDP clipboard done 2026-07-26**).
+spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Phase 15 §F
+stretch complete 2026-07-26** (first-party viewer, RustDesk preset, image RDP
+clipboard, lock fingerprint / YubiKey niceties). Optional follow-up:
+`ext-session-lock-v1`.
 **Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
 iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
 closed 2026-07-25 with HDR H1–H3 and Stage 2 GLES 3D-LUT colour; 2026-07-26
@@ -749,7 +750,7 @@ latency and clear setup docs.
       GTK connect UI spawns FreeRDP (argv-only); host remains GRD + `metis-remote`.
       Settings **Connect with Metis Viewer…**; recent hosts in `viewer.json`
       (no passwords). Viewer polish: early FreeRDP failure feedback, recent
-      one-click connect/remove, dedicated icon. **Still open:** fingerprint lock.
+      one-click connect/remove, dedicated icon.
 - [x] **RustDesk Settings preset** (2026-07-26) — Settings → Remote access card:
       detect system/Flatpak, Open RustDesk, copy install instructions + ports/
       portal notes. Optional `metis-remote` RustDesk backend still TBD.
@@ -767,8 +768,7 @@ latency and clear setup docs.
 - [x] **Session lock** — local lock (2026-07-02) plus **remote pause** (2026-07-25):
       lock runs `metis-remote pause` (RDP disable, keep `remote.json.enabled`);
       unlock runs `resume` if still enabled. Capture/inject remain denied while
-      locked. Remaining follow-ups: `ext-session-lock-v1` for third-party lockers,
-      fingerprint/greeter niceties.
+      locked. Remaining follow-ups: `ext-session-lock-v1` for third-party lockers.
 - [x] **Multi-user / VT** — documented in `docs/UBUNTU_DEV.md` (2026-07-24):
       Metis is a single graphical session per seat; switching TTYs pauses the
       DRM session; remote RDP attaches to the active logged-in session only;
@@ -1366,10 +1366,11 @@ server does not.
       advertises/serves local `image/png|jpeg|bmp` from compositor durable paths
       (≤10 MiB) and accepts remote image writes into `$XDG_RUNTIME_DIR/metis/clipboard/`
       then `SetClipboard`. Text path unchanged; lock still pauses RDP.
-- [ ] **Fingerprint / greeter niceties** on the lock screen.
+- [x] **Fingerprint / YubiKey lock niceties** (2026-07-26) — soft device detect,
+      lock UI cues, empty-password PAM + one auto-attempt for host `pam_fprintd` /
+      `pam_u2f`. Password always works; enroll on the host.
 
-**Suggested order:** image clipboard (done) → first-party viewer (done) →
-RustDesk preset (done) → fingerprint/greeter as appetite allows.
+**Suggested order:** Phase 15 §F stretch complete. Optional: `ext-session-lock-v1`.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).

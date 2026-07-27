@@ -23,6 +23,7 @@ mod input;
 mod ipc;
 mod keybinds;
 mod lock;
+mod lock_auth_cues;
 mod color_management;
 mod mirror;
 mod night_light;

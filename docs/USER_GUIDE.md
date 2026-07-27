@@ -629,6 +629,27 @@ and cannot be rebound.
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
 
+### Session lock (password, fingerprint, YubiKey)
+
+`Super+L` (or the shell menu **Lock**) shows the compositor lock screen. Unlock
+is PAM against `/etc/pam.d/metis` (falls back to `login` if that file is missing).
+Password unlock always works.
+
+**Fingerprint / YubiKey (optional).** Metis does not enroll devices itself. When
+a fingerprint reader or Yubico USB key is detected, the lock screen shows a
+touch hint and may start one empty PAM attempt so `pam_fprintd` / `pam_u2f` can
+succeed without typing. Configure the host:
+
+1. Install (Ubuntu): `sudo apt install fprintd libpam-fprintd` and/or
+   `sudo apt install libpam-u2f pamu2fcfg`
+2. Enroll: `fprintd-enroll` ; for YubiKey FIDO2/U2F:
+   `mkdir -p ~/.config/Yubico && pamu2fcfg >> ~/.config/Yubico/u2f_keys`
+3. Uncomment the optional `auth sufficient` lines in `/etc/pam.d/metis`
+   (see comments in that file / the packaged `pam-metis` asset) **above**
+   `@include common-auth`, then lock and try again.
+
+YubiKey support is touch-based FIDO2/U2F via `pam_u2f` (not Yubico OTP).
+
 ### Multimedia & hardware keys
 
 Laptop function-row and media-keyboard keys work system-wide and flash a

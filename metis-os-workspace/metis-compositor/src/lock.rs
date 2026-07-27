@@ -32,6 +32,7 @@ use smithay::reexports::calloop::RegistrationToken;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Size, Transform};
 
 use crate::focus::KeyboardFocusTarget;
+use crate::lock_auth_cues::{detect_auth_cues, AuthCues};
 use crate::night_light::{premultiply, RenderTargetInfo};
 use crate::render::OutputStack;
 use crate::state::MetisState;
@@ -69,6 +70,10 @@ pub struct LockState {
     auth_tx: Sender<AuthOutcome>,
     /// Taken once at startup and registered with the event loop.
     auth_rx: Option<Channel<AuthOutcome>>,
+    /// Soft-fail fingerprint / YubiKey presence (UI cue only).
+    auth_cues: AuthCues,
+    /// One empty-password PAM auto-attempt already fired this lock.
+    biometric_auto_tried: bool,
     /// 1 Hz repaint timer so the clock stays current while locked.
     clock_timer: Option<RegistrationToken>,
     font: Option<Font>,
@@ -101,6 +106,8 @@ impl LockState {
             auth_generation: 0,
             auth_tx,
             auth_rx: Some(auth_rx),
+            auth_cues: AuthCues::default(),
+            biometric_auto_tried: false,
             clock_timer: None,
             font: None,
             font_data: None,
@@ -188,7 +195,9 @@ impl MetisState {
         self.lock.cfg = metis_config::load_lock_config();
         self.lock.locked = true;
         self.lock.clear_password();
-        self.lock.status = None;
+        self.lock.auth_cues = detect_auth_cues();
+        self.lock.biometric_auto_tried = false;
+        self.lock.status = lock_cue_status(self.lock.auth_cues);
         self.lock.attempts = 0;
         self.lock.hovered_power = None;
         self.lock.clear_gpu_cache();
@@ -200,7 +209,12 @@ impl MetisState {
         }
 
         self.lock_arm_clock_timer();
-        tracing::info!("lock: session locked");
+        self.lock_arm_biometric_auto();
+        tracing::info!(
+            fingerprint = self.lock.auth_cues.fingerprint,
+            security_key = self.lock.auth_cues.security_key,
+            "lock: session locked"
+        );
         // Pause RDP listen without clearing remote.json.enabled. Capture/inject
         // denials remain belt-and-suspenders while locked.
         spawn_metis_remote(&["pause"]);
@@ -216,6 +230,8 @@ impl MetisState {
         self.lock.locked = false;
         self.lock.clear_password();
         self.lock.status = None;
+        self.lock.auth_cues = AuthCues::default();
+        self.lock.biometric_auto_tried = false;
         self.lock.clear_gpu_cache();
         if let Some(token) = self.lock.clock_timer.take() {
             self.loop_handle.remove(token);
@@ -266,6 +282,37 @@ impl MetisState {
         }
     }
 
+    /// One-shot: after a short delay, try empty-password PAM so pam_fprintd /
+    /// pam_u2f can unlock without the user pressing Enter.
+    fn lock_arm_biometric_auto(&mut self) {
+        if !self.lock.auth_cues.any() {
+            return;
+        }
+        let delay = Duration::from_millis(400);
+        if let Err(err) = self.loop_handle.insert_source(
+            Timer::from_duration(delay),
+            move |_, _, state: &mut MetisState| {
+                state.lock_try_biometric_auto();
+                TimeoutAction::Drop
+            },
+        ) {
+            tracing::warn!(?err, "lock: failed to arm biometric auto-attempt");
+        }
+    }
+
+    fn lock_try_biometric_auto(&mut self) {
+        if !self.lock.locked
+            || self.lock.auth_in_flight
+            || self.lock.biometric_auto_tried
+            || !self.lock.auth_cues.any()
+            || !self.lock.password.is_empty()
+        {
+            return;
+        }
+        self.lock.biometric_auto_tried = true;
+        self.lock_submit();
+    }
+
     // --- Password field editing (called from input while locked) --------------
 
     pub fn lock_push_char(&mut self, c: char) {
@@ -297,14 +344,14 @@ impl MetisState {
             return;
         }
         self.lock.clear_password();
-        self.lock.status = None;
+        self.lock.status = lock_cue_status(self.lock.auth_cues);
         self.damaged = true;
         self.request_redraw();
     }
 
-    /// Submit the typed password to PAM on a worker thread.
+    /// Submit the typed password (or an empty buffer for biometric PAM) on a worker.
     pub fn lock_submit(&mut self) {
-        if self.lock.auth_in_flight || self.lock.password.is_empty() {
+        if self.lock.auth_in_flight {
             return;
         }
         let username = current_username().unwrap_or_default();
@@ -318,9 +365,10 @@ impl MetisState {
         self.lock.auth_generation = self.lock.auth_generation.wrapping_add(1);
         let generation = self.lock.auth_generation;
         self.lock.auth_in_flight = true;
-        self.lock.status = Some("Authenticating…".to_string());
+        self.lock.status = Some(metis_i18n::tr_ftl("lock-authenticating"));
         // Move the password out (leaving the field empty) so only the worker
         // thread holds it, and it is zeroized there once the attempt completes.
+        // Empty password is intentional for pam_fprintd / pam_u2f.
         let password = std::mem::take(&mut self.lock.password);
         let tx = self.lock.auth_tx.clone();
         let service = pam_service();
@@ -344,7 +392,7 @@ impl MetisState {
         if let Err(err) = spawned {
             tracing::warn!(?err, "lock: failed to spawn PAM worker");
             self.lock.auth_in_flight = false;
-            self.lock.status = Some("Authentication unavailable".to_string());
+            self.lock.status = Some(metis_i18n::tr_ftl("lock-auth-unavailable"));
         }
         self.damaged = true;
         self.request_redraw();
@@ -359,7 +407,11 @@ impl MetisState {
             self.unlock_session();
         } else {
             self.lock.attempts = self.lock.attempts.wrapping_add(1);
-            self.lock.status = Some(metis_i18n::tr_ftl("lock-incorrect-password"));
+            self.lock.status = Some(if self.lock.auth_cues.any() {
+                metis_i18n::tr_ftl("lock-auth-failed")
+            } else {
+                metis_i18n::tr_ftl("lock-incorrect-password")
+            });
             self.lock.clear_password();
             tracing::warn!(attempts = self.lock.attempts, "lock: authentication failed");
             self.damaged = true;
@@ -433,7 +485,15 @@ impl MetisState {
             cx + (w / 2.0 - 32.0 * 0.3) + caret_gap
         } else {
             let w = self
-                .push_lock_text(renderer, &mut elems, &metis_i18n::tr_ftl("lock-enter-password"), 20.0, [1.0, 1.0, 1.0, 0.5], cx, field_y)
+                .push_lock_text(
+                    renderer,
+                    &mut elems,
+                    &metis_i18n::tr_ftl("lock-enter-password"),
+                    20.0,
+                    [1.0, 1.0, 1.0, 0.5],
+                    cx,
+                    field_y,
+                )
                 .map(|(w, _)| w as f64)
                 .unwrap_or(0.0);
             // Caret sits just left of the placeholder.
@@ -451,12 +511,14 @@ impl MetisState {
             );
         }
 
-        // Status / error line below the field.
+        // Status / error / biometric cue line below the field.
         if let Some(status) = self.lock.status.clone() {
             let color = if self.lock.auth_in_flight {
                 [1.0, 1.0, 1.0, 0.72]
-            } else {
+            } else if self.lock.attempts > 0 {
                 [1.0, 0.5, 0.5, 0.95]
+            } else {
+                [1.0, 1.0, 1.0, 0.65]
             };
             self.push_lock_text(renderer, &mut elems, &status, 20.0, color, cx, field_y + 60.0);
         }
@@ -914,6 +976,11 @@ fn pam_service() -> String {
     "login".to_string()
 }
 
+fn lock_cue_status(cues: AuthCues) -> Option<String> {
+    cues.status_ftl_id()
+        .map(|id| metis_i18n::tr_ftl(id))
+}
+
 // --- Minimal libpam FFI ------------------------------------------------------
 //
 // We link `libpam` directly rather than pulling in the `pam` crate, whose
@@ -924,6 +991,8 @@ fn pam_service() -> String {
 const PAM_SUCCESS: c_int = 0;
 const PAM_PROMPT_ECHO_OFF: c_int = 1;
 const PAM_PROMPT_ECHO_ON: c_int = 2;
+const PAM_ERROR_MSG: c_int = 3;
+const PAM_TEXT_INFO: c_int = 4;
 const PAM_BUF_ERR: c_int = 5;
 const PAM_CONV_ERR: c_int = 19;
 
@@ -975,8 +1044,9 @@ struct ConvData {
 }
 
 /// PAM conversation: answer the password prompt (echo off) with the typed
-/// password and any echoed prompt (echo on) with the username. Responses are
-/// allocated with libc so PAM can `free()` them.
+/// password and any echoed prompt (echo on) with the username. Info / error
+/// messages from pam_fprintd / pam_u2f are acknowledged with an empty response.
+/// Responses are allocated with libc so PAM can `free()` them.
 unsafe extern "C" fn converse(
     num_msg: c_int,
     msg: *mut *const PamMessage,
@@ -1006,6 +1076,10 @@ unsafe extern "C" fn converse(
             }
             PAM_PROMPT_ECHO_ON => {
                 (*out).resp = libc::strdup(data.user.as_ptr());
+            }
+            PAM_TEXT_INFO | PAM_ERROR_MSG => {
+                // Acknowledge; modules may free(resp). Empty string is safe.
+                (*out).resp = libc::strdup(c"".as_ptr());
             }
             _ => {}
         }

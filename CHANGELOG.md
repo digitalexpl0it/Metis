@@ -18,7 +18,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Phase 15 §F RustDesk Settings preset** — Settings → Remote access card:
   detect system/Flatpak install, **Open RustDesk**, copy install instructions,
   portal/ports notes. No `metis-remote` backend / firewall orchestration.
-  Fingerprint lock remains open.
+- **Phase 15 §F lock fingerprint + YubiKey** — lock screen soft-detects readers /
+  Yubico USB keys, shows touch cues, allows empty-password PAM + one auto-attempt
+  for host `pam_fprintd` / `pam_u2f`. Password path unchanged; enrollment stays
+  on the host. `ext-session-lock-v1` remains open.
 - **Phase 15 §F image RDP clipboard** — portal Mutter clipboard shim syncs
   `image/png|jpeg|bmp` both ways (≤10 MiB, path-allowlisted under runtime
   `clipboard/`). Text path unchanged.
@@ -52,8 +55,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   (no `sh -lc`); Metis Polkit policies + `metis-remote pk-apt-install` /
   `pk-add-input-group`; NM SSID/id sanitizers; lock blocks Ctrl+Alt+Fn VT switch
   (Backspace quit kept); desktop-widgets IPC capability token; opt-in
-  `xwayland_mode: isolated` gaming XWayland bucket. Stretch §F (remote viewer,
-  image clipboard, fingerprint) remains open.
+  `xwayland_mode: isolated` gaming XWayland bucket. Stretch §F (viewer, RustDesk
+  preset, image clipboard, lock fingerprint/YubiKey) shipped 2026-07-26.
 - **Phase 7 remote security closeout** — LAN-only RDP firewall enforcement
   (`metis-remote firewall` via nftables/ufw + Settings toggle); RDP password via
   stdin (not Metis argv); lock pauses RDP listen and unlock resumes if still

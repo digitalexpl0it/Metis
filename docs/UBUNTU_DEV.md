@@ -28,6 +28,18 @@ sudo apt install -y \
 `liblcms2-dev` is required to build Stage 2 colour (ICC → GLES 3D-LUT).
 If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.
 
+### Lock screen biometrics (optional)
+
+Password unlock works with stock `/etc/pam.d/metis`. For fingerprint or YubiKey
+(FIDO2/U2F touch via `pam_u2f`):
+
+```bash
+sudo apt install -y fprintd libpam-fprintd libpam-u2f pamu2fcfg
+# enroll fingerprint: fprintd-enroll
+# enroll YubiKey: mkdir -p ~/.config/Yubico && pamu2fcfg >> ~/.config/Yubico/u2f_keys
+# then uncomment the auth sufficient lines in /etc/pam.d/metis (see asset comments)
+```
+
 ### Keyring (Secret Service) — runtime dependency
 
 Metis is only a *client* of the freedesktop Secret Service (`org.freedesktop.secrets`, via `oo7`), and so are apps like Cursor, GitHub Desktop, and browsers. A Metis session must therefore have a **provider** running, or those apps fall back to plaintext credential storage ("encryption is low"). The session launcher (`metis-session` / `run-metis.sh --session --drm`) auto-detects and starts whichever of these is installed — install **one** (any desktop works; `gnome-keyring` is not GNOME-specific and is the lightest):

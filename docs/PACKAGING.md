@@ -51,7 +51,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, `liblcms2-2`, … | Required to start a Metis session; kitty is the default terminal; lcms2 for Stage 2 colour LUTs |
 | **Bundled** | `libgtk4-layer-shell.so.0` | Not packaged on Ubuntu 24.04 — built in CI / copied from the build host into the `.deb` |
 | **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse** | Keyring, portal helpers, and removable-volume mount/eject/LUKS (apt installs by default) |
-| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `nftables`, `policykit-1-gnome` (or another Polkit agent), `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer` | Optional features (RDP host needs `gnome-remote-desktop`; Metis Viewer needs FreeRDP; LAN firewall needs nftables/Polkit) |
+| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `nftables`, `policykit-1-gnome` (or another Polkit agent), `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer`, `fprintd`, `libpam-fprintd`, `libpam-u2f` | Optional features (RDP host needs `gnome-remote-desktop`; Metis Viewer needs FreeRDP; LAN firewall needs nftables/Polkit; lock biometrics need fprintd/u2f + PAM lines) |
 
 Optional Suggests are also offered in the first-run **Optional software** onboarding
 step (detect → grey out if present → toggles → **Install selected** via
