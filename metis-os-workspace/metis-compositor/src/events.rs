@@ -79,22 +79,15 @@ pub fn accept_event_subscribers(
     bus: &EventBus,
 ) {
     loop {
-        match listener.accept() {
-            Ok((stream, _)) => {
-                match metis_protocol::peer_uid_is_euid(&stream) {
-                    Ok(true) => {
-                        tracing::info!("shell subscribed to compositor events");
-                        bus.subscribe(stream);
-                    }
-                    Ok(false) => {
-                        tracing::warn!("events: rejected subscriber from foreign UID");
-                    }
-                    Err(err) => {
-                        tracing::warn!(%err, "events: peercred check failed; dropping subscriber");
-                    }
-                }
+        match metis_protocol::accept_same_euid(listener) {
+            Ok(metis_protocol::AcceptPeer::Ready(stream)) => {
+                tracing::info!("shell subscribed to compositor events");
+                bus.subscribe(stream);
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+            Ok(metis_protocol::AcceptPeer::Rejected) => {
+                tracing::warn!("events: rejected subscriber from foreign UID (SO_PEERCRED)");
+            }
+            Ok(metis_protocol::AcceptPeer::WouldBlock) => break,
             Err(e) => {
                 tracing::warn!("event subscriber accept error: {e}");
                 break;

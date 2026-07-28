@@ -455,6 +455,35 @@ pub fn peer_uid_is_euid(_stream: &std::os::unix::net::UnixStream) -> std::io::Re
     Ok(true)
 }
 
+/// Outcome of [`accept_same_euid`].
+#[derive(Debug)]
+pub enum AcceptPeer {
+    /// Peer UID matches this process's euid.
+    Ready(std::os::unix::net::UnixStream),
+    /// Non-blocking listener has no pending connection.
+    WouldBlock,
+    /// Connection accepted then dropped (foreign UID or peercred failure).
+    Rejected,
+}
+
+/// Accept one connection from `listener`, enforcing same-euid via `SO_PEERCRED`.
+///
+/// Prefer this over raw `listener.accept()` so IPC listeners cannot forget the
+/// UID gate (Phase 15 / local trust model). Callers should loop until
+/// [`AcceptPeer::WouldBlock`], and log [`AcceptPeer::Rejected`] as needed.
+pub fn accept_same_euid(
+    listener: &std::os::unix::net::UnixListener,
+) -> std::io::Result<AcceptPeer> {
+    match listener.accept() {
+        Ok((stream, _)) => match peer_uid_is_euid(&stream) {
+            Ok(true) => Ok(AcceptPeer::Ready(stream)),
+            Ok(false) | Err(_) => Ok(AcceptPeer::Rejected),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(AcceptPeer::WouldBlock),
+        Err(e) => Err(e),
+    }
+}
+
 /// Split a command line into argv without invoking a shell.
 ///
 /// Supports simple single/double quotes. Does **not** expand `$VAR`, backticks,

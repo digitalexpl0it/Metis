@@ -31,19 +31,12 @@ pub fn drain_ipc(state: &mut MetisState) {
     let mut pending = Vec::new();
     if let Some(listener) = state.ipc_listener.as_ref() {
         loop {
-            match listener.accept() {
-                Ok((stream, _)) => {
-                    match metis_protocol::peer_uid_is_euid(&stream) {
-                        Ok(true) => pending.push(stream),
-                        Ok(false) => {
-                            tracing::warn!("IPC: rejected connection from foreign UID");
-                        }
-                        Err(err) => {
-                            tracing::warn!(%err, "IPC: peercred check failed; dropping connection");
-                        }
-                    }
+            match metis_protocol::accept_same_euid(listener) {
+                Ok(metis_protocol::AcceptPeer::Ready(stream)) => pending.push(stream),
+                Ok(metis_protocol::AcceptPeer::Rejected) => {
+                    tracing::warn!("IPC: rejected connection from foreign UID (SO_PEERCRED)");
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Ok(metis_protocol::AcceptPeer::WouldBlock) => break,
                 Err(e) => {
                     tracing::warn!("IPC accept error: {e}");
                     break;

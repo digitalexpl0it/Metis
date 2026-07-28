@@ -13,6 +13,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   Startup (master toggle, per-app enable, app picker). Compositor resolves
   desktop ids to argv and launches ~2s after session start (skips onboarding /
   lock). No custom command lines; Flatpak portal autostart still deferred.
+- **IPC accept helper** — `metis_protocol::accept_same_euid` centralizes
+  `SO_PEERCRED` same-euid gating for compositor command + event sockets.
 - **Super+T opens the default terminal** — new `open_terminal` keybind (default
   Mod+T) launches the terminal from Settings → Metis Menu (`resolve_terminal`).
   Editable under Keyboard → Shortcuts.
