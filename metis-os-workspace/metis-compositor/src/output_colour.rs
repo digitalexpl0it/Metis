@@ -37,9 +37,14 @@ pub fn apply_colour_post_pass(
     scale: Scale<f64>,
     hdr_active: bool,
     hdr_transfer: HdrTransfer,
+    // When true, skip SDR→HDR encode (client already provided PQ/HLG content).
+    hdr_passthrough: bool,
 ) -> Option<ColourPassResult> {
     let wants_lut = lut_runtime.lut_owns_output(output_name);
-    if !wants_lut && !hdr_active {
+    let wants_hdr_encode = hdr_active && !hdr_passthrough;
+    if !wants_lut && !wants_hdr_encode {
+        // HDR output with pass-through: still need a single fullscreen element if
+        // we only wanted to skip encode — return None so the original stack scans out.
         return None;
     }
     if size.w <= 0 || size.h <= 0 {
@@ -55,7 +60,7 @@ pub fn apply_colour_post_pass(
         }
     }
 
-    if hdr_active {
+    if wants_hdr_encode {
         hdr_runtime.ensure_program(renderer, hdr_transfer);
         let program = match hdr_transfer {
             HdrTransfer::Pq => hdr_runtime.pq_program.clone()?,

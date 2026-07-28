@@ -487,6 +487,7 @@ pub fn wifi_set_radio(on: bool) -> bool {
 }
 
 /// Turn the Wi-Fi radio on if needed (Rescan). Never turns it off.
+#[allow(dead_code)] // network control helper
 pub fn wifi_ensure_radio_on() {
     if wifi_radio_writes_suppressed() {
         return;
@@ -1606,6 +1607,7 @@ pub fn set_mute(muted: bool) {
     queue_audio(AudioCommand::SetMute(muted));
 }
 
+#[allow(dead_code)] // audio control helper
 pub fn toggle_mute() {
     let _ = std::process::Command::new("pactl")
         .args(["set-sink-mute", "@DEFAULT_SINK@", "toggle"])

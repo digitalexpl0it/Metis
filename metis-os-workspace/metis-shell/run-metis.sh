@@ -412,6 +412,20 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
             if [[ -f "$pack/widget.json" ]]; then
                 $SUDO install -Dm644 "$pack/widget.json" "$WIDGETS_DST/$name/widget.json"
             fi
+            # Optional out-of-process helper binary (basename only; +x).
+            if [[ -f "$pack/helper" ]]; then
+                $SUDO install -Dm755 "$pack/helper" "$WIDGETS_DST/$name/helper"
+            fi
+            # Any other executable files declared by the pack (not .json).
+            for bin in "$pack"/*; do
+                [[ -f "$bin" && -x "$bin" ]] || continue
+                base="$(basename "$bin")"
+                [[ "$base" == "helper" ]] && continue
+                case "$base" in
+                    *.json|*.md|*.txt) continue ;;
+                esac
+                $SUDO install -Dm755 "$bin" "$WIDGETS_DST/$name/$base"
+            done
         done
     fi
 

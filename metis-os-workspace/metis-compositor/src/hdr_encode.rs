@@ -12,18 +12,9 @@
 //! brightness. PQ is preferred when EDID advertises ST.2084; HLG is used for
 //! HLG-only panels.
 
-use smithay::backend::allocator::Fourcc;
-use smithay::backend::renderer::damage::OutputDamageTracker;
-use smithay::backend::renderer::element::texture::{TextureBuffer, TextureRenderElement};
-use smithay::backend::renderer::element::Kind;
-use smithay::backend::renderer::gles::element::TextureShaderElement;
 use smithay::backend::renderer::gles::{
-    GlesRenderer, GlesTexProgram, GlesTexture, Uniform, UniformName, UniformType,
+    GlesRenderer, GlesTexProgram, UniformName, UniformType,
 };
-use smithay::backend::renderer::{Bind, Offscreen};
-use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
-
-use crate::render::{OutputStack, CLEAR_COLOR};
 
 /// BT.2408 reference white for mapping SDR peak to HDR (nits).
 pub const REFERENCE_WHITE_NITS: f32 = 203.0;
@@ -256,84 +247,7 @@ impl HdrEncodeRuntime {
             }
         }
     }
-
-    fn program_for(&self, transfer: HdrTransfer) -> Option<GlesTexProgram> {
-        match transfer {
-            HdrTransfer::Pq => self.pq_program.clone(),
-            HdrTransfer::Hlg => self.hlg_program.clone(),
-        }
-    }
 }
 
 /// Clear colour for the final HDR scanout pass (fullscreen encode element covers it).
 pub const HDR_CLEAR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-
-/// Composite `elements` (SDR) into an offscreen buffer, then wrap as a PQ/HLG blit
-/// element covering the whole output. Returns `None` on GL failure (caller
-/// should fall back to a direct SDR `render_frame`).
-pub fn encode_output_stack(
-    runtime: &mut HdrEncodeRuntime,
-    renderer: &mut GlesRenderer,
-    elements: &[OutputStack],
-    size: Size<i32, Physical>,
-    scale: Scale<f64>,
-    transfer: HdrTransfer,
-) -> Option<TextureShaderElement> {
-    if size.w <= 0 || size.h <= 0 {
-        return None;
-    }
-    runtime.ensure_program(renderer, transfer);
-    let program = runtime.program_for(transfer)?;
-
-    let size_buf: Size<i32, Buffer> = Size::from((size.w, size.h));
-    let mut offscreen =
-        match Offscreen::<GlesTexture>::create_buffer(renderer, Fourcc::Abgr8888, size_buf) {
-            Ok(buf) => buf,
-            Err(err) => {
-                tracing::warn!(?err, "hdr: offscreen buffer creation failed");
-                return None;
-            }
-        };
-
-    {
-        let mut framebuffer = match renderer.bind(&mut offscreen) {
-            Ok(fb) => fb,
-            Err(err) => {
-                tracing::warn!(?err, "hdr: offscreen bind failed");
-                return None;
-            }
-        };
-        let mut damage_tracker = OutputDamageTracker::new(size, scale, Transform::Normal);
-        if let Err(err) = damage_tracker.render_output(
-            renderer,
-            &mut framebuffer,
-            0,
-            elements,
-            CLEAR_COLOR,
-        ) {
-            tracing::warn!(?err, "hdr: SDR offscreen composite failed");
-            return None;
-        }
-    }
-
-    // TextureBuffer scale 1: buffer pixels == physical pixels for this pass.
-    let buffer = TextureBuffer::from_texture(renderer, offscreen, 1, Transform::Normal, None);
-    let src_rect = Rectangle::<f64, Logical>::new(
-        Point::from((0.0, 0.0)),
-        Size::from((size.w as f64, size.h as f64)),
-    );
-    let inner = TextureRenderElement::from_texture_buffer(
-        Point::<f64, Physical>::from((0.0, 0.0)),
-        &buffer,
-        None,
-        Some(src_rect),
-        Some(Size::from((size.w, size.h))),
-        Kind::Unspecified,
-    );
-
-    Some(TextureShaderElement::new(
-        inner,
-        program,
-        vec![Uniform::new("reference_white", REFERENCE_WHITE_NITS)],
-    ))
-}

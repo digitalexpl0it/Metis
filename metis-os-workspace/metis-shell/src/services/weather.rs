@@ -838,10 +838,6 @@ fn weather_label(code: i64) -> String {
     condition_label(code)
 }
 
-fn format_hour(hour24: u32) -> String {
-    hour_label(hour24)
-}
-
 /// US-style regions report in Fahrenheit; otherwise fall back to the locale.
 fn infer_fahrenheit(targets: &[Geo]) -> bool {
     const F_REGIONS: [&str; 8] = ["US", "PR", "GU", "VI", "AS", "MP", "LR", "MM"];

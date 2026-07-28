@@ -1,7 +1,7 @@
 //! Event-driven game session detection via compositor events.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 use std::sync::mpsc;
 use std::thread;

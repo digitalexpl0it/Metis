@@ -198,7 +198,7 @@ impl ArrangementCanvas {
     fn sync_canvas_size_from_allocation(self: &Rc<Self>) {
         let alloc = self.viewport.allocation();
         let mut width = alloc.width().max(0) as f64;
-        let mut height = alloc
+        let height = alloc
             .height()
             .max(self.viewport.height_request())
             .max(CANVAS_MIN_H) as f64;
@@ -251,6 +251,7 @@ impl ArrangementCanvas {
         &self.root
     }
 
+    #[allow(dead_code)] // handy for tests / future layout asserts
     pub fn output_count(&self) -> usize {
         self.outputs.borrow().len()
     }

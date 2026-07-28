@@ -6,7 +6,7 @@
 
 use metis_config::OutputsConfig;
 use smithay::backend::renderer::element::solid::SolidColorRenderElement;
-use smithay::backend::renderer::element::{Id, Kind};
+use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::Color32F;
 use smithay::utils::{Physical, Rectangle, Size};
 

@@ -181,6 +181,19 @@ stage_tree() {
                 "$STAGE/usr/share/metis/widgets/$name/manifest.json"
             [[ -f "$pack/widget.json" ]] && install -Dm644 "$pack/widget.json" \
                 "$STAGE/usr/share/metis/widgets/$name/widget.json"
+            # Optional out-of-process helper (+x).
+            [[ -f "$pack/helper" ]] && install -Dm755 "$pack/helper" \
+                "$STAGE/usr/share/metis/widgets/$name/helper"
+            local bin base
+            for bin in "$pack"/*; do
+                [[ -f "$bin" && -x "$bin" ]] || continue
+                base="$(basename "$bin")"
+                [[ "$base" == "helper" ]] && continue
+                case "$base" in
+                    *.json|*.md|*.txt) continue ;;
+                esac
+                install -Dm755 "$bin" "$STAGE/usr/share/metis/widgets/$name/$base"
+            done
         done
     fi
 

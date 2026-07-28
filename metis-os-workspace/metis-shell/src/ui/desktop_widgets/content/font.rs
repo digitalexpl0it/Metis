@@ -1,7 +1,6 @@
 //! Shared helpers for desktop-widget body content.
 
 use gtk::pango;
-use gtk::prelude::*;
 
 /// Apply an optional Pango font description string to a label.
 /// Empty / invalid strings leave the theme CSS font alone.

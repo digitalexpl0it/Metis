@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk::glib;
-use gtk::prelude::*;
 
 thread_local! {
     static REBUILD_UI: RefCell<Option<Rc<dyn Fn(String)>>> = const { RefCell::new(None) };

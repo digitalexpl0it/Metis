@@ -1,9 +1,11 @@
 #![allow(irrefutable_let_patterns)]
 
+mod battery_dim;
 mod blur;
 mod capture_overlay;
 mod screenshot_overlay;
 mod clipboard;
+mod cross_gpu;
 mod cursor;
 mod decoration;
 mod decoration_overrides;
@@ -15,6 +17,7 @@ mod focus;
 mod grabs;
 mod handlers;
 mod hdr_encode;
+mod hdr_surface;
 mod output_colour;
 mod color_lut;
 mod idle;

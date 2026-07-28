@@ -6,6 +6,7 @@ use super::tray_dbus_types::MenuLayout;
 
 #[derive(Debug, Clone)]
 pub struct TrayMenu {
+    #[allow(dead_code)] // parsed from DBusMenu layout root id
     pub id: u32,
     pub submenus: Vec<MenuItem>,
 }

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Metis widget helper — argv-only, stdout JSON object, no network.
+# Packaged with com.metis.example.helperstatus (Phase 14 §E.2).
+set -eu
+uname_s="$(uname -s 2>/dev/null || echo unknown)"
+uptime_s="$(awk '{printf "%ds", $1}' /proc/uptime 2>/dev/null || echo unknown)"
+printf '{"uname":"%s","uptime":"%s"}\n' "$uname_s" "$uptime_s"

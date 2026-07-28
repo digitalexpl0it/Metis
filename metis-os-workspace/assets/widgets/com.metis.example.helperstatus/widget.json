@@ -1,0 +1,29 @@
+{
+  "type": "column",
+  "spacing": 10,
+  "children": [
+    {
+      "type": "label",
+      "text": "{settings.title}",
+      "style": "title"
+    },
+    {
+      "type": "label",
+      "text": "Out-of-process helper example (Phase 14 §E.2). Host clock: {host.time}",
+      "style": "muted"
+    },
+    {
+      "type": "separator"
+    },
+    {
+      "type": "label",
+      "text": "uname: {helper.uname}",
+      "style": "body"
+    },
+    {
+      "type": "label",
+      "text": "uptime: {helper.uptime}",
+      "style": "body"
+    }
+  ]
+}

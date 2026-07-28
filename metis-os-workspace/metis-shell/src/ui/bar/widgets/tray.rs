@@ -165,6 +165,7 @@ impl TrayWidget {
         (self.refresh)();
     }
 
+    #[allow(dead_code)] // bar tray refresh hook
     pub fn update(&self) {
         (self.refresh)();
     }

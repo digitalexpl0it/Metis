@@ -768,6 +768,7 @@ pub fn dashboard_layer_inset() -> i32 {
 }
 
 /// Live edge-bar position (updated whenever bar geometry is applied).
+#[allow(dead_code)] // bar layout query helper
 pub fn bar_position() -> BarPosition {
     BAR_POSITION.with(Cell::get)
 }

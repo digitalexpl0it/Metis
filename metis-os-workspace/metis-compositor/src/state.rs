@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use metis_grid::{cell_to_pixels, app_tile_body_rect, GridLayout, GridMetrics, MonitorRect, PixelRect, TileKind, TileModeState};
-use metis_protocol::{CompositorCommand, WindowInfo};
+use metis_protocol::CompositorCommand;
 use smithay::{
     desktop::{PopupManager, Space, Window, layer_map_for_output},
     input::{Seat, SeatState},
@@ -262,6 +262,8 @@ pub struct MetisState {
     pub wallpaper: crate::wallpaper::Wallpaper,
     pub blur: crate::blur::BlurRuntime,
     pub hdr_encode: crate::hdr_encode::HdrEncodeRuntime,
+    /// Wave 3c: any mapped client advertised PQ/HLG via colour management.
+    pub(crate) hdr_client_content_visible: bool,
     pub color_lut: crate::color_lut::ColorLutRuntime,
     pub decorations: crate::decoration::DecorationRuntime,
     pub decoration_overrides: crate::decoration_overrides::DecorationsRuntime,
@@ -318,6 +320,8 @@ pub struct MetisState {
     pub(crate) desktop_underlay_commit: smithay::backend::renderer::utils::CommitCounter,
     pub(crate) night_light_id: smithay::backend::renderer::element::Id,
     pub(crate) night_light_commit: smithay::backend::renderer::utils::CommitCounter,
+    /// Dim-on-battery overlay (`power.json` → `dim_on_battery`).
+    pub(crate) battery_dim: crate::battery_dim::BatteryDimRuntime,
     /// Last computed night-light effective state when schedule gating is on.
     pub(crate) night_light_schedule_effective: Option<bool>,
     /// Deferred `outputs.json` apply so IPC replies return before layout/mirror work.
@@ -937,6 +941,7 @@ impl MetisState {
             wallpaper: crate::wallpaper::Wallpaper::new(),
             blur: crate::blur::BlurRuntime::default(),
             hdr_encode: crate::hdr_encode::HdrEncodeRuntime::default(),
+            hdr_client_content_visible: false,
             color_lut: crate::color_lut::ColorLutRuntime::default(),
             decorations: crate::decoration::DecorationRuntime::default(),
             decoration_overrides: crate::decoration_overrides::DecorationsRuntime::load(),
@@ -965,6 +970,7 @@ impl MetisState {
             desktop_underlay_commit: smithay::backend::renderer::utils::CommitCounter::default(),
             night_light_id: smithay::backend::renderer::element::Id::new(),
             night_light_commit: smithay::backend::renderer::utils::CommitCounter::default(),
+            battery_dim: crate::battery_dim::BatteryDimRuntime::new(power_cfg.dim_on_battery),
             night_light_schedule_effective: None,
             pending_apply_outputs: false,
             outputs_reload_due: None,
@@ -1071,6 +1077,11 @@ impl MetisState {
         }
 
         crate::night_light::maybe_tick_schedule(self);
+
+        // Slow AC/battery sample for dim-on-battery (sysfs; cheap).
+        if self.battery_dim.poll_battery() {
+            self.damaged = true;
+        }
 
         self.tick_outputs_reload();
 
@@ -3927,7 +3938,7 @@ impl MetisState {
         &self,
         surface: &WlSurface,
     ) -> (Option<u32>, Option<String>) {
-        use smithay::reexports::wayland_server::Resource;
+        
         let id = self.windows.id_for_surface(surface);
         let app_id = id.and_then(|i| self.windows.get(i).and_then(|r| r.app_id.clone()));
         (id, app_id)
@@ -8075,9 +8086,16 @@ impl MetisState {
                 let cfg = metis_config::load_power_config();
                 self.idle.set_blank_after_minutes(cfg.blank_after_minutes);
                 self.idle_reschedule();
+                if self.battery_dim.apply_config(cfg.dim_on_battery) {
+                    self.damaged = true;
+                    self.request_redraw();
+                }
+                let _ = self.battery_dim.poll_battery();
                 tracing::info!(
                     blank_after_minutes = cfg.blank_after_minutes,
-                    "reloaded power config; idle blank timeout updated"
+                    dim_on_battery = cfg.dim_on_battery,
+                    on_battery = self.battery_dim.on_battery,
+                    "reloaded power config; idle blank + battery dim updated"
                 );
                 CompositorEvent::Pong
             }

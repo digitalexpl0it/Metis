@@ -87,6 +87,7 @@ fn dismiss_task_popover() {
 
 pub struct TasksWidget {
     root: gtk::ScrolledWindow,
+    #[allow(dead_code)] // kept for lifetime — holds refresh closure alive
     refresh: Rc<dyn Fn()>,
 }
 
@@ -177,6 +178,7 @@ impl TasksWidget {
     }
 
     /// Repaint from the current window store (used by the bar's fan-out).
+    #[allow(dead_code)] // bar tasks refresh hook
     pub fn update(&self, _snapshot: &WindowsSnapshot) {
         (self.refresh)();
     }

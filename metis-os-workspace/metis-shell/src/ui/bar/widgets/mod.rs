@@ -82,6 +82,7 @@ impl WidgetRefs {
     /// Repaint the taskbar from the latest window store snapshot. The tasks
     /// widget also self-refreshes via the window store's `register_refresh` hook;
     /// this fan-out is the explicit driver for callers that hold the snapshot.
+    #[allow(dead_code)] // bar tasks fan-out helper
     pub fn apply_tasks(&self, snapshot: &crate::services::windows::WindowsSnapshot) {
         if let Some(w) = self.tasks.borrow().as_ref() {
             w.update(snapshot);

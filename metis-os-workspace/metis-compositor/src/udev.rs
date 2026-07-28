@@ -3,9 +3,10 @@
 //! Runs Metis directly on the GPU/TTY as its own session. Stage G uses a Smithay
 //! [`GpuManager`] and one [`BackendData`] per DRM device, so every seat GPU owns
 //! its scanner, output manager, render node, notifier, and CRTC surfaces. Metis's
-//! GLES-only custom elements are rendered by the output GPU's GLES renderer;
-//! cross-GPU blur is deliberately suppressed until `BlurElement` supports
-//! `MultiRenderer`.
+//! GLES-only custom elements are rendered by the output GPU's GLES renderer.
+//! Cross-GPU outputs prefer a primary→secondary transfer (see [`crate::cross_gpu`])
+//! so blur and the full stack composite on the primary GPU; on transfer failure
+//! we fall back to the local renderer with blur disabled.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -738,6 +739,122 @@ fn build_surface_dmabuf_feedback(
     })
 }
 
+/// Composite + scan out on the output's local GPU (non-transfer path).
+fn render_local_output_frame(
+    state: &mut MetisState,
+    gpus: &mut MetisGpuManager,
+    render_node: DrmNode,
+    primary_gpu: DrmNode,
+    id: UdevOutputId,
+    output: &Output,
+    frame_states: &mut Option<RenderElementStates>,
+    cross_gpu: bool,
+) -> Result<bool, String> {
+    let _ = primary_gpu;
+    let mut renderer_guard = gpus
+        .single_renderer(&render_node)
+        .map_err(|err| format!("renderer unavailable for output: {err:?}"))?;
+    let renderer = renderer_guard.as_mut();
+    if cross_gpu {
+        tracing::trace!(
+            ?render_node,
+            "using output GPU renderer; cross-GPU blur disabled"
+        );
+    }
+    if let Some(s) = state.udev.as_mut().and_then(|u| u.surface_mut(id)) {
+        s.pending = false;
+    }
+
+    let scale = Scale::from(output.current_scale().fractional_scale());
+    let origin: Point<i32, Physical> = state
+        .space
+        .output_geometry(output)
+        .map(|g| g.loc.to_physical_precise_round(scale))
+        .unwrap_or_default();
+
+    let mut elements = state.build_render_elements(
+        renderer,
+        origin,
+        scale,
+        RenderTargetInfo {
+            size: output.current_mode().map(|m| m.size).unwrap_or_default(),
+            output_name: Some(output.name().as_str()),
+            skip_night_light: false,
+        },
+        &[],
+        !cross_gpu,
+    );
+
+    let cursor = state.build_cursor_elements(renderer, output, scale);
+    if !cursor.is_empty() {
+        let mut stacked = cursor;
+        stacked.append(&mut elements);
+        elements = stacked;
+    }
+
+    crate::output_vrr::prepare_vrr_for_render(state, id);
+    crate::output_hdr::maybe_log_scanout_format(state, id);
+
+    let (hdr_active, hdr_transfer) = state
+        .udev
+        .as_ref()
+        .and_then(|u| u.surface(id))
+        .map(|s| (s.hdr_active, s.hdr_transfer))
+        .unwrap_or((false, crate::hdr_encode::HdrTransfer::Pq));
+
+    let output_name = output.name();
+    if state.color_mgmt.profiles_dirty {
+        let profiles = state.color_mgmt.profile_map().clone();
+        state.color_lut.sync_profiles(renderer, &profiles);
+        state.color_mgmt.profiles_dirty = false;
+        crate::output_gamma::apply_output_gamma(state);
+    }
+
+    let (frame_elements, clear): (Vec<OutputStack>, [f32; 4]) = {
+        state.refresh_hdr_content_flag();
+        let passthrough = hdr_active && state.hdr_client_content_visible;
+        if passthrough {
+            tracing::trace!(
+                output = %output_name,
+                "HDR client content visible — skipping SDR→HDR encode (pass-through)"
+            );
+        }
+        if let Some(pass) = crate::output_colour::apply_colour_post_pass(
+            &mut state.color_lut,
+            &mut state.hdr_encode,
+            renderer,
+            &elements,
+            &output_name,
+            output.current_mode().map(|m| m.size).unwrap_or_default(),
+            scale,
+            hdr_active,
+            hdr_transfer,
+            passthrough,
+        ) {
+            (pass.elements, pass.clear)
+        } else {
+            (elements, CLEAR_COLOR)
+        }
+    };
+
+    let surface = state
+        .udev
+        .as_mut()
+        .and_then(|udev| udev.surface_mut(id))
+        .ok_or_else(|| "surface gone during local render".to_string())?;
+    match surface
+        .drm_output
+        .render_frame(renderer, &frame_elements, clear, FrameFlags::DEFAULT)
+    {
+        Ok(res) => {
+            let empty = res.is_empty;
+            *frame_states = Some(res.states);
+            Ok(!empty)
+        }
+        Err(err) => Err(format!("{err:?}")),
+    }
+}
+
 impl MetisState {
     /// Scan the device's connectors and bring up / tear down outputs.
     pub(crate) fn scan_connectors(&mut self) {
@@ -949,11 +1066,11 @@ impl MetisState {
             .as_ref()
             .is_some_and(|udev| udev.render_node != render_node)
         {
-            tracing::warn!(
+            tracing::info!(
                 output = %name,
                 primary_gpu = ?self.udev.as_ref().map(|udev| udev.render_node),
                 ?render_node,
-                "cross-GPU output uses its local GLES renderer; blur is disabled"
+                "cross-GPU output: will try primary→secondary transfer (local+no-blur fallback)"
             );
         }
         let Some(backend) = self
@@ -1288,122 +1405,89 @@ impl MetisState {
         let Some(mut gpus) = self.udev.as_mut().and_then(|udev| udev.gpus.take()) else {
             return;
         };
-        let mut renderer_guard = match gpus.single_renderer(&render_node) {
-            Ok(renderer) => renderer,
-            Err(err) => {
-                tracing::warn!(?render_node, ?err, "renderer unavailable for output");
-                if let Some(udev) = self.udev.as_mut() {
-                    udev.gpus = Some(gpus);
-                }
-                return;
-            }
-        };
-        let renderer = renderer_guard.as_mut();
+
         let cross_gpu = primary_gpu != render_node;
-        if cross_gpu {
-            tracing::trace!(
-                ?primary_gpu,
-                ?render_node,
-                "using output GPU renderer; cross-GPU blur disabled"
-            );
-        }
-
-        if let Some(s) = self.udev.as_mut().and_then(|u| u.surface_mut(id)) {
-            s.pending = false;
-        }
-
-        // Captured from a successful non-mirror render so we can build the
-        // presentation feedback after the renderer is restored.
         let mut frame_states: Option<RenderElementStates> = None;
         let outcome: Result<bool, String> = if self.mirror_mode_active() {
-            crate::mirror::render_mirror_surface(self, renderer, id, !cross_gpu)
-        } else {
-            let scale = Scale::from(output.current_scale().fractional_scale());
-            let origin: Point<i32, Physical> = self
-                .space
-                .output_geometry(&output)
-                .map(|g| g.loc.to_physical_precise_round(scale))
-                .unwrap_or_default();
-
-            let mut elements = self.build_render_elements(
-                renderer,
-                origin,
-                scale,
-                RenderTargetInfo {
-                    size: output.current_mode().map(|m| m.size).unwrap_or_default(),
-                    output_name: Some(output.name().as_str()),
-                    skip_night_light: false,
-                },
-                &[],
-                !cross_gpu,
-            );
-
-            // Pointer goes on top of everything; only on the output under the cursor.
-            let cursor = self.build_cursor_elements(renderer, &output, scale);
-            if !cursor.is_empty() {
-                let mut stacked = cursor;
-                stacked.append(&mut elements);
-                elements = stacked;
-            }
-
-            crate::output_vrr::prepare_vrr_for_render(self, id);
-            crate::output_hdr::maybe_log_scanout_format(self, id);
-
-            let (hdr_active, hdr_transfer) = self
-                .udev
-                .as_ref()
-                .and_then(|u| u.surface(id))
-                .map(|s| (s.hdr_active, s.hdr_transfer))
-                .unwrap_or((false, crate::hdr_encode::HdrTransfer::Pq));
-
-            let output_name = output.name();
-            if self.color_mgmt.profiles_dirty {
-                let profiles = self.color_mgmt.profile_map().clone();
-                self.color_lut.sync_profiles(renderer, &profiles);
-                self.color_mgmt.profiles_dirty = false;
-                // Re-sync gamma now that LUT ownership may have changed.
-                crate::output_gamma::apply_output_gamma(self);
-            }
-
-            let (frame_elements, clear): (Vec<OutputStack>, [f32; 4]) =
-                if let Some(pass) = crate::output_colour::apply_colour_post_pass(
-                    &mut self.color_lut,
-                    &mut self.hdr_encode,
-                    renderer,
-                    &elements,
-                    &output_name,
-                    output
-                        .current_mode()
-                        .map(|m| m.size)
-                        .unwrap_or_default(),
-                    scale,
-                    hdr_active,
-                    hdr_transfer,
-                ) {
-                    (pass.elements, pass.clear)
-                } else {
-                    (elements, CLEAR_COLOR)
-                };
-
-            let Some(surface) = self.udev.as_mut().and_then(|udev| udev.surface_mut(id)) else {
-                return;
-            };
-            match surface.drm_output.render_frame(
-                renderer,
-                &frame_elements,
-                clear,
-                FrameFlags::DEFAULT,
-            ) {
-                Ok(res) => {
-                    let empty = res.is_empty;
-                    frame_states = Some(res.states);
-                    Ok(!empty)
+            let mut renderer_guard = match gpus.single_renderer(&render_node) {
+                Ok(renderer) => renderer,
+                Err(err) => {
+                    tracing::warn!(?render_node, ?err, "renderer unavailable for output");
+                    if let Some(udev) = self.udev.as_mut() {
+                        udev.gpus = Some(gpus);
+                    }
+                    return;
                 }
-                Err(err) => Err(format!("{err:?}")),
+            };
+            let renderer = renderer_guard.as_mut();
+            if let Some(s) = self.udev.as_mut().and_then(|u| u.surface_mut(id)) {
+                s.pending = false;
             }
+            let result = crate::mirror::render_mirror_surface(self, renderer, id, !cross_gpu);
+            drop(renderer_guard);
+            result
+        } else if cross_gpu {
+            if let Some(s) = self.udev.as_mut().and_then(|u| u.surface_mut(id)) {
+                s.pending = false;
+            }
+            match crate::cross_gpu::try_transfer_frame(
+                self,
+                &mut gpus,
+                primary_gpu,
+                render_node,
+                id,
+                &output,
+            ) {
+                Ok(Some(xfer)) => {
+                    frame_states = Some(xfer.states);
+                    Ok(!xfer.empty)
+                }
+                Ok(None) => {
+                    // Same GPU — should not happen when cross_gpu is true.
+                    render_local_output_frame(
+                        self,
+                        &mut gpus,
+                        render_node,
+                        primary_gpu,
+                        id,
+                        &output,
+                        &mut frame_states,
+                        false,
+                    )
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        %err,
+                        ?primary_gpu,
+                        ?render_node,
+                        output = %output.name(),
+                        "cross-GPU transfer failed; falling back to local renderer (blur off)"
+                    );
+                    render_local_output_frame(
+                        self,
+                        &mut gpus,
+                        render_node,
+                        primary_gpu,
+                        id,
+                        &output,
+                        &mut frame_states,
+                        true, // cross_gpu: blur off
+                    )
+                }
+            }
+        } else {
+            render_local_output_frame(
+                self,
+                &mut gpus,
+                render_node,
+                primary_gpu,
+                id,
+                &output,
+                &mut frame_states,
+                false,
+            )
         };
 
-        drop(renderer_guard);
         if self.image_capture.has_pending() {
             if render_node != primary_gpu {
                 self.wallpaper.invalidate_gpu_cache();

@@ -6,6 +6,7 @@ use std::fs;
 pub enum InputDeviceKind {
     Gamepad,
     Touchscreen,
+    #[allow(dead_code)] // reserved for unclassified HID in diagnostics UI
     Other,
 }
 
@@ -123,8 +124,6 @@ fn parse_input_devices() -> Vec<InputDevice> {
         let mut vendor = None;
         let mut product = None;
         let mut handlers = Vec::new();
-        let mut is_gamepad = false;
-        let mut is_touch = false;
 
         for line in block.lines() {
             if let Some(rest) = line.strip_prefix("N: Name=\"") {
@@ -157,7 +156,7 @@ fn parse_input_devices() -> Vec<InputDevice> {
         };
         let name_lc = name.to_lowercase();
         let handler_has_js = handlers.iter().any(|h| h.starts_with("js"));
-        is_gamepad = handler_has_js
+        let is_gamepad = handler_has_js
             || name_lc.contains("gamepad")
             || name_lc.contains("joystick")
             || (name_lc.contains("controller") && !name_lc.contains("steam controller"))
@@ -166,7 +165,7 @@ fn parse_input_devices() -> Vec<InputDevice> {
             || name_lc.contains("playstation")
             || name_lc.contains("dualshock")
             || name_lc.contains("switch pro");
-        is_touch = name_lc.contains("touchscreen")
+        let is_touch = name_lc.contains("touchscreen")
             || (name_lc.contains("touch") && !name_lc.contains("touchpad"));
         let kind = if is_gamepad {
             InputDeviceKind::Gamepad

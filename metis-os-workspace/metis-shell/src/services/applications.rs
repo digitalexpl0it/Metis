@@ -185,6 +185,7 @@ pub fn frequent_from(apps: &[AppEntry], limit: usize) -> Vec<AppEntry> {
 
 /// Apps the user has launched at least once, ordered by descending launch count
 /// (ties broken alphabetically). Drives the "Frequent Apps" section.
+#[allow(dead_code)] // convenience wrapper over `frequent_from`
 pub fn frequent(limit: usize) -> Vec<AppEntry> {
     frequent_from(&list_apps(), limit)
 }
@@ -222,6 +223,7 @@ pub fn search_in(apps: &[AppEntry], query: &str) -> Vec<AppEntry> {
 }
 
 /// Case-insensitive search over app name and keywords, ranked by launch count.
+#[allow(dead_code)] // convenience wrapper over `search_in`
 pub fn search(query: &str) -> Vec<AppEntry> {
     search_in(&list_apps(), query)
 }
@@ -236,6 +238,7 @@ pub fn pinned_entries_from(apps: &[AppEntry]) -> Vec<AppEntry> {
 }
 
 /// The user's pinned apps, in saved order, resolved to current `AppEntry`s.
+#[allow(dead_code)] // convenience wrapper over `pinned_entries_from`
 pub fn pinned_entries() -> Vec<AppEntry> {
     pinned_entries_from(&list_apps())
 }

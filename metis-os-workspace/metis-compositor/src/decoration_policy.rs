@@ -391,6 +391,7 @@ pub fn id_uses_compact_overlay(_app_id: &str) -> bool {
 /// maximized / snapped / grid-tiled. All Metis-decorated windows use the
 /// hover overlay so the client can fill the footprint; apps with top tabs only
 /// see the titlebar while the pointer is in the reveal strip.
+#[allow(dead_code)] // policy hook; wired when per-app titlebar rules land
 pub fn id_auto_hides_titlebar(_app_id: &str) -> bool {
     true
 }

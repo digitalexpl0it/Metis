@@ -17,6 +17,7 @@ struct UiState {
 
 pub struct ClipboardWidget {
     root: gtk::Button,
+    #[allow(dead_code)] // kept for lifetime — holds refresh closure alive
     refresh: Rc<dyn Fn()>,
 }
 
@@ -276,6 +277,7 @@ impl ClipboardWidget {
         &self.root
     }
 
+    #[allow(dead_code)] // bar clipboard refresh hook
     pub fn update(&self) {
         (self.refresh)();
     }

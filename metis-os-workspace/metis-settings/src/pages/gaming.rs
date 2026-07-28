@@ -40,6 +40,7 @@ struct Sections {
     status_box: gtk::Box,
     status_icon: gtk::Image,
     status_text: gtk::Label,
+    #[allow(dead_code)] // kept for lifetime
     setup_btn: gtk::Button,
     optimize_btn: gtk::Button,
     seeding: Rc<RefCell<bool>>,

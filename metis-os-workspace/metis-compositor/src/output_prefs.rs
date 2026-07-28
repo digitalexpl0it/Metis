@@ -235,12 +235,6 @@ pub fn apply_output_layout(state: &mut MetisState, cfg: &OutputsConfig) -> bool 
     changed
 }
 
-/// Default left-to-right placement for a newly connected output: immediately to
-/// the right of the primary (or the rightmost edge of the current desktop).
-pub fn auto_output_position(state: &MetisState) -> Point<i32, Logical> {
-    position_right_of_primary(state, state.output_runtime.cached())
-}
-
 fn position_right_of_primary(state: &MetisState, cfg: &OutputsConfig) -> Point<i32, Logical> {
     let primary_name = cfg
         .primary_output
@@ -339,11 +333,9 @@ pub fn persist_hotplug_connect(
             let p = cfg.outputs.entry(primary.clone()).or_default();
             if p.layout_x.is_none() {
                 p.layout_x = Some(0);
-                changed = true;
             }
             if p.layout_y.is_none() {
                 p.layout_y = Some(0);
-                changed = true;
             }
         }
 

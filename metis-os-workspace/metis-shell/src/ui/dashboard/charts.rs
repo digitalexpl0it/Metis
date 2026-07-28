@@ -188,6 +188,7 @@ pub fn wire_dual_rate_chart(
 }
 
 /// Network throughput chart (auto-scaled max from history).
+#[allow(dead_code)] // single-series network chart helper
 pub fn wire_rate_chart(area: &gtk::DrawingArea, history: Rc<RefCell<Vec<f64>>>, secondary: bool) {
     let area = area.clone();
     area.set_draw_func(move |_, cr, width, height| {

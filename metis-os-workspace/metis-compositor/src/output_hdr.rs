@@ -343,10 +343,12 @@ fn edid_hdr_caps(edid: &[u8]) -> EdidHdrCaps {
     caps
 }
 
+#[cfg(test)]
 fn edid_supports_st2084(edid: &[u8]) -> bool {
     edid_hdr_caps(edid).st2084
 }
 
+#[cfg(test)]
 fn edid_supports_hlg(edid: &[u8]) -> bool {
     edid_hdr_caps(edid).hlg
 }

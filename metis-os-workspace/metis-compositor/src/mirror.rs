@@ -13,7 +13,7 @@ use smithay::backend::renderer::element::{
     Kind,
 };
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
-use smithay::backend::renderer::{Bind, Offscreen, Renderer};
+use smithay::backend::renderer::{Bind, Offscreen};
 use smithay::output::Output;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 

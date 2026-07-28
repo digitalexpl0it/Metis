@@ -4,8 +4,10 @@ use std::io::Read;
 
 use metis_remote::{
     add_input_group, apt_install, autostart_from_config, disable, enable, firewall_apply,
-    firewall_apply_as_root, firewall_clear, firewall_clear_as_root, firewall_status, pause,
-    privileged_exe, resume, set_lan_only, set_password, status,
+    firewall_apply_as_root, firewall_clear, firewall_clear_as_root, firewall_rustdesk_apply,
+    firewall_rustdesk_apply_as_root, firewall_rustdesk_clear, firewall_rustdesk_clear_as_root,
+    firewall_rustdesk_status, firewall_status, pause, privileged_exe, resume, rustdesk_disable,
+    rustdesk_enable, rustdesk_status, set_lan_only, set_password, status,
 };
 use zeroize::Zeroize;
 
@@ -105,10 +107,45 @@ fn run(args: Vec<String>) -> Result<(), String> {
                 let snap = firewall_clear_as_root()?;
                 print_firewall(&snap)
             }
+            Some("rustdesk-apply") => {
+                let snap = firewall_rustdesk_apply()?;
+                print_firewall(&snap)
+            }
+            Some("rustdesk-clear") => {
+                let snap = firewall_rustdesk_clear()?;
+                print_firewall(&snap)
+            }
+            Some("rustdesk-status") => {
+                let snap = firewall_rustdesk_status();
+                print_firewall(&snap)
+            }
+            Some("rustdesk-apply-as-root") => {
+                let snap = firewall_rustdesk_apply_as_root()?;
+                print_firewall(&snap)
+            }
+            Some("rustdesk-clear-as-root") => {
+                let snap = firewall_rustdesk_clear_as_root()?;
+                print_firewall(&snap)
+            }
             _ => Err(
-                "usage: metis-remote firewall {apply|clear|status|apply-as-root|clear-as-root}"
+                "usage: metis-remote firewall {apply|clear|status|apply-as-root|clear-as-root|\
+                 rustdesk-apply|rustdesk-clear|rustdesk-status|rustdesk-apply-as-root|rustdesk-clear-as-root}"
                     .into(),
             ),
+        },
+        Some("rustdesk") => match args.get(1).map(String::as_str) {
+            Some("status") => {
+                let snap = rustdesk_status();
+                let json = serde_json::to_string_pretty(&snap).map_err(|e| e.to_string())?;
+                println!("{json}");
+                Ok(())
+            }
+            Some("enable") => rustdesk_enable(),
+            Some("disable") => {
+                let kill = args.get(2).map(String::as_str) == Some("--kill");
+                rustdesk_disable(kill)
+            }
+            _ => Err("usage: metis-remote rustdesk {status|enable|disable [--kill]}".into()),
         },
         Some("pk-apt-install") => {
             let pkgs: Vec<String> = args.into_iter().skip(1).collect();
@@ -151,6 +188,9 @@ fn print_help() {
   firewall apply      Apply LAN-only rules for TCP 3389 (pkexec if needed)
   firewall clear      Remove Metis LAN-only rules
   firewall status     Print firewall helper status JSON
+  rustdesk status     Print RustDesk install/running JSON
+  rustdesk enable     Start RustDesk + optional LAN firewall (GRD stays default host)
+  rustdesk disable    Clear RustDesk backend preference ([--kill] stops process)
 
 Never put the RDP password on the shell command line — pipe it to stdin."
     );

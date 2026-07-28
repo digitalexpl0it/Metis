@@ -17,6 +17,35 @@ individual phase sections for deferred follow-ups.
 
 ---
 
+## Optional stretch (Waves 1–4)
+
+Sequenced leftover stretch after Phases 1–15. See plan *Optional stretch backlog*.
+
+### Wave 1 — Dim on battery
+- [x] Compositor overlay from `power.json` → `dim_on_battery` + AC/battery poll
+- [x] Skip when HDR-active; live-reload; USER_GUIDE / CHANGELOG
+
+### Wave 2 — Widget §E.2 helpers
+- [x] Pack `helper` manifest + argv-only spawn + `{helper.*}` + example pack
+- [ ] In-process scripts / WASM (explicitly deferred)
+
+### Wave 3 — Graphics
+- [x] **3a** Primary→secondary transfer for hybrid outputs (CPU readback path;
+      local+no-blur fallback). Full `MultiRenderer` element typing later.
+- [ ] **3b** Default-on `wp_color_management_v1` — **blocked** on upstream
+      wayland-rs server/sys ObjectData UAF; keep `METIS_COLOR_MGMT=1` opt-in
+      ([docs/upstream/](../docs/upstream/README.md))
+- [x] **3c** Per-surface HDR pass-through into encode path (PQ/HLG hints;
+      mixed SDR+HDR approximate). Fuller tone-map matrix still welcome.
+
+### Wave 4 — Remote
+- [x] **4a** `metis-remote rustdesk status|enable|disable` + firewall/Polkit +
+      Settings; GRD remains default
+- [x] **4b** Decision doc only:
+      [`docs/decisions/remote-host-native-vs-grd.md`](../docs/decisions/remote-host-native-vs-grd.md)
+
+---
+
 ## Phase 1 — Edge bar
 
 - [x] `bar.json` config — position (top/bottom/left/right), height/width, opacity, widget order
@@ -318,16 +347,15 @@ so each milestone is shippable on its own:
         and per-device scanners, output managers, render nodes, notifier tokens,
         and CRTC surface maps. Outputs render with their device's
         `single_renderer`; primary-GPU client buffers are early-imported.
-        **Caveat:** Metis's GLES-specific `OutputStack` cannot yet be submitted
-        through Smithay `MultiRenderer`, so explicit primary→secondary transfer
-        remains a follow-up; the local output renderer is used as the safe
-        fallback. Custom blur is disabled when the output render node differs
-        from the primary. Wallpaper/decoration GL caches are invalidated on
-        renderer-context switches. **Hardware validation (2026-07-26):** hybrid
-        iGPU+dGPU laptop — HDMI projector output, gaming PRIME offload (fast),
-        pointer/input stable. **Deferred stretch:** explicit Smithay
-        `MultiRenderer` primary→secondary transfer (local renderer remains the
-        safe path).
+        **Caveat (updated Wave 3a, 2026-07-27):** hybrid outputs try a
+        primary→secondary framebuffer transfer (composite on primary with blur,
+        present on secondary); on failure fall back to the local renderer with
+        blur off. Full GLES `OutputStack` typing for Smithay `MultiRenderer`
+        (dmabuf path without CPU readback) remains a later stretch.
+        Wallpaper/decoration GL caches are invalidated on renderer-context
+        switches. **Hardware validation (2026-07-26):** hybrid iGPU+dGPU laptop
+        — HDMI projector output, gaming PRIME offload (fast), pointer/input
+        stable.
 - [x] **Settings portal (`org.freedesktop.portal.Settings`)** — `metis-portal`
       serves color-scheme (`u` uint32 per xdg-desktop-portal spec), gtk-theme,
       and empty decoration/button layouts from `metis-config` so GTK /
@@ -1251,14 +1279,15 @@ Config sketch:
       (`~/.local/share/metis/widgets/<id>/manifest.json`)
 - [x] **Host API** — theme CSS classes; hardened `open_uri` (http/https),
       `launch` (desktop id / PATH basename), `copy_text`; layout size caps;
-      live `{host.*}` binds (clock / weather / sysinfo) (2026-07-27)
+- [x] **Live `{host.*}` binds** (clock / weather / sysinfo) (2026-07-27)
 - [x] **JSON widgets** — declarative `widget.json` layout DSL rendered in
       `metis-shell --desktop-widgets`; sandboxed; **no** Electron / scripts /
       in-process `.so` in v1
-- [ ] **§E.2 follow-ups** — out-of-process helpers, script/WASM runtimes
-      (still explicitly deferred; live binds shipped above)
+- [x] **§E.2 out-of-process helpers** (2026-07-27) — pack `helper.exec` basename,
+      argv-only spawn, `{helper.*}` tokens; example `com.metis.example.helperstatus`
+- [ ] **§E.2 scripts / WASM** — Rhai/Lua/WASM runtimes still deferred
 
-**Phase 14 complete (2026-07-18); §E JSON extensions shipped 2026-07-26.**
+**Phase 14 complete (2026-07-18); §E JSON extensions shipped 2026-07-26; helpers 2026-07-27.**
 
 **Dependencies:** Phase 1 theme/CSS + layer-shell patterns (done); Phase 10
 dashboard sampling (done); Phase 2 weather service (done); app launch /

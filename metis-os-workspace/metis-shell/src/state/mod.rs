@@ -18,6 +18,7 @@ pub enum SystemEvent {
 /// Commands issued by the UI and handled asynchronously on a Tokio runtime.
 #[derive(Debug, Clone)]
 pub enum UiCommand {
+    #[allow(dead_code)] // async briefing refresh hook
     RefreshBriefing,
 }
 
@@ -43,6 +44,7 @@ pub struct StateHandles {
 
 pub struct MetisInit {
     pub event_rx: Receiver<SystemEvent>,
+    #[allow(dead_code)] // kept for lifetime — holds the UI command channel open
     pub command_tx: tokio::sync::mpsc::UnboundedSender<UiCommand>,
 }
 

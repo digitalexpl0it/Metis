@@ -687,6 +687,7 @@ pub struct VpnWidget {
     password_box: gtk::Box,
     password_title: gtk::Label,
     password_entry: gtk::PasswordEntry,
+    #[allow(dead_code)] // kept for lifetime — GTK widget in VPN password row
     remember: gtk::CheckButton,
     password_target: Rc<RefCell<Option<String>>>,
     last_sig: RefCell<String>,

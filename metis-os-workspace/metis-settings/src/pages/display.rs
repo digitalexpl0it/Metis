@@ -980,47 +980,37 @@ fn build_output_panel(
             let clear_profile = clear_profile.clone();
             let parent = parent.clone();
             move |_| {
-                let dialog = gtk::FileChooserDialog::builder()
-                    .title(&tr("Choose ICC colour profile"))
-                    .action(gtk::FileChooserAction::Open)
-                    .modal(true)
-                    .transient_for(&parent)
-                    .build();
-                dialog.add_button(&tr("Cancel"), gtk::ResponseType::Cancel);
-                dialog.add_button(&tr("Open"), gtk::ResponseType::Accept);
+                let dialog = gtk::FileDialog::new();
+                dialog.set_title(&tr("Choose ICC colour profile"));
                 let filter = gtk::FileFilter::new();
                 filter.set_name(Some(&tr("ICC profiles")));
                 filter.add_mime_type("application/vnd.iccprofile");
                 filter.add_pattern("*.icc");
                 filter.add_pattern("*.icm");
-                dialog.add_filter(&filter);
-                dialog.connect_response({
+                let filters = gio::ListStore::new::<gtk::FileFilter>();
+                filters.append(&filter);
+                dialog.set_filters(Some(&filters));
+                dialog.open(Some(&parent), gio::Cancellable::NONE, {
                     let cfg = cfg.clone();
                     let name = name.clone();
                     let profile_label = profile_label.clone();
                     let clear_profile = clear_profile.clone();
-                    move |d, response| {
-                        if response == gtk::ResponseType::Accept {
-                            if let Some(file) = d.file() {
-                                if let Some(path) = file.path() {
-                                    let path = path.display().to_string();
-                                    {
-                                        let mut c = cfg.borrow_mut();
-                                        c.outputs
-                                            .entry(name.clone())
-                                            .or_default()
-                                            .color_profile = Some(path.clone());
-                                    }
-                                    profile_label.set_text(&path);
-                                    clear_profile.set_sensitive(true);
-                                    save_and_apply(&cfg.borrow());
-                                }
-                            }
+                    move |res| {
+                        let Ok(file) = res else { return };
+                        let Some(path) = file.path() else { return };
+                        let path = path.display().to_string();
+                        {
+                            let mut c = cfg.borrow_mut();
+                            c.outputs
+                                .entry(name.clone())
+                                .or_default()
+                                .color_profile = Some(path.clone());
                         }
-                        d.close();
+                        profile_label.set_text(&path);
+                        clear_profile.set_sensitive(true);
+                        save_and_apply(&cfg.borrow());
                     }
                 });
-                dialog.show();
             }
         });
         clear_profile.connect_clicked({

@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use metis_protocol::{CompositorCommand, CompositorEvent, GridLayout, GridMetrics, MonitorRect, TileMode, WindowInfo};
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn primary_monitor_rect() -> MonitorRect {
     match send_command(CompositorCommand::GetMonitor) {
         Ok(CompositorEvent::Monitor { rect }) => rect,
@@ -16,6 +17,7 @@ pub fn primary_monitor_rect() -> MonitorRect {
     }
 }
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn get_layout() -> std::io::Result<(GridLayout, u32, GridMetrics)> {
     match send_command(CompositorCommand::GetLayout)? {
         CompositorEvent::LayoutChanged {
@@ -33,11 +35,13 @@ pub fn close_window(id: u32) -> std::io::Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn set_window_fullscreen(id: u32, enabled: bool) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::SetFullscreen { id, enabled })?;
     Ok(())
 }
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn focus_window(id: u32) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::FocusWindow { id })?;
     Ok(())
@@ -62,6 +66,7 @@ pub fn switch_workspace(output: Option<String>, id: u32) -> std::io::Result<()> 
     Ok(())
 }
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn set_tile_mode(tile_id: &str, mode: TileMode) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::SetTileMode {
         tile_id: tile_id.to_string(),
@@ -78,6 +83,7 @@ pub fn list_windows() -> std::io::Result<Vec<WindowInfo>> {
     }
 }
 
+#[allow(dead_code)] // compositor IPC helper
 pub fn apply_grid_layout(layout: GridLayout, gutter_px: u32) -> std::io::Result<()> {
     let _ = send_command(CompositorCommand::ApplyLayout { layout, gutter_px })?;
     Ok(())

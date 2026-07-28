@@ -29,6 +29,7 @@ pub struct TrayItem {
     pub menu_path: Option<String>,
     pub menu: Option<TrayMenu>,
     /// When true, left click should prefer `ContextMenu` over `Activate`.
+    #[allow(dead_code)] // parsed from SNI props for future tray UI
     pub item_is_menu: bool,
 }
 

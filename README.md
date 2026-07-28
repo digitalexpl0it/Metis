@@ -281,10 +281,12 @@ reference.
   **Extension API v1** (2026-07-26): JSON declarative packs under
   `…/metis/widgets/<id>/` (no Electron / scripts / `.so`).
 
-Optional follow-up: compositor **dim on battery** hook, widget extension §E.2
-(out-of-process helpers / script·WASM), default-on colour-management
-protocol (upstream wayland-rs), per-surface HDR, Metis-native remote host.
-Live `{host.*}` binds and `ext-session-lock-v1` shipped 2026-07-27.
+Optional follow-up (remaining): default-on colour-management protocol (upstream
+wayland-rs ObjectData UAF — still opt-in `METIS_COLOR_MGMT=1`), fuller per-surface
+HDR tone-map, dmabuf MultiRenderer without CPU readback. **Shipped stretch
+(2026-07-27):** dim on battery, widget OOP helpers, hybrid GPU transfer,
+HDR pass-through, optional RustDesk `metis-remote` backend, native-host decision
+doc. Live `{host.*}` binds and `ext-session-lock-v1` also shipped 2026-07-27.
 **Phase 15 §F** (viewer, RustDesk preset, image RDP clipboard, lock
 fingerprint/YubiKey) is done (2026-07-26).
 

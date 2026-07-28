@@ -208,11 +208,21 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     let rd_open_btn = gtk::Button::with_label(&tr("Open RustDesk"));
     rd_open_btn.set_halign(gtk::Align::Start);
+    let rd_enable_btn = gtk::Button::with_label(&tr("Use as Metis backend"));
+    rd_enable_btn.set_halign(gtk::Align::Start);
+    rd_enable_btn.set_tooltip_text(Some(&tr(
+        "Runs `metis-remote rustdesk enable` — starts RustDesk and optional LAN firewall. \
+         GNOME Remote Desktop remains the default session-sharing host.",
+    )));
+    let rd_disable_btn = gtk::Button::with_label(&tr("Stop Metis backend"));
+    rd_disable_btn.set_halign(gtk::Align::Start);
     let rd_copy_btn = gtk::Button::with_label(&tr("Copy install instructions"));
     rd_copy_btn.set_halign(gtk::Align::Start);
     let rd_actions = gtk::Box::new(gtk::Orientation::Vertical, 8);
     rd_actions.add_css_class("metis-settings-actions");
     rd_actions.append(&rd_open_btn);
+    rd_actions.append(&rd_enable_btn);
+    rd_actions.append(&rd_disable_btn);
     rd_actions.append(&rd_copy_btn);
     rd_body.append(&rd_actions);
     content.append(&rd_card);
@@ -609,10 +619,24 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let refresh_rustdesk = {
         let rd_status = rd_status.clone();
         let rd_open_btn = rd_open_btn.clone();
+        let rd_enable_btn = rd_enable_btn.clone();
         Rc::new(move || {
             let install = remote::detect_rustdesk();
-            rd_status.set_text(&tr(install.status_label()));
+            let backend = remote::rustdesk_backend_status();
+            let label = if let Some(snap) = &backend {
+                if snap.backend_selected && snap.running {
+                    format!("{} — Metis backend active", tr(install.status_label()))
+                } else if snap.backend_selected {
+                    format!("{} — Metis backend selected", tr(install.status_label()))
+                } else {
+                    tr(install.status_label()).to_string()
+                }
+            } else {
+                tr(install.status_label()).to_string()
+            };
+            rd_status.set_text(&label);
             rd_open_btn.set_sensitive(install.is_installed());
+            rd_enable_btn.set_sensitive(install.is_installed());
             if install.is_installed() {
                 rd_open_btn.set_tooltip_text(None);
             } else {
@@ -634,6 +658,46 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                     sections_rd
                         .hint_label
                         .set_text(&tr("Opening RustDesk…"));
+                    refresh_rustdesk();
+                }
+                Err(err) => {
+                    *sections_rd.action_error.borrow_mut() = Some(err.clone());
+                    sections_rd.error_label.set_text(&err);
+                    sections_rd.error_label.set_visible(true);
+                }
+            }
+        });
+    }
+
+    {
+        let sections_rd = sections.clone();
+        let refresh_rustdesk = refresh_rustdesk.clone();
+        rd_enable_btn.connect_clicked(move |_| {
+            match remote::rustdesk_enable() {
+                Ok(()) => {
+                    sections_rd.hint_label.set_text(&tr(
+                        "RustDesk Metis backend enabled (optional). GRD remains the default host.",
+                    ));
+                    refresh_rustdesk();
+                }
+                Err(err) => {
+                    *sections_rd.action_error.borrow_mut() = Some(err.clone());
+                    sections_rd.error_label.set_text(&err);
+                    sections_rd.error_label.set_visible(true);
+                }
+            }
+        });
+    }
+
+    {
+        let sections_rd = sections.clone();
+        let refresh_rustdesk = refresh_rustdesk.clone();
+        rd_disable_btn.connect_clicked(move |_| {
+            match remote::rustdesk_disable(false) {
+                Ok(()) => {
+                    sections_rd
+                        .hint_label
+                        .set_text(&tr("RustDesk Metis backend preference cleared."));
                     refresh_rustdesk();
                 }
                 Err(err) => {

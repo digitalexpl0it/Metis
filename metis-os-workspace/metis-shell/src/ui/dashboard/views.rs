@@ -34,6 +34,7 @@ pub struct OverviewPage {
     pub wifi_down: gtk::Label,
     pub wifi_up: gtk::Label,
     pub net_chart: gtk::DrawingArea,
+    #[allow(dead_code)] // kept for lifetime — GTK legend row in network card
     pub net_legend: gtk::Box,
     pub firewall_status: gtk::Label,
     pub disk_io_value: gtk::Label,

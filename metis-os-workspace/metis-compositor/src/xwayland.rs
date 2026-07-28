@@ -48,7 +48,7 @@ impl MetisState {
     /// With `config.json` `"xwayland_mode": "isolated"`, also starts a second
     /// gaming bucket so Steam/Proton can use a separate `DISPLAY` (Phase 15 §E).
     pub fn start_xwayland(&mut self, loop_handle: LoopHandle<'static, MetisState>) {
-        use std::process::Stdio;
+        
         use metis_config::XwaylandMode;
 
         let cfg = metis_config::load_app_config();

@@ -81,6 +81,7 @@ pub fn init() {
     }
 }
 
+#[allow(dead_code)] // screenshot overlay state query
 pub fn is_active() -> bool {
     OVERLAY.with(|o| o.borrow().is_some())
 }
@@ -360,7 +361,7 @@ fn sync_after_buttons(
 }
 
 fn after_from_buttons(
-    copy: &gtk::ToggleButton,
+    _copy: &gtk::ToggleButton,
     save: &gtk::ToggleButton,
     both: &gtk::ToggleButton,
     open: &gtk::ToggleButton,

@@ -1,9 +1,11 @@
-//! Desktop sharing orchestration for Metis (gnome-remote-desktop session-sharing RDP).
+//! Desktop sharing orchestration for Metis (gnome-remote-desktop session-sharing RDP,
+//! optional RustDesk backend).
 
 mod firewall;
 mod gnome_rdp;
 mod host;
 mod pkhelpers;
+mod rustdesk;
 
 pub use firewall::FirewallStatus;
 pub use gnome_rdp::{
@@ -14,6 +16,7 @@ pub use host::{hostname, lan_addresses};
 pub use pkhelpers::{
     add_input_group, apt_install, privileged_exe, validate_username, APT_ALLOWLIST,
 };
+pub use rustdesk::RustDeskStatus;
 
 use metis_config::{load_remote_config, save_remote_config};
 use zeroize::Zeroize;
@@ -233,6 +236,38 @@ pub fn firewall_apply_as_root() -> Result<FirewallStatus, String> {
 
 pub fn firewall_clear_as_root() -> Result<FirewallStatus, String> {
     firewall::clear_as_root()
+}
+
+pub fn rustdesk_status() -> RustDeskStatus {
+    rustdesk::status()
+}
+
+pub fn rustdesk_enable() -> Result<(), String> {
+    rustdesk::enable()
+}
+
+pub fn rustdesk_disable(kill: bool) -> Result<(), String> {
+    rustdesk::disable(kill)
+}
+
+pub fn firewall_rustdesk_apply() -> Result<FirewallStatus, String> {
+    firewall::apply_rustdesk()
+}
+
+pub fn firewall_rustdesk_clear() -> Result<FirewallStatus, String> {
+    firewall::clear_rustdesk()
+}
+
+pub fn firewall_rustdesk_status() -> FirewallStatus {
+    firewall::status_rustdesk()
+}
+
+pub fn firewall_rustdesk_apply_as_root() -> Result<FirewallStatus, String> {
+    firewall::apply_rustdesk_as_root()
+}
+
+pub fn firewall_rustdesk_clear_as_root() -> Result<FirewallStatus, String> {
+    firewall::clear_rustdesk_as_root()
 }
 
 /// Set RDP username/password via grdctl (headless store).

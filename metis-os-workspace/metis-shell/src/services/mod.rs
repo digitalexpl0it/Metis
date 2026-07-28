@@ -18,20 +18,19 @@ mod volumes;
 mod workspaces;
 
 pub use applications::{watch_app_index, AppEntry};
-pub use audio_viz::{audio_viz_frame, ensure_audio_viz, release_audio_viz, VizFrame};
+pub use audio_viz::{audio_viz_frame, ensure_audio_viz, release_audio_viz};
 pub use calendar::{
     reload_calendars, spawn_calendar_service, CalCommand, Event as CalendarEvent, LocalEvent,
 };
 pub use clipboard::{
     apply_clipboard_event, clear_history, delete_entry, filtered_entries, load_history,
-    private_mode, recall_entry, register_refresh as register_clipboard_refresh, page_size,
-    runtime_clipboard_entries, set_page_size, set_private_mode, toggle_favorite,
+    private_mode, recall_entry, register_refresh as register_clipboard_refresh, page_size, set_page_size, set_private_mode, toggle_favorite,
     active_entry_id, ClipboardEntry, ClipboardPage,
 };
 pub use dashboard::{
-    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree, polling_active,
+    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree,
     set_polling_active, short_kernel_version, spawn_dashboard_pollers, DashboardSnapshot, DiskMount,
-    GpuTempReading, HealthLevel, ProcessClass, ProcessRow,
+    GpuTempReading, ProcessClass, ProcessRow,
 };
 pub use notifications::{
     clear_notifications, close_notification, dismiss_notification,
@@ -45,7 +44,7 @@ pub use poll::{
     arm_user_wifi_radio_toggle, bluetooth_set_powered, set_mic_mute, set_mic_volume_absolute,
     set_mute, set_volume_absolute, set_volume_relative, spawn_bar_pollers,
     suppress_wifi_radio_writes, vpn_clear_password_prompt, vpn_down, vpn_up,
-    vpn_up_with_password, wifi_connect, wifi_ensure_radio_on, wifi_hotplug_suppressed, wifi_scan,
+    vpn_up_with_password, wifi_connect, wifi_hotplug_suppressed, wifi_scan,
     wifi_set_radio, BarSnapshot, BluetoothDevice, BluetoothStatus, EthernetStatus, VpnFeedback,
     VpnStatus, WifiNetwork,
 };
@@ -61,7 +60,7 @@ pub use volumes::{
     snapshot as volumes_snapshot, unmount as volumes_unmount, VolumeEntry, VolumeKind,
 };
 pub use weather::{
-    condition_label, hour_label, last_weather_snapshot, remember_snapshot, spawn_weather_service,
+    last_weather_snapshot, spawn_weather_service,
     weather_refresh, LocationWeather, WeatherSnapshot,
 };
 pub use windows::refresh_taskbars;

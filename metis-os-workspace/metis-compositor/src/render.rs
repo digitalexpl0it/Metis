@@ -389,7 +389,11 @@ impl MetisState {
             )));
         }
 
-        // Night light is the topmost scene layer (cursor is drawn after the stack).
+        // Night light / battery dim sit above the scene (cursor is drawn after).
+        // Dim is inserted first so night-light warmth (if any) stacks above it.
+        if let Some(dim) = crate::battery_dim::battery_dim_element(self, &target) {
+            render_elements.insert(0, OutputStack::Overlay(dim));
+        }
         if crate::night_light::should_render_night_light(self, &target) {
             if let Some(tint) = night_light_element(self, &target) {
                 render_elements.insert(0, OutputStack::Overlay(tint));

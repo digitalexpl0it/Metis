@@ -35,7 +35,7 @@ pub struct PowerConfig {
     pub suspend_after_minutes: u32,
     #[serde(default)]
     pub lid_close: LidCloseAction,
-    /// Dim the screen when on battery (preference flag for future compositor hook).
+    /// Dim the screen when on battery (compositor overlay wash).
     #[serde(default = "default_true")]
     pub dim_on_battery: bool,
 }

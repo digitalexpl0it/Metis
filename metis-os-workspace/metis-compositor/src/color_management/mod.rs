@@ -38,6 +38,8 @@ pub enum NamedPrimaries {
 
 /// Runtime colour-management state (profiles + live protocol objects).
 pub struct ColorManagementRuntime {
+    /// Holds the `wp_color_manager_v1` global for Wayland object lifetime.
+    #[allow(dead_code)]
     pub protocol: ColorManagementState,
     /// Output name → ICC bytes (`None` = sRGB parametric default).
     profiles: HashMap<String, Option<Arc<[u8]>>>,
@@ -86,6 +88,8 @@ impl ColorManagementRuntime {
         }
     }
 
+    /// Returns the registered colour-management global, if any.
+    #[allow(dead_code)] // kept for global lifetime / future teardown hooks
     pub fn global(&self) -> Option<GlobalId> {
         self.protocol.global()
     }
@@ -142,7 +146,7 @@ impl ColorManagementRuntime {
     }
 
     /// Surface image-description record id, if the client set one via
-    /// `wp_color_management_surface_v1` (render still treats buffers as sRGB).
+    /// `wp_color_management_surface_v1`. HDR TF hints feed Wave 3c pass-through.
     pub fn surface_description_id(&self, surface_id: &ObjectId) -> Option<u64> {
         self.surface_descriptions.get(surface_id).copied()
     }

@@ -33,6 +33,32 @@
     <annotate key="org.freedesktop.policykit.exec.argv2">clear-as-root</annotate>
   </action>
 
+  <action id="org.metis.remote.firewall.rustdesk-apply">
+    <description>Apply Metis LAN-only RustDesk firewall rules</description>
+    <message>Authentication is required to restrict RustDesk ports to the LAN</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">firewall</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv2">rustdesk-apply-as-root</annotate>
+  </action>
+
+  <action id="org.metis.remote.firewall.rustdesk-clear">
+    <description>Clear Metis LAN-only RustDesk firewall rules</description>
+    <message>Authentication is required to remove Metis RustDesk firewall rules</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/metis-remote</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">firewall</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv2">rustdesk-clear-as-root</annotate>
+  </action>
+
   <action id="org.metis.software.apt-install">
     <description>Install allowlisted Metis optional packages</description>
     <message>Authentication is required to install optional Metis software</message>

@@ -18,6 +18,7 @@ fn token_endpoint(tenant: &str) -> String {
     format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token")
 }
 
+#[allow(dead_code)] // MS365 device-code OAuth helper
 fn devicecode_endpoint(tenant: &str) -> String {
     format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode")
 }
@@ -51,6 +52,7 @@ struct TokenResponse {
     error: Option<String>,
 }
 
+#[allow(dead_code)] // MS365 device-code OAuth helper (re-exported for settings UI)
 pub async fn start_device_login(tenant: &str, client_id: &str) -> ProviderResult<DeviceCode> {
     let resp = client()
         .post(devicecode_endpoint(tenant))
@@ -65,6 +67,7 @@ pub async fn start_device_login(tenant: &str, client_id: &str) -> ProviderResult
 
 /// Poll the token endpoint until the user authorizes, then persist the refresh
 /// token in the Secret Service.
+#[allow(dead_code)] // MS365 device-code OAuth helper (re-exported for settings UI)
 pub async fn complete_device_login(
     account_id: &str,
     tenant: &str,

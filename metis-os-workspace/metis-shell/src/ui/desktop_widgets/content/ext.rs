@@ -1,18 +1,23 @@
 //! Declarative JSON extension widgets (Phase 14 §E).
 //!
 //! Action fields are **not** settings-interpolated (labels/copy text may be).
-//! Labels may use `{host.*}` live binds (clock / weather / sys), refreshed on a
-//! short timer. URI / launch targets are re-validated at click time.
+//! Labels may use `{host.*}` and `{helper.*}` live binds, refreshed on a short
+//! timer. URI / launch targets are re-validated at click time.
+//!
+//! Pack helpers (optional `manifest.helper`) are spawned argv-only from the
+//! widgets process — never via compositor IPC (Phase 15 §D posture).
 
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
 use metis_config::{
     find_widget_extension, interpolate_settings, interpolate_template, is_safe_launch_exec,
-    is_safe_launch_id, is_safe_open_uri, load_widget_layout, template_needs_host, validate_action,
-    DesktopWidgetInstance, HostBindValues, WidgetExtAction, WidgetExtLabelStyle, WidgetExtNode,
-    WIDGET_EXT_MAX_COPY,
+    is_safe_launch_id, is_safe_open_uri, load_widget_layout, resolve_helper_exec,
+    run_helper_snapshot, template_needs_host, validate_action, DesktopWidgetInstance,
+    HostBindValues, WidgetExtAction, WidgetExtLabelStyle, WidgetExtNode, WIDGET_EXT_MAX_COPY,
 };
 use sysinfo::{Disks, System};
 
@@ -22,12 +27,23 @@ struct HostBoundLabel {
     label: gtk::Label,
     template: String,
     settings: serde_json::Map<String, serde_json::Value>,
+    /// Pack id when the label uses `{helper.*}` (for per-pack helper cache).
+    extension_id: Option<String>,
+}
+
+struct HelperCacheEntry {
+    values: std::collections::BTreeMap<String, String>,
+    next_poll: Instant,
+    poll_every: Duration,
+    exec: PathBuf,
 }
 
 thread_local! {
     static HOST_BOUNDS: RefCell<Vec<HostBoundLabel>> = const { RefCell::new(Vec::new()) };
     static HOST_TIMER: Cell<bool> = const { Cell::new(false) };
     static HOST_SYS: RefCell<Option<System>> = const { RefCell::new(None) };
+    static HELPER_CACHE: RefCell<HashMap<String, HelperCacheEntry>> =
+        RefCell::new(HashMap::new());
 }
 
 pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
@@ -45,9 +61,36 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
             return error_card(&format!("Invalid widget.json: {err}"));
         }
     };
+    if let Some(helper) = &ext.manifest.helper {
+        if let Some(exec) = resolve_helper_exec(&ext.root, helper) {
+            let poll = Duration::from_secs(u64::from(helper.poll_seconds.clamp(2, 120)));
+            HELPER_CACHE.with(|cache| {
+                cache.borrow_mut().insert(
+                    inst.extension_id.clone(),
+                    HelperCacheEntry {
+                        values: run_helper_snapshot(&exec).unwrap_or_default(),
+                        next_poll: Instant::now() + poll,
+                        poll_every: poll,
+                        exec,
+                    },
+                );
+            });
+        } else {
+            tracing::warn!(
+                id = %inst.extension_id,
+                exec = %helper.exec,
+                "extension helper exec rejected or missing"
+            );
+        }
+    }
     let settings = inst.extension_settings.clone();
-    let host = sample_host_binds();
-    let root = build_node(&layout, &settings, Some(&host));
+    let host = sample_host_binds(Some(&inst.extension_id));
+    let root = build_node(
+        &layout,
+        &settings,
+        Some(&host),
+        Some(inst.extension_id.as_str()),
+    );
     ensure_host_timer();
     root
 }
@@ -83,19 +126,20 @@ fn build_node(
     node: &WidgetExtNode,
     settings: &serde_json::Map<String, serde_json::Value>,
     host: Option<&HostBindValues>,
+    extension_id: Option<&str>,
 ) -> gtk::Widget {
     match node {
         WidgetExtNode::Column { spacing, children } => {
             let col = gtk::Box::new(gtk::Orientation::Vertical, (*spacing).max(0));
             for child in children {
-                col.append(&build_node(child, settings, host));
+                col.append(&build_node(child, settings, host, extension_id));
             }
             col.upcast()
         }
         WidgetExtNode::Row { spacing, children } => {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, (*spacing).max(0));
             for child in children {
-                row.append(&build_node(child, settings, host));
+                row.append(&build_node(child, settings, host, extension_id));
             }
             row.upcast()
         }
@@ -103,7 +147,7 @@ fn build_node(
             let col = gtk::Box::new(gtk::Orientation::Vertical, (*spacing).max(0));
             col.add_css_class("metis-dw-ext-list");
             for child in children {
-                col.append(&build_node(child, settings, host));
+                col.append(&build_node(child, settings, host, extension_id));
             }
             col.upcast()
         }
@@ -119,7 +163,12 @@ fn build_node(
                 WidgetExtLabelStyle::Body => label.add_css_class("metis-dw-body"),
             }
             if template_needs_host(text) {
-                register_host_label(label.clone(), text.clone(), settings.clone());
+                register_host_label(
+                    label.clone(),
+                    text.clone(),
+                    settings.clone(),
+                    extension_id.map(str::to_string),
+                );
             }
             label.upcast()
         }
@@ -152,12 +201,14 @@ fn register_host_label(
     label: gtk::Label,
     template: String,
     settings: serde_json::Map<String, serde_json::Value>,
+    extension_id: Option<String>,
 ) {
     HOST_BOUNDS.with(|list| {
         list.borrow_mut().push(HostBoundLabel {
             label,
             template,
             settings,
+            extension_id,
         });
     });
 }
@@ -174,17 +225,29 @@ fn ensure_host_timer() {
 }
 
 fn refresh_host_bounds() {
-    let host = sample_host_binds();
+    HELPER_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        let now = Instant::now();
+        for entry in cache.values_mut() {
+            if now < entry.next_poll {
+                continue;
+            }
+            entry.values = run_helper_snapshot(&entry.exec).unwrap_or_default();
+            entry.next_poll = now + entry.poll_every;
+        }
+    });
+
     HOST_BOUNDS.with(|list| {
         list.borrow_mut().retain(|bound| bound.label.is_visible());
         for bound in list.borrow().iter() {
+            let host = sample_host_binds(bound.extension_id.as_deref());
             let text = interpolate_template(&bound.template, &bound.settings, Some(&host));
             bound.label.set_text(&text);
         }
     });
 }
 
-fn sample_host_binds() -> HostBindValues {
+fn sample_host_binds(extension_id: Option<&str>) -> HostBindValues {
     let now = chrono::Local::now();
     let time = now.format("%H:%M:%S").to_string();
     let date = now.format("%a %b %-d").to_string();
@@ -234,6 +297,12 @@ fn sample_host_binds() -> HostBindValues {
         (cpu, mem, disk)
     });
 
+    let helper = extension_id
+        .and_then(|id| {
+            HELPER_CACHE.with(|cache| cache.borrow().get(id).map(|e| e.values.clone()))
+        })
+        .unwrap_or_default();
+
     HostBindValues {
         time,
         date,
@@ -243,6 +312,7 @@ fn sample_host_binds() -> HostBindValues {
         sys_cpu,
         sys_mem,
         sys_disk,
+        helper,
     }
 }
 

@@ -5,12 +5,13 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Remote desktop backend. v1 ships GNOME RDP only; more variants later.
+/// Remote desktop backend. Default remains GNOME RDP (GRD); RustDesk is optional.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum RemoteBackend {
     #[default]
     GnomeRdp,
+    RustDesk,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,6 +38,13 @@ pub struct RemoteConfig {
     /// Last firewall apply/clear failure (cleared on success). Shown in Settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub firewall_last_error: Option<String>,
+    /// Last successful Metis LAN-only firewall apply for RustDesk ports.
+    #[serde(default)]
+    pub rustdesk_firewall_applied: bool,
+    #[serde(default)]
+    pub rustdesk_firewall_backend: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rustdesk_firewall_last_error: Option<String>,
 }
 
 fn default_auto_start() -> bool {
@@ -57,6 +65,9 @@ impl Default for RemoteConfig {
             firewall_applied: false,
             firewall_backend: String::new(),
             firewall_last_error: None,
+            rustdesk_firewall_applied: false,
+            rustdesk_firewall_backend: String::new(),
+            rustdesk_firewall_last_error: None,
         }
     }
 }

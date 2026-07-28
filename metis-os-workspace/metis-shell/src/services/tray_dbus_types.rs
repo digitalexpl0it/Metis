@@ -12,7 +12,9 @@ pub struct MenuLayout {
 
 #[derive(Debug, zbus::zvariant::Type, serde::Deserialize)]
 pub struct SubMenuLayout {
+    #[allow(dead_code)] // required for DBusMenu deserialization
     pub id: i32,
+    #[allow(dead_code)] // required for DBusMenu deserialization
     pub fields: HashMap<String, OwnedValue>,
     pub submenus: Vec<OwnedValue>,
 }

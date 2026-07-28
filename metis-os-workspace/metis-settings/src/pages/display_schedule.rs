@@ -14,11 +14,13 @@ use metis_i18n::tr;
 pub struct ScheduleTimePicker {
     pub root: gtk::Box,
     button: gtk::Button,
+    #[allow(dead_code)] // kept for lifetime — popover is parented to the button
     popover: gtk::Popover,
     popover_entry: gtk::Entry,
     list: gtk::ListBox,
     hhmm: Rc<RefCell<String>>,
     use_12h: Rc<Cell<bool>>,
+    #[allow(dead_code)] // kept for lifetime — callback held by entry handlers
     on_change: Rc<dyn Fn(String)>,
     /// Set while we write the entry programmatically (`refresh`, reformatting
     /// after a parse) so our own `set_text` doesn't re-fire `connect_changed` and

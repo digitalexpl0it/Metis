@@ -1,0 +1,20 @@
+{
+  "id": "com.metis.example.helperstatus",
+  "name": "Helper Status",
+  "version": "1.0.0",
+  "api": 1,
+  "default_size": [320, 160],
+  "min_size": [240, 120],
+  "helper": {
+    "exec": "helper",
+    "poll_seconds": 5
+  },
+  "settings_schema": [
+    {
+      "key": "title",
+      "type": "string",
+      "label": "Title",
+      "default": "Helper Status"
+    }
+  ]
+}

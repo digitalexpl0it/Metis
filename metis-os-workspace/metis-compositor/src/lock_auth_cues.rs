@@ -4,7 +4,7 @@
 //! (`pam_fprintd` / `pam_u2f`). Prefer `false` on any I/O error so password-only
 //! installs never show a misleading “touch sensor” hint.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Yubico USB vendor id (hex, as sysfs `idVendor`).
 const YUBICO_VENDOR: &str = "1050";

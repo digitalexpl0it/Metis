@@ -723,7 +723,10 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   **experimental and off by default** — set `METIS_COLOR_MGMT=1` only for
   testing; advertising it to Chromium/Ozone can crash the session (upstream
   wayland-rs server ObjectData bug). Hardware ICC / LUT / HDR do **not** need
-  that env var. Rotation is still upcoming.
+  that env var. When a client advertises PQ/HLG via colour management (opt-in
+  protocol), the compositor **pass-through** skips SDR→HDR re-encode for that
+  output so HDR content is not double-transformed (mixed SDR+HDR is approximate).
+  Rotation is still upcoming.
 - **Appearance** — Light/Dark style; accent, secondary, and semantic status
   colors; bar opacity and backdrop blur. A **background picker** with three
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and
@@ -755,8 +758,12 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   `{host.date}`, `{host.weather.temp}`, `{host.weather.unit}`,
   `{host.weather.summary}`, `{host.sys.cpu}`, `{host.sys.mem}`,
   `{host.sys.disk}` (refreshed by the widgets host; not allowed in action
-  fields). No scripts or in-process plugins. Example pack:
-  `com.metis.example.quicklinks`.
+  fields). Optional **out-of-process helpers**: declare `helper.exec` (basename
+  under the pack) + `poll_seconds` in `manifest.json`; the helper is spawned
+  argv-only (cleared env, timeout, stdout size cap) and must print a JSON
+  object — labels may use `{helper.<key>}`. No network from helpers by default;
+  not available to `open_uri` / `launch`. Rhai/Lua/WASM remain deferred. Example
+  packs: `com.metis.example.quicklinks`, `com.metis.example.helperstatus`.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
   opacity. Tap **Super** to toggle the menu; start typing while it is open to
@@ -825,7 +832,7 @@ full effect under a real (DRM) session.
 | **Blank screen after** | Metis compositor (DPMS) | Live-reloaded via `ReloadPower` IPC; independent of logind. |
 | **Suspend after idle** | systemd-logind (`busctl`) | Best-effort; needs logind and appropriate permissions. |
 | **When lid is closed** | systemd-logind | Laptop only; suspend / ignore / hibernate / power off. |
-| **Dim on battery** | *(not wired yet)* | Saved to `power.json` only — compositor dim hook is planned. |
+| **Dim on battery** | Compositor overlay | When on battery and enabled in `power.json`, applies a light full-output dim (skipped on HDR-active outputs). Live-reloads with Power settings. |
 
 While gaming, **Settings → Gaming → Auto performance profile** (via `metis-gamingd`)
 can temporarily switch to **Performance** and restore your previous profile when the
@@ -937,14 +944,14 @@ VNC (`wayvnc`) and classic `xrdp` login sessions are **not** driven by
 Settings → Remote access. For VNC / compatibility notes, see
 [`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md) (Remote desktop).
 
-#### RustDesk (third-party preset)
+#### RustDesk (optional Metis backend)
 
-Settings → Remote access includes a **RustDesk (third-party)** card that detects
-a system or Flatpak install, opens the app, and can copy install instructions.
-Metis does **not** orchestrate RustDesk enable/disable, credentials, or firewall
-ports (`metis-remote` remains `gnome_rdp` only). Prefer PipeWire / portal capture
-on Metis; default ports are **21115–21119**. Full host-install notes and
-verification checklist: [`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md).
+Settings → Remote access includes a **RustDesk** card that detects a system or
+Flatpak install, opens the app, copies install instructions, and can run
+`metis-remote rustdesk enable|disable` (optional Metis backend + LAN firewall for
+ports **21115–21119** TCP / **21116** UDP). **GNOME Remote Desktop remains the
+default session-sharing host.** Prefer PipeWire / portal capture on Metis.
+Full host-install notes: [`docs/UBUNTU_DEV.md`](UBUNTU_DEV.md).
 
 ### System dashboard (Control Center)
 
@@ -1054,8 +1061,8 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `briefing.json` | Login-briefing weather coordinates + RSS feed (optional) |
 | `input.json` | Mouse, touchpad, and keyboard layout/repeat (compositor live-reload) |
 | `keybinds.json` | Desktop shortcuts (chords → actions); browse in Settings → Shortcuts, edit under Keyboard → Shortcuts |
-| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery preference (dim not wired yet) |
-| `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp`), auto-start, LAN-only hint |
+| `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery (compositor overlay) |
+| `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp` default / `rustdesk`), auto-start, LAN-only + firewall state |
 | `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |
 | `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |
 | `gaming-flatpak.json` | Record of applied Flatpak gaming overrides (managed by `metis-gaming`) |

@@ -271,6 +271,7 @@ impl NotificationKind {
         }
     }
 
+    #[allow(dead_code)] // notification icon fallback API
     pub fn icon_glyph(self) -> &'static str {
         match self {
             Self::Error => "!",

@@ -30,6 +30,8 @@ pub struct ColorManagerGlobalData;
 /// Registered `wp_color_manager_v1` global (absent when the protocol is disabled).
 #[derive(Debug)]
 pub struct ColorManagementState {
+    /// Keeps the Wayland global alive for the compositor lifetime.
+    #[allow(dead_code)]
     global: Option<GlobalId>,
 }
 
@@ -91,6 +93,7 @@ impl ColorManagementState {
         Self { global }
     }
 
+    #[allow(dead_code)] // accessor for global lifetime / future teardown hooks
     pub fn global(&self) -> Option<GlobalId> {
         self.global.clone()
     }
@@ -352,6 +355,8 @@ impl Dispatch2<wp_image_description_v1::WpImageDescriptionV1, MetisState> for Im
 
 #[derive(Debug, Clone, Copy)]
 struct ImageDescriptionInfoData {
+    /// Dispatch user data; ties the info object to its description record.
+    #[allow(dead_code)]
     record_id: u64,
 }
 

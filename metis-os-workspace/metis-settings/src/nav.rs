@@ -14,6 +14,7 @@ pub enum NavHue {
     Teal,
     Green,
     Gray,
+    #[allow(dead_code)] // CSS class reserved for future nav accents
     Yellow,
 }
 

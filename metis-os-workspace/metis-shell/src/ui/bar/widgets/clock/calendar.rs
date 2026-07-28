@@ -327,6 +327,7 @@ impl CalendarPage {
         self.events_scroll.set_max_content_height(max_h.max(80));
     }
     /// Combined two-column widget for legacy popover layouts.
+    #[allow(dead_code)] // legacy calendar popover layout API
     pub fn combined_widget(&self) -> gtk::Widget {
         let columns = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)

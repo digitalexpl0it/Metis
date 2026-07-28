@@ -9,6 +9,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Dim on battery** — `power.json` → `dim_on_battery` drives a light compositor
+  overlay when on battery (skipped on HDR-active outputs); live-reloads.
+- **Widget out-of-process helpers (§E.2)** — packs may declare `helper.exec` +
+  `poll_seconds`; argv-only spawn with timeout/stdout caps; `{helper.*}` tokens.
+  Example: `com.metis.example.helperstatus`. Scripts/WASM still deferred.
+- **Cross-GPU primary→secondary transfer** — hybrid outputs composite on the
+  primary GPU (blur on) and present on the secondary; falls back to local
+  renderer with blur off if transfer fails.
+- **Per-surface HDR pass-through** — when colour-management clients advertise
+  PQ/HLG, skip SDR→HDR re-encode on HDR outputs (requires `METIS_COLOR_MGMT=1`).
+- **`metis-remote rustdesk`** — optional RustDesk backend (`status|enable|disable`)
+  + LAN firewall helpers; Settings card drives it. GRD remains default host.
+- **Native remote host decision** — `docs/decisions/remote-host-native-vs-grd.md`
+  (research only; keep GRD).
 - **Control Center — Battery + Logs** — optional overview cards: battery charge
   history sparkline (hidden on desktops without a battery) and a compact
   `journalctl` log tail (unavailable when journalctl is missing or denied).
@@ -21,6 +35,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   …). Metis compositor PAM lock (`Super+L`) remains the default; only one lock
   owner per cycle. Protocol unlock runs the same side effects as PAM unlock
   (RDP resume, capture/inject denylist).
+
+### Deferred
+
+- **Default-on `wp_color_management_v1`** — still blocked on upstream wayland-rs
+  server/sys ObjectData UAF ([docs/upstream/](docs/upstream/README.md)); keep
+  `METIS_COLOR_MGMT=1` opt-in.
 
 ### Fixed
 

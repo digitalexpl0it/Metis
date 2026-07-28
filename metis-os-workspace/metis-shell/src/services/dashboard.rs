@@ -17,6 +17,7 @@ pub fn set_polling_active(active: bool) {
     POLL_ACTIVE.store(active, Ordering::Relaxed);
 }
 
+#[allow(dead_code)] // dashboard poll gate query
 pub fn polling_active() -> bool {
     POLL_ACTIVE.load(Ordering::Relaxed)
 }
@@ -106,6 +107,7 @@ pub enum HealthLevel {
 }
 
 impl HealthLevel {
+    #[allow(dead_code)] // dashboard health badge API
     pub fn label(self) -> &'static str {
         match self {
             HealthLevel::Good => "Healthy",
@@ -114,6 +116,7 @@ impl HealthLevel {
         }
     }
 
+    #[allow(dead_code)] // dashboard health badge API
     pub fn css_class(self) -> &'static str {
         match self {
             HealthLevel::Good => "metis-dash-health-good",
@@ -705,10 +708,6 @@ fn username_for_uid(uid: u32) -> String {
 
 fn current_uid() -> libc::uid_t {
     unsafe { libc::getuid() }
-}
-
-fn read_net_bytes() -> Option<(u64, u64)> {
-    read_net_breakdown().map(|n| (n.total_rx, n.total_tx))
 }
 
 #[derive(Debug, Clone, Copy, Default)]

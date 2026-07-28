@@ -4,7 +4,6 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use gio::prelude::*;
-use gtk::prelude::*;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -388,6 +387,48 @@ pub fn rustdesk_install_instructions() -> &'static str {
      sudo apt install -y ./rustdesk-*.deb\n\
      # or Flatpak:\n\
      flatpak install flathub com.rustdesk.RustDesk"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct RustDeskBackendSnapshot {
+    #[serde(default)]
+    pub installed: bool,
+    #[serde(default)]
+    pub install: String,
+    #[serde(default)]
+    pub running: bool,
+    #[serde(default)]
+    pub backend_selected: bool,
+    #[serde(default)]
+    pub config_enabled: bool,
+    #[serde(default)]
+    pub firewall_applied: bool,
+    #[serde(default)]
+    pub firewall_backend: String,
+    pub error: Option<String>,
+}
+
+pub fn rustdesk_backend_status() -> Option<RustDeskBackendSnapshot> {
+    match run_remote(&["rustdesk", "status"]) {
+        Ok(json) => {
+            let trimmed = json.trim();
+            let payload = trimmed.find('{').map(|i| &trimmed[i..]).unwrap_or(trimmed);
+            serde_json::from_str(payload).ok()
+        }
+        Err(_) => None,
+    }
+}
+
+pub fn rustdesk_enable() -> Result<(), String> {
+    run_remote(&["rustdesk", "enable"]).map(|_| ())
+}
+
+pub fn rustdesk_disable(kill: bool) -> Result<(), String> {
+    if kill {
+        run_remote(&["rustdesk", "disable", "--kill"]).map(|_| ())
+    } else {
+        run_remote(&["rustdesk", "disable"]).map(|_| ())
+    }
 }
 
 /// Desktop notification for sharing state changes.

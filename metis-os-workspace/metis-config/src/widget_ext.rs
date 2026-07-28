@@ -43,6 +43,146 @@ pub struct WidgetExtManifest {
     pub min_size: Option<[u32; 2]>,
     #[serde(default)]
     pub settings_schema: Vec<WidgetExtSetting>,
+    /// Optional out-of-process helper (Phase 14 §E.2). Basename under the pack
+    /// root only — spawned argv-only with stdout JSON `{ "key": "value", … }`.
+    #[serde(default)]
+    pub helper: Option<WidgetExtHelper>,
+}
+
+/// Out-of-process helper declared by a widget pack.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WidgetExtHelper {
+    /// File name inside the pack directory (no `/`, no `..`).
+    pub exec: String,
+    /// How often the host re-runs the helper (clamped 2–120 s).
+    #[serde(default = "default_helper_poll")]
+    pub poll_seconds: u32,
+}
+
+fn default_helper_poll() -> u32 {
+    5
+}
+
+/// Max stdout bytes accepted from a helper.
+pub const WIDGET_EXT_HELPER_MAX_STDOUT: usize = 8 * 1024;
+/// Hard timeout for one helper run.
+pub const WIDGET_EXT_HELPER_TIMEOUT_SECS: u64 = 3;
+
+/// Resolve and validate `helper.exec` to an absolute path under `pack_root`.
+pub fn resolve_helper_exec(pack_root: &Path, helper: &WidgetExtHelper) -> Option<PathBuf> {
+    let name = helper.exec.trim();
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return None;
+    }
+    if name.starts_with('.') {
+        return None;
+    }
+    let path = pack_root.join(name);
+    let root = pack_root.canonicalize().ok()?;
+    let canon = path.canonicalize().ok()?;
+    if !canon.starts_with(&root) {
+        return None;
+    }
+    if !canon.is_file() {
+        return None;
+    }
+    Some(canon)
+}
+
+/// Run a pack helper (argv-only). Expects stdout JSON object of string/number/bool
+/// values flattened to string map. Times out and kills the child on hang.
+pub fn run_helper_snapshot(
+    exec: &Path,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let mut child = Command::new(exec)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", std::env::var("HOME").unwrap_or_default())
+        .env("LANG", std::env::var("LANG").unwrap_or_else(|_| "C.UTF-8".into()))
+        .spawn()
+        .map_err(|e| format!("spawn helper: {e}"))?;
+
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "helper missing stdout".to_string())?;
+
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 1024];
+        loop {
+            if buf.len() >= WIDGET_EXT_HELPER_MAX_STDOUT {
+                break;
+            }
+            match stdout.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let room = WIDGET_EXT_HELPER_MAX_STDOUT.saturating_sub(buf.len());
+                    buf.extend_from_slice(&chunk[..n.min(room)]);
+                    if n > room {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        let _ = tx.send(buf);
+    });
+
+    let timeout = Duration::from_secs(WIDGET_EXT_HELPER_TIMEOUT_SECS);
+    let buf = match rx.recv_timeout(timeout) {
+        Ok(b) => b,
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("helper timed out".into());
+        }
+    };
+    let status = child.wait().map_err(|e| format!("wait helper: {e}"))?;
+    if !status.success() {
+        return Err(format!("helper exit {status}"));
+    }
+    let text = String::from_utf8_lossy(&buf);
+    let value: serde_json::Value =
+        serde_json::from_str(text.trim()).map_err(|e| format!("helper JSON: {e}"))?;
+    let mut out = std::collections::BTreeMap::new();
+    let Some(obj) = value.as_object() else {
+        return Err("helper JSON must be an object".into());
+    };
+    for (k, v) in obj {
+        if !is_safe_helper_key(k) {
+            continue;
+        }
+        let s = match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            serde_json::Value::Null => String::new(),
+            _ => continue,
+        };
+        if s.len() > 512 {
+            continue;
+        }
+        out.insert(k.clone(), s);
+    }
+    Ok(out)
+}
+
+fn is_safe_helper_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 64
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 fn default_version() -> String {
@@ -535,14 +675,16 @@ pub struct HostBindValues {
     pub sys_cpu: String,
     pub sys_mem: String,
     pub sys_disk: String,
+    /// Flat map from out-of-process helper stdout JSON (`{helper.key}`).
+    pub helper: std::collections::BTreeMap<String, String>,
 }
 
-/// True when `template` references any `{host.…}` token.
+/// True when `template` references any `{host.…}` or `{helper.…}` token.
 pub fn template_needs_host(template: &str) -> bool {
-    template.contains("{host.")
+    template.contains("{host.") || template.contains("{helper.")
 }
 
-/// Settings first, then host binds. Unknown `{host.*}` tokens become empty.
+/// Settings first, then host binds, then helper keys. Unknown tokens → empty.
 pub fn interpolate_template(
     template: &str,
     settings: &serde_json::Map<String, serde_json::Value>,
@@ -565,6 +707,17 @@ pub fn interpolate_template(
         ("{host.sys.disk}", host.sys_disk.as_str()),
     ] {
         out = out.replace(key, val);
+    }
+    // Replace `{helper.<key>}` from the helper map (unknown → empty).
+    while let Some(start) = out.find("{helper.") {
+        let rest = &out[start + "{helper.".len()..];
+        let Some(end_rel) = rest.find('}') else {
+            break;
+        };
+        let key = &rest[..end_rel];
+        let repl = host.helper.get(key).map(String::as_str).unwrap_or("");
+        let needle = format!("{{helper.{key}}}");
+        out = out.replacen(&needle, repl, 1);
     }
     out
 }
@@ -629,6 +782,23 @@ mod tests {
             },
         };
         assert!(validate_widget_layout(&good).is_ok());
+    }
+
+    #[test]
+    fn interpolates_helper_tokens() {
+        let mut helper = std::collections::BTreeMap::new();
+        helper.insert("uname".into(), "Linux".into());
+        let host = HostBindValues {
+            time: "12:00:00".into(),
+            helper,
+            ..HostBindValues::default()
+        };
+        let settings = serde_json::Map::new();
+        assert_eq!(
+            interpolate_template("os={helper.uname} t={host.time}", &settings, Some(&host)),
+            "os=Linux t=12:00:00"
+        );
+        assert!(template_needs_host("{helper.uname}"));
     }
 
     #[test]

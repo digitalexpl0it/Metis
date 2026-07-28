@@ -589,3 +589,320 @@ fn clear_ufw() -> Result<(), String> {
     }
     Ok(())
 }
+
+// --- RustDesk ports (Wave 4a) ------------------------------------------------
+
+const NFT_TABLE_RD: &str = "metis_rustdesk";
+const UFW_COMMENT_RD: &str = "metis-rustdesk-lan-only";
+/// TCP 21115–21119; UDP 21116 (relay / hole-punch).
+const RD_TCP_PORTS: &str = "21115-21119";
+const RD_UDP_PORT: u16 = 21116;
+
+fn persist_rustdesk(applied: bool, backend: &str) {
+    let mut cfg = load_remote_config();
+    cfg.rustdesk_firewall_applied = applied;
+    cfg.rustdesk_firewall_backend = if applied {
+        backend.to_string()
+    } else {
+        String::new()
+    };
+    if applied {
+        cfg.rustdesk_firewall_last_error = None;
+    }
+    if let Err(err) = save_remote_config(&cfg) {
+        tracing::warn!(%err, "failed to persist rustdesk_firewall_applied");
+    }
+}
+
+fn persist_rustdesk_error(err: &str) {
+    let mut cfg = load_remote_config();
+    cfg.rustdesk_firewall_applied = false;
+    cfg.rustdesk_firewall_backend.clear();
+    cfg.rustdesk_firewall_last_error = Some(err.to_string());
+    if let Err(e) = save_remote_config(&cfg) {
+        tracing::warn!(%e, "failed to persist rustdesk_firewall_last_error");
+    }
+}
+
+/// Status of RustDesk LAN-only firewall rules.
+pub fn status_rustdesk() -> FirewallStatus {
+    if nft_table_exists(NFT_TABLE_RD) {
+        return FirewallStatus {
+            applied: true,
+            backend: "nft".into(),
+            detail: None,
+        };
+    }
+    if ufw_has_comment(UFW_COMMENT_RD) {
+        return FirewallStatus {
+            applied: true,
+            backend: "ufw".into(),
+            detail: None,
+        };
+    }
+    let cfg = load_remote_config();
+    if cfg.rustdesk_firewall_applied {
+        return FirewallStatus {
+            applied: true,
+            backend: if cfg.rustdesk_firewall_backend.is_empty() {
+                preferred_backend_label()
+            } else {
+                cfg.rustdesk_firewall_backend
+            },
+            detail: None,
+        };
+    }
+    FirewallStatus {
+        applied: false,
+        backend: String::new(),
+        detail: cfg.rustdesk_firewall_last_error,
+    }
+}
+
+fn nft_table_exists(table: &str) -> bool {
+    let Some(nft) = nft_bin() else {
+        return false;
+    };
+    run(&nft, &["list", "table", "inet", table])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn ufw_has_comment(comment: &str) -> bool {
+    let Some(ufw) = ufw_bin() else {
+        return false;
+    };
+    run(&ufw, &["status"])
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains(comment))
+        .unwrap_or(false)
+}
+
+/// Apply LAN-only rules for RustDesk ports.
+pub fn apply_rustdesk() -> Result<FirewallStatus, String> {
+    let current = status_rustdesk();
+    if current.applied {
+        return Ok(current);
+    }
+    {
+        let mut cfg = load_remote_config();
+        if cfg.rustdesk_firewall_last_error.take().is_some() {
+            let _ = save_remote_config(&cfg);
+        }
+    }
+    let backend = enforceable_backend().map_err(|e| {
+        persist_rustdesk_error(&e);
+        e
+    })?;
+    let result = if is_root() {
+        apply_rustdesk_as_root()?
+    } else {
+        escalate(&["firewall", "rustdesk-apply-as-root"]).map_err(|err| {
+            let msg = format!("{err}");
+            persist_rustdesk_error(&msg);
+            msg
+        })?;
+        FirewallStatus {
+            applied: true,
+            backend: backend.to_string(),
+            detail: None,
+        }
+    };
+    if result.applied {
+        persist_rustdesk(true, &result.backend);
+    }
+    Ok(result)
+}
+
+/// Clear RustDesk LAN-only rules.
+pub fn clear_rustdesk() -> Result<FirewallStatus, String> {
+    let current = status_rustdesk();
+    if !current.applied {
+        persist_rustdesk(false, "");
+        return Ok(FirewallStatus {
+            applied: false,
+            backend: String::new(),
+            detail: current.detail,
+        });
+    }
+    if is_root() {
+        clear_rustdesk_as_root()?;
+    } else {
+        escalate(&["firewall", "rustdesk-clear-as-root"])?;
+    }
+    persist_rustdesk(false, "");
+    Ok(FirewallStatus {
+        applied: false,
+        backend: String::new(),
+        detail: None,
+    })
+}
+
+pub fn apply_rustdesk_as_root() -> Result<FirewallStatus, String> {
+    if !is_root() {
+        return Err("firewall rustdesk-apply-as-root requires root".into());
+    }
+    let backend = enforceable_backend()?;
+    match backend {
+        "nft" => apply_nft_rustdesk()?,
+        "ufw" => apply_ufw_rustdesk()?,
+        other => return Err(format!("unsupported firewall backend: {other}")),
+    }
+    persist_rustdesk(true, backend);
+    Ok(FirewallStatus {
+        applied: true,
+        backend: backend.to_string(),
+        detail: None,
+    })
+}
+
+pub fn clear_rustdesk_as_root() -> Result<FirewallStatus, String> {
+    if !is_root() {
+        return Err("firewall rustdesk-clear-as-root requires root".into());
+    }
+    let _ = clear_nft_rustdesk();
+    let _ = clear_ufw_rustdesk();
+    persist_rustdesk(false, "");
+    Ok(FirewallStatus {
+        applied: false,
+        backend: String::new(),
+        detail: None,
+    })
+}
+
+fn apply_nft_rustdesk() -> Result<(), String> {
+    let nft = nft_bin().ok_or_else(|| "nft not found".to_string())?;
+    let _ = run(&nft, &["delete", "table", "inet", NFT_TABLE_RD]);
+    let mut script = String::from("table inet metis_rustdesk {\n");
+    script.push_str("  chain input {\n");
+    script.push_str("    type filter hook input priority filter; policy accept;\n");
+    for cidr in LAN_V4 {
+        script.push_str(&format!(
+            "    tcp dport {{ {RD_TCP_PORTS} }} ip saddr {cidr} accept\n"
+        ));
+        script.push_str(&format!(
+            "    udp dport {RD_UDP_PORT} ip saddr {cidr} accept\n"
+        ));
+    }
+    for cidr in LAN_V6 {
+        script.push_str(&format!(
+            "    tcp dport {{ {RD_TCP_PORTS} }} ip6 saddr {cidr} accept\n"
+        ));
+        script.push_str(&format!(
+            "    udp dport {RD_UDP_PORT} ip6 saddr {cidr} accept\n"
+        ));
+    }
+    script.push_str(&format!("    tcp dport {{ {RD_TCP_PORTS} }} drop\n"));
+    script.push_str(&format!("    udp dport {RD_UDP_PORT} drop\n"));
+    script.push_str("  }\n}\n");
+    let status = Command::new(&nft)
+        .arg("-f")
+        .arg("-")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut child| {
+            use std::io::Write;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin.write_all(script.as_bytes())?;
+            }
+            child.wait_with_output()
+        })
+        .map_err(|e| format!("nft rustdesk apply: {e}"))?;
+    if status.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "nft rustdesk apply failed: {}",
+            String::from_utf8_lossy(&status.stderr).trim()
+        ))
+    }
+}
+
+fn clear_nft_rustdesk() -> Result<(), String> {
+    let nft = nft_bin().ok_or_else(|| "nft not found".to_string())?;
+    let out = run(&nft, &["delete", "table", "inet", NFT_TABLE_RD])?;
+    if out.status.success()
+        || String::from_utf8_lossy(&out.stderr).contains("No such file")
+        || String::from_utf8_lossy(&out.stderr).contains("does not exist")
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "nft rustdesk clear failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
+fn apply_ufw_rustdesk() -> Result<(), String> {
+    let ufw = ufw_bin().ok_or_else(|| "ufw not found".to_string())?;
+    let _ = clear_ufw_rustdesk();
+    for cidr in LAN_V4.iter().chain(LAN_V6.iter()) {
+        for proto_port in [
+            ("tcp", RD_TCP_PORTS),
+            ("udp", "21116"),
+        ] {
+            let out = run(
+                &ufw,
+                &[
+                    "allow",
+                    "from",
+                    cidr,
+                    "to",
+                    "any",
+                    "port",
+                    proto_port.1,
+                    "proto",
+                    proto_port.0,
+                    "comment",
+                    UFW_COMMENT_RD,
+                ],
+            )?;
+            if !out.status.success() {
+                return Err(format!(
+                    "ufw rustdesk allow {cidr}: {}",
+                    String::from_utf8_lossy(&out.stderr).trim()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn clear_ufw_rustdesk() -> Result<(), String> {
+    let Some(ufw) = ufw_bin() else {
+        return Ok(());
+    };
+    for _ in 0..64 {
+        let Ok(output) = run(&ufw, &["status", "numbered"]) else {
+            break;
+        };
+        let text = String::from_utf8_lossy(&output.stdout);
+        let Some(num) = text.lines().find_map(|line| {
+            if !line.contains(UFW_COMMENT_RD) {
+                return None;
+            }
+            let trimmed = line.trim_start();
+            let start = trimmed.strip_prefix('[')?;
+            let (num, _) = start.split_once(']')?;
+            Some(num.trim().to_string())
+        }) else {
+            break;
+        };
+        let mut child = Command::new(&ufw)
+            .args(["delete", &num])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("ufw rustdesk delete spawn: {e}"))?;
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(b"y\n");
+        }
+        let _ = child.wait();
+    }
+    Ok(())
+}
