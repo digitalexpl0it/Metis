@@ -76,6 +76,10 @@ pub struct LockState {
     biometric_auto_tried: bool,
     /// 1 Hz repaint timer so the clock stays current while locked.
     clock_timer: Option<RegistrationToken>,
+    /// Password caret visibility; flipped by [`MetisState::lock_arm_clock_timer`]
+    /// so blink rate is stable even when the session is otherwise idle (wall-clock
+    /// sampling at the same 500 ms cadence aliases into a harsh strobe).
+    caret_on: bool,
     font: Option<Font>,
     font_data: Option<Vec<u8>>,
     font_loaded: bool,
@@ -109,6 +113,7 @@ impl LockState {
             auth_cues: AuthCues::default(),
             biometric_auto_tried: false,
             clock_timer: None,
+            caret_on: true,
             font: None,
             font_data: None,
             font_loaded: false,
@@ -204,6 +209,7 @@ impl MetisState {
         self.lock.status = lock_cue_status(self.lock.auth_cues);
         self.lock.attempts = 0;
         self.lock.hovered_power = None;
+        self.lock.caret_on = true;
         self.lock.clear_gpu_cache();
 
         // Clear keyboard focus so no client receives further keys.
@@ -266,13 +272,14 @@ impl MetisState {
         if self.lock.clock_timer.is_some() {
             return;
         }
-        // Repaint at 2 Hz: the clock only changes each second (cached by content),
-        // but the password caret blinks on this cadence.
+        // Repaint at 2 Hz: clock text caches by content, caret toggles here so
+        // blink stays a clean 1 Hz even when nothing else is damaging frames.
         let tick = Duration::from_millis(500);
         match self
             .loop_handle
             .insert_source(Timer::from_duration(tick), move |_, _, state: &mut MetisState| {
                 if state.lock.locked {
+                    state.lock.caret_on = !state.lock.caret_on;
                     state.damaged = true;
                     state.request_redraw();
                     TimeoutAction::ToDuration(tick)
@@ -476,7 +483,9 @@ impl MetisState {
 
         // Password entry: dots (or a placeholder) drawn over a rounded field box,
         // with a blinking caret at the insertion point (the field is always the
-        // focus while locked). Blink on the 2 Hz repaint tick, ~50% duty cycle.
+        // focus while locked). Visibility is owned by the 500 ms lock timer
+        // (`caret_on`) — do not sample wall-clock here or idle 2 Hz redraws
+        // alias into a harsh strobe.
         let count = self.lock.password.chars().count();
         let caret_gap = 6.0;
         let caret_x = if count > 0 {
@@ -503,7 +512,7 @@ impl MetisState {
             // Caret sits just left of the placeholder.
             cx - (w / 2.0 - 20.0 * 0.3) - caret_gap
         };
-        if !self.lock.auth_in_flight && now.timestamp_subsec_millis() < 500 {
+        if !self.lock.auth_in_flight && self.lock.caret_on {
             let ch = 36i32;
             let key = sprite_key("caret", &[ch as i64]);
             self.push_lock_sprite(
