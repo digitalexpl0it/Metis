@@ -261,6 +261,20 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
             state.lock_session();
             true
         }
+        KeybindAction::OpenTerminal => {
+            match metis_config::resolve_terminal() {
+                Some(term) => {
+                    state.spawn_client_argv(&[term]);
+                }
+                None => {
+                    tracing::warn!(
+                        "OpenTerminal keybind: no terminal configured or found in PATH \
+                         (Settings → Metis Menu)"
+                    );
+                }
+            }
+            true
+        }
         KeybindAction::ExitFullscreenStack => {
             if let Some(id) = state.focused_window_id() {
                 if state.windows.get(id).is_some_and(|w| w.fullscreen) {

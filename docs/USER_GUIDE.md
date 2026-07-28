@@ -624,6 +624,7 @@ and cannot be rebound.
 | `Super`+`Q` | Close the focused window |
 | `Super`+`M` | Minimize the focused window |
 | `Super`+`L` | Lock the session |
+| `Super`+`T` | Open the default terminal (Settings → Metis Menu) |
 | `Super`+`Esc` | Exit fullscreen / maximize / tile |
 | `Super`+`/` | Enable grid tiling |
 | `Super`+`\` | Disable tiling (free desktop) |

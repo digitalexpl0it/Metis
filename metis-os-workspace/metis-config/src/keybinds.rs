@@ -48,6 +48,7 @@ impl ModKey {
 #[serde(rename_all = "snake_case")]
 pub enum KeybindAction {
     Lock,
+    OpenTerminal,
     CloseWindow,
     Maximize,
     Fullscreen,
@@ -101,6 +102,7 @@ impl KeybindAction {
     pub fn label(self) -> &'static str {
         match self {
             Self::Lock => "Lock session",
+            Self::OpenTerminal => "Open terminal",
             Self::CloseWindow => "Close window",
             Self::Maximize => "Maximize",
             Self::Fullscreen => "Fullscreen",
@@ -149,7 +151,7 @@ impl KeybindAction {
 
     pub fn group(self) -> KeybindGroup {
         match self {
-            Self::Lock => KeybindGroup::Session,
+            Self::Lock | Self::OpenTerminal => KeybindGroup::Session,
             Self::CloseWindow
             | Self::Maximize
             | Self::Fullscreen
@@ -269,6 +271,7 @@ impl KeybindGroup {
 
 const ALL_ACTIONS: &[KeybindAction] = &[
     KeybindAction::Lock,
+    KeybindAction::OpenTerminal,
     KeybindAction::CloseWindow,
     KeybindAction::Maximize,
     KeybindAction::Fullscreen,
@@ -555,6 +558,7 @@ pub fn default_chord(action: KeybindAction, mod_key: ModKey) -> Chord {
     let m = |shift: bool, key: &str| Chord::new(logo, ctrl, alt, shift, key);
     match action {
         KeybindAction::Lock => m(false, "L"),
+        KeybindAction::OpenTerminal => m(false, "T"),
         KeybindAction::CloseWindow => m(false, "Q"),
         KeybindAction::Maximize => m(false, "F"),
         KeybindAction::Fullscreen => m(true, "F"),

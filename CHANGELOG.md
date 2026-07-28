@@ -9,6 +9,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Super+T opens the default terminal** — new `open_terminal` keybind (default
+  Mod+T) launches the terminal from Settings → Metis Menu (`resolve_terminal`).
+  Editable under Keyboard → Shortcuts.
 - **Dim on battery** — `power.json` → `dim_on_battery` drives a light compositor
   overlay when on battery (skipped on HDR-active outputs); live-reloads.
 - **Widget out-of-process helpers (§E.2)** — packs may declare `helper.exec` +
