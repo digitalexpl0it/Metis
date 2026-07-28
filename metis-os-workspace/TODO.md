@@ -44,6 +44,13 @@ Sequenced leftover stretch after Phases 1–15. See plan *Optional stretch backl
 - [x] **4b** Decision doc only:
       [`docs/decisions/remote-host-native-vs-grd.md`](../docs/decisions/remote-host-native-vs-grd.md)
 
+### Wave 5 — Session startup
+- [x] `startup.json` — global enable + ordered desktop ids + per-entry enable/delay
+- [x] Settings → System → **Startup** — master toggle, list, app picker (no custom CLI)
+- [x] Compositor delayed one-shot spawn after shell (~2s); skip if onboarding incomplete
+- [x] USER_GUIDE / CHANGELOG / config table
+- [ ] Portal `Background.enable_autostart` — deferred (stub still returns false)
+
 ---
 
 ## Phase 1 — Edge bar

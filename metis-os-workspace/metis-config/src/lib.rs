@@ -24,6 +24,7 @@ pub mod power;
 pub mod remote;
 pub mod sanitize;
 pub mod screenshot;
+pub mod startup;
 pub mod theme;
 pub mod wallpaper;
 pub mod weather;
@@ -418,6 +419,10 @@ pub use power::{
 };
 pub use remote::{
     load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
+};
+pub use startup::{
+    load_startup_config, resolve_desktop_launch_argv, save_startup_config, sanitize_startup_config,
+    startup_config_path, StartupConfig, StartupEntry,
 };
 pub use viewer::{
     load_viewer_config, remember_host, remove_recent, save_viewer_config, viewer_config_path,

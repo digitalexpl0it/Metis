@@ -807,6 +807,11 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   `power-profiles-daemon`), laptop battery details, idle blank/suspend timeouts,
   lid-close action, and a **Connected devices** list for Bluetooth peripherals
   with battery status. See [Power profiles](#power-profiles-settings--power) below.
+- **Startup** — applications that launch once after sign-in (`startup.json`).
+  Empty by default; use **Add application…** to pick desktop apps (no custom
+  command lines). Master switch plus per-app enable toggles. The compositor
+  starts them ~2 seconds after the session begins (skipped during onboarding
+  or while the session is locked). Changes apply on the next login.
 - **Remote access** — GNOME-style desktop sharing toggle: enable RDP to your
   **live** Metis session via `gnome-remote-desktop` (headless). Set credentials,
   copy the connection address, or open **Metis Viewer** / connect with Remmina /
@@ -1063,6 +1068,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `input.json` | Mouse, touchpad, and keyboard layout/repeat (compositor live-reload) |
 | `keybinds.json` | Desktop shortcuts (chords → actions); browse in Settings → Shortcuts, edit under Keyboard → Shortcuts |
 | `power.json` | Power profile, idle blank/suspend timeouts, lid-close action, dim-on-battery (compositor overlay) |
+| `startup.json` | Session startup apps: master enable + desktop ids (empty by default; Settings → Startup) |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp` default / `rustdesk`), auto-start, LAN-only + firewall state |
 | `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |
 | `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |

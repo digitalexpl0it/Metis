@@ -19,6 +19,7 @@ pub mod printers;
 pub mod remote;
 pub mod shortcuts;
 pub mod sound;
+pub mod startup;
 pub mod titlebars;
 pub mod touchpad;
 pub mod weather;

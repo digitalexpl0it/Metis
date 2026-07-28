@@ -219,6 +219,13 @@ pub const NAV: &[NavItem] = &[
         subtitle: Some("Battery, profiles, and idle behaviour"),
     },
     NavItem {
+        page_id: Some("startup"),
+        title: "Startup",
+        icon: Some("system-run-symbolic"),
+        hue: Some(NavHue::Gray),
+        subtitle: Some("Applications that launch after you sign in"),
+    },
+    NavItem {
         page_id: Some("remote"),
         title: "Remote access",
         icon: Some("network-transmit-receive-symbolic"),

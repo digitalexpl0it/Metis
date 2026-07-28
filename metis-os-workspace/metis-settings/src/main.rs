@@ -220,6 +220,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.add_titled(&pages::sound::build(), Some("sound"), "Sound");
     stack.add_titled(&pages::power::build(), Some("power"), "Power");
     stack.add_titled(&pages::locale::build(), Some("locale"), "Language & region");
+    stack.add_titled(&pages::startup::build(), Some("startup"), "Startup");
     stack.add_titled(
         &pages::remote::build(window.upcast_ref()),
         Some("remote"),

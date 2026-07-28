@@ -234,6 +234,10 @@ pub struct MetisState {
     pub startup_frames: u32,
     pub shell_spawned: bool,
     pub client_spawned: bool,
+    /// One-shot: startup.json apps have been queued (or skipped) this session.
+    pub startup_apps_spawned: bool,
+    /// Deferred argv launches from `startup.json` (deadline, argv).
+    pub startup_apps_queue: Vec<(std::time::Instant, Vec<String>)>,
     /// Isolated desktop-widgets process (`metis-shell --desktop-widgets`).
     pub widgets_cmd: Option<String>,
     pub widgets_pid: Option<u32>,
@@ -927,6 +931,8 @@ impl MetisState {
             startup_frames: 0,
             shell_spawned: false,
             client_spawned: false,
+            startup_apps_spawned: false,
+            startup_apps_queue: Vec::new(),
             widgets_cmd: None,
             widgets_pid: None,
             widgets_last_spawn: None,
@@ -1974,11 +1980,92 @@ impl MetisState {
             self.client_spawned = true;
         }
 
+        // Phase 3: user startup applications (~2s after compositor start).
+        if !self.startup_apps_spawned && elapsed > Duration::from_secs(2) {
+            self.arm_startup_applications();
+            self.startup_apps_spawned = true;
+        }
+        self.drain_startup_apps_queue();
+
         self.maybe_respawn_widgets();
 
         if self.startup_frames > 0 {
             self.startup_frames -= 1;
             self.sync_all_app_windows();
+        }
+    }
+
+    /// Queue desktop apps from `startup.json` (one-shot per session).
+    fn arm_startup_applications(&mut self) {
+        if self.session_is_locked() {
+            tracing::info!("startup apps skipped — session locked");
+            return;
+        }
+        let app_cfg = metis_config::load_app_config();
+        if !app_cfg.onboarding_complete {
+            tracing::info!("startup apps skipped — onboarding incomplete");
+            return;
+        }
+        let cfg = metis_config::load_startup_config();
+        if !cfg.enabled {
+            tracing::debug!("startup apps disabled in startup.json");
+            return;
+        }
+        if cfg.entries.is_empty() {
+            return;
+        }
+
+        let now = std::time::Instant::now();
+        let mut stagger_i = 0u32;
+        for entry in &cfg.entries {
+            if !entry.enabled {
+                continue;
+            }
+            match metis_config::resolve_desktop_launch_argv(&entry.id) {
+                Some(argv) => {
+                    let delay = Duration::from_secs(u64::from(entry.delay_seconds))
+                        + Duration::from_millis(u64::from(stagger_i) * 120);
+                    self.startup_apps_queue.push((now + delay, argv));
+                    stagger_i = stagger_i.saturating_add(1);
+                }
+                None => {
+                    tracing::warn!(
+                        id = %entry.id,
+                        "startup app missing or Exec unresolved — skipped"
+                    );
+                }
+            }
+        }
+        if !self.startup_apps_queue.is_empty() {
+            tracing::info!(
+                count = self.startup_apps_queue.len(),
+                "queued session startup applications"
+            );
+        }
+    }
+
+    /// Spawn due startup apps (at most two per tick; never via shell).
+    fn drain_startup_apps_queue(&mut self) {
+        if self.startup_apps_queue.is_empty() {
+            return;
+        }
+        if self.session_is_locked() {
+            return;
+        }
+        let now = std::time::Instant::now();
+        let mut due = Vec::new();
+        let mut rest = Vec::new();
+        for (when, argv) in self.startup_apps_queue.drain(..) {
+            if when <= now && due.len() < 2 {
+                due.push(argv);
+            } else {
+                rest.push((when, argv));
+            }
+        }
+        self.startup_apps_queue = rest;
+        for argv in due {
+            tracing::info!(program = %argv.first().map(String::as_str).unwrap_or("?"), "startup spawn");
+            self.spawn_client_argv(&argv);
         }
     }
 
