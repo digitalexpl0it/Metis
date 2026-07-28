@@ -8,7 +8,7 @@ use crate::state::MetisState;
 
 impl MetisState {
     pub fn inject_remote_pointer_relative(&mut self, dx: f64, dy: f64) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         self.idle_notify_activity();
@@ -22,7 +22,7 @@ impl MetisState {
     }
 
     pub fn inject_remote_pointer_absolute(&mut self, x: f64, y: f64) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         use smithay::utils::Point;
@@ -56,7 +56,7 @@ impl MetisState {
     }
 
     pub fn inject_remote_pointer_button(&mut self, button: u32, pressed: bool) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         self.idle_notify_activity();
@@ -95,7 +95,7 @@ impl MetisState {
     }
 
     pub fn inject_remote_pointer_scroll(&mut self, dx: f64, dy: f64) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         self.idle_notify_activity();
@@ -128,7 +128,7 @@ impl MetisState {
     }
 
     pub fn inject_remote_key(&mut self, keycode: u32, pressed: bool) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         self.idle_notify_activity();

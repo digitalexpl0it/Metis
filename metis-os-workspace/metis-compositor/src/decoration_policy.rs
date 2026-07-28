@@ -183,13 +183,13 @@ fn id_matches_list(app_id: &str, list: &[&str]) -> bool {
     })
 }
 
-/// Electron / Chromium shells that crash when the compositor wobbles map origin.
+/// Formerly used to skip maximize wobble on Chromium/Electron (Ozone map-origin
+/// crashes). Wobble is enabled for those apps again; kept as a named helper for
+/// any future per-app FX policy.
+#[allow(dead_code)]
 pub fn id_skips_maximize_wobble(app_id: &str) -> bool {
-    if id_looks_chromium_family(app_id) {
-        return true;
-    }
-    let id = norm_app_id(app_id);
-    id.contains("electron") || id.contains("cursor")
+    let _ = app_id;
+    false
 }
 
 /// True when the app id belongs to a Chromium-based browser (native CSD on Wayland).
@@ -198,9 +198,17 @@ pub fn id_looks_chromium_family(app_id: &str) -> bool {
     id.contains("chromium")
         || id == "chrome"
         || id.ends_with(".chrome")
+        || id.contains("google-chrome")
+        || id.contains("chrome-stable")
+        || id.contains("chrome-beta")
         || id.starts_with("com.google.chrome")
         || id.starts_with("com.brave.")
+        || id.contains("brave")
         || id.starts_with("com.microsoft.edge")
+        || id.contains("msedge")
+        || id.contains("microsoft-edge")
+        || id.contains("vivaldi")
+        || id.contains("opera")
 }
 
 /// Executable base names of the real Chromium-family *browsers* (which draw
@@ -225,6 +233,15 @@ pub fn chromium_class_needs_ssd(app_id: &str, exe: &str) -> bool {
 /// True for Mozilla Firefox builds (snap `firefox_firefox`, deb `firefox`, …).
 pub fn id_looks_firefox(app_id: &str) -> bool {
     norm_app_id(app_id).contains("firefox")
+}
+
+/// True for common web browsers (Firefox + Chromium-family browsers / PWAs).
+///
+/// Used to skip pointer-motion throttling so canvas / WebGL games stay responsive
+/// when not in true fullscreen. Electron shells that report a generic `chromium`
+/// app_id are included; that is intentional (also benefits from full-rate motion).
+pub fn id_looks_web_browser(app_id: &str) -> bool {
+    id_looks_firefox(app_id) || id_looks_chromium_family(app_id)
 }
 
 /// True when the app has no native titlebar and needs Metis chrome.
@@ -677,10 +694,22 @@ mod tests {
     }
 
     #[test]
-    fn chromium_skips_maximize_wobble() {
-        assert!(id_skips_maximize_wobble("chromium"));
-        assert!(id_skips_maximize_wobble("org.chromium.Chromium"));
-        assert!(id_skips_maximize_wobble("cursor"));
+    fn web_browser_app_ids() {
+        assert!(id_looks_web_browser("firefox"));
+        assert!(id_looks_web_browser("org.mozilla.firefox"));
+        assert!(id_looks_web_browser("firefox_firefox"));
+        assert!(id_looks_web_browser("chromium"));
+        assert!(id_looks_web_browser("google-chrome"));
+        assert!(!id_looks_web_browser("org.kitty"));
+        assert!(!id_looks_web_browser("org.gnome.Nautilus"));
+    }
+
+    #[test]
+    fn maximize_wobble_enabled_for_chromium_family() {
+        // Wobble is no longer skipped for Ozone/Electron shells.
+        assert!(!id_skips_maximize_wobble("chromium"));
+        assert!(!id_skips_maximize_wobble("org.chromium.Chromium"));
+        assert!(!id_skips_maximize_wobble("cursor"));
         assert!(!id_skips_maximize_wobble("org.kitty"));
     }
 

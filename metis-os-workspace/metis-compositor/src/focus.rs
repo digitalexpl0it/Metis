@@ -19,6 +19,8 @@ pub enum KeyboardFocusTarget {
     Window(Window),
     LayerSurface(LayerSurface),
     Popup(PopupKind),
+    /// `ext-session-lock-v1` surface from a third-party locker.
+    LockSurface(WlSurface),
 }
 
 impl IsAlive for KeyboardFocusTarget {
@@ -27,6 +29,7 @@ impl IsAlive for KeyboardFocusTarget {
             Self::Window(w) => w.alive(),
             Self::LayerSurface(l) => l.alive(),
             Self::Popup(p) => p.alive(),
+            Self::LockSurface(s) => s.alive(),
         }
     }
 }
@@ -59,6 +62,7 @@ impl KeyboardFocusTarget {
             },
             Self::LayerSurface(l) => Some(f(l.wl_surface())),
             Self::Popup(p) => Some(f(p.wl_surface())),
+            Self::LockSurface(s) => Some(f(s)),
         }
     }
 }
@@ -69,6 +73,7 @@ impl WaylandFocus for KeyboardFocusTarget {
             Self::Window(w) => w.wl_surface(),
             Self::LayerSurface(l) => Some(Cow::Borrowed(l.wl_surface())),
             Self::Popup(p) => Some(Cow::Borrowed(p.wl_surface())),
+            Self::LockSurface(s) => Some(Cow::Borrowed(s)),
         }
     }
 }
@@ -138,6 +143,7 @@ impl From<KeyboardFocusTarget> for WlSurface {
                 .unwrap_or_else(|| w.toplevel().unwrap().wl_surface().clone()),
             KeyboardFocusTarget::LayerSurface(l) => l.wl_surface().clone(),
             KeyboardFocusTarget::Popup(p) => p.wl_surface().clone(),
+            KeyboardFocusTarget::LockSurface(s) => s,
         }
     }
 }

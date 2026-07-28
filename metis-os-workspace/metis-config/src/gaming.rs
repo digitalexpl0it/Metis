@@ -151,6 +151,59 @@ pub fn command_prefers_dgpu(program: &str) -> bool {
     NEEDLES.iter().any(|n| p.contains(n))
 }
 
+/// Whether `program` looks like a web browser (Chrome / Firefox / Edge / …).
+///
+/// Browsers are steered onto the dGPU in Auto mode (when on AC) so WebGL / canvas
+/// games are not stuck on a weak iGPU. They do **not** count as a "game session"
+/// for GameMode / performance-profile hooks.
+pub fn command_is_web_browser(program: &str) -> bool {
+    let p = program.to_ascii_lowercase();
+    if p.contains("chromedriver")
+        || p.contains("electron")
+        || p.contains("/cursor")
+        || p.contains("cursor-")
+        || p.contains("code -")
+        || p.contains("/code ")
+        || p.contains("slack")
+        || p.contains("discord")
+    {
+        return false;
+    }
+    // Flatpak / desktop-id style.
+    if p.contains("org.mozilla.firefox")
+        || p.contains("com.google.chrome")
+        || p.contains("com.brave.browser")
+        || p.contains("com.microsoft.edge")
+        || p.contains("org.chromium.chromium")
+        || p.contains("com.opera.opera")
+        || p.contains("com.vivaldi.vivaldi")
+    {
+        return true;
+    }
+    let base = p
+        .rsplit(['/', ' '])
+        .next()
+        .unwrap_or(p.as_str())
+        .trim_end_matches(".desktop");
+    const BROWSERS: &[&str] = &[
+        "firefox",
+        "google-chrome",
+        "chromium",
+        "chromium-browser",
+        "brave",
+        "brave-browser",
+        "microsoft-edge",
+        "msedge",
+        "vivaldi",
+        "vivaldi-bin",
+        "opera",
+        "chrome",
+    ];
+    BROWSERS.iter().any(|b| {
+        base == *b || base.starts_with(&format!("{b}-")) || base.starts_with(&format!("{b}."))
+    })
+}
+
 /// Resolve whether a compositor spawn should prefer the discrete GPU.
 pub fn prefer_dgpu_for_launch(program: &str, cfg: &GamingConfig) -> bool {
     if let Ok(v) = std::env::var("METIS_GAME_GPU") {
@@ -168,8 +221,9 @@ fn resolve_graphics_mode(program: &str, cfg: &GamingConfig) -> bool {
         GraphicsMode::Off | GraphicsMode::AlwaysIgpu => false,
         GraphicsMode::AlwaysDgpu => true,
         GraphicsMode::Auto | GraphicsMode::DesktopIgpuGamesDgpu => {
-            let is_game = command_prefers_dgpu(program);
-            if !is_game {
+            let wants_dgpu =
+                command_prefers_dgpu(program) || command_is_web_browser(program);
+            if !wants_dgpu {
                 return false;
             }
             if cfg.on_battery_prefer_igpu && on_battery() {
@@ -197,4 +251,36 @@ pub fn on_battery() -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_web_browsers() {
+        assert!(command_is_web_browser("firefox"));
+        assert!(command_is_web_browser("/usr/bin/google-chrome-stable"));
+        assert!(command_is_web_browser("chromium-browser"));
+        assert!(command_is_web_browser("flatpak run com.google.Chrome"));
+        assert!(command_is_web_browser("brave-browser"));
+        assert!(!command_is_web_browser("cursor"));
+        assert!(!command_is_web_browser("/usr/share/cursor/chrome-sandbox"));
+        assert!(!command_is_web_browser("steam"));
+        assert!(!command_is_web_browser("chromedriver"));
+    }
+
+    #[test]
+    fn browsers_prefer_dgpu_in_auto() {
+        let cfg = GamingConfig {
+            graphics_mode: GraphicsMode::Auto,
+            on_battery_prefer_igpu: false,
+            ..GamingConfig::default()
+        };
+        assert!(prefer_dgpu_for_launch("firefox", &cfg));
+        assert!(prefer_dgpu_for_launch("google-chrome-stable", &cfg));
+        assert!(!prefer_dgpu_for_launch("gedit", &cfg));
+        // Games still prefer dGPU.
+        assert!(prefer_dgpu_for_launch("steam", &cfg));
+    }
 }

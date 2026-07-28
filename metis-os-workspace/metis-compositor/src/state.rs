@@ -34,6 +34,7 @@ use smithay::{
         shm::ShmState,
         socket::ListeningSocketSource,
         text_input::TextInputManagerState,
+        session_lock::SessionLockManagerState,
     },
 };
 
@@ -290,6 +291,10 @@ pub struct MetisState {
     /// Debounce grid/scroll toggle (`Mod+\`) so key-repeat cannot flip modes
     /// dozens of times per second and stall the compositor.
     last_layout_toggle: Option<std::time::Instant>,
+    /// Debounce maximize toggle (`Mod+F`) so key-repeat cannot spam configure /
+    /// wobble restarts and leave the window fighting the pointer (or stall the
+    /// session).
+    last_maximize_toggle: Option<std::time::Instant>,
     /// Resolved once at startup and reused for every spawned client — avoids
     /// blocking the event loop on `gsettings`/D-Bus during shell launch.
     client_cursor_theme: String,
@@ -334,6 +339,10 @@ pub struct MetisState {
     pub(crate) idle: crate::idle::IdleManager,
     /// Compositor-rendered session lock (background/blur/dim + PAM auth).
     pub(crate) lock: crate::lock::LockState,
+    /// `ext-session-lock-v1` global state (third-party lockers).
+    pub(crate) session_lock_state: SessionLockManagerState,
+    /// Active protocol locker (if any). Mutually exclusive with [`Self::lock`].
+    pub(crate) protocol_lock: crate::session_lock::ProtocolLock,
     /// Gaming window rules (float / auto-fullscreen by app-id/class/title) so
     /// games and launchers escape the tiling grid. Loaded once at startup.
     pub(crate) game_rules: metis_config::GameRulesConfig,
@@ -639,25 +648,10 @@ impl DgpuOffload {
 /// Heuristic: does this launch look like a game or game launcher that should run
 /// on the discrete GPU? Covers Steam (and the games it spawns as children, which
 /// inherit its environment), Big Picture (`-gamepadui`), the common third-party
-/// launchers, and Proton/Wine. Everything else (the shell, settings, browsers,
-/// editors) stays on the power-efficient iGPU.
+/// launchers, and Proton/Wine. Web browsers are handled separately via
+/// [`metis_config::command_is_web_browser`] (dGPU for WebGL, not GameMode).
 fn command_prefers_dgpu(program: &str) -> bool {
-    let p = program.to_ascii_lowercase();
-    const NEEDLES: &[&str] = &[
-        "steam",
-        "gamepadui",
-        "gamescope",
-        "lutris",
-        "heroic",
-        "bottles",
-        "hytale",
-        "proton",
-        "wine",
-        ".exe",
-        "mangohud",
-        "gamemoderun",
-    ];
-    NEEDLES.iter().any(|n| p.contains(n))
+    metis_config::command_prefers_dgpu(program)
 }
 
 /// Environment shared by every client the compositor spawns (shell, settings,
@@ -674,8 +668,9 @@ fn apply_spawned_client_env(
 ) {
     cmd.env("WAYLAND_DISPLAY", socket);
     cmd.env("METIS_SESSION", "1");
-    // Isolated mode: steer gaming/Proton launches onto the gaming XWayland bucket.
-    let display = if prefer_dgpu {
+    // Isolated mode: only true games/Proton use the gaming XWayland bucket.
+    // Browsers may still get dGPU offload without moving onto that X11 server.
+    let display = if prefer_dgpu && command_prefers_dgpu(program) {
         xdisplay_gaming.or(xdisplay)
     } else {
         xdisplay
@@ -736,6 +731,10 @@ fn apply_spawned_client_env(
     }
     if std::env::var_os("CLAUDE_USE_WAYLAND").is_none() {
         cmd.env("CLAUDE_USE_WAYLAND", "1");
+    }
+    // Firefox: prefer native Wayland (WebGL / canvas compose on Metis, not XWayland).
+    if std::env::var_os("MOZ_ENABLE_WAYLAND").is_none() {
+        cmd.env("MOZ_ENABLE_WAYLAND", "1");
     }
     // Nested dev sessions run inside GNOME/KDE — disable GTK's portal proxy so
     // startup does not block on the host portal stack.
@@ -847,6 +846,8 @@ impl MetisState {
         // dispatch glue comes from `delegate_dispatch2!`.
         smithay::wayland::relative_pointer::RelativePointerManagerState::new::<MetisState>(&dh);
         smithay::wayland::pointer_constraints::PointerConstraintsState::new::<MetisState>(&dh);
+        let session_lock_state =
+            SessionLockManagerState::new::<MetisState, _>(&dh, |_| true);
         let power_cfg = metis_config::load_power_config();
         let idle = crate::idle::IdleManager::new(power_cfg.blank_after_minutes);
 
@@ -952,6 +953,7 @@ impl MetisState {
             last_window_gap_check: std::time::Instant::now(),
             last_scroll_tick: None,
             last_layout_toggle: None,
+            last_maximize_toggle: None,
             client_cursor_theme,
             client_cursor_size,
             client_gpu: None,
@@ -974,6 +976,8 @@ impl MetisState {
             color_mgmt: crate::color_management::ColorManagementRuntime::new(&dh),
             idle,
             lock: crate::lock::LockState::new(),
+            session_lock_state,
+            protocol_lock: crate::session_lock::ProtocolLock::Unlocked,
             game_rules: metis_config::load_game_rules_config(),
             gaming_config: metis_config::load_gaming_config(),
             pending_game_fullscreen: std::collections::HashSet::new(),
@@ -989,7 +993,7 @@ impl MetisState {
     pub(crate) fn process_pending_captures(&mut self, renderer: &mut smithay::backend::renderer::gles::GlesRenderer) {
         // Never satisfy a screen-capture request while locked — the framebuffer
         // shows the lock UI, but refusing outright avoids leaking even that.
-        if self.lock.locked {
+        if self.session_is_locked() {
             return;
         }
         if !self.image_capture.has_pending() {
@@ -1017,6 +1021,7 @@ impl MetisState {
         self.run_pending_startup();
         crate::ipc::drain_ipc(self);
         self.tick_portal_elevate();
+        self.protocol_lock_reap_dead();
 
         if self.wallpaper.tick_decode() {
             self.damaged = true;
@@ -1257,6 +1262,12 @@ impl MetisState {
         if self.metis_bar_ui_hit(location) {
             return true;
         }
+        // Web browsers (windowed WebGL / canvas games): full-rate absolute motion.
+        // The GTK throttle made in-tab games feel sluggish without fullscreen.
+        if self.pointer_over_web_browser(location) {
+            self.last_pointer_forward = Some((std::time::Instant::now(), location));
+            return true;
+        }
         const MIN_MS: u128 = 48;
         const MIN_DIST_SQ: f64 = 9.0;
         let now = std::time::Instant::now();
@@ -1269,6 +1280,20 @@ impl MetisState {
         }
         self.last_pointer_forward = Some((now, location));
         true
+    }
+
+    /// True when the topmost window under the pointer is a web browser.
+    fn pointer_over_web_browser(&self, location: Point<f64, Logical>) -> bool {
+        let Some((window, _)) = self.topmost_window_at_pointer(location) else {
+            return false;
+        };
+        let Some(id) = self.windows.id_for_window(&window) else {
+            return false;
+        };
+        self.windows
+            .get(id)
+            .and_then(|r| r.app_id.as_deref())
+            .is_some_and(crate::decoration_policy::id_looks_web_browser)
     }
 
     /// Active `zwp_locked_pointer_v1` on this surface (mouse-look / raw input).
@@ -2163,6 +2188,7 @@ impl MetisState {
         for layer in layers {
             layer.send_frame(output, time, Some(throttle), |_, _| Some(output.clone()));
         }
+        self.send_protocol_lock_frames(output, time);
     }
 
     pub fn arrange_layers(&self) {
@@ -2948,21 +2974,23 @@ impl MetisState {
         }
     }
 
+    /// End post-maximize wobble for `id` and snap the map origin back to base.
+    fn clear_maximize_fx(&mut self, id: u32) {
+        if self.maximize_fx_started.remove(&id).is_some() {
+            self.snap_maximize_wobble(id);
+        }
+    }
+
     fn start_maximize_fx(&mut self, id: u32) {
         if !crate::window_fx::animations_enabled() {
             return;
         }
-        // Relocating the map origin during wobble has triggered Ozone disconnects
-        // for Chromium-family browsers and Electron apps (Cursor, VS Code, …).
-        if self
-            .windows
-            .get(id)
-            .and_then(|r| r.app_id.as_deref())
-            .is_some_and(crate::decoration_policy::id_skips_maximize_wobble)
-        {
+        if self.window_uses_compact_overlay(id) {
             return;
         }
-        if self.window_uses_compact_overlay(id) {
+        // Do not restart an in-flight wobble — key-repeat / rapid toggles used to
+        // reset the timer forever so relocate fought drags and stalled the loop.
+        if self.maximize_fx_started.contains_key(&id) {
             return;
         }
         self.maximize_fx_started
@@ -2973,6 +3001,10 @@ impl MetisState {
     /// Advance post-maximize wobble animations. Returns true while any are active.
     pub fn tick_maximize_fx(&mut self) -> bool {
         const DURATION_SECS: f32 = 0.55;
+        // Do **not** cancel on any pointer grab — a titlebar maximize click can
+        // leave a short-lived button grab that would kill the wobble on the
+        // first tick. Move/resize paths call [`Self::clear_maximize_fx`] when
+        // they take ownership of the map origin.
         let active_ids: Vec<u32> = self.maximize_fx_started.keys().copied().collect();
         for id in active_ids {
             self.apply_maximize_wobble(id);
@@ -4432,10 +4464,11 @@ impl MetisState {
 
         if enabled {
             if record.maximized && !record.fullscreen {
-                if self.maximized_uses_auto_hide_titlebar(id) {
-                    self.auto_hide_titlebar.insert(id);
-                } else {
-                    self.clear_auto_hide(id);
+                // Already maximized: leave an in-flight wobble alone. Checking
+                // map location would see the wobble offset as "wrong" and clear
+                // the FX on every redundant set_maximized(true).
+                if self.maximize_fx_started.contains_key(&id) {
+                    return;
                 }
                 if let Some((client, client_size)) = self.maximized_client_geometry(id) {
                     let loc = Point::from((client.x, client.y));
@@ -4448,6 +4481,10 @@ impl MetisState {
                     }
                 }
             }
+
+            // Finish any in-flight wobble before remapping so restore/max geometry
+            // is not applied on top of a stale offset (and so a fresh FX can start).
+            self.clear_maximize_fx(id);
 
             // Mark maximized before any nested layout/configure work so bulk
             // `apply_window_rect` passes cannot reposition this window back into
@@ -4594,6 +4631,8 @@ impl MetisState {
         if !record.maximized {
             return;
         }
+        // Snap out of any in-flight wobble before restoring geometry.
+        self.clear_maximize_fx(id);
         // Clear before `apply_window_rect` — while `maximized` is still true that
         // path returns immediately and the window stays at its maximized map origin
         // (often tucked under the edge bar once chrome is restored).
@@ -4619,6 +4658,23 @@ impl MetisState {
         self.sync_auto_hide_titlebar(id);
         self.apply_window_rect(id);
         self.start_maximize_fx(id);
+    }
+
+    /// Toggle maximize for the focused window, debounced against key-repeat.
+    /// Returns `true` when the keybind should be consumed.
+    pub fn toggle_maximized_debounced(&mut self, id: u32) -> bool {
+        const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(400);
+        let now = std::time::Instant::now();
+        if self
+            .last_maximize_toggle
+            .is_some_and(|t| now.duration_since(t) < DEBOUNCE)
+        {
+            return true;
+        }
+        self.last_maximize_toggle = Some(now);
+        let maxed = self.windows.get(id).map(|w| w.maximized).unwrap_or(false);
+        self.set_maximized(id, !maxed);
+        true
     }
 
     pub fn minimize_window(&mut self, id: u32) {
@@ -6545,6 +6601,9 @@ impl MetisState {
     ) -> bool {
         use smithay::input::pointer::{Focus, GrabStartData};
 
+        // Resize grab owns geometry — end wobble first.
+        self.clear_maximize_fx(id);
+
         let Some(record) = self.windows.get(id).cloned() else {
             return false;
         };
@@ -6676,6 +6735,9 @@ impl MetisState {
         serial: smithay::utils::Serial,
     ) {
         use smithay::input::pointer::{Focus, GrabStartData};
+
+        // Move grab owns the map origin — end wobble so it cannot rubber-band.
+        self.clear_maximize_fx(id);
 
         let Some(record) = self.windows.get(id).cloned() else {
             return;
@@ -7705,7 +7767,7 @@ impl MetisState {
         // programs, touch the clipboard, or elevate a capture — a locked screen
         // must not be manipulable or screenshot-able from IPC. Read-only queries
         // and the lock/reload commands themselves still work.
-        if self.lock.locked {
+        if self.session_is_locked() {
             use metis_protocol::CompositorCommand as C;
             if matches!(
                 cmd,

@@ -16,6 +16,13 @@ pub struct TempGaugeCard {
 pub struct OverviewPage {
     pub widget: gtk::Widget,
     pub session_card: gtk::Box,
+    pub cpu_card: gtk::Box,
+    pub mem_card: gtk::Box,
+    pub net_card: gtk::Box,
+    pub disk_io_card: gtk::Box,
+    pub disk_card: gtk::Box,
+    pub battery_card: gtk::Box,
+    pub logs_card: gtk::Box,
     pub cpu_value: gtk::Label,
     pub cpu_chart: gtk::DrawingArea,
     pub cpu_legend: gtk::FlowBox,
@@ -31,6 +38,9 @@ pub struct OverviewPage {
     pub firewall_status: gtk::Label,
     pub disk_io_value: gtk::Label,
     pub disk_io_chart: gtk::DrawingArea,
+    pub battery_value: gtk::Label,
+    pub battery_chart: gtk::DrawingArea,
+    pub logs_buffer: gtk::TextBuffer,
     pub load_label: gtk::Label,
     pub uptime_label: gtk::Label,
     pub disk_box: gtk::FlowBox,
@@ -263,6 +273,56 @@ pub fn build_overview() -> OverviewPage {
     mid.append(&disk_card);
     body.append(&mid);
 
+    // Row 3b: Battery | Logs
+    let battery_card = card_with_icon(
+        &tr("Battery"),
+        &[
+            "battery-level-100-symbolic",
+            "battery-good-symbolic",
+            "battery-symbolic",
+        ],
+    );
+    let battery_value = gtk::Label::new(Some("—"));
+    battery_value.add_css_class("metis-dash-value");
+    battery_value.set_halign(gtk::Align::Start);
+    battery_card.append(&battery_value);
+    let battery_chart = gtk::DrawingArea::new();
+    battery_chart.add_css_class("metis-dash-chart");
+    battery_chart.set_content_height(88);
+    battery_chart.set_vexpand(true);
+    battery_chart.set_hexpand(true);
+    battery_card.append(&battery_chart);
+    battery_card.set_vexpand(true);
+
+    let logs_card = card_with_icon(
+        &tr("Logs"),
+        &["utilities-terminal-symbolic", "text-x-generic-symbolic"],
+    );
+    let logs_buffer = gtk::TextBuffer::new(None::<&gtk::TextTagTable>);
+    let logs_view = gtk::TextView::with_buffer(&logs_buffer);
+    logs_view.set_editable(false);
+    logs_view.set_cursor_visible(false);
+    logs_view.set_monospace(true);
+    logs_view.set_wrap_mode(gtk::WrapMode::Char);
+    logs_view.add_css_class("metis-dash-logs");
+    let logs_scroll = gtk::ScrolledWindow::new();
+    logs_scroll.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+    logs_scroll.set_min_content_height(120);
+    logs_scroll.set_vexpand(true);
+    logs_scroll.set_hexpand(true);
+    logs_scroll.set_child(Some(&logs_view));
+    logs_card.append(&logs_scroll);
+    logs_card.set_vexpand(true);
+
+    let batt_logs = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(8)
+        .homogeneous(true)
+        .build();
+    batt_logs.append(&battery_card);
+    batt_logs.append(&logs_card);
+    body.append(&batt_logs);
+
     // Row 4: System
     let system_card = card_with_icon(
         &tr("System"),
@@ -321,6 +381,13 @@ pub fn build_overview() -> OverviewPage {
     OverviewPage {
         widget: page.upcast(),
         session_card,
+        cpu_card,
+        mem_card,
+        net_card,
+        disk_io_card,
+        disk_card,
+        battery_card,
+        logs_card,
         cpu_value,
         cpu_chart,
         cpu_legend,
@@ -336,6 +403,9 @@ pub fn build_overview() -> OverviewPage {
         firewall_status,
         disk_io_value,
         disk_io_chart,
+        battery_value,
+        battery_chart,
+        logs_buffer,
         load_label,
         uptime_label,
         disk_box,

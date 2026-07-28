@@ -8,6 +8,8 @@ pub enum DashboardWidgetId {
     Memory,
     Disk,
     Network,
+    Battery,
+    Logs,
     Processes,
 }
 
@@ -18,6 +20,8 @@ impl DashboardWidgetId {
             DashboardWidgetId::Memory,
             DashboardWidgetId::Disk,
             DashboardWidgetId::Network,
+            DashboardWidgetId::Battery,
+            DashboardWidgetId::Logs,
             DashboardWidgetId::Processes,
         ]
     }
@@ -28,6 +32,8 @@ impl DashboardWidgetId {
             Self::Memory => "Memory",
             Self::Disk => "Storage",
             Self::Network => "Network",
+            Self::Battery => "Battery",
+            Self::Logs => "Logs",
             Self::Processes => "Processes",
         }
     }

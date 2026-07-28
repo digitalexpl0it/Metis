@@ -191,6 +191,10 @@ impl MetisState {
         if self.lock.locked {
             return;
         }
+        if self.protocol_lock.is_locked() {
+            tracing::info!("refusing Metis PAM lock while a protocol locker is active");
+            return;
+        }
         // Re-read the config on every lock so appearance edits apply next time.
         self.lock.cfg = metis_config::load_lock_config();
         self.lock.locked = true;
@@ -1333,7 +1337,7 @@ fn metis_remote_bin() -> std::path::PathBuf {
 }
 
 /// Fire-and-forget `metis-remote` (pause/resume on lock). Never blocks the compositor.
-fn spawn_metis_remote(args: &[&str]) {
+pub(crate) fn spawn_metis_remote(args: &[&str]) {
     let bin = metis_remote_bin();
     let args: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
     std::thread::Builder::new()

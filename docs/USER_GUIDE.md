@@ -48,10 +48,11 @@ theme, wallpaper, clock format, edge bar, weather, gaming, **optional software**
 (Remote desktop, Flatpak, GameMode, Bluetooth, printers, and keyring if missing),
 and a finish screen with keybind tips. Already-installed optionals are greyed out;
 use toggles and **Install selected** to install the rest in one `pkexec apt-get`
-pass (or skip and install later). Skip or Finish marks setup complete so it does
-not appear again. Reopen it anytime from **Settings → Appearance → Run setup again**,
-or with `metis-cmd.sh show-onboarding`. Disable for dev with
-`METIS_NO_ONBOARDING=1`.
+pass (or skip and install later). Progress is saved as `onboarding_step` so a
+session restart mid-wizard resumes where you left off. Skip or Finish marks setup
+complete so it does not appear again. Reopen it anytime from **Settings →
+Appearance → Run setup again**, or with `metis-cmd.sh show-onboarding`. Disable
+for dev with `METIS_NO_ONBOARDING=1`.
 
 **Install Metis.** Prefer the Ubuntu `.deb` from GitHub Releases when available
 ([`docs/PACKAGING.md`](PACKAGING.md)); developers can still use
@@ -343,9 +344,11 @@ The card is chosen by the compositor (override with `METIS_DRM_DEVICE`, see dev
 docs) and forwarded as `DRI_PRIME` (Mesa GL) and `MESA_VK_DEVICE_SELECT` (Mesa
 Vulkan). On hybrid laptops where the panel is driven by the integrated GPU but a
 discrete GPU is present, Metis also **auto-offloads game and Steam launches** onto
-the dGPU (NVIDIA PRIME offload or Mesa `DRI_PRIME` for the dGPU render node).
-Lightweight desktop apps stay on the power-efficient iGPU. Override session-wide
-with `METIS_GAME_GPU=igpu|dgpu|off`. To run a *specific* title on the discrete GPU
+the dGPU (NVIDIA PRIME offload or Mesa `DRI_PRIME` for the dGPU render node), and
+**web browsers** when on AC power (so windowed WebGL / canvas games are not stuck
+on a weak iGPU). Lightweight editors and other desktop apps stay on the
+power-efficient iGPU. Override session-wide with `METIS_GAME_GPU=igpu|dgpu|off`.
+To run a *specific* title on the discrete GPU
 instead, set a per-game launch option in Steam (*Properties → Launch Options*) —
 these still win because Metis only sets the vars when they are unset:
 
@@ -635,6 +638,14 @@ and cannot be rebound.
 is PAM against `/etc/pam.d/metis` (falls back to `login` if that file is missing).
 Password unlock always works.
 
+**Third-party lockers (`ext-session-lock-v1`).** Metis advertises the standard
+session-lock protocol so tools like **swaylock** or **gtklock** can lock the
+session when you launch them. While a protocol locker is active, outputs are
+blanked to that locker’s surfaces only (Metis PAM chrome is not drawn for that
+cycle). Unlocking the locker restores the desktop and runs the same side effects
+as Metis unlock (RDP resume, etc.). Super+L / idle lock keep using Metis PAM when
+no protocol locker is active; only one lock owner is allowed at a time.
+
 **Fingerprint / YubiKey (optional).** Metis does not enroll devices itself. When
 a fingerprint reader or Yubico USB key is detected, the lock screen shows a
 touch hint and may start one empty PAM attempt so `pam_fprintd` / `pam_u2f` can
@@ -740,7 +751,11 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   lists); button actions: `open_uri` (**http/https only**), `launch` (desktop
   id or a single PATH basename — no shell/argv/paths; interpreters denylisted),
   `copy_text`. Settings placeholders apply to labels/copy text only — **not**
-  to URI/launch targets. No scripts or in-process plugins. Example pack:
+  to URI/launch targets. Live host tokens in labels: `{host.time}`,
+  `{host.date}`, `{host.weather.temp}`, `{host.weather.unit}`,
+  `{host.weather.summary}`, `{host.sys.cpu}`, `{host.sys.mem}`,
+  `{host.sys.disk}` (refreshed by the widgets host; not allowed in action
+  fields). No scripts or in-process plugins. Example pack:
   `com.metis.example.quicklinks`.
 - **Metis Menu** — choose your default **terminal** and **file manager** (from
   auto-detected installs or a custom binary path), plus the launcher panel
@@ -774,9 +789,12 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   before Flatpak `--device=all` / network / Wayland overrides), and **Run gaming
   setup** wizard; writes `gaming.json`. CLI: `metis-cmd optimize-gaming --yes`.
 - **Control Center** — enable/disable the pull-down system monitor, max panel
-  height %, refresh interval, confirm-before-kill, overview widgets, and which
-  process monitor **Open monitor** launches (auto-detect / installed / custom);
-  writes `dashboard.json` for live shell reload.
+  height %, refresh interval, confirm-before-kill, overview widgets (CPU, Memory,
+  Network, Disk, Session, Storage, System, Processes, **Battery**, **Logs**), and
+  which process monitor **Open monitor** launches (auto-detect / installed /
+  custom); writes `dashboard.json` for live shell reload. Battery history is
+  hidden when no battery is present; Logs show a short journalctl tail or
+  “unavailable”.
 - **Power** — power profile (power-saver / balanced / performance via
   `power-profiles-daemon`), laptop battery details, idle blank/suspend timeouts,
   lid-close action, and a **Connected devices** list for Bluetooth peripherals

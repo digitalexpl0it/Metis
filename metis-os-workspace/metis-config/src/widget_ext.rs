@@ -524,6 +524,51 @@ pub fn interpolate_settings(template: &str, settings: &serde_json::Map<String, s
     out
 }
 
+/// Live host values for `{host.*}` tokens (Phase 14 §E.2 slice).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HostBindValues {
+    pub time: String,
+    pub date: String,
+    pub weather_temp: String,
+    pub weather_unit: String,
+    pub weather_summary: String,
+    pub sys_cpu: String,
+    pub sys_mem: String,
+    pub sys_disk: String,
+}
+
+/// True when `template` references any `{host.…}` token.
+pub fn template_needs_host(template: &str) -> bool {
+    template.contains("{host.")
+}
+
+/// Settings first, then host binds. Unknown `{host.*}` tokens become empty.
+pub fn interpolate_template(
+    template: &str,
+    settings: &serde_json::Map<String, serde_json::Value>,
+    host: Option<&HostBindValues>,
+) -> String {
+    let mut out = interpolate_settings(template, settings);
+    if !template_needs_host(&out) && !template_needs_host(template) {
+        return out;
+    }
+    let empty = HostBindValues::default();
+    let host = host.unwrap_or(&empty);
+    for (key, val) in [
+        ("{host.time}", host.time.as_str()),
+        ("{host.date}", host.date.as_str()),
+        ("{host.weather.temp}", host.weather_temp.as_str()),
+        ("{host.weather.unit}", host.weather_unit.as_str()),
+        ("{host.weather.summary}", host.weather_summary.as_str()),
+        ("{host.sys.cpu}", host.sys_cpu.as_str()),
+        ("{host.sys.mem}", host.sys_mem.as_str()),
+        ("{host.sys.disk}", host.sys_disk.as_str()),
+    ] {
+        out = out.replace(key, val);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

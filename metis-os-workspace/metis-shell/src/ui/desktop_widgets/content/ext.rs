@@ -1,16 +1,34 @@
 //! Declarative JSON extension widgets (Phase 14 §E).
 //!
 //! Action fields are **not** settings-interpolated (labels/copy text may be).
-//! URI / launch targets are re-validated at click time.
+//! Labels may use `{host.*}` live binds (clock / weather / sys), refreshed on a
+//! short timer. URI / launch targets are re-validated at click time.
+
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 use gtk::prelude::*;
 use metis_config::{
-    find_widget_extension, interpolate_settings, is_safe_launch_exec, is_safe_launch_id,
-    is_safe_open_uri, load_widget_layout, validate_action, DesktopWidgetInstance, WidgetExtAction,
-    WidgetExtLabelStyle, WidgetExtNode, WIDGET_EXT_MAX_COPY,
+    find_widget_extension, interpolate_settings, interpolate_template, is_safe_launch_exec,
+    is_safe_launch_id, is_safe_open_uri, load_widget_layout, template_needs_host, validate_action,
+    DesktopWidgetInstance, HostBindValues, WidgetExtAction, WidgetExtLabelStyle, WidgetExtNode,
+    WIDGET_EXT_MAX_COPY,
 };
+use sysinfo::{Disks, System};
 
 use crate::services::applications;
+
+struct HostBoundLabel {
+    label: gtk::Label,
+    template: String,
+    settings: serde_json::Map<String, serde_json::Value>,
+}
+
+thread_local! {
+    static HOST_BOUNDS: RefCell<Vec<HostBoundLabel>> = const { RefCell::new(Vec::new()) };
+    static HOST_TIMER: Cell<bool> = const { Cell::new(false) };
+    static HOST_SYS: RefCell<Option<System>> = const { RefCell::new(None) };
+}
 
 pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
     let Some(ext) = find_widget_extension(&inst.extension_id) else {
@@ -28,7 +46,10 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
         }
     };
     let settings = inst.extension_settings.clone();
-    build_node(&layout, &settings)
+    let host = sample_host_binds();
+    let root = build_node(&layout, &settings, Some(&host));
+    ensure_host_timer();
+    root
 }
 
 fn missing_card(id: &str) -> gtk::Widget {
@@ -61,19 +82,20 @@ fn error_card(msg: &str) -> gtk::Widget {
 fn build_node(
     node: &WidgetExtNode,
     settings: &serde_json::Map<String, serde_json::Value>,
+    host: Option<&HostBindValues>,
 ) -> gtk::Widget {
     match node {
         WidgetExtNode::Column { spacing, children } => {
             let col = gtk::Box::new(gtk::Orientation::Vertical, (*spacing).max(0));
             for child in children {
-                col.append(&build_node(child, settings));
+                col.append(&build_node(child, settings, host));
             }
             col.upcast()
         }
         WidgetExtNode::Row { spacing, children } => {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, (*spacing).max(0));
             for child in children {
-                row.append(&build_node(child, settings));
+                row.append(&build_node(child, settings, host));
             }
             row.upcast()
         }
@@ -81,12 +103,12 @@ fn build_node(
             let col = gtk::Box::new(gtk::Orientation::Vertical, (*spacing).max(0));
             col.add_css_class("metis-dw-ext-list");
             for child in children {
-                col.append(&build_node(child, settings));
+                col.append(&build_node(child, settings, host));
             }
             col.upcast()
         }
         WidgetExtNode::Label { text, style } => {
-            let rendered = interpolate_settings(text, settings);
+            let rendered = interpolate_template(text, settings, host);
             let label = gtk::Label::new(Some(&rendered));
             label.set_xalign(0.0);
             label.set_wrap(true);
@@ -95,6 +117,9 @@ fn build_node(
                 WidgetExtLabelStyle::Title => label.add_css_class("metis-dw-title"),
                 WidgetExtLabelStyle::Muted => label.add_css_class("metis-dw-hint"),
                 WidgetExtLabelStyle::Body => label.add_css_class("metis-dw-body"),
+            }
+            if template_needs_host(text) {
+                register_host_label(label.clone(), text.clone(), settings.clone());
             }
             label.upcast()
         }
@@ -108,6 +133,7 @@ fn build_node(
             sep.upcast()
         }
         WidgetExtNode::Button { label, on_click } => {
+            // Button captions: settings only (no live host binds on buttons).
             let rendered = interpolate_settings(label, settings);
             let btn = gtk::Button::with_label(&rendered);
             btn.set_halign(gtk::Align::Fill);
@@ -122,18 +148,114 @@ fn build_node(
     }
 }
 
+fn register_host_label(
+    label: gtk::Label,
+    template: String,
+    settings: serde_json::Map<String, serde_json::Value>,
+) {
+    HOST_BOUNDS.with(|list| {
+        list.borrow_mut().push(HostBoundLabel {
+            label,
+            template,
+            settings,
+        });
+    });
+}
+
+fn ensure_host_timer() {
+    if HOST_TIMER.get() {
+        return;
+    }
+    HOST_TIMER.set(true);
+    glib::timeout_add_seconds_local(1, || {
+        refresh_host_bounds();
+        glib::ControlFlow::Continue
+    });
+}
+
+fn refresh_host_bounds() {
+    let host = sample_host_binds();
+    HOST_BOUNDS.with(|list| {
+        list.borrow_mut().retain(|bound| bound.label.is_visible());
+        for bound in list.borrow().iter() {
+            let text = interpolate_template(&bound.template, &bound.settings, Some(&host));
+            bound.label.set_text(&text);
+        }
+    });
+}
+
+fn sample_host_binds() -> HostBindValues {
+    let now = chrono::Local::now();
+    let time = now.format("%H:%M:%S").to_string();
+    let date = now.format("%a %b %-d").to_string();
+
+    let (weather_temp, weather_unit, weather_summary) =
+        match crate::services::last_weather_snapshot() {
+            Some(snap) if !snap.locations.is_empty() => {
+                let loc = &snap.locations[0];
+                let unit = if snap.fahrenheit { "°F" } else { "°C" };
+                (
+                    format!("{:.0}", loc.temp),
+                    unit.to_string(),
+                    loc.label.clone(),
+                )
+            }
+            _ => ("—".into(), String::new(), String::new()),
+        };
+
+    let (sys_cpu, sys_mem, sys_disk) = HOST_SYS.with(|cell| {
+        let mut guard = cell.borrow_mut();
+        if guard.is_none() {
+            *guard = Some(System::new());
+        }
+        let sys = guard.as_mut().expect("sys");
+        sys.refresh_cpu_usage();
+        sys.refresh_memory();
+        let cpu = format!("{:.0}%", sys.global_cpu_usage().clamp(0.0, 100.0));
+        let mem = if sys.total_memory() > 0 {
+            format!(
+                "{:.0}%",
+                (sys.used_memory() as f64 / sys.total_memory() as f64) * 100.0
+            )
+        } else {
+            "—".into()
+        };
+        let disks = Disks::new_with_refreshed_list();
+        let disk = disks
+            .list()
+            .iter()
+            .find(|d| d.mount_point() == std::path::Path::new("/"))
+            .map(|d| {
+                let total = d.total_space().max(1);
+                let used = total.saturating_sub(d.available_space());
+                format!("{:.0}%", (used as f64 / total as f64) * 100.0)
+            })
+            .unwrap_or_else(|| "—".into());
+        (cpu, mem, disk)
+    });
+
+    HostBindValues {
+        time,
+        date,
+        weather_temp,
+        weather_unit,
+        weather_summary,
+        sys_cpu,
+        sys_mem,
+        sys_disk,
+    }
+}
+
 fn run_action(
     action: &WidgetExtAction,
     settings: &serde_json::Map<String, serde_json::Value>,
 ) {
-    // Re-check at click time (defense in depth; layout already validated on load).
     if let Err(err) = validate_action(action) {
         tracing::warn!(%err, "extension action blocked");
         return;
     }
     match action {
         WidgetExtAction::OpenUri { uri } => {
-            // No settings interpolation into URIs.
             let uri = uri.trim();
             if !is_safe_open_uri(uri) {
                 tracing::warn!(uri = %uri, "extension open_uri blocked");
@@ -142,7 +264,6 @@ fn run_action(
             open_https_uri(uri);
         }
         WidgetExtAction::Launch { id, exec } => {
-            // No settings interpolation into launch targets.
             let id = id.trim();
             let exec = exec.trim();
             if !id.is_empty() {
@@ -156,7 +277,6 @@ fn run_action(
                     tracing::warn!(exec = %exec, "extension launch exec blocked");
                     return;
                 }
-                // Single argv token only (validators already forbid whitespace/args).
                 if let Err(err) = crate::compositor::launch_argv([exec]) {
                     tracing::warn!(%err, exec = %exec, "extension launch failed");
                 }

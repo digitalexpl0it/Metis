@@ -20,6 +20,8 @@ struct WidgetToggles {
     memory: gtk::CheckButton,
     disk: gtk::CheckButton,
     network: gtk::CheckButton,
+    battery: gtk::CheckButton,
+    logs: gtk::CheckButton,
     processes: gtk::CheckButton,
 }
 
@@ -84,7 +86,7 @@ pub fn build() -> gtk::Widget {
         "Open Control Center from the grid icon beside workspace dots, or pull down \
          on the edge bar. Process monitor Auto-detect prefers btop/htop (in your \
          terminal) then GUI monitors. Changes apply within about a second."
-        )));
+    )));
     panel_hint.set_xalign(0.0);
     panel_hint.set_wrap(true);
     panel_hint.add_css_class("metis-settings-hint");
@@ -95,11 +97,13 @@ pub fn build() -> gtk::Widget {
         ui::section_with_icon(&tr("Overview widgets"), "view-app-grid-symbolic");
 
     let toggles = Rc::new(WidgetToggles {
-        cpu: gtk::CheckButton::with_label(DashboardWidgetId::Cpu.label()),
-        memory: gtk::CheckButton::with_label(DashboardWidgetId::Memory.label()),
-        disk: gtk::CheckButton::with_label(DashboardWidgetId::Disk.label()),
-        network: gtk::CheckButton::with_label(DashboardWidgetId::Network.label()),
-        processes: gtk::CheckButton::with_label(DashboardWidgetId::Processes.label()),
+        cpu: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Cpu.label())),
+        memory: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Memory.label())),
+        disk: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Disk.label())),
+        network: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Network.label())),
+        battery: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Battery.label())),
+        logs: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Logs.label())),
+        processes: gtk::CheckButton::with_label(&tr(DashboardWidgetId::Processes.label())),
     });
     apply_widget_toggles(&toggles, &cfg.widgets);
 
@@ -113,6 +117,8 @@ pub fn build() -> gtk::Widget {
         &toggles.memory,
         &toggles.disk,
         &toggles.network,
+        &toggles.battery,
+        &toggles.logs,
         &toggles.processes,
     ] {
         widget_grid.append(toggle);
@@ -120,9 +126,10 @@ pub fn build() -> gtk::Widget {
     widgets_body.append(&widget_grid);
 
     let widgets_hint = gtk::Label::new(Some(&tr(
-        "Processor, memory, storage, and network cards share the Overview tab. \
-         Disabling Processes hides the Processes tab."
-        )));
+        "Overview cards can be toggled independently. Battery hides on desktops \
+         without a battery. Logs shows a short journalctl tail. Disabling Processes \
+         hides the Processes tab."
+    )));
     widgets_hint.set_xalign(0.0);
     widgets_hint.set_wrap(true);
     widgets_hint.add_css_class("metis-settings-hint");
@@ -184,6 +191,8 @@ pub fn build() -> gtk::Widget {
         wire(&toggles.memory);
         wire(&toggles.disk);
         wire(&toggles.network);
+        wire(&toggles.battery);
+        wire(&toggles.logs);
         wire(&toggles.processes);
     }
 
@@ -202,6 +211,12 @@ fn apply_widget_toggles(toggles: &WidgetToggles, enabled: &[DashboardWidgetId]) 
         .network
         .set_active(enabled.contains(&DashboardWidgetId::Network));
     toggles
+        .battery
+        .set_active(enabled.contains(&DashboardWidgetId::Battery));
+    toggles
+        .logs
+        .set_active(enabled.contains(&DashboardWidgetId::Logs));
+    toggles
         .processes
         .set_active(enabled.contains(&DashboardWidgetId::Processes));
 }
@@ -214,6 +229,8 @@ fn collect_widgets(toggles: &WidgetToggles) -> Vec<DashboardWidgetId> {
             DashboardWidgetId::Memory => toggles.memory.is_active(),
             DashboardWidgetId::Disk => toggles.disk.is_active(),
             DashboardWidgetId::Network => toggles.network.is_active(),
+            DashboardWidgetId::Battery => toggles.battery.is_active(),
+            DashboardWidgetId::Logs => toggles.logs.is_active(),
             DashboardWidgetId::Processes => toggles.processes.is_active(),
         };
         if active {

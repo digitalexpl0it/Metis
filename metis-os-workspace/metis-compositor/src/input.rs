@@ -96,7 +96,7 @@ fn hardware_key_command(sym: u32) -> Option<&'static str> {
 /// Run a configured desktop shortcut. Returns `true` when the event should be
 /// intercepted (even if the action was a no-op for the current layout).
 fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
-    if state.lock.locked {
+    if state.session_is_locked() {
         return false;
     }
 
@@ -249,8 +249,7 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
         }
         KeybindAction::Maximize => {
             if let Some(id) = state.focused_window_id() {
-                let maxed = state.windows.get(id).map(|w| w.maximized).unwrap_or(false);
-                state.set_maximized(id, !maxed);
+                return state.toggle_maximized_debounced(id);
             }
             true
         }
@@ -341,7 +340,7 @@ impl MetisState {
                 // focus *before* the filter so Forward delivers keys even when
                 // the pointer is not over the surface — required for Super-key
                 // menu opens where there was never a click to claim OnDemand focus.
-                if !self.lock.locked {
+                if !self.session_is_locked() {
                     if let Some(layer) = self.exclusive_keyboard_layer() {
                         if let Some(keyboard) = self.seat.get_keyboard() {
                             keyboard.set_focus(
@@ -349,6 +348,12 @@ impl MetisState {
                                 Some(KeyboardFocusTarget::from(layer)),
                                 serial,
                             );
+                        }
+                    }
+                } else if self.protocol_lock.is_locked() {
+                    if let Some(focus) = self.protocol_lock_keyboard_focus() {
+                        if let Some(keyboard) = self.seat.get_keyboard() {
+                            keyboard.set_focus(self, Some(focus), serial);
                         }
                     }
                 }
@@ -391,6 +396,35 @@ impl MetisState {
                                 }
                             }
                             return FilterResult::Intercept(());
+                        }
+                        // Protocol locker owns the session: block VT switches and
+                        // desktop keybinds; forward everything else to the locker.
+                        if state.protocol_lock.is_locked() {
+                            if key_state == KeyState::Pressed {
+                                let sym = u32::from(keysym.modified_sym());
+                                if state.is_drm_backend()
+                                    && modifiers.ctrl
+                                    && modifiers.alt
+                                    && sym == keysyms::KEY_BackSpace
+                                {
+                                    state.drm_quit();
+                                    return FilterResult::Intercept(());
+                                }
+                                if state.is_drm_backend()
+                                    && modifiers.ctrl
+                                    && modifiers.alt
+                                    && (keysyms::KEY_F1..=keysyms::KEY_F12).contains(&sym)
+                                {
+                                    return FilterResult::Intercept(());
+                                }
+                            }
+                            // Swallow Super / configured chords so they cannot
+                            // manipulate the desktop underneath the locker.
+                            let sym = u32::from(keysym.modified_sym());
+                            if is_super_keysym(sym) {
+                                return FilterResult::Intercept(());
+                            }
+                            return FilterResult::Forward;
                         }
                         let sym = u32::from(keysym.modified_sym());
 
@@ -500,7 +534,7 @@ impl MetisState {
                             // Trace bare Esc forwarded to a game (usually opens pause menu).
                             if sym == keysyms::KEY_Escape
                                 && !mod_active(&state.keybinds, modifiers)
-                                && !state.lock.locked
+                                && !state.session_is_locked()
                             {
                                 if let Some(id) = state.focused_window_id() {
                                     let app_id = state

@@ -9,7 +9,7 @@
     },
     {
       "type": "label",
-      "text": "Example JSON desktop widget (Phase 14 §E).",
+      "text": "Example JSON desktop widget (Phase 14 §E). {host.time}",
       "style": "muted"
     },
     {

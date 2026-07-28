@@ -80,6 +80,7 @@ struct Dashboard {
     tx_hist: Rc<RefCell<Vec<f64>>>,
     disk_read_hist: Rc<RefCell<Vec<f64>>>,
     disk_write_hist: Rc<RefCell<Vec<f64>>>,
+    battery_hist: Rc<RefCell<Vec<f32>>>,
     gpu_gauges: RefCell<Vec<views::TempGaugeCard>>,
     open: Cell<bool>,
     pulling: Cell<bool>,
@@ -414,6 +415,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     let tx_hist = Rc::new(RefCell::new(Vec::new()));
     let disk_read_hist = Rc::new(RefCell::new(Vec::new()));
     let disk_write_hist = Rc::new(RefCell::new(Vec::new()));
+    let battery_hist = Rc::new(RefCell::new(Vec::new()));
 
     let overview = views::build_overview();
     charts::wire_multi_core_chart(&overview.cpu_chart, cpu_core_hist.clone(), cpu_hist.clone());
@@ -433,6 +435,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         disk_read_hist.clone(),
         disk_write_hist.clone(),
     );
+    charts::wire_percent_chart(&overview.battery_chart, battery_hist.clone(), true);
 
     let overview_scroll = gtk::ScrolledWindow::new();
     overview_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -467,6 +470,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         tx_hist,
         disk_read_hist,
         disk_write_hist,
+        battery_hist,
         gpu_gauges: RefCell::new(Vec::new()),
         open: Cell::new(false),
         pulling: Cell::new(false),
@@ -635,7 +639,29 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
 impl Dashboard {
     fn apply_widget_config(&self) {
         let cfg = load_dashboard_config();
-        let show_processes = cfg.widgets.contains(&DashboardWidgetId::Processes);
+        let enabled = |id: DashboardWidgetId| cfg.widgets.contains(&id);
+        self.overview
+            .cpu_card
+            .set_visible(enabled(DashboardWidgetId::Cpu));
+        self.overview
+            .mem_card
+            .set_visible(enabled(DashboardWidgetId::Memory));
+        self.overview
+            .disk_card
+            .set_visible(enabled(DashboardWidgetId::Disk));
+        self.overview
+            .disk_io_card
+            .set_visible(enabled(DashboardWidgetId::Disk));
+        self.overview
+            .net_card
+            .set_visible(enabled(DashboardWidgetId::Network));
+        let show_battery = enabled(DashboardWidgetId::Battery)
+            && self.snapshot.borrow().battery_percent.is_some();
+        self.overview.battery_card.set_visible(show_battery);
+        self.overview
+            .logs_card
+            .set_visible(enabled(DashboardWidgetId::Logs));
+        let show_processes = enabled(DashboardWidgetId::Processes);
         self.processes.widget.set_visible(show_processes);
         if !show_processes && self.stack.visible_child_name().as_deref() == Some("processes") {
             self.stack.set_visible_child_name("overview");
@@ -926,6 +952,7 @@ impl Dashboard {
         *self.tx_hist.borrow_mut() = snapshot.net_tx_history.clone();
         *self.disk_read_hist.borrow_mut() = snapshot.disk_read_history.clone();
         *self.disk_write_hist.borrow_mut() = snapshot.disk_write_history.clone();
+        *self.battery_hist.borrow_mut() = snapshot.battery_history.clone();
 
         self.overview.cpu_value.set_text(&format!(
             "{:.0}% {} · {} {}",
@@ -946,6 +973,39 @@ impl Dashboard {
         ));
         self.overview.mem_chart.queue_draw();
         self.overview.mem_legend.set_visible(snapshot.swap_total_bytes > 0);
+
+        match snapshot.battery_percent {
+            Some(pct) => {
+                let charge = if snapshot.battery_charging {
+                    tr("Charging")
+                } else {
+                    tr("On battery")
+                };
+                self.overview
+                    .battery_value
+                    .set_text(&format!("{pct:.0}% · {charge}"));
+                self.overview.battery_chart.queue_draw();
+            }
+            None => {
+                self.overview.battery_value.set_text("—");
+            }
+        }
+
+        if snapshot.logs_available {
+            let text = if snapshot.log_lines.is_empty() {
+                tr("No recent journal entries.")
+            } else {
+                snapshot.log_lines.join("\n")
+            };
+            self.overview.logs_buffer.set_text(&text);
+        } else {
+            self.overview
+                .logs_buffer
+                .set_text(&tr("Journal unavailable (install systemd journal tools)."));
+        }
+
+        // Re-evaluate battery visibility when supply appears/disappears.
+        self.apply_widget_config();
 
         self.overview.load_label.set_text(&format!(
             "{:.2}  {:.2}  {:.2}",

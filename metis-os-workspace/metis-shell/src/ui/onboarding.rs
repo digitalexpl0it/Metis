@@ -2,6 +2,9 @@
 //! through theme, wallpaper, clock, edge bar, weather, gaming, and optional host
 //! packages before marking `onboarding_complete` in `config.json`.
 //!
+//! Progress is resumable: `onboarding_step` is written on each Next/Back so a
+//! session restart mid-wizard continues where the user left off.
+//!
 //! Like the startup splash, the layer surface is parked off-screen on dismiss,
 //! then dropped (same lifecycle as `splash.rs`) so we never call `destroy()` or
 //! `set_visible(false)` while another layer surface is reconfiguring.
@@ -114,12 +117,29 @@ pub fn show_if_needed() {
         }
         return;
     }
-    show();
+    let step = metis_config::clamped_onboarding_step(STEP_COUNT);
+    if step > 0 {
+        tracing::info!(step, "resuming onboarding mid-wizard");
+    }
+    show_at_step(step);
 }
 
 /// Present the onboarding overlay (first run or re-triggered from Settings).
+///
+/// Settings "Run setup again" always starts at step 0. First-run / mid-wizard
+/// resume uses the persisted `onboarding_step` via [`show_if_needed`].
 pub fn show() {
+    // Explicit re-open: clear complete flag and start from the beginning so a
+    // crash mid re-run still re-enters via `show_if_needed`.
+    if let Err(err) = metis_config::reset_onboarding_progress() {
+        tracing::warn!(%err, "failed to reset onboarding progress");
+    }
+    show_at_step(0);
+}
+
+fn show_at_step(initial_step: usize) {
     mark_active();
+    let initial_step = initial_step.min(STEP_COUNT.saturating_sub(1));
     ONBOARDING.with(|cell| {
         if let Some(ob) = cell.borrow().as_ref() {
             let mut o = ob.borrow_mut();
@@ -128,7 +148,7 @@ pub fn show() {
             }
             o.parked = false;
             o.centered = false;
-            o.step = 0;
+            o.step = initial_step;
             o.window.set_margin(Edge::Top, 0);
             o.window.set_margin(Edge::Left, 0);
             o.window.set_opacity(0.0);
@@ -230,7 +250,7 @@ pub fn show() {
         stepper,
         back_btn: back_btn.clone(),
         next_btn: next_btn.clone(),
-        step: 0,
+        step: initial_step,
         centered: false,
         fading: false,
         fade_start: None,
@@ -404,6 +424,10 @@ fn refresh_step(o: &mut Onboarding) {
     }
 
     apply_onboarding_direction(&o.window);
+
+    if let Err(err) = metis_config::save_onboarding_step(o.step as u32) {
+        tracing::warn!(%err, step = o.step, "failed to persist onboarding step");
+    }
 }
 
 fn apply_onboarding_direction(window: &gtk::Window) {

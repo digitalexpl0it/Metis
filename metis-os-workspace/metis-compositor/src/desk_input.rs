@@ -444,6 +444,9 @@ impl MetisState {
         if self.screenshot_overlay_active() {
             return self.screenshot_overlay_surface_at(pos);
         }
+        if self.protocol_lock.is_locked() {
+            return self.protocol_lock_surface_at(pos);
+        }
         self.surface_under(pos)
             .or_else(|| self.window_surface_at(pos))
     }

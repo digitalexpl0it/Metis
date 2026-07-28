@@ -282,8 +282,9 @@ reference.
   `…/metis/widgets/<id>/` (no Electron / scripts / `.so`).
 
 Optional follow-up: compositor **dim on battery** hook, widget extension §E.2
-(helpers / live binds), `ext-session-lock-v1`, default-on colour-management
+(out-of-process helpers / script·WASM), default-on colour-management
 protocol (upstream wayland-rs), per-surface HDR, Metis-native remote host.
+Live `{host.*}` binds and `ext-session-lock-v1` shipped 2026-07-27.
 **Phase 15 §F** (viewer, RustDesk preset, image RDP clipboard, lock
 fingerprint/YubiKey) is done (2026-07-26).
 

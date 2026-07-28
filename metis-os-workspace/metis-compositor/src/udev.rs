@@ -1695,7 +1695,7 @@ impl MetisState {
     /// DRM backend; a no-op (logged) when nested. Refused while the session is
     /// locked (Phase 15 §C) — use Ctrl+Alt+Backspace to quit instead.
     pub(crate) fn drm_change_vt(&mut self, vt: i32) {
-        if self.lock.locked {
+        if self.session_is_locked() {
             tracing::warn!(vt, "refusing VT switch while session is locked");
             return;
         }

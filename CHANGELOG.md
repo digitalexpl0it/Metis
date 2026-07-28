@@ -5,6 +5,45 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-27]
+
+### Added
+
+- **Control Center — Battery + Logs** — optional overview cards: battery charge
+  history sparkline (hidden on desktops without a battery) and a compact
+  `journalctl` log tail (unavailable when journalctl is missing or denied).
+  Toggle in Settings → Control Center (`dashboard.json`).
+- **Widget extension live host binds** — JSON packs can use `{host.time}`,
+  `{host.date}`, `{host.weather.temp|unit|summary}`, `{host.sys.cpu|mem|disk}`;
+  labels refresh live. Not interpolated into `open_uri` / `launch` action
+  fields. Example pack shows `{host.time}`.
+- **`ext-session-lock-v1`** — optional third-party lockers (swaylock, gtklock,
+  …). Metis compositor PAM lock (`Super+L`) remains the default; only one lock
+  owner per cycle. Protocol unlock runs the same side effects as PAM unlock
+  (RDP resume, capture/inject denylist).
+
+### Fixed
+
+- **Maximize key-repeat / wobble lockup** — holding the maximize shortcut no
+  longer restarts the wobble forever or floods configure/redraw. Debounced
+  toggle (~400ms), in-flight FX is not timer-reset, and move/resize grabs
+  clear the wobble so the window can be dragged after unmaximize.
+- **Maximize wobble restored** — wobble is enabled again for all apps
+  (including Chromium/Electron). A short-lived titlebar button grab no longer
+  cancels the animation on the first tick.
+
+### Improved
+
+- **Browser / windowed web-game performance** — pointer motion over Firefox /
+  Chromium-family windows is no longer throttled (~20 Hz) so canvas/WebGL input
+  stays smooth without fullscreen. Auto GPU mode steers Chrome/Firefox/Edge/
+  Brave/… onto the dGPU when on AC (same battery-iGPU preference as games;
+  browsers do not trigger GameMode). `MOZ_ENABLE_WAYLAND=1` is set for spawned
+  clients when unset.
+- **Onboarding resumable** — mid-wizard progress is stored as `onboarding_step`
+  in `config.json` and restored after a session restart; Finish/Skip clears it.
+  Settings "Run setup again" resets to step 0.
+
 ## [2026-07-26]
 
 ### Added
@@ -36,7 +75,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Phase 15 §F lock fingerprint + YubiKey** — lock screen soft-detects readers /
   Yubico USB keys, shows touch cues, allows empty-password PAM + one auto-attempt
   for host `pam_fprintd` / `pam_u2f`. Password path unchanged; enrollment stays
-  on the host. `ext-session-lock-v1` remains open.
+  on the host.
 - **Phase 15 §F image RDP clipboard** — portal Mutter clipboard shim syncs
   `image/png|jpeg|bmp` both ways (≤10 MiB, path-allowlisted under runtime
   `clipboard/`). Text path unchanged.

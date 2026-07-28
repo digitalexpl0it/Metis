@@ -4,8 +4,8 @@
 **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
 spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Phase 15 §F
 stretch complete 2026-07-26** (first-party viewer, RustDesk preset, image RDP
-clipboard, lock fingerprint / YubiKey niceties). Optional follow-up:
-`ext-session-lock-v1`.
+clipboard, lock fingerprint / YubiKey niceties). **`ext-session-lock-v1`
+shipped 2026-07-27** (optional third-party lockers; Metis PAM lock stays default).
 **Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
 iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
 closed 2026-07-25 with HDR H1–H3 and Stage 2 GLES 3D-LUT colour; 2026-07-26
@@ -768,7 +768,7 @@ latency and clear setup docs.
 - [x] **Session lock** — local lock (2026-07-02) plus **remote pause** (2026-07-25):
       lock runs `metis-remote pause` (RDP disable, keep `remote.json.enabled`);
       unlock runs `resume` if still enabled. Capture/inject remain denied while
-      locked. Remaining follow-ups: `ext-session-lock-v1` for third-party lockers.
+      locked. `ext-session-lock-v1` for third-party lockers shipped 2026-07-27.
 - [x] **Multi-user / VT** — documented in `docs/UBUNTU_DEV.md` (2026-07-24):
       Metis is a single graphical session per seat; switching TTYs pauses the
       DRM session; remote RDP attaches to the active logged-in session only;
@@ -886,7 +886,8 @@ Display arrangement / resolution / Hz deliberately deferred to Settings → Disp
 ### C. Polish
 
 - [x] **Skippable** — clear "Skip" that still marks onboarding done.
-- [ ] **Resumable** — remember progress if the session restarts mid-wizard.
+- [x] **Resumable** — remember progress if the session restarts mid-wizard
+      (`config.json` → `onboarding_step`; cleared on Finish/Skip).
 - [x] **Accessible & translatable** — keyboard-navigable, and route all copy
       through the Phase 8 i18n catalog so the wizard itself is localizable
       (chrome + language step; remaining step bodies continue via `tr()`).
@@ -974,7 +975,8 @@ never destroy mid-session.
 - [x] **Process context menu** — right-click End task / Force quit / End process
       tree / Force quit tree / Copy PID; cursor-anchored popover, list refresh
       paused while open (2026-07-07; tree actions 2026-07-11).
-- [ ] **Optional additions** — battery history graph, log tail snippet.
+- [x] **Optional additions** — battery history graph, log tail snippet
+      (journalctl; card hidden/unavailable when missing) (2026-07-27).
 
 ### E. Settings & docs
 
@@ -1248,13 +1250,13 @@ Config sketch:
 - [x] **Manifest** — widget id, name, version, size hints, settings schema
       (`~/.local/share/metis/widgets/<id>/manifest.json`)
 - [x] **Host API** — theme CSS classes; hardened `open_uri` (http/https),
-      `launch` (desktop id / PATH basename), `copy_text`; layout size caps
-      (weather/sysinfo live binds deferred)
+      `launch` (desktop id / PATH basename), `copy_text`; layout size caps;
+      live `{host.*}` binds (clock / weather / sysinfo) (2026-07-27)
 - [x] **JSON widgets** — declarative `widget.json` layout DSL rendered in
       `metis-shell --desktop-widgets`; sandboxed; **no** Electron / scripts /
       in-process `.so` in v1
-- [ ] **§E.2 follow-ups** — out-of-process helpers, live data bindings,
-      script/WASM runtimes (still explicitly deferred)
+- [ ] **§E.2 follow-ups** — out-of-process helpers, script/WASM runtimes
+      (still explicitly deferred; live binds shipped above)
 
 **Phase 14 complete (2026-07-18); §E JSON extensions shipped 2026-07-26.**
 
@@ -1327,8 +1329,10 @@ shared X server.
 - [x] **Implement chosen policy** — gate `drm_change_vt` on `lock.locked` (and
       optionally idle-blank); on VT resume while session still “locked”, re-show
       lock UI before client input/capture.
-- [ ] **`ext-session-lock-v1` (optional follow-up)** — protocol support for
-      third-party lockers; separate from Metis’s compositor-rendered lock.
+- [x] **`ext-session-lock-v1` (optional follow-up)** — protocol support for
+      third-party lockers (swaylock / gtklock); Metis PAM lock remains default;
+      one lock owner per cycle; unlock side effects match PAM unlock
+      (2026-07-27).
 
 ### D. Capability-scoped IPC (widgets & helpers)
 
@@ -1373,7 +1377,7 @@ server does not.
       lock UI cues, empty-password PAM + one auto-attempt for host `pam_fprintd` /
       `pam_u2f`. Password always works; enroll on the host.
 
-**Suggested order:** Phase 15 §F stretch complete. Optional: `ext-session-lock-v1`.
+**Suggested order:** Phase 15 product bar + `ext-session-lock-v1` complete.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).
@@ -1395,7 +1399,7 @@ recent hosts; no passwords).
 | `bar.json` | Edge bar layout, widgets, workspaces, borders, default layout |
 | `clock.json` | World clocks and alarms |
 | `calendars.json` | Calendar accounts |
-| `config.json` | Active theme, onboarding state, briefing-on-login |
+| `config.json` | Active theme, onboarding state (`onboarding_complete` + `onboarding_step`), briefing-on-login |
 | `menu.json` | App launcher: terminal + file-manager defaults, pinned apps |
 | `wallpaper.json` | Wallpaper picture / colour / gradient (+ per-output overrides) |
 | `desk.json` | Compositor window-grid layout (app tiles; not desktop widgets) |

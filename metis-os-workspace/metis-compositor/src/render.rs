@@ -86,11 +86,18 @@ impl MetisState {
         exclude_layer_namespaces: &[&str],
         allow_blur: bool,
     ) -> Vec<OutputStack> {
-        // Locked: draw ONLY the compositor lock UI and skip every client, layer,
-        // and decoration element — no client content is ever composited while the
-        // session is locked.
+        // Locked: draw ONLY the lock UI (Metis PAM chrome or a protocol locker
+        // surface) and skip every normal client, layer, and decoration element.
         if self.lock.locked {
             return self.build_lock_elements(renderer, render_origin, &target, output_scale.x);
+        }
+        if self.protocol_lock.is_locked() {
+            return self.build_protocol_lock_elements(
+                renderer,
+                render_origin,
+                &target,
+                output_scale,
+            );
         }
 
         // Render-target-local physical origin of the full-desktop wallpaper.

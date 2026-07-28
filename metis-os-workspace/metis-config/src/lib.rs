@@ -41,6 +41,10 @@ pub struct AppConfig {
     pub theme: String,
     #[serde(default)]
     pub onboarding_complete: bool,
+    /// Current wizard step (0-based) while [`Self::onboarding_complete`] is false.
+    /// Restored after a mid-wizard session restart; cleared on finish/skip.
+    #[serde(default)]
+    pub onboarding_step: u32,
     #[serde(default)]
     pub gaming_setup_complete: bool,
     #[serde(default = "default_show_briefing")]
@@ -87,6 +91,7 @@ impl Default for AppConfig {
         Self {
             theme: default_theme(),
             onboarding_complete: false,
+            onboarding_step: 0,
             gaming_setup_complete: false,
             show_briefing_on_login: default_show_briefing(),
             graphics_profile: graphics::GraphicsProfile::default(),
@@ -336,7 +341,38 @@ pub fn sync_session_appearance_from_config() {
 pub fn mark_onboarding_complete() -> std::io::Result<()> {
     let mut cfg = load_app_config();
     cfg.onboarding_complete = true;
+    cfg.onboarding_step = 0;
     save_app_config(&cfg)
+}
+
+/// Persist the in-progress wizard step (no-op once onboarding is complete).
+pub fn save_onboarding_step(step: u32) -> std::io::Result<()> {
+    let mut cfg = load_app_config();
+    if cfg.onboarding_complete {
+        return Ok(());
+    }
+    if cfg.onboarding_step == step {
+        return Ok(());
+    }
+    cfg.onboarding_step = step;
+    save_app_config(&cfg)
+}
+
+/// Open (or re-open) the wizard from step 0 — used by Settings "Run setup again".
+pub fn reset_onboarding_progress() -> std::io::Result<()> {
+    let mut cfg = load_app_config();
+    cfg.onboarding_complete = false;
+    cfg.onboarding_step = 0;
+    save_app_config(&cfg)
+}
+
+/// Clamp a saved step into `0..step_count` for resume.
+pub fn clamped_onboarding_step(step_count: usize) -> usize {
+    if step_count == 0 {
+        return 0;
+    }
+    let step = load_app_config().onboarding_step as usize;
+    step.min(step_count - 1)
 }
 
 pub fn mark_gaming_setup_complete() -> std::io::Result<()> {
@@ -409,10 +445,11 @@ pub use desktop_widgets::{
 };
 pub use widget_ext::{
     default_extension_settings, discover_widget_extensions, find_widget_extension,
-    interpolate_settings, is_safe_icon_name, is_safe_launch_exec, is_safe_launch_id,
-    is_safe_open_uri, is_valid_extension_id, load_widget_extension, load_widget_layout,
-    validate_action, validate_widget_layout, widget_ext_search_dirs, DiscoveredWidgetExt,
-    WidgetExtAction, WidgetExtLabelStyle, WidgetExtManifest, WidgetExtNode, WidgetExtSetting,
+    interpolate_settings, interpolate_template, is_safe_icon_name, is_safe_launch_exec,
+    is_safe_launch_id, is_safe_open_uri, is_valid_extension_id, load_widget_extension,
+    load_widget_layout, template_needs_host, validate_action, validate_widget_layout,
+    widget_ext_search_dirs, DiscoveredWidgetExt, HostBindValues, WidgetExtAction,
+    WidgetExtLabelStyle, WidgetExtManifest, WidgetExtNode, WidgetExtSetting,
     WidgetExtSettingType, WIDGET_EXT_API, WIDGET_EXT_MAX_COPY, WIDGET_EXT_MAX_DEPTH,
     WIDGET_EXT_MAX_JSON_BYTES, WIDGET_EXT_MAX_NODES, WIDGET_EXT_MAX_STRING,
 };
@@ -425,8 +462,9 @@ pub use game_rules::{
     WindowRule, WindowRuleOutcome,
 };
 pub use gaming::{
-    command_prefers_dgpu, gaming_config_path, gaming_flatpak_state_path, load_gaming_config,
-    load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch, save_default_gaming_config,
+    command_is_web_browser, command_prefers_dgpu, gaming_config_path, gaming_flatpak_state_path,
+    load_gaming_config, load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch,
+    save_default_gaming_config,
     save_gaming_config, save_gaming_flatpak_state, GameScopeProfile, GamingConfig,
     GamingFlatpakState, GraphicsMode,
 };

@@ -58,6 +58,13 @@ pub struct DashboardSnapshot {
     pub processes: Vec<ProcessRow>,
     pub cpu_temp_celsius: Option<f32>,
     pub gpu_temps: Vec<GpuTempReading>,
+    /// Battery charge 0–100 when a BAT* supply exists.
+    pub battery_percent: Option<f32>,
+    pub battery_charging: bool,
+    pub battery_history: Vec<f32>,
+    /// Recent journal lines (or empty when unavailable).
+    pub log_lines: Vec<String>,
+    pub logs_available: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -171,6 +178,9 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
     let mut wifi_tx_history: Vec<f64> = Vec::with_capacity(90);
     let mut disk_read_history: Vec<f64> = Vec::with_capacity(90);
     let mut disk_write_history: Vec<f64> = Vec::with_capacity(90);
+    let mut battery_history: Vec<f32> = Vec::with_capacity(90);
+    let mut log_lines: Vec<String> = Vec::new();
+    let mut logs_available = false;
     let mut last_net = read_net_breakdown();
     let mut last_disk_io = read_disk_io_sectors();
     let mut last_io_at = Instant::now();
@@ -179,6 +189,7 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
     let mut firewall_cache = FirewallStatus::default();
     let mut firewall_at = Instant::now() - Duration::from_secs(60);
     let mut process_tick: u32 = 0;
+    let mut log_tick: u32 = 0;
 
     loop {
         let cfg = load_dashboard_config();
@@ -265,6 +276,25 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
             firewall_at = now;
         }
 
+        let (battery_percent, battery_charging) = match read_battery_sample() {
+            Some((pct, charging)) => {
+                push_history_f32(&mut battery_history, pct, 90);
+                (Some(pct), charging)
+            }
+            None => {
+                battery_history.clear();
+                (None, false)
+            }
+        };
+
+        // Journal is slower / more expensive — refresh about every 4 s at 1 Hz.
+        log_tick = log_tick.wrapping_add(1);
+        if log_tick % 4 == 1 {
+            let (lines, ok) = read_journal_tail(40);
+            log_lines = lines;
+            logs_available = ok;
+        }
+
         let disk_mounts = collect_disks(&disks);
         let health = compute_health(cpu_percent, mem_pct, &disk_mounts);
 
@@ -308,6 +338,11 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
             },
             cpu_temp_celsius: read_cpu_temp_celsius(),
             gpu_temps: read_gpu_temps(),
+            battery_percent,
+            battery_charging,
+            battery_history: battery_history.clone(),
+            log_lines: log_lines.clone(),
+            logs_available,
         };
 
         if snapshot != last_sent {
@@ -393,6 +428,63 @@ fn push_history_f64(history: &mut Vec<f64>, value: f64, cap: usize) {
     if history.len() > cap {
         history.drain(0..history.len() - cap);
     }
+}
+
+fn read_battery_sample() -> Option<(f32, bool)> {
+    let capacity = fs::read_to_string("/sys/class/power_supply/BAT0/capacity")
+        .or_else(|_| fs::read_to_string("/sys/class/power_supply/BAT1/capacity"))
+        .ok()?;
+    let pct: f32 = capacity.trim().parse::<u8>().ok()? as f32;
+    let status = fs::read_to_string("/sys/class/power_supply/BAT0/status")
+        .or_else(|_| fs::read_to_string("/sys/class/power_supply/BAT1/status"))
+        .unwrap_or_default();
+    let charging = status.trim().eq_ignore_ascii_case("charging")
+        || status.trim().eq_ignore_ascii_case("fully charged");
+    Some((pct, charging))
+}
+
+/// Last `n` journal lines. Returns `(lines, available)`.
+fn read_journal_tail(n: usize) -> (Vec<String>, bool) {
+    let n = n.clamp(1, 200);
+    let output = Command::new("journalctl")
+        .args([
+            "-n",
+            &n.to_string(),
+            "--no-pager",
+            "-o",
+            "short-iso",
+            "--user",
+        ])
+        .output();
+    let Ok(out) = output else {
+        return (Vec::new(), false);
+    };
+    if !out.status.success() {
+        // Retry without --user for system journal access.
+        let output = Command::new("journalctl")
+            .args(["-n", &n.to_string(), "--no-pager", "-o", "short-iso"])
+            .output();
+        let Ok(out) = output else {
+            return (Vec::new(), false);
+        };
+        if !out.status.success() {
+            return (Vec::new(), false);
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let lines: Vec<String> = text
+            .lines()
+            .map(|l| l.trim_end().to_string())
+            .filter(|l| !l.is_empty())
+            .collect();
+        return (lines, true);
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let lines: Vec<String> = text
+        .lines()
+        .map(|l| l.trim_end().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    (lines, true)
 }
 
 fn read_hostname() -> String {

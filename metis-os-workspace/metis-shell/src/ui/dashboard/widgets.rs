@@ -40,6 +40,14 @@ pub const BUILTIN: &[WidgetDef] = &[
         title: "Network",
     },
     WidgetDef {
+        id: DashboardWidgetId::Battery,
+        title: "Battery",
+    },
+    WidgetDef {
+        id: DashboardWidgetId::Logs,
+        title: "Logs",
+    },
+    WidgetDef {
         id: DashboardWidgetId::Processes,
         title: "Processes",
     },
