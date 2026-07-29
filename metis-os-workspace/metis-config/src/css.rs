@@ -99,12 +99,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         {font_decls}
     }}
 
-    .metis-bar-window {{
-        background-color: transparent;
-    }}
-
     .metis-bar-outer {{
         background-color: transparent;
+        /* Same ~200ms ease-out feel as Metis titlebar reveal. Pixel translate
+           values are injected per-bar (GTK CSS rejects calc() in transform). */
+        transition: transform 200ms cubic-bezier(0.33, 1, 0.68, 1);
+    }}
+
+    .metis-bar-window {{
+        background-color: transparent;
+        overflow: hidden;
     }}
 
     .metis-bar-pill {{

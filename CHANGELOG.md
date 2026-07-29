@@ -5,6 +5,26 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-28]
+
+### Fixed
+
+- **Edge bar auto-hide session crash** — hide is visual-only (CSS slide). No
+  exclusive-zone toggle or window reflow on hide/show (that path crashed the
+  session). Compositor reveals via `reveal-edge-bar` when the pointer enters the
+  bar strip while a shell flag file is set.
+- **Edge bar auto-hide timing** — hide starts as soon as the pointer leaves (no
+  idle delay). Slide uses a 200ms ease-out transform (pixel offsets — GTK rejects
+  `calc()` in `transform`, which previously made auto-hide appear to do nothing).
+  Enabling Auto-hide in Settings hides the bar immediately.
+
+### Added
+
+- **Edge bar fill, length, and auto-hide** — Settings → Edge bar: theme/solid/
+  gradient background (with direction), centered length 40–100%, and classic
+  auto-hide with a configurable peek strip. Live-reloads via `bar.json`
+  (`bar_fill`, `length_percent`, `auto_hide*`).
+
 ## [2026-07-27]
 
 ### Added

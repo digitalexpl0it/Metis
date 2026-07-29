@@ -288,6 +288,13 @@ pub struct MetisState {
     /// Last known edge-bar position; used to reflow windows immediately when the
     /// bar layer commits after a settings change (not only on the blur poll).
     pub(crate) last_bar_position: metis_config::BarPosition,
+    /// Per-output: edge bar is auto-hidden (exclusive zone 0 while `auto_hide`
+    /// is enabled). Drives snap/maximize placement and input strip size.
+    pub(crate) bar_auto_hidden: std::collections::HashMap<String, bool>,
+    /// Debounce for `reveal-edge-bar` runtime commands (pointer hot-edge).
+    last_bar_reveal_cmd: Option<std::time::Instant>,
+    /// True while the pointer last sampled inside the bar strip (edge-trigger).
+    bar_edge_pointer_in: bool,
     /// Last applied maximize/snap gap from `bar.json` (`window_gap_px`).
     last_window_gap_px: i32,
     /// Throttle for re-reading `window_gap_px` (~1s, same cadence as blur).
@@ -960,6 +967,9 @@ impl MetisState {
             defer_client_flush: false,
             last_pointer_forward: None,
             last_bar_position: metis_config::load_bar_config().position,
+            bar_auto_hidden: std::collections::HashMap::new(),
+            last_bar_reveal_cmd: None,
+            bar_edge_pointer_in: false,
             last_window_gap_px: metis_config::bar::window_gap_px(&metis_config::load_bar_config()),
             last_window_gap_check: std::time::Instant::now(),
             last_scroll_tick: None,
@@ -2666,16 +2676,112 @@ impl MetisState {
         self.reclamp_auto_hide(id);
     }
 
-    /// Called when the bar layer commits; reflows windows if `bar.json` position changed.
-    pub(crate) fn on_bar_layer_committed(&mut self) {
-        let pos = metis_config::load_bar_config().position;
-        if pos == self.last_bar_position {
+    /// Called when the bar layer commits; reflows windows if position changed.
+    /// Auto-hide is visual-only in the shell — do not reflow on exclusive-zone
+    /// changes (that path crashed the session).
+    pub(crate) fn on_bar_layer_committed(&mut self, output: &smithay::output::Output) {
+        let cfg = metis_config::load_bar_config();
+        let pos = cfg.position;
+        if pos != self.last_bar_position {
+            tracing::info!(?pos, "edge bar position changed — reflowing windows");
+            self.last_bar_position = pos;
+            self.blur.position = pos;
+            self.reflow_for_bar_geometry_change();
+        }
+        // Keep cache in sync for peek hit-testing (shell flag file), without reflow.
+        let hidden = metis_protocol::bar_auto_hidden_flag();
+        self.bar_auto_hidden.insert(output.name(), hidden);
+    }
+
+    /// Pointer is in the configured bar strip. While auto-hide is on, notify the
+    /// shell so a GTK leave into the margin/edge gap does not start a hide/reveal
+    /// fight. When the bar is already tucked away, this also reveals it.
+    pub(crate) fn maybe_reveal_auto_hidden_bar(&mut self, location: Point<f64, Logical>) {
+        use crate::desk_input::point_in_rect;
+
+        let cfg = metis_config::load_bar_config();
+        if !cfg.auto_hide {
             return;
         }
-        tracing::info!(?pos, "edge bar position changed — reflowing windows");
-        self.last_bar_position = pos;
-        self.blur.position = pos;
-        self.reflow_for_bar_geometry_change();
+        let Some(output) = self.space.outputs().find(|o| {
+            self.space
+                .output_geometry(o)
+                .is_some_and(|geo| geo.contains(location.to_i32_round()))
+        }) else {
+            return;
+        };
+        let Some(output_geo) = self.space.output_geometry(output) else {
+            return;
+        };
+        let (x, y) = (location.x as i32, location.y as i32);
+        let strip = Self::bar_config_strip_rect(&output_geo);
+        if !point_in_rect(x, y, strip) {
+            return;
+        }
+        self.bar_edge_pointer_in = true;
+        // Pulse while the pointer rests in the strip so a GTK leave into the
+        // margin gap cannot complete a hide (shell hide grace is ~180ms).
+        const PULSE_MS: u128 = 100;
+        let now = std::time::Instant::now();
+        if self
+            .last_bar_reveal_cmd
+            .is_some_and(|t| now.duration_since(t).as_millis() < PULSE_MS)
+        {
+            return;
+        }
+        self.last_bar_reveal_cmd = Some(now);
+        let cmd = if metis_protocol::bar_auto_hidden_flag() {
+            "reveal-edge-bar"
+        } else {
+            "bar-edge-hover"
+        };
+        if let Err(err) = metis_protocol::write_runtime_command(cmd) {
+            tracing::debug!(%err, %cmd, "failed to write bar edge command");
+        }
+    }
+
+    /// Clear strip-hover latch when the pointer leaves the bar band, and tell
+    /// the shell so auto-hide can run (hover alone used to leave pointer_over
+    /// stuck true forever).
+    pub(crate) fn maybe_clear_bar_edge_hover(&mut self, location: Point<f64, Logical>) {
+        use crate::desk_input::point_in_rect;
+
+        if !self.bar_edge_pointer_in {
+            return;
+        }
+        if !metis_config::load_bar_config().auto_hide {
+            self.bar_edge_pointer_in = false;
+            return;
+        }
+        let Some(output) = self.space.outputs().find(|o| {
+            self.space
+                .output_geometry(o)
+                .is_some_and(|geo| geo.contains(location.to_i32_round()))
+        }) else {
+            self.bar_edge_pointer_in = false;
+            let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            return;
+        };
+        let Some(output_geo) = self.space.output_geometry(output) else {
+            self.bar_edge_pointer_in = false;
+            let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            return;
+        };
+        let (x, y) = (location.x as i32, location.y as i32);
+        if !point_in_rect(x, y, Self::bar_config_strip_rect(&output_geo)) {
+            self.bar_edge_pointer_in = false;
+            if let Err(err) = metis_protocol::write_runtime_command("bar-edge-leave") {
+                tracing::debug!(%err, "failed to write bar-edge-leave");
+            }
+        }
+    }
+
+    /// True when the shell reports the edge bar is auto-hidden (flag file).
+    pub(crate) fn bar_is_auto_hidden(&self, output: &smithay::output::Output) -> bool {
+        self.bar_auto_hidden
+            .get(&output.name())
+            .copied()
+            .unwrap_or_else(metis_protocol::bar_auto_hidden_flag)
     }
 
     // --- Per-output desk helpers -----------------------------------------------
@@ -5242,20 +5348,6 @@ impl MetisState {
         );
     }
 
-    /// After the edge bar layer updates its exclusive zone, re-seat maximized
-    /// clients that were restored while the bar was still hidden.
-    pub(crate) fn reapply_maximized_windows_on_output(
-        &mut self,
-        output: &smithay::output::Output,
-    ) {
-        let name = output.name();
-        for id in self.windows.ids() {
-            if self.windows.output_name(id).as_deref() == Some(name.as_str()) {
-                self.reclamp_maximized_geometry(id);
-            }
-        }
-    }
-
     /// Collect decoration specs (frame, title, focus) for every mapped, ready
     /// window that should be decorated. The frame is derived from the window's
     /// *actual* mapped geometry (so chrome tracks tiled, floating, and maximized
@@ -5417,8 +5509,7 @@ impl MetisState {
     }
 
     /// Region for maximize, snap, and clamp. Always subtracts the configured bar
-    /// strip from the full output geometry so bottom/side bars stay correct even
-    /// when layer-shell exclusive zones do not shrink the usable map.
+    /// strip (auto-hide is visual-only and must not expand windows into the bar).
     pub(crate) fn window_placement_zone(&self) -> PixelRect {
         match self.primary_output() {
             Some(output) => self.window_placement_zone_for(&output),
@@ -6579,7 +6670,11 @@ impl MetisState {
             if self.windows.get(id).is_some_and(|r| r.maximized) {
                 if let Some(output) = self.output_for_window(id) {
                     if let Some(output_geo) = self.space.output_geometry(&output) {
-                        let strip = Self::bar_config_strip_rect(&output_geo);
+                        let strip = if self.bar_is_auto_hidden(&output) {
+                            Self::bar_peek_strip_rect(&output_geo)
+                        } else {
+                            Self::bar_config_strip_rect(&output_geo)
+                        };
                         if point_in_rect(x, y, strip) {
                             return true;
                         }
@@ -6608,7 +6703,11 @@ impl MetisState {
         if self.windows.get(id).is_some_and(|r| r.maximized) {
             if let Some(output) = self.output_for_window(id) {
                 if let Some(output_geo) = self.space.output_geometry(&output) {
-                    let strip = Self::bar_config_strip_rect(&output_geo);
+                    let strip = if self.bar_is_auto_hidden(&output) {
+                        Self::bar_peek_strip_rect(&output_geo)
+                    } else {
+                        Self::bar_config_strip_rect(&output_geo)
+                    };
                     if point_in_rect(x, y, strip) {
                         return true;
                     }

@@ -654,6 +654,8 @@ impl MetisState {
                 self.update_hover_cursor(location);
                 self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(location);
+                self.maybe_clear_bar_edge_hover(location);
+                self.maybe_reveal_auto_hidden_bar(location);
                 let serial = SERIAL_COUNTER.next_serial();
                 let new_under = self.pointer_target_at(location);
                 let forward = self.should_forward_pointer_motion(location);
@@ -699,6 +701,8 @@ impl MetisState {
                 self.update_hover_cursor(pos);
                 self.enforce_capture_overlay_stacking();
                 self.maintain_focus_stacking(pos);
+                self.maybe_clear_bar_edge_hover(pos);
+                self.maybe_reveal_auto_hidden_bar(pos);
                 let serial = SERIAL_COUNTER.next_serial();
                 let under = self.pointer_target_at(pos);
                 if self.should_forward_pointer_motion(pos) {

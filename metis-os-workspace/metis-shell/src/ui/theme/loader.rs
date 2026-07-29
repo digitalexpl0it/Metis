@@ -4,7 +4,8 @@ use gtk::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION, STYLE_PROVIDER_PRIOR
 
 use crate::config;
 use metis_config::{
-    build_stylesheet, BarBorder, BarPosition, BorderMode, ThemeMode, ThemeTokens,
+    build_stylesheet, parse_hex_rgb, BarBorder, BarFill, BarFillMode, BarGradientDirection,
+    BarPosition, BorderMode, ThemeMode, ThemeTokens,
 };
 
 thread_local! {
@@ -15,6 +16,7 @@ thread_local! {
     static BAR_BG_PROVIDER: CssProvider = CssProvider::new();
     static BAR_OPACITY: Cell<f32> = const { Cell::new(1.0) };
     static BAR_BORDER: RefCell<BarBorder> = RefCell::new(BarBorder::default());
+    static BAR_FILL: RefCell<BarFill> = RefCell::new(BarFill::default());
     static BAR_POSITION: Cell<BarPosition> = const { Cell::new(BarPosition::Top) };
     static MENU_BG_PROVIDER: CssProvider = CssProvider::new();
     static MENU_OPACITY: Cell<f32> = const { Cell::new(1.0) };
@@ -100,6 +102,7 @@ fn apply_tokens(tokens: &ThemeTokens) {
     apply_bar_appearance(
         BAR_OPACITY.with(Cell::get),
         &BAR_BORDER.with(|b| b.borrow().clone()),
+        &BAR_FILL.with(|f| f.borrow().clone()),
         BAR_POSITION.with(Cell::get),
     );
     apply_menu_opacity(MENU_OPACITY.with(Cell::get));
@@ -109,38 +112,55 @@ fn apply_tokens(tokens: &ThemeTokens) {
     crate::ui::notification_center::on_theme_changed();
 }
 
-/// Apply the edge bar's background transparency *and* its configurable border
-/// (accent / solid / custom gradient, with a width of 0 disabling it).
+/// Apply the edge bar's fill (theme / solid / gradient), opacity, and border.
 ///
 /// We override only the `.metis-bar-pill` surface via a dedicated, higher-priority
 /// provider — never `window.set_opacity()`, which would also fade the icons and
 /// text. For a gradient/accent border on the rounded pill we use the layered
-/// `background-clip` trick (a `padding-box` surface layer over a `border-box`
+/// `background-clip` trick (a `padding-box` fill layer over a `border-box`
 /// gradient under a transparent border) so the stroke follows the pill's rounded
-/// corners, which `border-image` cannot do. The gradient flows along the bar's
-/// long axis (left→right when horizontal, top→bottom when vertical).
-pub fn apply_bar_appearance(opacity: f32, border: &BarBorder, position: BarPosition) {
+/// corners, which `border-image` cannot do.
+pub fn apply_bar_appearance(
+    opacity: f32,
+    border: &BarBorder,
+    fill: &BarFill,
+    position: BarPosition,
+) {
     let alpha = opacity.clamp(0.0, 1.0);
     BAR_OPACITY.with(|o| o.set(alpha));
     BAR_BORDER.with(|b| *b.borrow_mut() = border.clone());
+    BAR_FILL.with(|f| *f.borrow_mut() = fill.clone());
     BAR_POSITION.with(|p| p.set(position));
 
-    let surface_rgb = active_tokens().surface_rgb();
-    let surface = format!("rgba({surface_rgb}, {alpha:.3})");
+    let fill_paint = resolve_fill_paint(fill, alpha, position);
     let width = border.width_px.max(0.0);
 
     let css = if width <= 0.0 {
-        format!(
-            ".metis-bar-pill {{ border: none; background-image: none; \
-             background-color: {surface}; }}"
-        )
+        match &fill_paint {
+            FillPaint::Color(c) => format!(
+                ".metis-bar-pill {{ border: none; background-image: none; \
+                 background-color: {c}; }}"
+            ),
+            FillPaint::Gradient { dir, stops } => format!(
+                ".metis-bar-pill {{ border: none; background-color: transparent; \
+                 background-image: linear-gradient({dir}, {stops}); }}"
+            ),
+        }
     } else {
         match border.mode {
-            BorderMode::Solid => format!(
-                ".metis-bar-pill {{ border: {width}px solid {color}; \
-                 background-image: none; background-color: {surface}; }}",
-                color = border.color,
-            ),
+            BorderMode::Solid => match &fill_paint {
+                FillPaint::Color(c) => format!(
+                    ".metis-bar-pill {{ border: {width}px solid {color}; \
+                     background-image: none; background-color: {c}; }}",
+                    color = border.color,
+                ),
+                FillPaint::Gradient { dir, stops } => format!(
+                    ".metis-bar-pill {{ border: {width}px solid {color}; \
+                     background-color: transparent; \
+                     background-image: linear-gradient({dir}, {stops}); }}",
+                    color = border.color,
+                ),
+            },
             BorderMode::Accent | BorderMode::Gradient => {
                 let dir = match position {
                     BarPosition::Left | BarPosition::Right => "to bottom",
@@ -150,20 +170,30 @@ pub fn apply_bar_appearance(opacity: f32, border: &BarBorder, position: BarPosit
                 // layer to the border ring (background-clip is ignored), so an
                 // opaque gradient bleeds across the whole pill and the opacity
                 // slider has no visible effect. When the fill is translucent,
-                // fall back to a solid accent stroke + rgba surface instead.
-                if alpha < 1.0 - f32::EPSILON {
+                // fall back to a solid accent stroke + fill color instead.
+                if alpha < 1.0 - f32::EPSILON || matches!(fill_paint, FillPaint::Gradient { .. }) {
                     let stroke = bar_border_primary_color(border);
-                    format!(
-                        ".metis-bar-pill {{ border: {width}px solid {stroke}; \
-                         background-image: none; background-color: {surface}; }}"
-                    )
+                    match &fill_paint {
+                        FillPaint::Color(c) => format!(
+                            ".metis-bar-pill {{ border: {width}px solid {stroke}; \
+                             background-image: none; background-color: {c}; }}"
+                        ),
+                        FillPaint::Gradient { dir: fdir, stops } => format!(
+                            ".metis-bar-pill {{ border: {width}px solid {stroke}; \
+                             background-color: transparent; \
+                             background-image: linear-gradient({fdir}, {stops}); }}"
+                        ),
+                    }
                 } else {
                     let stops = bar_border_stops(border);
+                    let FillPaint::Color(fill_c) = &fill_paint else {
+                        unreachable!("gradient fill already handled above");
+                    };
                     format!(
                         ".metis-bar-pill {{ \
                          border: {width}px solid transparent; \
                          background-color: transparent; \
-                         background-image: linear-gradient({surface}, {surface}), \
+                         background-image: linear-gradient({fill_c}, {fill_c}), \
                          linear-gradient({dir}, {stops}); \
                          background-clip: padding-box, border-box; \
                          background-origin: padding-box, border-box; }}"
@@ -183,6 +213,60 @@ pub fn apply_bar_appearance(opacity: f32, border: &BarBorder, position: BarPosit
             );
         }
     });
+}
+
+enum FillPaint {
+    Color(String),
+    Gradient { dir: &'static str, stops: String },
+}
+
+fn resolve_fill_paint(fill: &BarFill, alpha: f32, position: BarPosition) -> FillPaint {
+    match fill.mode {
+        BarFillMode::Theme => {
+            let surface_rgb = active_tokens().surface_rgb();
+            FillPaint::Color(format!("rgba({surface_rgb}, {alpha:.3})"))
+        }
+        BarFillMode::Solid => FillPaint::Color(hex_to_rgba_css(&fill.color, alpha)),
+        BarFillMode::Gradient => {
+            let dir = gradient_css_dir(fill.gradient_direction, position);
+            // Translucent multi-stop gradients bleed under GTK; fall back to first stop.
+            if alpha < 1.0 - f32::EPSILON {
+                let first = fill
+                    .gradient
+                    .first()
+                    .map(String::as_str)
+                    .unwrap_or("#1a1b26");
+                FillPaint::Color(hex_to_rgba_css(first, alpha))
+            } else {
+                let stops = fill
+                    .gradient
+                    .iter()
+                    .map(|h| h.trim().to_string())
+                    .filter(|h| !h.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                FillPaint::Gradient { dir, stops }
+            }
+        }
+    }
+}
+
+fn gradient_css_dir(dir: BarGradientDirection, position: BarPosition) -> &'static str {
+    match dir {
+        BarGradientDirection::Auto => match position {
+            BarPosition::Left | BarPosition::Right => "to bottom",
+            BarPosition::Top | BarPosition::Bottom => "to right",
+        },
+        BarGradientDirection::ToRight => "to right",
+        BarGradientDirection::ToLeft => "to left",
+        BarGradientDirection::ToBottom => "to bottom",
+        BarGradientDirection::ToTop => "to top",
+    }
+}
+
+fn hex_to_rgba_css(hex: &str, alpha: f32) -> String {
+    let [r, g, b] = parse_hex_rgb(hex);
+    format!("rgba({r}, {g}, {b}, {alpha:.3})")
 }
 
 /// Primary stroke colour for accent/gradient border modes (first accent or

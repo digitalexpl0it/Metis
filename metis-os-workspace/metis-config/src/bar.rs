@@ -259,6 +259,64 @@ pub struct BarBorder {
     pub width_px: f32,
 }
 
+/// How the edge bar fills its pill background (independent of [`BarBorder`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BarFillMode {
+    /// Theme surface token (default).
+    #[default]
+    Theme,
+    /// Flat `color`.
+    Solid,
+    /// Custom `gradient` stops.
+    Gradient,
+}
+
+/// CSS linear-gradient direction for [`BarFill`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BarGradientDirection {
+    /// Along the bar's long axis (left→right when horizontal, top→bottom when vertical).
+    #[default]
+    Auto,
+    ToRight,
+    ToLeft,
+    ToBottom,
+    ToTop,
+}
+
+/// Edge bar pill fill — theme surface, solid color, or gradient.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BarFill {
+    #[serde(default)]
+    pub mode: BarFillMode,
+    #[serde(default = "default_bar_fill_color")]
+    pub color: String,
+    #[serde(default = "default_bar_fill_gradient")]
+    pub gradient: Vec<String>,
+    #[serde(default)]
+    pub gradient_direction: BarGradientDirection,
+}
+
+fn default_bar_fill_color() -> String {
+    "#1a1b26".into()
+}
+
+fn default_bar_fill_gradient() -> Vec<String> {
+    vec!["#1a1b26".into(), "#2a2b3d".into()]
+}
+
+impl Default for BarFill {
+    fn default() -> Self {
+        Self {
+            mode: BarFillMode::Theme,
+            color: default_bar_fill_color(),
+            gradient: default_bar_fill_gradient(),
+            gradient_direction: BarGradientDirection::Auto,
+        }
+    }
+}
+
 fn default_bar_border_color() -> String {
     "#00F2FE".into()
 }
@@ -347,6 +405,11 @@ pub struct BarConfig {
     pub margin_h: u32,
     #[serde(default = "default_full_width")]
     pub full_width: bool,
+    /// Along-edge length as a percent of the screen edge (40–100). Always
+    /// centered. `100` is a full-edge strip (subject to [`Self::full_width`] for
+    /// legacy content-hug when false).
+    #[serde(default = "default_length_percent")]
+    pub length_percent: u32,
     #[serde(default = "default_opacity")]
     pub opacity: f32,
     /// Background opacity for the start-menu popover (text/icons stay opaque).
@@ -369,6 +432,19 @@ pub struct BarConfig {
     /// the shell (rendered via GTK CSS); `width_px = 0` disables it.
     #[serde(default)]
     pub bar_border: BarBorder,
+    /// Pill fill (theme surface / solid / gradient). Consumed by the shell.
+    #[serde(default)]
+    pub bar_fill: BarFill,
+    /// Slide the bar off-edge after idle, leaving a peek strip.
+    #[serde(default)]
+    pub auto_hide: bool,
+    /// Idle delay before auto-hide (ms). Kept for config compat; hide is instant
+    /// when the pointer leaves (slide animation is CSS-only).
+    #[serde(default = "default_auto_hide_delay_ms")]
+    pub auto_hide_delay_ms: u32,
+    /// Visible peek thickness when auto-hidden (px).
+    #[serde(default = "default_auto_hide_peek_px")]
+    pub auto_hide_peek_px: u32,
     #[serde(default = "default_true")]
     pub blur: bool,
     /// Gaussian backdrop-blur radius (in pixels) applied by the compositor behind
@@ -429,6 +505,18 @@ fn default_full_width() -> bool {
     true
 }
 
+fn default_length_percent() -> u32 {
+    100
+}
+
+fn default_auto_hide_delay_ms() -> u32 {
+    0
+}
+
+fn default_auto_hide_peek_px() -> u32 {
+    4
+}
+
 fn default_opacity() -> f32 {
     0.92
 }
@@ -481,12 +569,17 @@ impl Default for BarConfig {
             margin_top: default_margin_top(),
             margin_h: default_margin_h(),
             full_width: default_full_width(),
+            length_percent: default_length_percent(),
             opacity: default_opacity(),
             menu_opacity: default_menu_opacity(),
             titlebar_opacity: default_titlebar_opacity(),
             titlebar_pill_border: TitlebarPillBorder::default(),
             window_border: WindowBorder::default(),
             bar_border: BarBorder::default(),
+            bar_fill: BarFill::default(),
+            auto_hide: false,
+            auto_hide_delay_ms: default_auto_hide_delay_ms(),
+            auto_hide_peek_px: default_auto_hide_peek_px(),
             blur: default_true(),
             blur_radius: default_blur_radius(),
             window_animations: default_true(),
@@ -523,7 +616,32 @@ pub fn load_bar_config() -> BarConfig {
         BarConfig::default()
     };
     migrate_bar_config(&mut cfg);
+    sanitize_bar_config(&mut cfg);
     cfg
+}
+
+/// Clamp length / auto-hide / fill fields to safe ranges.
+pub fn sanitize_bar_config(cfg: &mut BarConfig) {
+    cfg.length_percent = cfg.length_percent.clamp(40, 100);
+    cfg.auto_hide_delay_ms = cfg.auto_hide_delay_ms.min(5000);
+    cfg.auto_hide_peek_px = cfg.auto_hide_peek_px.clamp(2, 8);
+    if !looks_like_hex_color(&cfg.bar_fill.color) {
+        cfg.bar_fill.color = default_bar_fill_color();
+    }
+    cfg.bar_fill.gradient.retain(|s| looks_like_hex_color(s));
+    if cfg.bar_fill.gradient.len() < 2 {
+        cfg.bar_fill.gradient = default_bar_fill_gradient();
+    }
+    if cfg.bar_fill.gradient.len() > 8 {
+        cfg.bar_fill.gradient.truncate(8);
+    }
+}
+
+fn looks_like_hex_color(s: &str) -> bool {
+    let s = s.trim();
+    let body = s.strip_prefix('#').unwrap_or(s);
+    matches!(body.len(), 3 | 6 | 8)
+        && body.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Upgrade layouts saved before the eww-style pill redesign.
@@ -750,7 +868,9 @@ pub fn save_default_bar_config() -> std::io::Result<()> {
 /// for opacity/blur edits). The shell's `watch_bar_config` re-applies it live.
 pub fn save_bar_config(config: &BarConfig) -> std::io::Result<()> {
     super::ensure_config_dirs()?;
-    let json = serde_json::to_string_pretty(config).map_err(std::io::Error::other)?;
+    let mut clean = config.clone();
+    sanitize_bar_config(&mut clean);
+    let json = serde_json::to_string_pretty(&clean).map_err(std::io::Error::other)?;
     let path = bar_config_path();
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, &json)?;

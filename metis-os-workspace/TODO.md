@@ -51,6 +51,13 @@ Sequenced leftover stretch after Phases 1–15. See plan *Optional stretch backl
 - [x] USER_GUIDE / CHANGELOG / config table
 - [ ] Portal `Background.enable_autostart` — deferred (stub still returns false)
 
+### Wave 6 — Edge bar polish
+- [x] `bar_fill` — theme / solid / gradient + direction
+- [x] `length_percent` — centered strip 40–100%
+- [x] Auto-hide with peek + delay; force-show on popover / Control Center / NC
+- [x] While auto-hidden: snap/maximize fill the edge; reseat on show
+- [x] Settings Edge bar controls + USER_GUIDE / CHANGELOG
+
 ---
 
 ## Phase 1 — Edge bar

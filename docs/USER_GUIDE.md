@@ -733,7 +733,10 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   types: Picture (bundled + imported images, "Add Picture…"), Solid colour, and
   Gradient (start/end + direction) — applied live and remembered, with per-output
   overrides. The **Edge bar** card covers position (top/bottom/left/right),
-  distance from the edge, the bar border, *Show bar on* (all displays / primary
+  distance from the edge, **bar length** (40–100%, centered), **bar background**
+  (theme / solid / gradient + direction), **auto-hide** (instant slide to a peek;
+  move to the edge to slide open again),
+  the bar border, *Show bar on* (all displays / primary
   only), *Workspaces* (independent vs linked), and *New workspace layout* (grid
   vs scrolling). The **Windows** card covers titlebar opacity, the title pill
   border, and the window frame border.
@@ -1082,10 +1085,13 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `position` | `top` / `bottom` / `left` / `right` |
 | `height` / `width` | Bar thickness on the long / short axes |
 | `margin_top` / `margin_h` | Gap from the anchored edge / along the edge |
-| `full_width` | Stretch the bar across the whole edge |
+| `full_width` | Legacy full-edge stretch (`length_percent` preferred) |
+| `length_percent` | Along-edge length 40–100% (centered; 100 = full edge) |
 | `opacity` | Bar background opacity (`< 1` = see-through) |
 | `menu_opacity` | App launcher panel opacity |
 | `blur` / `blur_radius` | Compositor backdrop blur behind the bar |
+| `bar_fill` | Pill fill: theme / solid / gradient + `gradient_direction` |
+| `auto_hide` / `auto_hide_peek_px` | Instant auto-hide on pointer leave; move to the bar edge to slide open |
 | `displays` | Show the bar on all displays or the primary only |
 | `workspace_mode` | Workspaces independent per display, or linked across displays |
 | `default_layout` | Default workspace layout: grid or scrolling (live global switch) |

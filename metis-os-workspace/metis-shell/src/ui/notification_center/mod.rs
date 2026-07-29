@@ -208,6 +208,11 @@ pub fn is_active() -> bool {
     CENTER.with(|c| c.borrow().as_ref().is_some_and(|x| x.open.get()))
 }
 
+/// True while the notification center panel is open.
+pub fn is_open() -> bool {
+    is_active()
+}
+
 /// Whether the panel is currently (or would be) anchored on the right edge.
 pub fn anchors_right() -> bool {
     nc_layout().slide_edge == Edge::Right
@@ -335,6 +340,7 @@ pub fn show() {
     if now_ms() < SUPPRESS_SHOW_UNTIL_MS.with(Cell::get) {
         return;
     }
+    crate::ui::bar::notify_bar_interaction();
     crate::ui::bar::close_bar_popovers();
     crate::ui::dashboard::request_close();
 

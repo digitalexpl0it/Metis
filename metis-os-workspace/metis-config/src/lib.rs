@@ -495,9 +495,10 @@ pub use locale::{
     load_locale_config, locale_config_path, save_locale_config, LocaleConfig,
 };
 pub use bar::{
-    bar_config_path, load_bar_config, save_bar_config, save_default_bar_config, BarBorder,
-    BarConfig, BarDisplays, BarPosition, BarWidgetId, BorderMode, ClockConfig, DefaultLayout,
-    TitlebarPillBorder, TrayIconMode, WindowBorder, WorkspaceMode,
+    bar_config_path, load_bar_config, sanitize_bar_config, save_bar_config, save_default_bar_config,
+    BarBorder, BarConfig, BarDisplays, BarFill, BarFillMode, BarGradientDirection, BarPosition,
+    BarWidgetId, BorderMode, ClockConfig, DefaultLayout, TitlebarPillBorder, TrayIconMode,
+    WindowBorder, WorkspaceMode,
 };
 pub use calendars::{
     calendars_config_path, default_local_dir, load_calendars_config, save_calendars_config,

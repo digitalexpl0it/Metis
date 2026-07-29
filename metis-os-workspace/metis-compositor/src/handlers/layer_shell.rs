@@ -97,8 +97,7 @@ pub fn handle_layer_commit(state: &mut MetisState, surface: &WlSurface) {
             layer_surface.send_configure();
         }
         drop(map);
-        state.on_bar_layer_committed();
-        state.reapply_maximized_windows_on_output(&output);
+        state.on_bar_layer_committed(&output);
         // Super-opened menus set Exclusive without a pointer click — claim seat
         // focus as soon as the layer commits the new interactivity.
         if exclusive {

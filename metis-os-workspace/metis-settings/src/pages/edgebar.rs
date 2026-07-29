@@ -104,6 +104,24 @@ pub fn build() -> gtk::Widget {
         &edge_margin,
     ));
 
+    let length = gtk::Scale::with_range(gtk::Orientation::Horizontal, 40.0, 100.0, 1.0);
+    length.set_value(bar.length_percent as f64);
+    length.set_size_request(200, -1);
+    length.set_draw_value(true);
+    ui::forward_wheel_to_page_scroller(&length);
+    bar_body.append(&ui::row_with_icon(
+        "object-select-symbolic",
+        &tr("Bar length"),
+        &length,
+    ));
+    let length_hint = gtk::Label::new(Some(&tr(
+        "Percent of the screen edge. The bar stays centered (100% = full edge)."
+    )));
+    length_hint.set_xalign(0.0);
+    length_hint.set_wrap(true);
+    length_hint.add_css_class("metis-settings-hint");
+    bar_body.append(&length_hint);
+
     let opacity = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.3, 1.0, 0.01);
     opacity.set_value(bar.opacity as f64);
     opacity.set_size_request(200, -1);
@@ -132,6 +150,115 @@ pub fn build() -> gtk::Widget {
     blur_hint.set_wrap(true);
     blur_hint.add_css_class("metis-settings-hint");
     bar_body.append(&blur_hint);
+
+    // -- Bar fill (theme / solid / gradient) --
+    let bf = bar.bar_fill.clone();
+    let bf_mode = {
+        let __dd_labels = [tr("Theme"), tr("Solid color"), tr("Custom gradient")];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
+    bf_mode.set_selected(match bf.mode {
+        metis_config::BarFillMode::Theme => 0,
+        metis_config::BarFillMode::Solid => 1,
+        metis_config::BarFillMode::Gradient => 2,
+    });
+    bar_body.append(&ui::row_with_icon(
+        "preferences-color-symbolic",
+        &tr("Bar background"),
+        &bf_mode,
+    ));
+
+    let bf_solid_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let bf_solid = color_dialog_button();
+    bf_solid.set_rgba(&hex_to_rgba(&bf.color));
+    bf_solid_box.append(&ui::row_with_icon(
+        "applications-graphics-symbolic",
+        &tr("Background color"),
+        &bf_solid,
+    ));
+    bar_body.append(&bf_solid_box);
+
+    let bf_grad_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let bf_stop = |idx: usize, fallback: &str| {
+        let b = color_dialog_button();
+        let hex = bf.gradient.get(idx).map(String::as_str).unwrap_or(fallback);
+        b.set_rgba(&hex_to_rgba(hex));
+        b
+    };
+    let bf_g1 = bf_stop(0, "#1a1b26");
+    let bf_g2 = bf_stop(1, "#2a2b3d");
+    bf_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient start"), &bf_g1));
+    bf_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient end"), &bf_g2));
+    let bf_dir = {
+        let __dd_labels = [
+            tr("Auto (along bar)"),
+            tr("Left → right"),
+            tr("Right → left"),
+            tr("Top → bottom"),
+            tr("Bottom → top"),
+        ];
+        let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
+        gtk::DropDown::from_strings(&__dd_refs)
+    };
+    bf_dir.set_selected(match bf.gradient_direction {
+        metis_config::BarGradientDirection::Auto => 0,
+        metis_config::BarGradientDirection::ToRight => 1,
+        metis_config::BarGradientDirection::ToLeft => 2,
+        metis_config::BarGradientDirection::ToBottom => 3,
+        metis_config::BarGradientDirection::ToTop => 4,
+    });
+    bf_grad_box.append(&ui::row_with_icon(
+        "go-next-symbolic",
+        &tr("Gradient direction"),
+        &bf_dir,
+    ));
+    bar_body.append(&bf_grad_box);
+
+    let bf_update_vis = {
+        let bf_solid_box = bf_solid_box.clone();
+        let bf_grad_box = bf_grad_box.clone();
+        Rc::new(move |mode: metis_config::BarFillMode| {
+            bf_solid_box.set_visible(mode == metis_config::BarFillMode::Solid);
+            bf_grad_box.set_visible(mode == metis_config::BarFillMode::Gradient);
+        })
+    };
+    bf_update_vis(bf.mode);
+
+    // -- Auto-hide --
+    let auto_hide = gtk::Switch::new();
+    auto_hide.set_active(bar.auto_hide);
+    auto_hide.set_halign(gtk::Align::End);
+    auto_hide.set_valign(gtk::Align::Center);
+    bar_body.append(&ui::row_with_icon(
+        "window-minimize-symbolic",
+        &tr("Auto-hide"),
+        &auto_hide,
+    ));
+
+    let auto_hide_opts = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    let auto_peek = gtk::Scale::with_range(gtk::Orientation::Horizontal, 2.0, 8.0, 1.0);
+    auto_peek.set_value(bar.auto_hide_peek_px as f64);
+    auto_peek.set_size_request(200, -1);
+    auto_peek.set_draw_value(true);
+    ui::forward_wheel_to_page_scroller(&auto_peek);
+    auto_hide_opts.append(&ui::row_with_icon(
+        "view-reveal-symbolic",
+        &tr("Peek thickness"),
+        &auto_peek,
+    ));
+    bar_body.append(&auto_hide_opts);
+    auto_hide_opts.set_sensitive(bar.auto_hide);
+
+    let auto_hint = gtk::Label::new(Some(&tr(
+        "Hides as soon as the pointer leaves, sliding to a thin peek. Move back \
+         to the edge to slide it open again (same motion as titlebars). Popovers \
+         and Control Center keep the bar visible while open."
+    )));
+    auto_hint.set_xalign(0.0);
+    auto_hint.set_wrap(true);
+    auto_hint.add_css_class("metis-settings-hint");
+    bar_body.append(&auto_hint);
 
     // -- Edge-bar border (mode / width / colors) --
     let bb = bar.bar_border.clone();
@@ -238,6 +365,10 @@ pub fn build() -> gtk::Widget {
         let v = s.value().round() as u32;
         update_bar(move |c| c.margin_top = v);
     });
+    length.connect_value_changed(move |s| {
+        let v = s.value().round() as u32;
+        update_bar(move |c| c.length_percent = v.clamp(40, 100));
+    });
     opacity.connect_value_changed(move |s| {
         let v = s.value() as f32;
         update_bar(move |c| c.opacity = v);
@@ -248,6 +379,49 @@ pub fn build() -> gtk::Widget {
     blur_radius.connect_value_changed(move |s| {
         let v = s.value() as f32;
         update_bar(move |c| c.blur_radius = v);
+    });
+    {
+        let bf_update_vis = bf_update_vis.clone();
+        bf_mode.connect_selected_notify(move |dd| {
+            let mode = match dd.selected() {
+                1 => metis_config::BarFillMode::Solid,
+                2 => metis_config::BarFillMode::Gradient,
+                _ => metis_config::BarFillMode::Theme,
+            };
+            bf_update_vis(mode);
+            update_bar(move |c| c.bar_fill.mode = mode);
+        });
+    }
+    bf_solid.connect_rgba_notify(move |b| {
+        let hex = rgba_to_hex(&b.rgba());
+        update_bar(move |c| c.bar_fill.color = hex);
+    });
+    for (idx, btn) in [(0usize, &bf_g1), (1, &bf_g2)] {
+        btn.connect_rgba_notify(move |b| {
+            let hex = rgba_to_hex(&b.rgba());
+            update_bar(move |c| set_stops(&mut c.bar_fill.gradient, idx, hex));
+        });
+    }
+    bf_dir.connect_selected_notify(move |dd| {
+        let dir = match dd.selected() {
+            1 => metis_config::BarGradientDirection::ToRight,
+            2 => metis_config::BarGradientDirection::ToLeft,
+            3 => metis_config::BarGradientDirection::ToBottom,
+            4 => metis_config::BarGradientDirection::ToTop,
+            _ => metis_config::BarGradientDirection::Auto,
+        };
+        update_bar(move |c| c.bar_fill.gradient_direction = dir);
+    });
+    {
+        let auto_hide_opts = auto_hide_opts.clone();
+        ui::defer_switch_active_notify(&auto_hide, move |active| {
+            auto_hide_opts.set_sensitive(active);
+            update_bar(move |c| c.auto_hide = active);
+        });
+    }
+    auto_peek.connect_value_changed(move |s| {
+        let v = s.value().round() as u32;
+        update_bar(move |c| c.auto_hide_peek_px = v.clamp(2, 8));
     });
     {
         let bb_update_vis = bb_update_vis.clone();

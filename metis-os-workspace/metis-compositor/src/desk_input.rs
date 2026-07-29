@@ -614,9 +614,28 @@ impl MetisState {
         let visible = cfg.height as i32;
         let shadow = metis_config::bar::bar_layer_shadow_pad(&cfg);
         let thickness = margin + visible + shadow;
+        Self::bar_edge_strip_rect(output_geo, cfg.position, thickness)
+    }
+
+    /// Peek-only strip while the bar is auto-hidden (matches shell peek height).
+    pub(crate) fn bar_peek_strip_rect(
+        output_geo: &smithay::utils::Rectangle<i32, Logical>,
+    ) -> PixelRect {
+        let cfg = metis_config::load_bar_config();
+        // Keep a slightly generous hit target (min 4) even when peek is thin —
+        // nested sessions and fractional scale make 1–2px strips easy to miss.
+        let peek = cfg.auto_hide_peek_px.clamp(2, 8).max(4) as i32;
+        Self::bar_edge_strip_rect(output_geo, cfg.position, peek)
+    }
+
+    fn bar_edge_strip_rect(
+        output_geo: &smithay::utils::Rectangle<i32, Logical>,
+        position: metis_config::BarPosition,
+        thickness: i32,
+    ) -> PixelRect {
         let w = output_geo.size.w;
         let h = output_geo.size.h;
-        match cfg.position {
+        match position {
             metis_config::BarPosition::Top => PixelRect {
                 x: output_geo.loc.x,
                 y: output_geo.loc.y,
@@ -646,6 +665,8 @@ impl MetisState {
 
     /// Monitor-global rect covering the edge bar's layer surface (margin + body +
     /// shadow pad) on `output`, used for input blocking and cursor selection.
+    /// While auto-hidden, only the peek strip is blocked so apps receive clicks
+    /// on the rest of the former bar band.
     pub(crate) fn bar_input_block_rect(
         &self,
         output: &smithay::output::Output,
@@ -654,7 +675,11 @@ impl MetisState {
         if !self.output_has_bar(output) {
             return None;
         }
-        Some(Self::bar_config_strip_rect(output_geo))
+        Some(if self.bar_is_auto_hidden(output) {
+            Self::bar_peek_strip_rect(output_geo)
+        } else {
+            Self::bar_config_strip_rect(output_geo)
+        })
     }
 
     /// Route pointer hits: app bodies pass through, then layer-shell UI, then windows.
@@ -692,17 +717,34 @@ impl MetisState {
         // briefly stale. Must not call `metis_bar_ui_hit()` here — it re-locks the
         // layer map we already hold.
         if has_bar {
-            let strip = Self::bar_config_strip_rect(&output_geo);
+            let auto_hidden = self.bar_is_auto_hidden(output);
+            let strip = if auto_hidden {
+                Self::bar_peek_strip_rect(&output_geo)
+            } else {
+                Self::bar_config_strip_rect(&output_geo)
+            };
             if point_in_rect(x, y, strip) {
                 for layer in layers
                     .layers()
                     .filter(|layer| layer.namespace().starts_with("metis-bar"))
                 {
-                    if !layer_accepts_pointer(layer, &layers, rel) {
-                        continue;
-                    }
                     if let Some(hit) = self.layer_surface_at(layer, &layers, rel, output_geo) {
                         return Some(hit);
+                    }
+                    // Auto-hidden peek: always deliver to the bar root so GTK
+                    // gets enter even if layer geometry briefly lags the strip
+                    // (margin clear / resize race). Without this the bar stays gone.
+                    if auto_hidden && surface_has_buffer(layer.wl_surface()) {
+                        if let Some(layer_geo) = layers.layer_geometry(layer) {
+                            let local = rel - layer_geo.loc.to_f64();
+                            return Some((
+                                layer.wl_surface().clone(),
+                                (local + layer_geo.loc.to_f64() + output_geo.loc.to_f64()),
+                            ));
+                        }
+                    }
+                    if !layer_accepts_pointer(layer, &layers, rel) {
+                        continue;
                     }
                     // In the bar strip but no subsurface — fall through to the
                     // priority pass below (root-surface fallback).
@@ -720,12 +762,35 @@ impl MetisState {
         // NOTE: must NOT call `self.metis_bar_ui_hit()` here — it re-locks this
         // output's layer map, which we already hold via `layers`, deadlocking the
         // compositor thread. Use the held guard directly.
+        //
+        // While auto-hidden the layer keeps full size (CSS-slid); only the peek
+        // strip and real popovers may claim the pointer — otherwise the invisible
+        // band steals clicks and can pin keyboard focus on the bar.
+        let auto_hidden = has_bar && self.bar_is_auto_hidden(output);
+        let peek_strip = if auto_hidden {
+            Some(Self::bar_peek_strip_rect(&output_geo))
+        } else {
+            None
+        };
         for layer in layers
             .layers()
             .filter(|layer| layer.namespace().starts_with("metis-bar"))
         {
             if !surface_has_buffer(layer.wl_surface()) {
                 continue;
+            }
+            if let Some(peek) = peek_strip {
+                let in_peek = point_in_rect(x, y, peek);
+                if !in_peek {
+                    // Popovers can extend past the peek; still honor those.
+                    let Some(layer_geo) = layers.layer_geometry(layer) else {
+                        continue;
+                    };
+                    let local = rel - layer_geo.loc.to_f64();
+                    if !metis_bar_popup_tree_contains(layer.wl_surface(), local) {
+                        continue;
+                    }
+                }
             }
             if !metis_bar_region_contains(layer, &layers, rel) {
                 continue;

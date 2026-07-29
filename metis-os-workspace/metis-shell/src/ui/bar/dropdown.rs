@@ -78,6 +78,7 @@ pub fn wire_toggle_prepare(
         // Defer popup so we are not inside the compositor's pointer-dispatch stack.
         glib::idle_add_local_once(move || {
             popover.popup();
+            crate::ui::bar::notify_bar_interaction();
         });
     });
     popover

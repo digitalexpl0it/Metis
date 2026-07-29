@@ -258,11 +258,21 @@ pub fn request_close() {
     });
 }
 
+/// True while the control center panel is open (or mid-open animation).
+pub fn is_open() -> bool {
+    DASHBOARD.with(|d| {
+        d.borrow().as_ref().is_some_and(|dash| {
+            dash.open.get() || dash.window.is_visible()
+        })
+    })
+}
+
 /// Open or close the control center with the same slide animation as a bar pull.
 pub fn request_toggle(shell: &BarShell) {
     if !load_dashboard_config().enabled {
         return;
     }
+    crate::ui::bar::notify_bar_interaction();
     let dash = ensure_dashboard(shell);
     if dash.open.get() || dash.current_extent.get() > OPEN_THRESHOLD as i32 / 2 {
         dash.snap_closed();

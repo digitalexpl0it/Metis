@@ -345,6 +345,28 @@ pub fn runtime_command_path() -> std::path::PathBuf {
     runtime_dir().join("command")
 }
 
+/// Flag file: present while the edge bar is auto-hidden (visual slide).
+/// Written by the shell; read by the compositor for hot-edge reveal.
+pub fn bar_auto_hidden_path() -> std::path::PathBuf {
+    runtime_dir().join("bar-auto-hidden")
+}
+
+pub fn bar_auto_hidden_flag() -> bool {
+    bar_auto_hidden_path().is_file()
+}
+
+pub fn set_bar_auto_hidden_flag(hidden: bool) -> std::io::Result<()> {
+    let path = bar_auto_hidden_path();
+    if hidden {
+        let _ = ensure_runtime_dir()?;
+        write_private_file(&path, "1\n")
+    } else if path.exists() {
+        std::fs::remove_file(&path)
+    } else {
+        Ok(())
+    }
+}
+
 /// Runtime command file for the desktop-widgets shell process (isolated from the
 /// edge bar so Settings reloads do not race the bar poller).
 pub fn runtime_command_path_widgets() -> std::path::PathBuf {

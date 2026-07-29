@@ -53,6 +53,18 @@ struct BarHandle {
     output: Option<String>,
     /// True while a client on this output is in true fullscreen (edge bar hidden).
     chrome_suppressed: Cell<bool>,
+    /// Auto-hide: bar is slid off-edge (peek only).
+    auto_hide_hidden: Cell<bool>,
+    /// Pointer is over this bar's GTK layer surface (EventControllerMotion).
+    pointer_over: Cell<bool>,
+    /// Compositor reports the pointer is in the screen-edge strip (includes the
+    /// margin gap outside the GTK surface). Cleared via `bar-edge-leave`.
+    edge_strip_hover: Cell<bool>,
+    /// Pending idle hide timeout.
+    hide_timeout: RefCell<Option<glib::SourceId>>,
+    /// Per-bar CSS provider for pixel-accurate auto-hide transforms (GTK CSS
+    /// does not reliably parse `calc()` inside `transform`).
+    autohide_css: RefCell<Option<gtk::CssProvider>>,
 }
 
 
@@ -160,6 +172,20 @@ fn build_bar(
     };
     crate::ui::dashboard::wire_bar_pull(&pill, &shell);
 
+    // Auto-hide: track pointer over the bar surface.
+    {
+        let motion = gtk::EventControllerMotion::new();
+        let window_for_enter = window.clone();
+        motion.connect_enter(move |_, _, _| {
+            on_bar_pointer_enter(&window_for_enter);
+        });
+        let window_for_leave = window.clone();
+        motion.connect_leave(move |_| {
+            on_bar_pointer_leave(&window_for_leave);
+        });
+        window.add_controller(motion);
+    }
+
     // Click on empty bar space
     // open popover. Bubble phase means child buttons that claim the press are
     // skipped, so this never fires when toggling/opening an icon.
@@ -231,6 +257,11 @@ fn build_bar(
         widget_refs,
         output,
         chrome_suppressed: Cell::new(false),
+        auto_hide_hidden: Cell::new(false),
+        pointer_over: Cell::new(false),
+        edge_strip_hover: Cell::new(false),
+        hide_timeout: RefCell::new(None),
+        autohide_css: RefCell::new(None),
     }
 }
 
@@ -507,6 +538,8 @@ fn watch_compositor_dismiss() {
                 }
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
                 "reload-bar" => rebuild_from_config(),
+                "reveal-edge-bar" | "bar-edge-hover" => on_bar_edge_hover(),
+                "bar-edge-leave" => on_bar_edge_leave(),
                 "reload-dashboard" => crate::ui::dashboard::on_dashboard_config_changed(),
                 // Desktop widgets are isolated; Settings writes to command-widgets.
                 "reload-desktop-widgets" => {
@@ -718,7 +751,7 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
         BarPosition::Right => "metis-bar-edge-right",
     };
 
-    if config.full_width {
+    if uses_strip_layout(config) {
         pill.add_css_class("metis-bar-full");
         pill.add_css_class(edge_class);
         if vertical {
@@ -760,6 +793,11 @@ fn apply_pill_layout(pill: &gtk::Box, config: &BarConfig) {
             gtk::Align::Center
         });
     }
+}
+
+/// Full-edge strip or centered shortened strip (not content-hug floating).
+fn uses_strip_layout(config: &BarConfig) -> bool {
+    config.length_percent < 100 || config.full_width
 }
 
 /// Live attach inset for the pull-down control center (from the anchored screen edge).
@@ -807,7 +845,8 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     // the compositor (amount + margin), so including margin here double-counted
     // and left maximize/NC a few pixels off the pill.
     //
-    // Top/bottom reserve space; side bars stay overlay (0 = Neutral).
+    // Top/bottom always reserve. Side bars overlay (exclusive 0). Auto-hide is
+    // visual-only and must not toggle exclusive — that reflow path crashed sessions.
     let exclusive = match config.position {
         BarPosition::Top | BarPosition::Bottom => visible_thickness,
         BarPosition::Left | BarPosition::Right => 0,
@@ -817,11 +856,10 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     // Full-width stadium: side gap comes from the pill's side inset (shadow room),
     // not a second layer-shell margin — stacking both made distance-0 bars look
     // like they had ~20px ears after rounding was restored.
-    let along_edge = if config.full_width {
-        0
-    } else {
-        config.margin_h as i32
-    };
+    //
+    // Shortened bars (`length_percent` < 100) use equal along-edge margins so the
+    // strip stays centered on the edge.
+    let along_edge = along_edge_margin(window, config);
     let from_edge = config.margin_top as i32;
 
     match config.position {
@@ -871,7 +909,12 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     // a CSS provider in the theme loader), so icons/text stay fully opaque. The
     // window itself must remain at full opacity.
     window.set_opacity(1.0);
-    crate::ui::theme::apply_bar_appearance(config.opacity, &config.bar_border, config.position);
+    crate::ui::theme::apply_bar_appearance(
+        config.opacity,
+        &config.bar_border,
+        &config.bar_fill,
+        config.position,
+    );
     crate::ui::theme::apply_menu_opacity(config.menu_opacity);
 
     // Anchor/margin changes do not always trigger a GTK relayout on their own;
@@ -879,13 +922,300 @@ fn apply_layer_geometry(window: &gtk::Window, config: &BarConfig) {
     window.queue_resize();
 }
 
+/// Equal left/right (or top/bottom) margin that centers a shortened strip.
+fn along_edge_margin(window: &gtk::Window, config: &BarConfig) -> i32 {
+    let pct = config.length_percent.clamp(40, 100);
+    if pct >= 100 {
+        return if config.full_width {
+            0
+        } else {
+            config.margin_h as i32
+        };
+    }
+    let edge = monitor_edge_length(window, config.position).max(1);
+    let unused = edge.saturating_mul(100 - pct) / 100;
+    (unused / 2) as i32
+}
+
+fn monitor_edge_length(window: &gtk::Window, position: BarPosition) -> u32 {
+    let display = gtk::prelude::WidgetExt::display(window);
+    let geo = window
+        .surface()
+        .and_then(|surface| display.monitor_at_surface(&surface))
+        .map(|m| m.geometry())
+        .or_else(|| {
+            display
+                .monitors()
+                .item(0)
+                .and_downcast::<gtk::gdk::Monitor>()
+                .map(|m| m.geometry())
+        });
+    let Some(geo) = geo else {
+        return match position {
+            BarPosition::Top | BarPosition::Bottom => 1920,
+            BarPosition::Left | BarPosition::Right => 1080,
+        };
+    };
+    match position {
+        BarPosition::Top | BarPosition::Bottom => geo.width().max(0) as u32,
+        BarPosition::Left | BarPosition::Right => geo.height().max(0) as u32,
+    }
+}
+
 fn apply_bar_visibility(handle: &BarHandle) {
     if handle.chrome_suppressed.get() {
+        cancel_hide_timeout(handle);
+        handle.auto_hide_hidden.set(false);
+        clear_autohide_transform(&handle.outer);
+        let _ = metis_protocol::set_bar_auto_hidden_flag(false);
         handle.window.set_exclusive_zone(0);
         handle.window.set_visible(false);
-    } else {
-        handle.window.set_visible(true);
+        return;
     }
+    handle.window.set_visible(true);
+    let cfg = handle.config.borrow().clone();
+    if !cfg.auto_hide {
+        cancel_hide_timeout(handle);
+        handle.auto_hide_hidden.set(false);
+        clear_autohide_transform(&handle.outer);
+        let _ = metis_protocol::set_bar_auto_hidden_flag(false);
+        restore_exclusive_zone(&handle.window, &cfg);
+        return;
+    }
+    apply_auto_hide_visual(handle, &cfg);
+    if !handle.auto_hide_hidden.get() && !auto_hide_pointer_blocks(handle) {
+        schedule_auto_hide(handle);
+    }
+}
+
+fn auto_hide_pointer_blocks(handle: &BarHandle) -> bool {
+    handle.pointer_over.get() || handle.edge_strip_hover.get()
+}
+
+/// Compositor: pointer is in the bar's screen-edge strip (including the
+/// margin gap outside the GTK surface). Cancel pending hide and reveal if needed.
+fn on_bar_edge_hover() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if !handle.config.borrow().auto_hide {
+                continue;
+            }
+            cancel_hide_timeout(handle);
+            handle.edge_strip_hover.set(true);
+            if handle.auto_hide_hidden.get() {
+                handle.auto_hide_hidden.set(false);
+                let cfg = handle.config.borrow().clone();
+                apply_auto_hide_visual(handle, &cfg);
+            }
+        }
+    });
+}
+
+/// Compositor: pointer left the bar strip — allow auto-hide again.
+fn on_bar_edge_leave() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if !handle.config.borrow().auto_hide {
+                handle.edge_strip_hover.set(false);
+                continue;
+            }
+            handle.edge_strip_hover.set(false);
+            if !handle.pointer_over.get() {
+                schedule_auto_hide(handle);
+            }
+        }
+    });
+}
+
+/// Force every edge bar visible (popover / menu / Control Center / NC open).
+pub fn notify_bar_interaction() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            cancel_hide_timeout(handle);
+            if handle.auto_hide_hidden.get() {
+                handle.auto_hide_hidden.set(false);
+                let cfg = handle.config.borrow().clone();
+                apply_auto_hide_visual(handle, &cfg);
+            }
+            if handle.config.borrow().auto_hide && !auto_hide_pointer_blocks(handle) {
+                schedule_auto_hide(handle);
+            }
+        }
+    });
+}
+
+/// Compositor hot-edge reveal (same as edge hover when already hidden).
+pub fn reveal_auto_hidden_bars() {
+    on_bar_edge_hover();
+}
+
+fn on_bar_pointer_enter(window: &gtk::Window) {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if handle.window != *window {
+                continue;
+            }
+            handle.pointer_over.set(true);
+            cancel_hide_timeout(handle);
+            if handle.auto_hide_hidden.get() {
+                handle.auto_hide_hidden.set(false);
+                let cfg = handle.config.borrow().clone();
+                apply_auto_hide_visual(handle, &cfg);
+            }
+            break;
+        }
+    });
+}
+
+fn on_bar_pointer_leave(window: &gtk::Window) {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if handle.window != *window {
+                continue;
+            }
+            handle.pointer_over.set(false);
+            // Stay visible while the compositor still sees the pointer in the
+            // edge strip (margin gap). Hide only when both are clear.
+            if handle.config.borrow().auto_hide && !handle.edge_strip_hover.get() {
+                schedule_auto_hide(handle);
+            }
+            break;
+        }
+    });
+}
+
+fn schedule_auto_hide(handle: &BarHandle) {
+    cancel_hide_timeout(handle);
+    if !handle.config.borrow().auto_hide {
+        return;
+    }
+    if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
+        return;
+    }
+    // Short grace so a leave into the margin gap can be cancelled by
+    // `bar-edge-hover` before the slide starts.
+    const HIDE_GRACE_MS: u64 = 120;
+    let window = handle.window.clone();
+    let id = glib::timeout_add_local(
+        std::time::Duration::from_millis(HIDE_GRACE_MS),
+        move || {
+            BARS.with(|bars| {
+                for handle in bars.borrow().iter() {
+                    if handle.window != window {
+                        continue;
+                    }
+                    *handle.hide_timeout.borrow_mut() = None;
+                    if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
+                        break;
+                    }
+                    if !handle.config.borrow().auto_hide {
+                        break;
+                    }
+                    handle.auto_hide_hidden.set(true);
+                    let cfg = handle.config.borrow().clone();
+                    apply_auto_hide_visual(handle, &cfg);
+                    break;
+                }
+            });
+            glib::ControlFlow::Break
+        },
+    );
+    *handle.hide_timeout.borrow_mut() = Some(id);
+}
+
+fn cancel_hide_timeout(handle: &BarHandle) {
+    if let Some(id) = handle.hide_timeout.borrow_mut().take() {
+        id.remove();
+    }
+}
+
+fn bar_ui_blocks_hide() -> bool {
+    dropdown::is_open()
+        || crate::ui::dashboard::is_open()
+        || crate::ui::notification_center::is_open()
+}
+
+/// Slide every bar to its peek strip (used when Auto-hide is toggled on).
+fn force_auto_hide_all() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if !handle.config.borrow().auto_hide || handle.chrome_suppressed.get() {
+                continue;
+            }
+            if bar_ui_blocks_hide() {
+                continue;
+            }
+            cancel_hide_timeout(handle);
+            handle.pointer_over.set(false);
+            handle.edge_strip_hover.set(false);
+            handle.auto_hide_hidden.set(true);
+            let cfg = handle.config.borrow().clone();
+            apply_auto_hide_visual(handle, &cfg);
+        }
+    });
+}
+
+fn apply_auto_hide_visual(handle: &BarHandle, cfg: &BarConfig) {
+    // Drop any previous per-bar transform provider.
+    if let Some(prev) = handle.autohide_css.borrow_mut().take() {
+        gtk::style_context_remove_provider_for_display(
+            &handle.outer.display(),
+            &prev,
+        );
+    }
+    clear_autohide_transform(&handle.outer);
+
+    if !handle.auto_hide_hidden.get() {
+        let _ = metis_protocol::set_bar_auto_hidden_flag(false);
+        return;
+    }
+
+    // GTK's CSS engine often rejects `calc()` inside `transform`, so compute a
+    // pixel offset from the known bar thickness and inject it via CssProvider.
+    let peek = cfg.auto_hide_peek_px.clamp(2, 8) as i32;
+    let thickness = bar_body_thickness(cfg).max(peek + 1);
+    let slide = (thickness - peek).max(1);
+    let transform = match cfg.position {
+        BarPosition::Top => format!("translateY(-{slide}px)"),
+        BarPosition::Bottom => format!("translateY({slide}px)"),
+        BarPosition::Left => format!("translateX(-{slide}px)"),
+        BarPosition::Right => format!("translateX({slide}px)"),
+    };
+    let css = format!(
+        ".metis-bar-outer.metis-bar-autohide-hidden {{ transform: {transform}; }}"
+    );
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(&css);
+    gtk::style_context_add_provider_for_display(
+        &handle.outer.display(),
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+    *handle.autohide_css.borrow_mut() = Some(provider);
+
+    handle.outer.add_css_class("metis-bar-autohide-hidden");
+    let _ = metis_protocol::set_bar_auto_hidden_flag(true);
+}
+
+fn restore_exclusive_zone(window: &gtk::Window, config: &BarConfig) {
+    let visible_thickness = bar_cross_thickness(config);
+    let exclusive = match config.position {
+        BarPosition::Top | BarPosition::Bottom => visible_thickness,
+        BarPosition::Left | BarPosition::Right => 0,
+    };
+    window.set_exclusive_zone(exclusive);
+}
+
+fn clear_autohide_transform(outer: &gtk::Box) {
+    outer.remove_css_class("metis-bar-autohide-hidden");
+    outer.remove_css_class("metis-bar-autohide-peeking");
+    for i in 1..=8 {
+        outer.remove_css_class(&format!("metis-bar-autohide-peek-{i}"));
+    }
+    outer.remove_css_class("metis-bar-edge-top");
+    outer.remove_css_class("metis-bar-edge-bottom");
+    outer.remove_css_class("metis-bar-edge-left");
+    outer.remove_css_class("metis-bar-edge-right");
 }
 
 /// Re-apply geometry/widgets to every existing bar in place (keeps the layer
@@ -1353,6 +1683,7 @@ fn apply_config_diff(
     old: &BarConfig,
     new: &BarConfig,
 ) {
+    let enabling_auto_hide = new.auto_hide && !old.auto_hide;
     *config.borrow_mut() = new.clone();
     let target_count = target_monitors(new).len();
     if target_count != cur_count {
@@ -1363,6 +1694,11 @@ fn apply_config_diff(
         apply_bars_live(config.clone());
     }
     crate::ui::theme::reload_stylesheet();
+    // Toggle ON from Settings: hide immediately so the user sees the effect
+    // without waiting for a pointer leave (and despite a stale pointer_over).
+    if enabling_auto_hide {
+        force_auto_hide_all();
+    }
 }
 
 fn rebuild_from_config_now() {
