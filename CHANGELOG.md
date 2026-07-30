@@ -5,6 +5,16 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-29]
+
+### Fixed
+
+- **Settings single-instance** — edge-bar Network / VPN / Power / Bluetooth
+  “Settings…” no longer spawns a second `metis-settings`. A unique GApplication
+  (`com.metis.Settings`) forwards `--page` (including `network/vpn`) to the
+  running window, navigates there, and asks the compositor to unminimize / raise
+  it when minimized.
+
 ## [2026-07-28]
 
 ### Fixed

@@ -19,6 +19,26 @@ use crate::net::{
 use crate::ui;
 use metis_i18n::tr;
 
+thread_local! {
+    /// Live Network tab switch (e.g. reuse `--page network/vpn` on an open window).
+    static TAB_REQUEST: RefCell<Option<Rc<dyn Fn(&str)>>> = const { RefCell::new(None) };
+}
+
+/// Switch the Network pill tab after the page is already built.
+pub fn request_tab(tab: &str) {
+    TAB_REQUEST.with(|slot| {
+        if let Some(handler) = slot.borrow().as_ref() {
+            handler(tab);
+        }
+    });
+}
+
+fn set_tab_request_handler(handler: Rc<dyn Fn(&str)>) {
+    TAB_REQUEST.with(|slot| {
+        *slot.borrow_mut() = Some(handler);
+    });
+}
+
 struct Sections {
     radio: gtk::Switch,
     /// True while `render` syncs the radio switch from nmcli — must not call
@@ -59,7 +79,9 @@ pub fn build(initial_tab: Option<&str>) -> gtk::Widget {
 
     // Pill buttons can be marked active before stack children exist; the
     // visible child is applied after all `add_named` calls below.
-    content.append(&pill_tabs(&stack, &tabs, initial));
+    let (tab_bar, select_tab) = pill_tabs(&stack, &tabs, initial);
+    set_tab_request_handler(select_tab);
+    content.append(&tab_bar);
     content.append(&stack);
 
     // ---- Wireless page ----
@@ -278,11 +300,17 @@ fn resolve_initial_tab<'a>(tabs: &[(&'a str, &str)], requested: &'a str) -> &'a 
 
 /// A segmented pill-tab bar that switches `stack` between named children.
 /// Caller must call `stack.set_visible_child_name(initial)` after children exist.
-fn pill_tabs(stack: &gtk::Stack, tabs: &[(&str, &str)], initial: &str) -> gtk::Box {
+/// Returns the bar and a live `select(tab_name)` callback for external navigation.
+fn pill_tabs(
+    stack: &gtk::Stack,
+    tabs: &[(&str, &str)],
+    initial: &str,
+) -> (gtk::Box, Rc<dyn Fn(&str)>) {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     bar.add_css_class("metis-settings-tabs");
     bar.set_halign(gtk::Align::Center);
 
+    let buttons: Rc<RefCell<Vec<(String, gtk::ToggleButton)>>> = Rc::new(RefCell::new(Vec::new()));
     let mut group: Option<gtk::ToggleButton> = None;
     for (name, label) in tabs {
         let btn = gtk::ToggleButton::with_label(&tr(label));
@@ -295,15 +323,31 @@ fn pill_tabs(stack: &gtk::Stack, tabs: &[(&str, &str)], initial: &str) -> gtk::B
             btn.set_active(true);
         }
         let stack = stack.clone();
-        let name = name.to_string();
+        let tab_name = (*name).to_string();
         btn.connect_toggled(move |b| {
             if b.is_active() {
-                stack.set_visible_child_name(&name);
+                stack.set_visible_child_name(&tab_name);
             }
         });
+        buttons
+            .borrow_mut()
+            .push(((*name).to_string(), btn.clone()));
         bar.append(&btn);
     }
-    bar
+
+    let select: Rc<dyn Fn(&str)> = {
+        let buttons = buttons.clone();
+        let stack = stack.clone();
+        Rc::new(move |name: &str| {
+            if let Some((_, btn)) = buttons.borrow().iter().find(|(n, _)| n == name) {
+                btn.set_active(true);
+            } else {
+                stack.set_visible_child_name(name);
+            }
+        })
+    };
+
+    (bar, select)
 }
 
 fn schedule_refresh(refresh: &Rc<impl Fn() + 'static>, delay_ms: u32) {

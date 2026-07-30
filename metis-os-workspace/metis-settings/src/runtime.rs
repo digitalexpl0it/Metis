@@ -168,6 +168,34 @@ pub fn list_outputs() -> Vec<metis_protocol::OutputInfo> {
     }
 }
 
+/// Raise / unminimize the running Settings window via compositor ActivateWindow.
+/// Wayland clients cannot unminimize themselves; GTK `present()` alone is not enough.
+pub fn activate_settings_window() {
+    std::thread::spawn(|| {
+        let windows = match send_command(CompositorCommand::ListWindows) {
+            Ok(CompositorEvent::WindowList { windows }) => windows,
+            Ok(_) => return,
+            Err(err) => {
+                tracing::debug!(%err, "failed to list windows for settings activate");
+                return;
+            }
+        };
+        let Some(id) = windows.into_iter().find_map(|w| {
+            let app_id = w.app_id.as_deref()?.trim().to_ascii_lowercase();
+            if app_id == "com.metis.settings" || app_id == "metis-settings" {
+                Some(w.id)
+            } else {
+                None
+            }
+        }) else {
+            return;
+        };
+        if let Err(err) = send_command(CompositorCommand::ActivateWindow { id }) {
+            tracing::debug!(%err, id, "failed to activate settings window");
+        }
+    });
+}
+
 fn send_command(cmd: CompositorCommand) -> std::io::Result<CompositorEvent> {
     let path = metis_protocol::ipc_socket_path();
     let mut stream = UnixStream::connect(&path)?;

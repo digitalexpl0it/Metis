@@ -23,6 +23,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
+use gio::prelude::*;
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -53,15 +54,12 @@ fn main() {
         }
     }
 
-    // Parse before GApplication sees argv — bare `app.run()` treats `--page` as
-    // an unknown option and exits ("Unknown option --page"), which broke every
-    // edge-bar "… settings" button that launches `metis-settings --page <id>`.
-    let page = parse_page_arg();
-
     let app = gtk::Application::builder()
         // Must be a reverse-DNS id (GLib rejects `metis-settings`).
         .application_id("com.metis.Settings")
-        .flags(gio::ApplicationFlags::NON_UNIQUE | gio::ApplicationFlags::HANDLES_OPEN)
+        // Unique instance: a second `metis-settings --page …` forwards argv to
+        // the running primary via D-Bus instead of spawning another window.
+        .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
     app.add_main_option(
@@ -73,16 +71,26 @@ fn main() {
         Some("PAGE"),
     );
 
-    app.connect_activate(move |app| {
-        build_ui(app, page.clone());
+    // Keep going so remote instances can forward `--page` to the primary.
+    app.connect_handle_local_options(|_app, _dict| -1);
+
+    app.connect_command_line(|app, cmdline| {
+        let launch = launch_from_command_line(cmdline);
+        PENDING_LAUNCH.with(|slot| {
+            *slot.borrow_mut() = Some(launch);
+        });
+        app.activate();
+        0
     });
 
-    // Hand GApplication only argv0 so our custom `--page` is not rejected even
-    // if option registration fails on older glib; we already parsed it above.
-    let argv0 = std::env::args()
-        .next()
-        .unwrap_or_else(|| "metis-settings".into());
-    std::process::exit(app.run_with_args(&[argv0]).into());
+    app.connect_activate(|app| {
+        let launch = PENDING_LAUNCH
+            .with(|slot| slot.borrow_mut().take())
+            .unwrap_or_default();
+        open_settings(app, launch, false);
+    });
+
+    std::process::exit(app.run().into());
 }
 
 #[derive(Debug, Clone, Default)]
@@ -93,15 +101,22 @@ struct PageLaunch {
     tab: Option<String>,
 }
 
-fn parse_page_arg() -> PageLaunch {
-    let mut args = std::env::args().skip(1);
-    while let Some(arg) = args.next() {
+fn launch_from_command_line(cmdline: &gio::ApplicationCommandLine) -> PageLaunch {
+    let dict = cmdline.options_dict();
+    if let Ok(Some(page)) = dict.lookup::<String>("page") {
+        return normalize_launch(&page);
+    }
+    // Fallback for callers that put `--page` in remaining argv.
+    let args = cmdline.arguments();
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        let arg = arg.to_string_lossy();
         if let Some(name) = arg.strip_prefix("--page=") {
             return normalize_launch(name);
         }
         if arg == "--page" {
-            if let Some(name) = args.next() {
-                return normalize_launch(&name);
+            if let Some(name) = iter.next() {
+                return normalize_launch(&name.to_string_lossy());
             }
         }
     }
@@ -127,6 +142,45 @@ fn normalize_launch(raw: &str) -> PageLaunch {
 thread_local! {
     /// Kept across language Apply so we rebuild content in-place (no close/reopen).
     static SETTINGS_WINDOW: RefCell<Option<gtk::ApplicationWindow>> = const { RefCell::new(None) };
+    /// Pending `--page` from `command-line` until `activate` consumes it.
+    static PENDING_LAUNCH: RefCell<Option<PageLaunch>> = const { RefCell::new(None) };
+    /// True after the first full chrome/page build (reuse path skips rebuild).
+    static UI_READY: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Open Settings once, or reuse the existing window (navigate + unminimize).
+fn open_settings(app: &gtk::Application, launch: PageLaunch, force_rebuild: bool) {
+    let window_alive = SETTINGS_WINDOW.with(|slot| slot.borrow().is_some());
+    if force_rebuild || !UI_READY.get() || !window_alive {
+        build_ui(app, launch);
+        UI_READY.set(true);
+    } else {
+        apply_launch(&launch);
+        present_settings_window();
+    }
+}
+
+fn apply_launch(launch: &PageLaunch) {
+    if let Some(page) = launch.page.as_deref() {
+        nav::request_page(page);
+        if page == "network" {
+            if let Some(tab) = launch.tab.as_deref() {
+                pages::network::request_tab(tab);
+            }
+        }
+    }
+}
+
+fn present_settings_window() {
+    SETTINGS_WINDOW.with(|slot| {
+        if let Some(window) = slot.borrow().as_ref() {
+            // Best-effort client hint; Metis still needs compositor ActivateWindow
+            // to restore a minimized tile (clients cannot unminimize on Wayland).
+            window.unminimize();
+            window.present();
+        }
+    });
+    runtime::activate_settings_window();
 }
 
 fn build_ui(app: &gtk::Application, launch: PageLaunch) {
@@ -155,6 +209,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
             SETTINGS_WINDOW.with(|slot| {
                 *slot.borrow_mut() = None;
             });
+            UI_READY.set(false);
             glib::Propagation::Proceed
         });
         apply_window_icon(&window);
@@ -459,18 +514,19 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
         680
     };
     window.set_default_size(keep_w, keep_h);
-    window.present();
+    present_settings_window();
 
     // Live Language & region Apply rebuilds chrome/pages with fresh `tr()` labels.
     {
         let app = app.clone();
         i18n_gtk::register_ui_rebuild(Rc::new(move |page_id| {
-            build_ui(
+            open_settings(
                 &app,
                 PageLaunch {
                     page: Some(page_id),
                     tab: None,
                 },
+                true,
             );
         }));
     }
