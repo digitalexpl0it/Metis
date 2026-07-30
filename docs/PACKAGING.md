@@ -1,78 +1,125 @@
-# Packaging Metis (`.deb`)
+# Packaging Metis
 
-Metis ships as a single Ubuntu **amd64** `.deb` for now. There is no PPA yet —
-download from [GitHub Releases](https://github.com/digitalexpl0it/Metis/releases)
-or build locally.
+Metis ships as **per-suite** packages. The Debian package name is always
+**`metis-desktop`** — never bare `metis` (Ubuntu universe already has an unrelated
+graph-partitioning package named `metis` at 5.1.x; `apt upgrade` would replace
+the desktop).
 
-The Debian package name is **`metis-desktop`** (filename
-`metis-desktop_*_amd64.ubuntu24.04.deb`). It must **not** be named `metis` —
-Ubuntu universe already ships an unrelated graph-partitioning package called
-`metis` (version 5.1.x). Because `5.1.0 > 0.1.0.x`, a plain `apt upgrade` would
-replace the desktop with that tiny math package and delete every Metis binary.
+| Audience | Path |
+|----------|------|
+| Ubuntu / Debian users | `.deb` from [GitHub Releases](https://github.com/digitalexpl0it/Metis/releases) |
+| Arch users | [`packaging/arch/PKGBUILD`](../metis-os-workspace/packaging/arch/PKGBUILD) (`makepkg -si`) |
+| NixOS | [flake + module](../nix/README.md) |
+| From source (any supported distro) | [`./install.sh`](../install.sh) at the repo root |
 
-## Install from a release
+## Install from a `.deb`
 
-```bash
-# Example for Ubuntu 24.04 (from the directory that contains the .deb)
-sudo apt install ./metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
-```
+Pick the artifact that matches your OS:
 
-You can also open the `.deb` in your distro’s package installer (Ubuntu Software,
-GDebi, Discover, etc.) or run `sudo dpkg -i metis-desktop_*.deb` then
-`sudo apt-get install -f` if dependencies need filling in.
-
-If `apt` prints `N: … couldn't be accessed by user '_apt' … Permission denied`
-when installing from a home folder, ignore it — the package still installed.
-That notice is apt’s sandbox, not a Metis packaging bug.
-
-### Upgrading (important)
-
-Always upgrade with **`apt`** from a terminal, not Ubuntu Software / App Center /
-GDebi. Those GUI installers often **remove the old package first** and, if the
-new `.deb` fails to configure, leave you with nothing.
+| File suffix | Target |
+|-------------|--------|
+| `…amd64.ubuntu24.04.deb` | Ubuntu 24.04 (noble) |
+| `…amd64.ubuntu26.04.deb` | Ubuntu 26.04 |
+| `…amd64.debian13.deb` | Debian 13 (trixie) |
 
 ```bash
-# Log out of Metis first (or reboot to GNOME/KDE), then:
-cd ~/Downloads   # or wherever the .deb is
-sudo apt install ./metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
+sudo apt install ./metis-desktop_VERSION-1_amd64.ubuntu24.04.deb
 dpkg -l metis-desktop
-# Expect: ii  metis-desktop  0.1.0.12-1  …
 command -v metis-remote metis-settings metis-session
 ```
 
+Log out and pick **Metis** at the greeter.
+
+### Upgrading
+
+Use terminal `apt`, not App Center / GDebi. Log out of Metis first.
+
 Older releases used `Package: metis` (colliding name). Installing `metis-desktop`
-`Breaks`/`Replaces` those `0.1.0.x` packages only — it does **not** touch Ubuntu’s
-`metis` 5.x math package.
+`Breaks`/`Replaces` those `0.1.0.x` packages only — not Ubuntu’s `metis` 5.x math
+package.
 
 If `apt upgrade` already swapped you onto Ubuntu’s math `metis`:
 
 ```bash
-# Confirm you have the wrong package (tiny, Description mentions graph partitioning)
-apt-cache show metis | head -20
-dpkg -L metis | head
-# Remove it, then install the desktop .deb
 sudo apt remove metis
-sudo apt install ./metis-desktop_*.ubuntu24.04.deb
+sudo apt install ./metis-desktop_*.ubuntu24.04.deb   # or matching suite
 ```
 
-If an upgrade already went wrong in other ways:
+Do **not** mix a `/usr` package install with `./install.sh` / `--install-session`
+(`/usr/local`) without cleaning one of them first.
+
+### Dependency policy (`.deb`)
+
+| Field | Role |
+|-------|------|
+| **Depends** | Required to start a Metis session (GTK4, seat, DRM, PipeWire, kitty, …) |
+| **Bundled** | `libgtk4-layer-shell` on Ubuntu 24.04 only (not in archive) |
+| **Recommends** | keyring, portals helpers, volumes, **nftables**, **polkit agent** (apt installs by default) |
+| **Suggests** | GRD, FreeRDP, GameMode, Flatpak, BT, printers, biometrics |
+
+## From source: `./install.sh`
 
 ```bash
-sudo apt-get install -f
-sudo apt install ./metis-desktop_*.ubuntu24.04.deb
+git clone https://github.com/digitalexpl0it/Metis.git
+cd Metis
+./install.sh                  # confirm packages, then --install-session
+./install.sh --yes            # noninteractive
+./install.sh --deps-only      # packages + Rust + layer-shell only
+./install.sh --with-remote    # also GRD + FreeRDP packages
 ```
 
-Do **not** mix a `/usr` package install with `./run-metis.sh --install-session`
-(which writes `/usr/local`) without cleaning one of them first — two installs
-fight over session entries and helpers like `metis-remote`.
+Supported: **Ubuntu 24.04 / 26.04**, **Debian 13**, **Arch Linux**. Dep lists live in
+[`metis-os-workspace/scripts/deps/`](../metis-os-workspace/scripts/deps/).
 
-Then **log out** and pick **Metis** from your display manager’s session menu
-(GDM on Ubuntu, SDDM on Kubuntu, and other Wayland-capable greeters). The package
-does not reconfigure the greeter — it only installs
-`/usr/share/wayland-sessions/metis.desktop`.
+This installs to **`/usr/local`** via `run-metis.sh --install-session`. Prefer the
+`.deb` for production machines.
 
-Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
-`ubuntu26.04` will be added when that LTS is supported).
+## Arch (`makepkg`)
+
+```bash
+cd metis-os-workspace/packaging/arch
+# From a release tag (default):
+makepkg -si
+# Or from a local clone of this repo:
+METIS_LOCAL_SRC=/path/to/Metis makepkg -si
+```
+
+Publishing to the AUR is manual (out of tree). Keep `pkgver` in sync with tags.
+
+## NixOS
+
+See [`nix/README.md`](../nix/README.md). Enable `programs.metis` and set
+`programs.metis.package` to the flake package.
+
+## Build a `.deb` locally
+
+```bash
+cd metis-os-workspace
+VERSION=0.1.0.12 DISTRO_SUITE=ubuntu24.04 ./scripts/package-deb.sh
+VERSION=0.1.0.12 DISTRO_SUITE=ubuntu26.04 ./scripts/package-deb.sh
+VERSION=0.1.0.12 DISTRO_SUITE=debian13 ./scripts/package-deb.sh
+# → dist/metis-desktop_${VERSION}-1_amd64.${DISTRO_SUITE}.deb
+```
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `VERSION` | *(required)* | Package version |
+| `DISTRO_SUITE` | `ubuntu24.04` | `ubuntu24.04` \| `ubuntu26.04` \| `debian13` |
+| `UBUNTU_SUITE` | — | Legacy (`24.04` → `ubuntu24.04`) |
+| `BUNDLE_GTK4_LAYER_SHELL` | suite default | `1` bundles the .so into the deb |
+| `SKIP_BUILD` | `0` | `1` = stage existing `target/release` only |
+
+Shared FHS staging: [`scripts/stage-fhs.sh`](../metis-os-workspace/scripts/stage-fhs.sh)
+(used by deb, Arch PKGBUILD, and aligned with Nix `postInstall`).
+
+## GitHub Actions
+
+Workflow: [`.github/workflows/release-deb.yml`](../.github/workflows/release-deb.yml)
+
+Tag `v*` builds **ubuntu24.04**, **ubuntu26.04**, and **debian13** artifacts and
+attaches them to the GitHub Release.
+
+Nix: [`.github/workflows/nix-flake.yml`](../.github/workflows/nix-flake.yml).
 
 ## What the package installs
 
@@ -81,89 +128,15 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 | `/usr/bin/metis-{compositor,shell,settings,portal,remote,viewer,gamingd}` | Binaries |
 | `/usr/bin/metis-session` | Greeter session launcher |
 | `/usr/share/wayland-sessions/metis.desktop` | Session entry |
-| `/usr/share/xdg-desktop-portal/…` | Portal backend registration |
-| `/usr/share/applications/metis-settings.desktop` + hicolor icons | Settings launcher |
-| `/usr/share/applications/metis-viewer.desktop` | Metis Viewer (RDP client UI) |
-| `/usr/share/icons/hicolor/*/apps/metis-viewer.png` | Metis Viewer icon (48 + 256) |
-| `/usr/share/metis/wallpapers/` | Bundled wallpapers (onboarding / Appearance) |
-| `/usr/share/metis/widgets/` | JSON desktop widget extension packs (Phase 14 §E) |
-| `/usr/share/metis/locale/` | i18n catalogs (gettext `.mo` + Fluent `.ftl`) |
-| `/etc/pam.d/metis` | Lock-screen PAM service |
+| `/usr/share/xdg-desktop-portal/…` | Portal backend |
+| `/usr/share/applications/metis-*.desktop` + icons | Settings / Viewer |
+| `/usr/share/metis/{wallpapers,widgets,locale}` | Assets / i18n |
+| `/usr/share/polkit-1/actions/org.metis.policy` | Polkit |
+| `/etc/pam.d/metis` | Lock-screen PAM |
 
-### Dependency policy
+## Explicit non-goals (for now)
 
-| Field | Packages | Why |
-|-------|----------|-----|
-| **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, `liblcms2-2`, … | Required to start a Metis session; kitty is the default terminal; lcms2 for Stage 2 colour LUTs |
-| **Bundled** | `libgtk4-layer-shell.so.0` | Not packaged on Ubuntu 24.04 — built in CI / copied from the build host into the `.deb` |
-| **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse**, **nftables**, **policykit-1-gnome** \| **mate-polkit** | Keyring, portal helpers, removable volumes, and Remote access LAN firewall (`pkexec` password dialog). apt installs Recommends by default |
-| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer`, `fprintd`, `libpam-fprintd`, `libpam-u2f` | Heavier optionals (RDP host/client, GameMode, Flatpak, BT, printers, lock biometrics) — not pulled automatically |
-
-Optional Suggests are also offered in the first-run **Optional software** onboarding
-step (detect → grey out if present → toggles → **Install selected** via
-`pkexec apt-get install`).
-
-## Build a `.deb` locally
-
-Prerequisites: Ubuntu 24.04 build deps from [`UBUNTU_DEV.md`](UBUNTU_DEV.md), plus
-`dpkg-dev`, `fakeroot`, and `gettext` (for `msgfmt` when compiling locale catalogs).
-
-```bash
-cd metis-os-workspace
-VERSION=0.1.0.12 ./scripts/package-deb.sh
-# → dist/metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
-
-# Or reuse an existing release build:
-VERSION=0.1.0.12 SKIP_BUILD=1 ./scripts/package-deb.sh
-```
-
-Environment:
-
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `VERSION` | *(required)* | Package version (`0.1.0.12` or `v0.1.0.12`) |
-| `UBUNTU_SUITE` | `24.04` | Filename / suite label |
-| `DEB_REVISION` | `1` | Debian revision |
-| `SKIP_BUILD` | `0` | `1` = only stage + pack existing `target/release` binaries |
-| `METIS_CARGO_TARGET_DIR` | auto | Override Cargo target directory |
-
-## GitHub Actions release
-
-Workflow: [`.github/workflows/release-deb.yml`](../.github/workflows/release-deb.yml)
-
-1. Push a version tag: `git tag v0.1.0.12 && git push origin v0.1.0.12`
-2. CI installs Rust, runs **`cargo audit`** in `metis-os-workspace/` (fails on
-   unignored advisories), then builds on `ubuntu-24.04`, runs `package-deb.sh`,
-   and uploads the `.deb` to the GitHub Release for that tag.
-3. **workflow_dispatch** builds a prerelease tagged `test-<sha>` for smoke tests.
-
-PRs that touch `Cargo.lock` / `Cargo.toml` also run
-[`.github/workflows/audit.yml`](../.github/workflows/audit.yml).
-
-### `cargo audit` ignore policy
-
-Config: [`metis-os-workspace/audit.toml`](../metis-os-workspace/audit.toml).
-Only ignore a RUSTSEC advisory when there is no usable patched crate yet **and**
-you document why the issue is unreachable (or accepted) plus a tracking note.
-Remove ignores as soon as an upgrade lands. Do not merge silent `ignore = []`
-placeholders for active CVEs.
-
-### Residual C ABI risk
-
-Metis’s Rust crates sit on top of C libraries (GTK4, lcms2, OpenSSL / rustls
-backends, libinput, libseat, PipeWire, PAM, etc.). Memory-safety guarantees stop
-at those FFI boundaries — keep the host packages updated via distro security
-updates. Release builds also enable `overflow-checks` and `panic = "abort"`.
-
-## Developer install (not packaging)
-
-For day-to-day development, nested sessions and `/usr/local` installs remain:
-
-```bash
-cd metis-os-workspace/metis-shell
-./run-metis.sh --session              # nested winit
-./run-metis.sh --install-session      # release → /usr/local + greeter entry
-```
-
-Prefer the `.deb` for end-user machines; prefer `run-metis.sh` while hacking on
-the tree.
+- Fedora/COPR RPM
+- Flatpak/AppImage for the compositor
+- One `.deb` for all Debian-family suites
+- Official Arch `[extra]` or nixpkgs upstream

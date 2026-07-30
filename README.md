@@ -17,25 +17,27 @@ New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 **Desktop** — edge bar, workspaces, weather, and server-side window decorations on a
 theme-aware wallpaper.
 
-![Metis desktop with edge bar, workspaces, and tiled windows](Screenshots/metis_desktop.png)
+Metis desktop with edge bar, workspaces, and tiled windows
 
 **Control Center** — pull-down system monitor with live charts and a searchable process
 list (Settings → Control Center to configure).
 
-![Metis Control Center with CPU, memory, and process list](Screenshots/metis_control_center.png)
+Metis Control Center with CPU, memory, and process list
 
 **Settings** — grouped sidebar for display, appearance, connectivity, input, gaming,
 and system configuration.
 
-![Metis Settings control center](Screenshots/metis_settings.png)
+Metis Settings control center
 
 ## Philosophy
 
 - **Performance first** — idiomatic, low-overhead Rust with `tokio` async and damage-driven rendering.
 - **Compositor-first** — a Smithay compositor owns the session; the shell is spawned by it.
 - **On-demand shell** — `wlr-layer-shell` overlays (edge bar, launcher, popovers,
-  Notification Center, Control Center, optional desktop widgets) summoned when
-  needed and torn down cleanly.
+Notification Center, Control Center, optional desktop widgets) summoned when
+needed and torn down cleanly.
+
+
 
 ## Workspace layout
 
@@ -59,46 +61,68 @@ and system configuration.
 └── docs/                        # User guide + development setup
 ```
 
+
+
 ## Technology stack
 
 - **Language:** Rust (stable), `tokio` async, `serde`/`serde_json` for JSON contracts.
 - **Compositor:** [Smithay](https://github.com/Smithay/smithay) with a `winit` nested backend for development; `calloop` event loop; `image` for wallpaper decode; XWayland for X11 apps.
-- **Shell / UI:** GTK4 with [`gtk4-layer-shell`](https://github.com/wmww/gtk4-layer-shell); `zbus` for the freedesktop notification daemon.
+- **Shell / UI:** GTK4 with `[gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell)`; `zbus` for the freedesktop notification daemon.
 - **IPC:** JSON over Unix sockets (`metis-protocol`) plus a runtime command file under `$XDG_RUNTIME_DIR/metis/`.
 - **Configuration:** JSON under `~/.config/metis/`.
 
+
+
 ## Quick start
 
-### Install from a `.deb` (Ubuntu 24.04)
 
-Download the latest `metis-desktop_*_amd64.ubuntu24.04.deb` from
-[GitHub Releases](https://github.com/digitalexpl0it/Metis/releases), then open it
-in your package installer, or:
+
+### Install from a `.deb` (Ubuntu / Debian)
+
+Download the matching `metis-desktop_*_amd64.<suite>.deb` from
+[GitHub Releases](https://github.com/digitalexpl0it/Metis/releases):
+
+
+| Suite in filename | OS                 |
+| ----------------- | ------------------ |
+| `ubuntu24.04`     | Ubuntu 24.04       |
+| `ubuntu26.04`     | Ubuntu 26.04       |
+| `debian13`        | Debian 13 (trixie) |
+
 
 ```bash
 sudo apt install ./metis-desktop_VERSION-1_amd64.ubuntu24.04.deb
-# or: sudo dpkg -i metis-desktop_VERSION-1_amd64.ubuntu24.04.deb && sudo apt-get install -f
 ```
 
-An apt `_apt` / `Permission denied` notice from `~/Downloads` is harmless — the
-package still installs. See [`docs/PACKAGING.md`](docs/PACKAGING.md) for
-Depends/Suggests, local packaging, and CI release tags.
+See `[docs/PACKAGING.md](docs/PACKAGING.md)`. Log out and pick **Metis** at the greeter.
 
-**Note:** The package is named `metis-desktop`, not `metis`. Ubuntu already has an
-unrelated `metis` math package; `apt upgrade` used to replace the desktop with it.
+**Note:** The package is named `metis-desktop`, not `metis` (avoids colliding with
+Ubuntu’s unrelated math package).
 
-Log out and pick **Metis** at the greeter.
+### From source (`./install.sh`)
+
+Ubuntu 24.04 / 26.04, Debian 13, or Arch:
+
+```bash
+git clone https://github.com/digitalexpl0it/Metis.git
+cd Metis
+./install.sh --yes          # deps + release build → /usr/local + greeter session
+```
+
+
+
+### Arch / NixOS
+
+- Arch: `cd metis-os-workspace/packaging/arch && makepkg -si`
+- NixOS: flake + `programs.metis` — see `[nix/README.md](nix/README.md)`
+
+
 
 ### Build from source (dev)
 
-See [`docs/UBUNTU_DEV.md`](docs/UBUNTU_DEV.md) for full system-package setup (Ubuntu 24.04+).
+See `[docs/UBUNTU_DEV.md](docs/UBUNTU_DEV.md)`, or `./install.sh --deps-only`.
 
 ```bash
-# Install GTK4 + layer-shell dev packages (Ubuntu example)
-sudo apt install -y build-essential pkg-config libssl-dev \
-  libgtk-4-dev libadwaita-1-dev libgtk-4-layer-shell-dev
-
-# Build and launch a nested dev session
 cd metis-os-workspace/metis-shell
 ./run-metis.sh --build --session
 ```
@@ -118,10 +142,13 @@ side-by-side virtual outputs:
 METIS_VIRTUAL_OUTPUTS=2 ./run-metis.sh --session
 ```
 
+
+
 ### Standalone session (real TTY/GPU)
 
 Metis also runs as a real desktop session on its own GPU via a DRM/KMS + libseat
-+ libinput backend (autodetected when no parent Wayland/X11 session is present).
+
+- libinput backend (autodetected when no parent Wayland/X11 session is present).
 Install the login entry and pick **Metis** from your display manager, just like
 Hyprland:
 
@@ -130,111 +157,119 @@ Hyprland:
 ```
 
 Or test it directly from a free VT with `./run-metis.sh --session --drm`. See
-[`docs/UBUNTU_DEV.md`](docs/UBUNTU_DEV.md) for details and escape hatches
-(Ctrl+Alt+Backspace to quit, Ctrl+Alt+F<n> to switch VT).
+`[docs/UBUNTU_DEV.md](docs/UBUNTU_DEV.md)` for details and escape hatches
+(Ctrl+Alt+Backspace to quit, Ctrl+Alt+F to switch VT).
 
 ## Using Metis
 
 Full walkthrough in the **[User Guide](docs/USER_GUIDE.md)**. The essentials:
 
 - **Edge bar** — app launcher, taskbar dock, workspaces, weather, battery,
-  Bluetooth (when an adapter is present), network, volume, system tray, removable
-  volumes (USB / SD / optical / ISO — open, mount/unlock, eject), and clock
-  (opens Notification Center). Right-click dock icons to pin/close.
+Bluetooth (when an adapter is present), network, volume, system tray, removable
+volumes (USB / SD / optical / ISO — open, mount/unlock, eject), and clock
+(opens Notification Center). Right-click dock icons to pin/close.
 - **Desktop widgets** *(optional)* — free-floating wallpaper panels (Folders,
-  Apps, Clock, System, Weather, Equalizer, plus JSON extension packs) in a
-  dedicated `metis-shell --desktop-widgets` process. Off by default; enable in
-  Settings → Desktop widgets. Edit mode to move/resize; configure via the gear
-  on each instance. Writes `desktop-widgets.json` (live reload). Install packs
-  under `~/.local/share/metis/widgets/<id>/`.
+Apps, Clock, System, Weather, Equalizer, plus JSON extension packs) in a
+dedicated `metis-shell --desktop-widgets` process. Off by default; enable in
+Settings → Desktop widgets. Edit mode to move/resize; configure via the gear
+on each instance. Writes `desktop-widgets.json` (live reload). Install packs
+under `~/.local/share/metis/widgets/<id>/`.
 - **Control Center** — pull the edge bar toward the desktop (or click the grid
-  icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
-  charts, temperature gauges, and a searchable process list with right-click
-  actions. Configure in Settings → Control Center.
+icon beside the workspace dots) for a system monitor: CPU/memory/network/disk
+charts, temperature gauges, and a searchable process list with right-click
+actions. Configure in Settings → Control Center.
 - **Windows** — every app gets a server-side titlebar with close / minimize /
-  maximize. Drag the titlebar to move; drag to a screen edge to snap
-  (half / quarter / maximize); drag a border to resize. On the default desktop
-  layout, windows reopen at the position and size you last left them. Settings →
-  Display includes a **Graphics profile** (Auto / Compatibility / Normal) for
-  VM-safe GTK rendering.
+maximize. Drag the titlebar to move; drag to a screen edge to snap
+(half / quarter / maximize); drag a border to resize. On the default desktop
+layout, windows reopen at the position and size you last left them. Settings →
+Display includes a **Graphics profile** (Auto / Compatibility / Normal) for
+VM-safe GTK rendering.
 - **Workspaces** — `Super`+`1`..`9` switch, `Super`+`Shift`+`1`..`9` move the
-  focused window, `Super`+`Alt`+`←`/`→` cycle workspaces (wraps). Each monitor
-  has its own workspaces (configurable).
+focused window, `Super`+`Alt`+`←`/`→` cycle workspaces (wraps). Each monitor
+has its own workspaces (configurable).
 - **Cross-output moves** — drag a window onto another monitor (or snap it there)
-  and it follows that display's desk; on grid workspaces `Super`+`Shift`+`←`/`→`
-  sends the focused window to the adjacent monitor.
+and it follows that display's desk; on grid workspaces `Super`+`Shift`+`←`/`→`
+sends the focused window to the adjacent monitor.
 - **Scrolling layout** — toggle any workspace into a niri/PaperWM-style scrolling
-  strip with `Super`+`\`; navigate with `Super`+arrows.
+strip with `Super`+`\`; navigate with `Super`+arrows.
 - **Settings** — launch from the app launcher, or `metis-cmd settings`. Grouped
-  sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
-  include Display, Appearance, Background, Edge bar, Windows, **Desktop widgets**,
-  Metis Menu, Weather, Network, Calendars, Input, **Shortcuts** (read-only guide;
-  edit under Keyboard), Bluetooth, Printers, Power, Sound, **Gaming**,
-  **Control Center**, and **Remote access**.
+sidebar (Displays, Desktop, Connectivity, Input, System) with search. Pages
+include Display, Appearance, Background, Edge bar, Windows, **Desktop widgets**,
+Metis Menu, Weather, Network, Calendars, Input, **Shortcuts** (read-only guide;
+edit under Keyboard), Bluetooth, Printers, Power, Sound, **Gaming**,
+**Control Center**, and **Remote access**.
 - **Gaming** — hybrid-GPU routing (`gaming.json`), Flatpak Steam/Lutris/Heroic
-  overrides, health checklist, and `metis-gamingd` for auto performance profile
-  + GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
+overrides, health checklist, and `metis-gamingd` for auto performance profile
+  - GameMode while gaming. See the [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming).
 - **Screenshots** — **PrtSc** opens a native Metis overlay (Selection / Full screen /
-  Window); **Shift+PrtSc** captures the full screen instantly; **Ctrl+PrtSc** starts in
-  Window mode. **Esc** dismisses without capturing. Third-party apps (Flameshot, etc.)
-  still use the xdg-desktop-portal Screenshot interface via `metis-portal`.
+Window); **Shift+PrtSc** captures the full screen instantly; **Ctrl+PrtSc** starts in
+Window mode. **Esc** dismisses without capturing. Third-party apps (Flameshot, etc.)
+still use the xdg-desktop-portal Screenshot interface via `metis-portal`.
 - **Notification Center** — click the clock for a right-side panel (notifications,
-  calendar events, world clocks / timer / alarms). Toasts appear top-right with a
-  close button.
+calendar events, world clocks / timer / alarms). Toasts appear top-right with a
+close button.
 
-| Shortcut | Action |
-|----------|--------|
-| `PrtSc` | Interactive screenshot overlay |
-| `Shift`+`PrtSc` | Instant full-screen capture (no overlay) |
-| `Ctrl`+`PrtSc` | Screenshot overlay starting in Window mode |
-| `Esc` | (screenshot overlay) Dismiss without capturing |
-| `Super`+`1`..`9` | Switch workspace (on the monitor under the pointer) |
-| `Super`+`Shift`+`1`..`9` | Move focused window to a workspace |
-| `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
-| `Super`+`Shift`+`←` / `→` | (grid) Move focused window to adjacent monitor |
+
+| Shortcut                         | Action                                                       |
+| -------------------------------- | ------------------------------------------------------------ |
+| `PrtSc`                          | Interactive screenshot overlay                               |
+| `Shift`+`PrtSc`                  | Instant full-screen capture (no overlay)                     |
+| `Ctrl`+`PrtSc`                   | Screenshot overlay starting in Window mode                   |
+| `Esc`                            | (screenshot overlay) Dismiss without capturing               |
+| `Super`+`1`..`9`                 | Switch workspace (on the monitor under the pointer)          |
+| `Super`+`Shift`+`1`..`9`         | Move focused window to a workspace                           |
+| `Super`+`Alt`+`←` / `→`          | Cycle to previous / next workspace (wraps at 1..=count)      |
+| `Super`+`Shift`+`←` / `→`        | (grid) Move focused window to adjacent monitor               |
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move active workspace to adjacent monitor (independent mode) |
-| `Super`+`F` | Toggle maximize for the focused window (below the edge bar) |
-| `Super`+`Q` | Close the focused window |
-| `Esc` | Exit fullscreen / immersive (focused window) |
-| `Super`+`\` | Toggle the active workspace between grid and scrolling |
-| `Super`+arrows | (scrolling) Move focus across columns / within a stack |
-| `Super`+`Shift`+arrows | (scrolling) Move the column / window |
-| `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
-| `Super`+`-` / `Super`+`=` | (scrolling) Cycle the focused column width |
+| `Super`+`F`                      | Toggle maximize for the focused window (below the edge bar)  |
+| `Super`+`Q`                      | Close the focused window                                     |
+| `Esc`                            | Exit fullscreen / immersive (focused window)                 |
+| `Super`+`\`                      | Toggle the active workspace between grid and scrolling       |
+| `Super`+arrows                   | (scrolling) Move focus across columns / within a stack       |
+| `Super`+`Shift`+arrows           | (scrolling) Move the column / window                         |
+| `Super`+`,` / `Super`+`.`        | (scrolling) Consume into / expel from a column               |
+| `Super`+`-` / `Super`+`=`        | (scrolling) Cycle the focused column width                   |
+
+
+
 
 ## Configuration
 
 Configuration lives in `~/.config/metis/`. On first run the shell writes these
 defaults:
 
-| File | Purpose |
-|------|---------|
-| `bar.json` | Edge bar position/size/opacity/blur, widget order, workspaces, window/titlebar borders, default layout |
-| `clock.json` | World clocks and alarms |
-| `calendars.json` | Calendar accounts (local / CalDAV / Thunderbird / Microsoft 365) |
-| `themes/dark.json`, `themes/light.json` | Design tokens — accents, semantic status colors, `text_on_accent`, shadows/glows |
+
+| File                                    | Purpose                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `bar.json`                              | Edge bar position/size/opacity/blur, widget order, workspaces, window/titlebar borders, default layout |
+| `clock.json`                            | World clocks and alarms                                                                                |
+| `calendars.json`                        | Calendar accounts (local / CalDAV / Thunderbird / Microsoft 365)                                       |
+| `themes/dark.json`, `themes/light.json` | Design tokens — accents, semantic status colors, `text_on_accent`, shadows/glows                       |
+
 
 Other files are created on demand:
 
-| File | Created when | Purpose |
-|------|--------------|---------|
-| `config.json` | You change a preference | Active theme (defaults to dark), graphics profile, onboarding state, briefing-on-login |
-| `menu.json` | You set launcher defaults / pins | App launcher: terminal + file-manager choices (kitty preferred on auto-detect), pinned apps |
-| `wallpaper.json` | You pick a background | Wallpaper picture / colour / gradient (+ per-output overrides) |
-| `weather.json` | You configure weather | Bar weather: unit, auto-detect / IP-geolocation, saved locations |
-| `desk.json` | The compositor persists its layout | Compositor window-grid layout (app tiles) |
-| `desktop-widgets.json` | You enable Desktop widgets | Wallpaper widgets: enable, edit mode, chrome, builtins + JSON extension instances |
-| `dismissed.json` | You dismiss a calendar reminder | Dismissed reminder IDs |
-| `briefing.json` | You create it (optional) | Login-briefing weather coordinates + RSS feed |
-| `input.json` | You configure input devices | Mouse, touchpad, keyboard (compositor live-reload) |
-| `keybinds.json` | You edit Shortcuts | Desktop chords → actions (Settings → Keyboard) |
-| `power.json` | You configure power settings | Power profile (`powerprofilesctl`), idle blank/suspend, lid-close |
-| `remote.json` | You configure Remote access | Live-session RDP sharing via gnome-remote-desktop |
-| `dashboard.json` | You configure Control Center | Enable, widget order, max height %, refresh interval, confirm-before-kill |
-| `gaming.json` | You configure gaming | Graphics mode, auto performance/GameMode, Flatpak GPU env |
-| `gaming-flatpak.json` | Gaming setup runs | Record of applied Flatpak gaming overrides |
-| `screenshot.json` | You configure screenshots | Default mode, pointer toggle, delay, after-capture, save dir |
-| `outputs.json` | You configure displays | Per-output scale, resolution/refresh, layout, `display_mode` / `mirror_source`, night-light prefs |
+
+| File                   | Created when                       | Purpose                                                                                           |
+| ---------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `config.json`          | You change a preference            | Active theme (defaults to dark), graphics profile, onboarding state, briefing-on-login            |
+| `menu.json`            | You set launcher defaults / pins   | App launcher: terminal + file-manager choices (kitty preferred on auto-detect), pinned apps       |
+| `wallpaper.json`       | You pick a background              | Wallpaper picture / colour / gradient (+ per-output overrides)                                    |
+| `weather.json`         | You configure weather              | Bar weather: unit, auto-detect / IP-geolocation, saved locations                                  |
+| `desk.json`            | The compositor persists its layout | Compositor window-grid layout (app tiles)                                                         |
+| `desktop-widgets.json` | You enable Desktop widgets         | Wallpaper widgets: enable, edit mode, chrome, builtins + JSON extension instances                 |
+| `dismissed.json`       | You dismiss a calendar reminder    | Dismissed reminder IDs                                                                            |
+| `briefing.json`        | You create it (optional)           | Login-briefing weather coordinates + RSS feed                                                     |
+| `input.json`           | You configure input devices        | Mouse, touchpad, keyboard (compositor live-reload)                                                |
+| `keybinds.json`        | You edit Shortcuts                 | Desktop chords → actions (Settings → Keyboard)                                                    |
+| `power.json`           | You configure power settings       | Power profile (`powerprofilesctl`), idle blank/suspend, lid-close                                 |
+| `remote.json`          | You configure Remote access        | Live-session RDP sharing via gnome-remote-desktop                                                 |
+| `dashboard.json`       | You configure Control Center       | Enable, widget order, max height %, refresh interval, confirm-before-kill                         |
+| `gaming.json`          | You configure gaming               | Graphics mode, auto performance/GameMode, Flatpak GPU env                                         |
+| `gaming-flatpak.json`  | Gaming setup runs                  | Record of applied Flatpak gaming overrides                                                        |
+| `screenshot.json`      | You configure screenshots          | Default mode, pointer toggle, delay, after-capture, save dir                                      |
+| `outputs.json`         | You configure displays             | Per-output scale, resolution/refresh, layout, `display_mode` / `mirror_source`, night-light prefs |
+
 
 Edit `bar.json`, `themes/*.json`, or `desktop-widgets.json` while the shell runs —
 changes apply live (widgets rebuild or update chrome in place). Set bar `opacity`
@@ -246,43 +281,43 @@ reference.
 ## Status
 
 - **Phase 1 — Edge bar:** complete. App launcher, dock, workspaces, weather,
-  tray, removable volumes, token-driven theming with live reload, transparency,
-  and backdrop blur. Clock opens Notification Center (Phase 13).
+tray, removable volumes, token-driven theming with live reload, transparency,
+and backdrop blur. Clock opens Notification Center (Phase 13).
 - **Phase 2 — Settings app + window decorations:** complete. Standalone
-  `metis-settings`, compositor SSD titlebars, edge snapping, XWayland support,
-  Appearance light/dark sync for session GTK apps. (Taskbar / running-apps dock
-  is Phase 2.5 in the roadmap — also complete.)
+`metis-settings`, compositor SSD titlebars, edge snapping, XWayland support,
+Appearance light/dark sync for session GTK apps. (Taskbar / running-apps dock
+is Phase 2.5 in the roadmap — also complete.)
 - **Phase 3 — Multi-monitor, workspaces & tiling:** complete. Per-output bars and
-  desks; independent or linked workspaces; optional scrolling layout; ScreenCast
-  dmabuf zero-copy; Stage G multi-GPU DRM (**hardware validation 2026-07-26** on
-  hybrid iGPU+dGPU: HDMI projector, gaming PRIME, input); full `MultiRenderer`
-  transfer remains deferred.
+desks; independent or linked workspaces; optional scrolling layout; ScreenCast
+dmabuf zero-copy; Stage G multi-GPU DRM (**hardware validation 2026-07-26** on
+hybrid iGPU+dGPU: HDMI projector, gaming PRIME, input); full `MultiRenderer`
+transfer remains deferred.
 - **Phase 4 — System settings expansion:** complete (Input, Bluetooth, Printers,
-  Power, Sound, Display).
+Power, Sound, Display).
 - **Phase 5 — Display pipeline (mode-setting, HDR / VRR / colour):** **complete**
-  (2026-07-25; HDR stretch 2026-07-26) — resolution / refresh, arrangement,
-  duplicate mode, VRR, night light, Stage 1 ICC→CRTC gamma, Stage 2 GLES 3D-LUT,
-  HDR H1–H3 with Rec.709→BT.2020 + PQ/HLG encode. Default-on
-  `wp_color_management_v1` deferred (upstream wayland-rs **server/sys** ObjectData
-  UAF; opt-in via `METIS_COLOR_MGMT=1`); true per-surface HDR content remains stretch.
+(2026-07-25; HDR stretch 2026-07-26) — resolution / refresh, arrangement,
+duplicate mode, VRR, night light, Stage 1 ICC→CRTC gamma, Stage 2 GLES 3D-LUT,
+HDR H1–H3 with Rec.709→BT.2020 + PQ/HLG encode. Default-on
+`wp_color_management_v1` deferred (upstream wayland-rs **server/sys** ObjectData
+UAF; opt-in via `METIS_COLOR_MGMT=1`); true per-surface HDR content remains stretch.
 - **Phase 6 — Flatpak, Steam & gaming (v1):** **complete** (2026-07-05).
 - **Phase 7 — Remote access:** complete for GRD session sharing — Settings →
-  Remote access, portal capture + EIS input, Metis Viewer client, RustDesk
-  Settings preset, security closeout. Still deferred: Metis-native host protocol.
+Remote access, portal capture + EIS input, Metis Viewer client, RustDesk
+Settings preset, security closeout. Still deferred: Metis-native host protocol.
 - **Phase 8 — Internationalization:** **complete** (2026-07-24). Hybrid gettext
-  (shell/settings) + Fluent (compositor); Settings Language & region; onboarding
-  language step; live Apply rebuilds. See [`docs/I18N.md`](docs/I18N.md).
+(shell/settings) + Fluent (compositor); Settings Language & region; onboarding
+language step; live Apply rebuilds. See `[docs/I18N.md](docs/I18N.md)`.
 - **Phase 9 — Onboarding:** **complete** (2026-07-04); language step with Phase 8.
 - **Phase 10 — Control Center:** **complete** (2026-07-07; process tree + monitor
-  picker 2026-07-11).
+picker 2026-07-11).
 - **Phase 11 — Gaming Platform 2.0:** **complete** (2026-07-07).
 - **Phase 12 — Native Screenshot Tool:** **complete** (2026-07-09).
 - **Phase 13 — Notification Center:** **complete** (2026-07-10).
 - **Phase 14 — Desktop Widgets:** **complete** (2026-07-18) — optional wallpaper
-  panels (Folders, Apps, Clock, System, Weather, Equalizer) in a dedicated
-  process; Settings list + configure dialogs; chrome and text style.
-  **Extension API v1** (2026-07-26): JSON declarative packs under
-  `…/metis/widgets/<id>/` (no Electron / scripts / `.so`).
+panels (Folders, Apps, Clock, System, Weather, Equalizer) in a dedicated
+process; Settings list + configure dialogs; chrome and text style.
+**Extension API v1** (2026-07-26): JSON declarative packs under
+`…/metis/widgets/<id>/` (no Electron / scripts / `.so`).
 
 Optional follow-up (remaining): default-on colour-management protocol (upstream
 wayland-rs ObjectData UAF — still opt-in `METIS_COLOR_MGMT=1`), fuller per-surface
@@ -293,9 +328,9 @@ doc. Live `{host.*}` binds and `ext-session-lock-v1` also shipped 2026-07-27.
 **Phase 15 §F** (viewer, RustDesk preset, image RDP clipboard, lock
 fingerprint/YubiKey) is done (2026-07-26).
 
-See [`metis-os-workspace/TODO.md`](metis-os-workspace/TODO.md) for the detailed
-roadmap, [`CHANGELOG.md`](CHANGELOG.md) for recent changes, and
-[`docs/PERF_AUDIT.md`](docs/PERF_AUDIT.md) for performance and binary-size notes.
+See `[metis-os-workspace/TODO.md](metis-os-workspace/TODO.md)` for the detailed
+roadmap, `[CHANGELOG.md](CHANGELOG.md)` for recent changes, and
+`[docs/PERF_AUDIT.md](docs/PERF_AUDIT.md)` for performance and binary-size notes.
 
 ## License
 

@@ -18,12 +18,30 @@ env:
   GTK4_LAYER_SHELL_TAG: "v1.3.0"
 
 jobs:
+  resolve-version:
+    name: Resolve version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            V="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0+${GITHUB_SHA::7}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Resolved VERSION=$V"
+
   deb-ubuntu-24-04:
-    name: Build metis .deb (Ubuntu 24.04)
+    name: Build metis-desktop .deb (Ubuntu 24.04)
+    needs: resolve-version
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install build dependencies
         run: |
@@ -38,15 +56,14 @@ jobs:
             libpulse-dev \
             liblcms2-dev \
             libwayland-dev wayland-protocols \
+            libeis-dev \
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \
             dpkg-dev fakeroot curl git \
             gettext
 
-      - name: Build and install gtk4-layer-shell (not in Ubuntu 24.04)
+      - name: Build and install gtk4-layer-shell
         run: |
-          # Ubuntu 24.04 only ships GTK3 layer-shell. Metis needs gtk4-layer-shell;
-          # build from upstream and install under /usr/local (also bundled into .deb).
           git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
             https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
           cd /tmp/gtk4-layer-shell
@@ -56,17 +73,14 @@ jobs:
           sudo ldconfig
           echo "/usr/local/lib/x86_64-linux-gnu" | sudo tee /etc/ld.so.conf.d/gtk4-layer-shell.conf
           sudo ldconfig
-          export PKG_CONFIG_PATH="/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig" >> "$GITHUB_ENV"
           pkg-config --modversion gtk4-layer-shell-0
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
           workspaces: metis-os-workspace -> target
+          shared-key: ubuntu-24.04
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -75,47 +89,188 @@ jobs:
         working-directory: metis-os-workspace
         run: cargo audit
 
-      - name: Resolve version
-        id: ver
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
-            V="${{ inputs.version }}"
-          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            V="${GITHUB_REF_NAME#v}"
-          else
-            V="0.0.0+${GITHUB_SHA::7}"
-          fi
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Resolved VERSION=$V"
-
       - name: Build release binaries + package .deb
         working-directory: metis-os-workspace
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
-          UBUNTU_SUITE: "24.04"
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+          DISTRO_SUITE: ubuntu24.04
+          BUNDLE_GTK4_LAYER_SHELL: "1"
           CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
           METIS_CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
-          PKG_CONFIG_PATH: /usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig
         run: |
           ./scripts/package-deb.sh
           ls -lh dist/*.deb
-          dpkg-deb -c dist/*.deb | grep -E 'layer-shell|usr/bin/metis|usr/share/metis/locale/.*/metis\.(mo|ftl)'
-          # Fail the job if locale catalogs were not packaged.
           test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.mo$')" -ge 2
           test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.ftl$')" -ge 2
 
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: metis-deb-ubuntu24.04
           path: metis-os-workspace/dist/*.deb
           if-no-files-found: error
 
+  deb-ubuntu-26-04:
+    name: Build metis-desktop .deb (Ubuntu 26.04)
+    needs: resolve-version
+    runs-on: ubuntu-26.04
+    # Allow tag releases to proceed if the 26.04 runner is not yet available.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            libgtk-4-dev libadwaita-1-dev \
+            libudev-dev libinput-dev libseat-dev \
+            libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libdisplay-info-dev libpam0g-dev \
+            libpipewire-0.3-dev \
+            libpulse-dev \
+            liblcms2-dev \
+            libwayland-dev wayland-protocols \
+            libeis-dev \
+            libgirepository1.0-dev gobject-introspection \
+            meson ninja-build valac \
+            dpkg-dev fakeroot curl git \
+            gettext \
+            libgtk-4-layer-shell-dev || true
+          # Prefer distro layer-shell; build from source if package missing.
+          if ! pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
+              https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+            cd /tmp/gtk4-layer-shell
+            meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
+            ninja -C build && sudo ninja -C build install && sudo ldconfig
+            echo "/usr/local/lib/x86_64-linux-gnu" | sudo tee /etc/ld.so.conf.d/gtk4-layer-shell.conf
+            sudo ldconfig
+            echo "PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig" >> "$GITHUB_ENV"
+            echo "BUNDLE_LAYER=1" >> "$GITHUB_ENV"
+          else
+            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+          fi
+          pkg-config --modversion gtk4-layer-shell-0
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: metis-os-workspace -> target
+          shared-key: ubuntu-26.04
+
+      - name: Build release binaries + package .deb
+        working-directory: metis-os-workspace
+        env:
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+          DISTRO_SUITE: ubuntu26.04
+          BUNDLE_GTK4_LAYER_SHELL: ${{ env.BUNDLE_LAYER }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+          METIS_CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+        run: |
+          ./scripts/package-deb.sh
+          ls -lh dist/*.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metis-deb-ubuntu26.04
+          path: metis-os-workspace/dist/*.deb
+          if-no-files-found: error
+
+  deb-debian-13:
+    name: Build metis-desktop .deb (Debian 13)
+    needs: resolve-version
+    runs-on: ubuntu-24.04
+    container:
+      image: debian:trixie
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            libgtk-4-dev libadwaita-1-dev \
+            libudev-dev libinput-dev libseat-dev \
+            libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libdisplay-info-dev libpam0g-dev \
+            libpipewire-0.3-dev \
+            libpulse-dev \
+            liblcms2-dev \
+            libwayland-dev wayland-protocols \
+            libeis-dev \
+            libgirepository1.0-dev gobject-introspection \
+            meson ninja-build valac \
+            dpkg-dev fakeroot curl git \
+            gettext ca-certificates \
+            libgtk-4-layer-shell-dev || true
+          if ! pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
+              https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+            cd /tmp/gtk4-layer-shell
+            meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
+            ninja -C build && ninja -C build install && ldconfig
+            echo "PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig" >> "$GITHUB_ENV"
+            echo "BUNDLE_LAYER=1" >> "$GITHUB_ENV"
+          else
+            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Build release binaries + package .deb
+        working-directory: metis-os-workspace
+        env:
+          VERSION: ${{ needs.resolve-version.outputs.version }}
+          DISTRO_SUITE: debian13
+          BUNDLE_GTK4_LAYER_SHELL: ${{ env.BUNDLE_LAYER }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+          METIS_CARGO_TARGET_DIR: ${{ github.workspace }}/metis-os-workspace/target
+        run: |
+          . "$HOME/.cargo/env"
+          ./scripts/package-deb.sh
+          ls -lh dist/*.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metis-deb-debian13
+          path: metis-os-workspace/dist/*.deb
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [resolve-version, deb-ubuntu-24-04, deb-ubuntu-26-04, deb-debian-13]
+    if: |
+      always() &&
+      needs.deb-ubuntu-24-04.result == 'success' &&
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+       github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: metis-deb-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: List artifacts
+        run: find artifacts -type f -name '*.deb' -ls || true
+
+      - name: Require at least one .deb
+        run: |
+          test "$(find artifacts -type f -name '*.deb' | wc -l)" -ge 1
+
       - name: Publish GitHub Release (tag)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: metis-os-workspace/dist/*.deb
+          files: artifacts/*.deb
           generate_release_notes: true
           fail_on_unmatched_files: true
 
@@ -126,13 +281,18 @@ jobs:
           tag_name: test-${{ github.sha }}
           name: Test build ${{ github.sha }}
           prerelease: true
-          files: metis-os-workspace/dist/*.deb
+          files: artifacts/*.deb
           generate_release_notes: false
           fail_on_unmatched_files: true
           body: |
-            Manual workflow_dispatch build for Ubuntu 24.04.
+            Manual workflow_dispatch multi-suite build.
 
             ```bash
-            sudo apt install ./metis-desktop_${{ steps.ver.outputs.version }}-1_amd64.ubuntu24.04.deb
+            # Ubuntu 24.04
+            sudo apt install ./metis-desktop_${{ needs.resolve-version.outputs.version }}-1_amd64.ubuntu24.04.deb
+            # Ubuntu 26.04 (when built)
+            sudo apt install ./metis-desktop_${{ needs.resolve-version.outputs.version }}-1_amd64.ubuntu26.04.deb
+            # Debian 13
+            sudo apt install ./metis-desktop_${{ needs.resolve-version.outputs.version }}-1_amd64.debian13.deb
             ```
             Then log out and pick **Metis** at the greeter.

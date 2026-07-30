@@ -1,8 +1,15 @@
-# Ubuntu development setup — Metis Shell
+# Development setup — Metis
 
-Target: **Ubuntu 24.04+** with the **Metis Smithay compositor** (nested session for dev).
+Primary target: **Ubuntu 24.04+**. For a one-shot bootstrap on Ubuntu 24.04 / 26.04,
+Debian 13, or Arch, prefer the repo-root installer:
 
-## System packages
+```bash
+./install.sh --yes
+# or deps only:
+./install.sh --deps-only
+```
+
+## System packages (Ubuntu)
 
 ```bash
 sudo apt update
@@ -12,6 +19,10 @@ sudo apt install -y \
   libpulse-dev \
   curl git
 ```
+
+On **Ubuntu 24.04**, `libgtk-4-layer-shell-dev` is often missing — build
+[gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source (or let
+`./install.sh` do it) and set `PKG_CONFIG_PATH`.
 
 To build/run the **standalone DRM session** (Metis on its own TTY/GPU, not nested),
 also install the session, input, and GPU libraries:

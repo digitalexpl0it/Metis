@@ -24,6 +24,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   our 0.1.0.x package and replaced the entire desktop. `Breaks`/`Replaces` migrate
   old `metis (<< 1)` installs only.
 
+### Added
+
+- **`./install.sh`** — repo-root bootstrap for Ubuntu 24.04 / 26.04, Debian 13,
+  and Arch (deps + optional remote packages + `run-metis.sh --install-session`).
+- **Multi-suite debs** — CI builds `ubuntu24.04`, `ubuntu26.04`, and `debian13`
+  artifacts via `DISTRO_SUITE` / shared `stage-fhs.sh`.
+- **Arch PKGBUILD** — `metis-os-workspace/packaging/arch/` (`makepkg -si`).
+- **Nix flake + NixOS module** — `flake.nix`, `nix/metis-desktop.nix`,
+  `programs.metis` (`nix/README.md`).
+
 ### Changed
 
 - **Packaging upgrade guidance** — Prefer `sudo apt install ./metis-desktop_….deb`

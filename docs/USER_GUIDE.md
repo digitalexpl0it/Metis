@@ -1143,7 +1143,8 @@ changes live.
 | `metis-remote` not found | Package may be missing — `dpkg -l metis-desktop` and reinstall with `sudo apt install ./metis-desktop_*.deb`. Dev trees: `./run-metis.sh --install-session` |
 | Metis Viewer: `cliprdr_… failed` / instant disconnect | Update Viewer (clipboard channel disabled in spawn). **Do not RDP into the same session from itself** — connect from another machine (e.g. the KVM host → guest IP) |
 | `.deb` upgrade removed Metis / left nothing installed | Use `sudo apt install ./metis-desktop_….deb` from a terminal after logging out of Metis — not Ubuntu Software / App Center. Then `sudo apt-get install -f` if needed. See [`PACKAGING.md`](PACKAGING.md) |
-| `apt upgrade` replaced Metis with a tiny “graph partitioning” package | Name collision: Ubuntu’s `metis` ≠ Metis desktop. Remove it (`sudo apt remove metis`) and install `metis-desktop_*.deb`. Fixed in packaging by renaming the package |
+| `apt upgrade` replaced Metis with a tiny “graph partitioning” package | Name collision: Ubuntu’s `metis` ≠ Metis desktop. Remove it (`sudo apt remove metis`) and install `metis-desktop_*.deb`. Fixed by renaming the package |
+| From-source install on Ubuntu/Debian/Arch | Use repo-root `./install.sh` (see [`PACKAGING.md`](PACKAGING.md)) |
 
 Logs are written to `~/.local/state/metis/logs/` (`latest.log` points at the most
 recent run).

@@ -1,0 +1,33 @@
+# Nix flake check (no full graphical session).
+name: Nix flake
+
+on:
+  push:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+      - "metis-os-workspace/Cargo.lock"
+      - "metis-os-workspace/**/Cargo.toml"
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+  workflow_dispatch:
+
+jobs:
+  flake-check:
+    name: nix flake check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: DeterminateSystems/magic-nix-cache-action@v9
+      - name: flake check
+        run: |
+          # Evaluate / build packages (may take long on cold cache).
+          nix flake check --print-build-logs
+        continue-on-error: true
+      - name: evaluate package
+        run: nix eval .#packages.x86_64-linux.metis-desktop.name

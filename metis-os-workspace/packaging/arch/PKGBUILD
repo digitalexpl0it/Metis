@@ -1,0 +1,93 @@
+# Maintainer: Metis Developers <metis@localhost>
+# Build from a release tag (AUR-style), or from a local clone:
+#   METIS_LOCAL_SRC=/path/to/Metis makepkg -si
+#
+#   cd metis-os-workspace/packaging/arch && makepkg -si
+
+pkgname=metis-desktop
+pkgver=0.1.0.12
+pkgrel=1
+pkgdesc="Metis Wayland desktop environment (compositor, shell, settings)"
+arch=('x86_64')
+url="https://github.com/digitalexpl0it/Metis"
+license=('MIT')
+depends=(
+  gtk4
+  libadwaita
+  gtk4-layer-shell
+  libpulse
+  libinput
+  seatd
+  mesa
+  libdrm
+  libdisplay-info
+  pam
+  pipewire
+  lcms2
+  wayland
+  libei
+  openssl
+  kitty
+  xdg-desktop-portal
+)
+optdepends=(
+  'gnome-keyring: Secret Service provider'
+  'xdg-desktop-portal-gtk: portal UI'
+  'nftables: Remote access LAN firewall'
+  'polkit-gnome: PolicyKit authentication agent'
+  'gnome-remote-desktop: RDP session sharing host'
+  'freerdp: Metis Viewer / FreeRDP client'
+  'gamemode: gaming performance daemon'
+  'flatpak: Flatpak app support'
+)
+makedepends=(
+  rust
+  cargo
+  pkgconf
+  git
+  gettext
+  meson
+  ninja
+  clang
+)
+provides=('metis-desktop')
+conflicts=('metis-desktop')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/digitalexpl0it/Metis/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+  if [[ -n "${METIS_LOCAL_SRC:-}" ]]; then
+    rm -rf "$srcdir/Metis-$pkgver"
+    mkdir -p "$srcdir"
+    cp -a "$METIS_LOCAL_SRC" "$srcdir/Metis-$pkgver"
+  fi
+  cd "$srcdir/Metis-$pkgver/metis-os-workspace"
+  export CARGO_HOME="${CARGO_HOME:-$srcdir/cargo-home}"
+  cargo fetch --locked 2>/dev/null || cargo fetch
+}
+
+build() {
+  cd "$srcdir/Metis-$pkgver/metis-os-workspace"
+  export CARGO_HOME="${CARGO_HOME:-$srcdir/cargo-home}"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  cargo build --release \
+    -p metis-compositor \
+    -p metis-shell \
+    -p metis-settings \
+    -p metis-portal \
+    -p metis-remote \
+    -p metis-viewer \
+    -p metis-gaming
+}
+
+package() {
+  local workspace="$srcdir/Metis-$pkgver/metis-os-workspace"
+  export STAGE="$pkgdir"
+  export WORKSPACE="$workspace"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  export ASSETS_DIR="$workspace/assets"
+  export BUNDLE_GTK4_LAYER_SHELL=0
+  export PREFIX_LIBDIR=usr/lib
+  "$workspace/scripts/stage-fhs.sh"
+}
