@@ -65,8 +65,7 @@ jobs:
 
       - name: Build and install gtk4-layer-shell
         run: |
-          git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
-            https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+          ./metis-os-workspace/scripts/fetch-gtk4-layer-shell.sh /tmp/gtk4-layer-shell
           cd /tmp/gtk4-layer-shell
           meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
           ninja -C build
@@ -144,8 +143,7 @@ jobs:
             pkg-config --modversion gtk4-layer-shell-0
           else
             # Fallback if the archive package is missing on a given image.
-            git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
-              https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+            ./metis-os-workspace/scripts/fetch-gtk4-layer-shell.sh /tmp/gtk4-layer-shell
             cd /tmp/gtk4-layer-shell
             meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
             ninja -C build && sudo ninja -C build install && sudo ldconfig
@@ -220,8 +218,7 @@ jobs:
             echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
             pkg-config --modversion gtk4-layer-shell-0
           else
-            git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
-              https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
+            ./metis-os-workspace/scripts/fetch-gtk4-layer-shell.sh /tmp/gtk4-layer-shell
             cd /tmp/gtk4-layer-shell
             meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
             ninja -C build && ninja -C build install && ldconfig

@@ -177,9 +177,8 @@ Install libgtk4-layer-shell-dev (Ubuntu 26.04 / Debian 13) or build from source
   fi
   log "Building gtk4-layer-shell $GTK4_LAYER_SHELL_TAG from source…"
   local src="/tmp/gtk4-layer-shell-metis"
-  rm -rf "$src"
-  git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
-    https://github.com/wmww/gtk4-layer-shell.git "$src"
+  GTK4_LAYER_SHELL_TAG="$GTK4_LAYER_SHELL_TAG" \
+    "$WORKSPACE/scripts/fetch-gtk4-layer-shell.sh" "$src"
   (
     cd "$src"
     meson setup build --prefix=/usr/local -Dexamples=false -Ddocs=false -Dtests=false
