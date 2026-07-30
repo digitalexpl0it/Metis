@@ -71,18 +71,21 @@ and system configuration.
 
 ### Install from a `.deb` (Ubuntu 24.04)
 
-Download the latest `metis_*_amd64.ubuntu24.04.deb` from
+Download the latest `metis-desktop_*_amd64.ubuntu24.04.deb` from
 [GitHub Releases](https://github.com/digitalexpl0it/Metis/releases), then open it
 in your package installer, or:
 
 ```bash
-sudo apt install ./metis_VERSION-1_amd64.ubuntu24.04.deb
-# or: sudo dpkg -i metis_VERSION-1_amd64.ubuntu24.04.deb && sudo apt-get install -f
+sudo apt install ./metis-desktop_VERSION-1_amd64.ubuntu24.04.deb
+# or: sudo dpkg -i metis-desktop_VERSION-1_amd64.ubuntu24.04.deb && sudo apt-get install -f
 ```
 
 An apt `_apt` / `Permission denied` notice from `~/Downloads` is harmless — the
 package still installs. See [`docs/PACKAGING.md`](docs/PACKAGING.md) for
 Depends/Suggests, local packaging, and CI release tags.
+
+**Note:** The package is named `metis-desktop`, not `metis`. Ubuntu already has an
+unrelated `metis` math package; `apt upgrade` used to replace the desktop with it.
 
 Log out and pick **Metis** at the greeter.
 

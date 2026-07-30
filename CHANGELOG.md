@@ -18,16 +18,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   gnome-remote-desktop format-list negotiation cannot kill the session with
   `cliprdr_packet_format_list_new failed!`. Test RDP from another machine (not
   from Viewer inside the same shared session).
+- **Deb name collision with Ubuntu `metis`** — the desktop `.deb` is now
+  `metis-desktop` (not `metis`). Ubuntu universe already ships a graph-partitioning
+  package named `metis` at 5.1.x; `apt upgrade` treated that as a newer version of
+  our 0.1.0.x package and replaced the entire desktop. `Breaks`/`Replaces` migrate
+  old `metis (<< 1)` installs only.
 
 ### Changed
 
-- **Packaging upgrade guidance** — Prefer `sudo apt install ./metis_….deb` after
-  logging out of Metis; avoid App Center/GDebi local upgrades that can remove
-  `metis` and leave nothing installed (`docs/PACKAGING.md`, `USER_GUIDE`).
+- **Packaging upgrade guidance** — Prefer `sudo apt install ./metis-desktop_….deb`
+  after logging out of Metis; avoid App Center/GDebi local upgrades that can remove
+  the package and leave nothing installed (`docs/PACKAGING.md`, `USER_GUIDE`).
 - **Deb Recommends for LAN firewall** — `nftables` and `policykit-1-gnome |
   mate-polkit` moved from Suggests to Recommends so a normal `apt install` of the
   Metis `.deb` pulls a PolicyKit agent + nftables (fixes Remote access password
   dialog timeouts on minimal VMs). GRD / FreeRDP stay Suggests.
+
 ## [2026-07-28]
 
 ### Fixed

@@ -4,15 +4,21 @@ Metis ships as a single Ubuntu **amd64** `.deb` for now. There is no PPA yet —
 download from [GitHub Releases](https://github.com/digitalexpl0it/Metis/releases)
 or build locally.
 
+The Debian package name is **`metis-desktop`** (filename
+`metis-desktop_*_amd64.ubuntu24.04.deb`). It must **not** be named `metis` —
+Ubuntu universe already ships an unrelated graph-partitioning package called
+`metis` (version 5.1.x). Because `5.1.0 > 0.1.0.x`, a plain `apt upgrade` would
+replace the desktop with that tiny math package and delete every Metis binary.
+
 ## Install from a release
 
 ```bash
 # Example for Ubuntu 24.04 (from the directory that contains the .deb)
-sudo apt install ./metis_0.1.0.11-1_amd64.ubuntu24.04.deb
+sudo apt install ./metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
 ```
 
 You can also open the `.deb` in your distro’s package installer (Ubuntu Software,
-GDebi, Discover, etc.) or run `sudo dpkg -i metis_*.deb` then
+GDebi, Discover, etc.) or run `sudo dpkg -i metis-desktop_*.deb` then
 `sudo apt-get install -f` if dependencies need filling in.
 
 If `apt` prints `N: … couldn't be accessed by user '_apt' … Permission denied`
@@ -22,24 +28,38 @@ That notice is apt’s sandbox, not a Metis packaging bug.
 ### Upgrading (important)
 
 Always upgrade with **`apt`** from a terminal, not Ubuntu Software / App Center /
-GDebi. Those GUI installers often **remove the old `metis` package first** and,
-if the new `.deb` fails to configure (missing Depends, interrupted install),
-leave you with **no Metis at all**.
+GDebi. Those GUI installers often **remove the old package first** and, if the
+new `.deb` fails to configure, leave you with nothing.
 
 ```bash
 # Log out of Metis first (or reboot to GNOME/KDE), then:
 cd ~/Downloads   # or wherever the .deb is
-sudo apt install ./metis_0.1.0.11-1_amd64.ubuntu24.04.deb
-dpkg -l metis
-# Expect: ii  metis  0.1.0.11-1  …
+sudo apt install ./metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
+dpkg -l metis-desktop
+# Expect: ii  metis-desktop  0.1.0.12-1  …
 command -v metis-remote metis-settings metis-session
 ```
 
-If an upgrade already went wrong:
+Older releases used `Package: metis` (colliding name). Installing `metis-desktop`
+`Breaks`/`Replaces` those `0.1.0.x` packages only — it does **not** touch Ubuntu’s
+`metis` 5.x math package.
+
+If `apt upgrade` already swapped you onto Ubuntu’s math `metis`:
+
+```bash
+# Confirm you have the wrong package (tiny, Description mentions graph partitioning)
+apt-cache show metis | head -20
+dpkg -L metis | head
+# Remove it, then install the desktop .deb
+sudo apt remove metis
+sudo apt install ./metis-desktop_*.ubuntu24.04.deb
+```
+
+If an upgrade already went wrong in other ways:
 
 ```bash
 sudo apt-get install -f
-sudo apt install ./metis_*.ubuntu24.04.deb
+sudo apt install ./metis-desktop_*.ubuntu24.04.deb
 ```
 
 Do **not** mix a `/usr` package install with `./run-metis.sh --install-session`
@@ -53,6 +73,7 @@ does not reconfigure the greeter — it only installs
 
 Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 `ubuntu26.04` will be added when that LTS is supported).
+
 ## What the package installs
 
 | Path | Role |
@@ -81,6 +102,7 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 Optional Suggests are also offered in the first-run **Optional software** onboarding
 step (detect → grey out if present → toggles → **Install selected** via
 `pkexec apt-get install`).
+
 ## Build a `.deb` locally
 
 Prerequisites: Ubuntu 24.04 build deps from [`UBUNTU_DEV.md`](UBUNTU_DEV.md), plus
@@ -88,18 +110,18 @@ Prerequisites: Ubuntu 24.04 build deps from [`UBUNTU_DEV.md`](UBUNTU_DEV.md), pl
 
 ```bash
 cd metis-os-workspace
-VERSION=0.1.0 ./scripts/package-deb.sh
-# → dist/metis_0.1.0-1_amd64.ubuntu24.04.deb
+VERSION=0.1.0.12 ./scripts/package-deb.sh
+# → dist/metis-desktop_0.1.0.12-1_amd64.ubuntu24.04.deb
 
 # Or reuse an existing release build:
-VERSION=0.1.0 SKIP_BUILD=1 ./scripts/package-deb.sh
+VERSION=0.1.0.12 SKIP_BUILD=1 ./scripts/package-deb.sh
 ```
 
 Environment:
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `VERSION` | *(required)* | Package version (`0.1.0` or `v0.1.0`) |
+| `VERSION` | *(required)* | Package version (`0.1.0.12` or `v0.1.0.12`) |
 | `UBUNTU_SUITE` | `24.04` | Filename / suite label |
 | `DEB_REVISION` | `1` | Debian revision |
 | `SKIP_BUILD` | `0` | `1` = only stage + pack existing `target/release` binaries |
@@ -109,7 +131,7 @@ Environment:
 
 Workflow: [`.github/workflows/release-deb.yml`](../.github/workflows/release-deb.yml)
 
-1. Push a version tag: `git tag v0.1.0 && git push origin v0.1.0`
+1. Push a version tag: `git tag v0.1.0.12 && git push origin v0.1.0.12`
 2. CI installs Rust, runs **`cargo audit`** in `metis-os-workspace/` (fails on
    unignored advisories), then builds on `ubuntu-24.04`, runs `package-deb.sh`,
    and uploads the `.deb` to the GitHub Release for that tag.

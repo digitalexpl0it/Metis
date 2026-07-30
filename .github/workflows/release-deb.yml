@@ -133,6 +133,6 @@ jobs:
             Manual workflow_dispatch build for Ubuntu 24.04.
 
             ```bash
-            sudo apt install ./metis_${{ steps.ver.outputs.version }}-1_amd64.ubuntu24.04.deb
+            sudo apt install ./metis-desktop_${{ steps.ver.outputs.version }}-1_amd64.ubuntu24.04.deb
             ```
             Then log out and pick **Metis** at the greeter.

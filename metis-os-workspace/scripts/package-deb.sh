@@ -27,7 +27,10 @@ VERSION="${VERSION:-}"
 UBUNTU_SUITE="${UBUNTU_SUITE:-24.04}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 ARCH="${ARCH:-amd64}"
-PKG_NAME="metis"
+# Must NOT be bare `metis` — Ubuntu universe already ships a graph-partitioning
+# package by that name (5.1.0), and `apt upgrade` will replace our desktop with
+# it because 5.1.0 > 0.1.0.x.
+PKG_NAME="metis-desktop"
 REVISION="${DEB_REVISION:-1}"
 
 if [[ -z "$VERSION" ]]; then
@@ -253,6 +256,8 @@ Homepage: https://github.com/digitalexpl0it/Metis
 Depends: libgtk-4-1, libadwaita-1-0, libglib2.0-0t64 | libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libpulse0, libssl3t64 | libssl3, libpam0g, libdisplay-info1, libeis1, liblcms2-2, xdg-desktop-portal, kitty
 Recommends: gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse, nftables, policykit-1-gnome | mate-polkit
 Suggests: gnome-remote-desktop, freerdp3-wayland | freerdp2-x11, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer, fprintd, libpam-fprintd, libpam-u2f
+Breaks: metis (<< 1)
+Replaces: metis (<< 1)
 Description: Metis Wayland desktop environment
  Metis is a Wayland desktop environment built in Rust: a Smithay compositor,
  GTK4 edge bar (shell), Settings app, and xdg-desktop-portal backend.
@@ -264,6 +269,9 @@ Description: Metis Wayland desktop environment
  firewall helpers (nftables + a PolicyKit agent) are Recommends — apt installs
  them by default. Heavier optionals (GRD, FreeRDP, Flatpak, GameMode, …) stay
  Suggests — enable from first-run Optional software or with apt.
+ .
+ Named metis-desktop (not metis) to avoid colliding with Ubuntu universe's
+ unrelated metis graph-partitioning package; apt upgrade must not replace us.
  See https://github.com/digitalexpl0it/Metis.
 EOF
 }
