@@ -871,6 +871,10 @@ files.
    **Connect with Metis Viewer…** to open the first-party client with host/port
    prefilled.
 
+**Test from another machine** (or the VM host), not from Metis Viewer *inside*
+the same shared session. Connecting a guest to its own RDP address nests FreeRDP
+inside the desktop GRD is capturing and often fails during clipboard setup.
+
 **CLI credentials (if needed):**
 
 ```bash
@@ -1136,7 +1140,9 @@ changes live.
 | Remote desktop toggle greyed out | Install `gnome-remote-desktop`; set a password on **Settings → Remote access** before enabling |
 | LAN firewall not applied / Retry times out | Install `nftables` (or active `ufw`); install a PolicyKit agent (`policykit-1-gnome` / `mate-polkit`); use **Retry firewall apply** under Security, or `pkexec metis-remote firewall apply` |
 | RDP connects but screen is black | Confirm you are on a DRM session (not nested dev); unlock if the session is locked; check `metis-remote status` and PipeWire/portal stack |
-| `metis-remote` not found | Rebuild with `./run-metis.sh --install-session` (installs `metis-remote` to `/usr/local/bin`) |
+| `metis-remote` not found | Package may be missing — `dpkg -l metis` and reinstall with `sudo apt install ./metis_*.deb`. Dev trees: `./run-metis.sh --install-session` |
+| Metis Viewer: `cliprdr_… failed` / instant disconnect | Update Viewer (clipboard channel disabled in spawn). **Do not RDP into the same session from itself** — connect from another machine (e.g. the KVM host → guest IP) |
+| `.deb` upgrade removed Metis / left nothing installed | Use `sudo apt install ./metis_….deb` from a terminal after logging out of Metis — not Ubuntu Software / App Center. Then `sudo apt-get install -f` if needed. See [`PACKAGING.md`](PACKAGING.md) |
 
 Logs are written to `~/.local/state/metis/logs/` (`latest.log` points at the most
 recent run).

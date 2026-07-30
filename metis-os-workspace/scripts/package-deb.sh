@@ -251,8 +251,8 @@ Installed-Size: ${installed_size}
 Maintainer: Metis Developers <metis@localhost>
 Homepage: https://github.com/digitalexpl0it/Metis
 Depends: libgtk-4-1, libadwaita-1-0, libglib2.0-0t64 | libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libpulse0, libssl3t64 | libssl3, libpam0g, libdisplay-info1, libeis1, liblcms2-2, xdg-desktop-portal, kitty
-Recommends: gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse
-Suggests: gnome-remote-desktop, freerdp3-wayland | freerdp2-x11, nftables, policykit-1-gnome, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer, fprintd, libpam-fprintd, libpam-u2f
+Recommends: gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse, nftables, policykit-1-gnome | mate-polkit
+Suggests: gnome-remote-desktop, freerdp3-wayland | freerdp2-x11, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer, fprintd, libpam-fprintd, libpam-u2f
 Description: Metis Wayland desktop environment
  Metis is a Wayland desktop environment built in Rust: a Smithay compositor,
  GTK4 edge bar (shell), Settings app, and xdg-desktop-portal backend.
@@ -260,9 +260,10 @@ Description: Metis Wayland desktop environment
  After installing, log out and pick "Metis" from your display manager's
  session menu (GDM, SDDM, and other Wayland-capable greeters).
  .
- Ships libgtk4-layer-shell (not packaged on Ubuntu 24.04). Optional features
- (remote desktop + LAN firewall helpers, Flatpak, GameMode, Bluetooth, printers)
- are Suggests — enable them from the first-run Optional software step or with apt.
+ Ships libgtk4-layer-shell (not packaged on Ubuntu 24.04). Remote-access LAN
+ firewall helpers (nftables + a PolicyKit agent) are Recommends — apt installs
+ them by default. Heavier optionals (GRD, FreeRDP, Flatpak, GameMode, …) stay
+ Suggests — enable from first-run Optional software or with apt.
  See https://github.com/digitalexpl0it/Metis.
 EOF
 }

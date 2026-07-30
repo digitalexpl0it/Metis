@@ -80,6 +80,10 @@ pub fn spawn_freerdp(mut req: ConnectRequest) -> Result<SpawnedFreerdp, String> 
         "/cert:ignore".into(),
         "/dynamic-resolution".into(),
         "/network:auto".into(),
+        // FreeRDP + gnome-remote-desktop can abort the whole session with
+        // `cliprdr_packet_format_list_new failed!` (format-list / image mime
+        // negotiation). Prefer a working desktop over clipboard for v1.
+        "-clipboard".into(),
     ];
     if let Some(pw) = req.password.as_mut() {
         if !pw.is_empty() {
@@ -245,6 +249,11 @@ fn format_failure(_code: Option<i32>, detail: Option<&str>) -> String {
         {
             return "TLS certificate problem. If this persists, remove the stale entry under \
                     ~/.config/freerdp/server/ and try again."
+                .into();
+        }
+        if lower.contains("cliprdr") || lower.contains("clipboard") {
+            return "Connection failed during clipboard setup. Update Metis Viewer, \
+                    or connect from another machine (not from inside the same shared session)."
                 .into();
         }
         if lower.contains("refused")

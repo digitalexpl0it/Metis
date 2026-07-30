@@ -8,7 +8,7 @@ or build locally.
 
 ```bash
 # Example for Ubuntu 24.04 (from the directory that contains the .deb)
-sudo apt install ./metis_0.1.0-1_amd64.ubuntu24.04.deb
+sudo apt install ./metis_0.1.0.11-1_amd64.ubuntu24.04.deb
 ```
 
 You can also open the `.deb` in your distro’s package installer (Ubuntu Software,
@@ -19,16 +19,40 @@ If `apt` prints `N: … couldn't be accessed by user '_apt' … Permission denie
 when installing from a home folder, ignore it — the package still installed.
 That notice is apt’s sandbox, not a Metis packaging bug.
 
+### Upgrading (important)
+
+Always upgrade with **`apt`** from a terminal, not Ubuntu Software / App Center /
+GDebi. Those GUI installers often **remove the old `metis` package first** and,
+if the new `.deb` fails to configure (missing Depends, interrupted install),
+leave you with **no Metis at all**.
+
+```bash
+# Log out of Metis first (or reboot to GNOME/KDE), then:
+cd ~/Downloads   # or wherever the .deb is
+sudo apt install ./metis_0.1.0.11-1_amd64.ubuntu24.04.deb
+dpkg -l metis
+# Expect: ii  metis  0.1.0.11-1  …
+command -v metis-remote metis-settings metis-session
+```
+
+If an upgrade already went wrong:
+
+```bash
+sudo apt-get install -f
+sudo apt install ./metis_*.ubuntu24.04.deb
+```
+
+Do **not** mix a `/usr` package install with `./run-metis.sh --install-session`
+(which writes `/usr/local`) without cleaning one of them first — two installs
+fight over session entries and helpers like `metis-remote`.
+
 Then **log out** and pick **Metis** from your display manager’s session menu
 (GDM on Ubuntu, SDDM on Kubuntu, and other Wayland-capable greeters). The package
 does not reconfigure the greeter — it only installs
 `/usr/share/wayland-sessions/metis.desktop`.
 
 Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
-`ubuntu26.04` will be added when that LTS is supported). Do **not** mix a
-`/usr` package install with `./run-metis.sh --install-session` (which writes
-`/usr/local`) without cleaning one of them first.
-
+`ubuntu26.04` will be added when that LTS is supported).
 ## What the package installs
 
 | Path | Role |
@@ -51,13 +75,12 @@ Use the `.deb` whose filename matches your Ubuntu series (`ubuntu24.04` today;
 |-------|----------|-----|
 | **Depends** | GTK4, Adwaita, libseat, libinput, GBM/DRM, PipeWire, PulseAudio (`libpulse0`), portal, **kitty**, `liblcms2-2`, … | Required to start a Metis session; kitty is the default terminal; lcms2 for Stage 2 colour LUTs |
 | **Bundled** | `libgtk4-layer-shell.so.0` | Not packaged on Ubuntu 24.04 — built in CI / copied from the build host into the `.deb` |
-| **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse** | Keyring, portal helpers, and removable-volume mount/eject/LUKS (apt installs by default) |
-| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `nftables`, `policykit-1-gnome` (or another Polkit agent), `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer`, `fprintd`, `libpam-fprintd`, `libpam-u2f` | Optional features (RDP host needs `gnome-remote-desktop`; Metis Viewer needs FreeRDP; LAN firewall needs nftables/Polkit; lock biometrics need fprintd/u2f + PAM lines) |
+| **Recommends** | `gnome-keyring`, `xdg-desktop-portal-gtk`, **udisks2**, **gvfs**, **gvfs-fuse**, **nftables**, **policykit-1-gnome** \| **mate-polkit** | Keyring, portal helpers, removable volumes, and Remote access LAN firewall (`pkexec` password dialog). apt installs Recommends by default |
+| **Suggests** | `gnome-remote-desktop`, `freerdp3-wayland` \| `freerdp2-x11`, `gamemode`, `flatpak`, `bluez`, `bluetooth`, `cups`, `system-config-printer`, `fprintd`, `libpam-fprintd`, `libpam-u2f` | Heavier optionals (RDP host/client, GameMode, Flatpak, BT, printers, lock biometrics) — not pulled automatically |
 
 Optional Suggests are also offered in the first-run **Optional software** onboarding
 step (detect → grey out if present → toggles → **Install selected** via
 `pkexec apt-get install`).
-
 ## Build a `.deb` locally
 
 Prerequisites: Ubuntu 24.04 build deps from [`UBUNTU_DEV.md`](UBUNTU_DEV.md), plus
