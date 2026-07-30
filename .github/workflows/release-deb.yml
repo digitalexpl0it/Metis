@@ -124,6 +124,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential pkg-config libssl-dev \
             libgtk-4-dev libadwaita-1-dev \
+            libgtk4-layer-shell-dev \
             libudev-dev libinput-dev libseat-dev \
             libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
             libdisplay-info-dev libpam0g-dev \
@@ -135,10 +136,12 @@ jobs:
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \
             dpkg-dev fakeroot curl git \
-            gettext \
-            libgtk-4-layer-shell-dev || true
-          # Prefer distro layer-shell; build from source if package missing.
-          if ! pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            gettext
+          if pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+            pkg-config --modversion gtk4-layer-shell-0
+          else
+            # Fallback if the archive package is missing on a given image.
             git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
               https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
             cd /tmp/gtk4-layer-shell
@@ -148,10 +151,8 @@ jobs:
             sudo ldconfig
             echo "PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig" >> "$GITHUB_ENV"
             echo "BUNDLE_LAYER=1" >> "$GITHUB_ENV"
-          else
-            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+            pkg-config --modversion gtk4-layer-shell-0
           fi
-          pkg-config --modversion gtk4-layer-shell-0
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -185,6 +186,12 @@ jobs:
       image: debian:trixie
       options: --user root
     steps:
+      # Minimal tools first — debian:trixie has no git by default.
+      - name: Bootstrap apt tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git
+
       - uses: actions/checkout@v4
 
       - name: Install build dependencies
@@ -193,6 +200,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential pkg-config libssl-dev \
             libgtk-4-dev libadwaita-1-dev \
+            libgtk4-layer-shell-dev \
             libudev-dev libinput-dev libseat-dev \
             libgbm-dev libdrm-dev libegl1-mesa-dev libgles2-mesa-dev \
             libdisplay-info-dev libpam0g-dev \
@@ -203,10 +211,12 @@ jobs:
             libeis-dev \
             libgirepository1.0-dev gobject-introspection \
             meson ninja-build valac \
-            dpkg-dev fakeroot curl git \
-            gettext ca-certificates \
-            libgtk-4-layer-shell-dev || true
-          if ! pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            dpkg-dev fakeroot \
+            gettext
+          if pkg-config --exists gtk4-layer-shell-0 2>/dev/null; then
+            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+            pkg-config --modversion gtk4-layer-shell-0
+          else
             git clone --depth 1 --branch "$GTK4_LAYER_SHELL_TAG" \
               https://github.com/wmww/gtk4-layer-shell.git /tmp/gtk4-layer-shell
             cd /tmp/gtk4-layer-shell
@@ -214,8 +224,7 @@ jobs:
             ninja -C build && ninja -C build install && ldconfig
             echo "PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/pkgconfig" >> "$GITHUB_ENV"
             echo "BUNDLE_LAYER=1" >> "$GITHUB_ENV"
-          else
-            echo "BUNDLE_LAYER=0" >> "$GITHUB_ENV"
+            pkg-config --modversion gtk4-layer-shell-0
           fi
 
       - name: Install Rust

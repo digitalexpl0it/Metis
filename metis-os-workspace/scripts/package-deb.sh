@@ -110,11 +110,15 @@ write_control() {
     ubuntu26.04)
       depends="libgtk-4-1, libadwaita-1-0, libglib2.0-0t64 | libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libpulse0, libssl3t64 | libssl3, libpam0g, libdisplay-info1, libeis1, liblcms2-2, xdg-desktop-portal, kitty"
       if [[ "$BUNDLE_GTK4_LAYER_SHELL" != "1" ]]; then
-        depends="${depends}, libgtk4-layer-shell0 | libgtk-4-layer-shell0"
+        depends="${depends}, libgtk4-layer-shell0"
       fi
       recommends="gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse, nftables, policykit-1-gnome | mate-polkit"
       suggests="gnome-remote-desktop, freerdp3-wayland | freerdp2-x11, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer, fprintd, libpam-fprintd, libpam-u2f"
-      layer_note="Prefers distro gtk4-layer-shell; falls back to a bundled copy when BUNDLE_GTK4_LAYER_SHELL=1."
+      if [[ "$BUNDLE_GTK4_LAYER_SHELL" == "1" ]]; then
+        layer_note="Ships bundled libgtk4-layer-shell."
+      else
+        layer_note="Depends on libgtk4-layer-shell0 (from libgtk4-layer-shell-dev)."
+      fi
       ;;
     debian13)
       depends="libgtk-4-1, libadwaita-1-0, libglib2.0-0, libpango-1.0-0, libcairo2, libgraphene-1.0-0, libseat1, libinput10, libudev1, libgbm1, libdrm2, libegl1, libgles2, libwayland-client0, libwayland-server0, libxkbcommon0, libpipewire-0.3-0, libpulse0, libssl3, libpam0g, libdisplay-info2 | libdisplay-info1, libeis1, liblcms2-2, xdg-desktop-portal, kitty"
@@ -123,7 +127,11 @@ write_control() {
       fi
       recommends="gnome-keyring, xdg-desktop-portal-gtk, udisks2, gvfs, gvfs-fuse, nftables, policykit-1-gnome | mate-polkit"
       suggests="gnome-remote-desktop, freerdp3-wayland | freerdp2-x11, gamemode, flatpak, bluez, bluetooth, cups, system-config-printer, fprintd, libpam-fprintd, libpam-u2f"
-      layer_note="Targets Debian 13 (trixie)."
+      if [[ "$BUNDLE_GTK4_LAYER_SHELL" == "1" ]]; then
+        layer_note="Ships bundled libgtk4-layer-shell."
+      else
+        layer_note="Depends on libgtk4-layer-shell0 (from libgtk4-layer-shell-dev)."
+      fi
       ;;
   esac
 

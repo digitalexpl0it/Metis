@@ -172,7 +172,8 @@ ensure_gtk4_layer_shell() {
   fi
   if [[ "${METIS_LAYER_SHELL_FROM_SOURCE:-1}" != "1" ]]; then
     die "gtk4-layer-shell-0 not found via pkg-config after package install.
-Install libgtk-4-layer-shell-dev / gtk4-layer-shell, or set METIS_LAYER_SHELL_FROM_SOURCE=1."
+Install libgtk4-layer-shell-dev (Ubuntu 26.04 / Debian 13) or build from source
+(Ubuntu 24.04), or set METIS_LAYER_SHELL_FROM_SOURCE=1."
   fi
   log "Building gtk4-layer-shell $GTK4_LAYER_SHELL_TAG from source…"
   local src="/tmp/gtk4-layer-shell-metis"

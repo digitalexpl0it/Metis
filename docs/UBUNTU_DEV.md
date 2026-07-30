@@ -15,15 +15,16 @@ Debian 13, or Arch, prefer the repo-root installer:
 sudo apt update
 sudo apt install -y \
   build-essential pkg-config libssl-dev \
-  libgtk-4-dev libadwaita-1-dev libgtk-4-layer-shell-dev \
+  libgtk-4-dev libadwaita-1-dev \
   libpulse-dev \
   curl git
+# Ubuntu 26.04 / Debian 13:
+sudo apt install -y libgtk4-layer-shell-dev
 ```
 
-On **Ubuntu 24.04**, `libgtk-4-layer-shell-dev` is often missing — build
+On **Ubuntu 24.04**, there is no `libgtk4-layer-shell-dev` — build
 [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source (or let
 `./install.sh` do it) and set `PKG_CONFIG_PATH`.
-
 To build/run the **standalone DRM session** (Metis on its own TTY/GPU, not nested),
 also install the session, input, and GPU libraries:
 
@@ -37,7 +38,7 @@ sudo apt install -y \
 ```
 
 `liblcms2-dev` is required to build Stage 2 colour (ICC → GLES 3D-LUT).
-If `libgtk-4-layer-shell-dev` is unavailable on your release, build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.
+If `libgtk4-layer-shell-dev` is unavailable on your release (e.g. Ubuntu 24.04), build [gtk4-layer-shell](https://github.com/wmww/gtk4-layer-shell) from source and set `PKG_CONFIG_PATH` accordingly.
 
 ### Lock screen biometrics (optional)
 
@@ -418,7 +419,7 @@ Created later, on demand:
 |-------|-----|
 | Compositor shortcuts don't work (nested in GNOME) | GNOME grabs **Super** globally. Nested sessions default to **`METIS_MOD=alt`** — use **Alt+1**…**Alt+9**, **Alt+Shift+←/→**, etc. Click the Metis window first so it has keyboard focus. To force Super: `METIS_MOD=super ./run-metis.sh --session` after disabling conflicting GNOME shortcuts (Settings → Keyboard → Keyboard Shortcuts). |
 | Layer surfaces invisible | Confirm Wayland session + `echo $WAYLAND_DISPLAY` |
-| Missing layer-shell | Install `libgtk-4-layer-shell-dev` |
+| Missing layer-shell | Install `libgtk4-layer-shell-dev` (26.04 / Debian 13), or build from source on 24.04 |
 | Shell hangs on startup | Rebuild compositor + shell (`./run-metis.sh --build --session`) |
 | Theme not applied | Delete `~/.config/metis/themes/*.json` and restart to regenerate |
 | DRM session: black screen / no input | Run from a VT you own (or via the display-manager entry) so libseat can take DRM master; check the log and SSH in to `Ctrl+Alt+Backspace` is unavailable — `pkill metis-compositor`. |

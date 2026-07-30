@@ -1,6 +1,6 @@
 # shellcheck shell=bash
-# Metis build + session packages for Ubuntu 26.04.
-# Starts from 24.04; try distro gtk4-layer-shell when available.
+# Metis build + session packages for Ubuntu 26.04 (resolute).
+# Dev package is libgtk4-layer-shell-dev (not libgtk-4-layer-shell-dev).
 
 METIS_LAYER_SHELL_FROM_SOURCE=0
 
@@ -19,7 +19,7 @@ METIS_APT_PACKAGES=(
   libgtk-4-dev
   libadwaita-1-dev
   libgraphene-1.0-dev
-  libgtk-4-layer-shell-dev
+  libgtk4-layer-shell-dev
   libpulse-dev
   libudev-dev
   libinput-dev

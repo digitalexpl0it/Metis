@@ -53,7 +53,7 @@ Do **not** mix a `/usr` package install with `./install.sh` / `--install-session
 | Field | Role |
 |-------|------|
 | **Depends** | Required to start a Metis session (GTK4, seat, DRM, PipeWire, kitty, …) |
-| **Bundled** | `libgtk4-layer-shell` on Ubuntu 24.04 only (not in archive) |
+| **Bundled** | `libgtk4-layer-shell` on Ubuntu 24.04 only; 26.04 / Debian 13 use `libgtk4-layer-shell0` |
 | **Recommends** | keyring, portals helpers, volumes, **nftables**, **polkit agent** (apt installs by default) |
 | **Suggests** | GRD, FreeRDP, GameMode, Flatpak, BT, printers, biometrics |
 
