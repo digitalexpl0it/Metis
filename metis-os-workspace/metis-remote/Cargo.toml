@@ -1,6 +1,6 @@
 [package]
 name = "metis-remote"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Metis desktop sharing orchestrator (gnome-remote-desktop RDP)"

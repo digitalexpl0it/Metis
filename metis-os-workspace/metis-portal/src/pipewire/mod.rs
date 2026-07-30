@@ -65,7 +65,7 @@ struct StreamUserData {
 }
 
 struct StreamSlot {
-    stream: pw::stream::Stream,
+    stream: pw::stream::StreamRc,
     _listener: pw::stream::StreamListener<StreamUserData>,
     shared: Arc<StreamSharedState>,
 }
@@ -155,7 +155,7 @@ impl Drop for PipeWireHub {
 fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
     pw::init();
 
-    let mainloop = match pw::main_loop::MainLoop::new(None) {
+    let mainloop = match pw::main_loop::MainLoopRc::new(None) {
         Ok(m) => m,
         Err(err) => {
             tracing::error!(?err, "pipewire main loop creation failed");
@@ -164,14 +164,14 @@ fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
     };
 
     let core = {
-        let context = match pw::context::Context::new(&mainloop) {
+        let context = match pw::context::ContextRc::new(&mainloop, None) {
             Ok(c) => c,
             Err(err) => {
                 tracing::error!(?err, "pipewire context creation failed");
                 return;
             }
         };
-        match context.connect(None) {
+        match context.connect_rc(None) {
             Ok(c) => c,
             Err(err) => {
                 tracing::error!(?err, "pipewire core connect failed");
@@ -300,7 +300,7 @@ fn pipewire_thread_main(cmd_rx: Receiver<PwCommand>) {
 }
 
 fn create_video_stream(
-    core: &pw::core::Core,
+    core: &pw::core::CoreRc,
     width: u32,
     height: u32,
     mapping_id: &str,
@@ -323,8 +323,8 @@ fn create_video_stream(
         format: VideoInfoRaw::default(),
     };
 
-    let stream = pw::stream::Stream::new(
-        core,
+    let stream = pw::stream::StreamRc::new(
+        core.clone(),
         "metis-screencast",
         properties! {
             *pw::keys::MEDIA_TYPE => "Video",
@@ -471,7 +471,7 @@ fn create_video_stream(
         .register()
         .map_err(|err| format!("register pipewire listener: {err}"))?;
 
-    let mut format_pods = build_enum_formats(width, height)?;
+    let format_pods = build_enum_formats(width, height)?;
     let mut params: Vec<&Pod> = Vec::with_capacity(format_pods.len());
     for bytes in &format_pods {
         let pod =
@@ -733,7 +733,7 @@ unsafe fn set_header_meta(spa_buf: *mut spa::sys::spa_buffer, state: &StreamShar
 }
 
 /// Fill one dequeued output buffer and return it to PipeWire (process callback only).
-fn process_output_buffer(stream: &pw::stream::StreamRef, state: &StreamSharedState) {
+fn process_output_buffer(stream: &pw::stream::Stream, state: &StreamSharedState) {
     let call = state.process_calls.fetch_add(1, Ordering::Relaxed) + 1;
 
     let pw_buf = unsafe { stream.dequeue_raw_buffer() };

@@ -82,6 +82,8 @@ build_binaries() {
     return
   fi
   ensure_cargo
+  # Align Compiling … vX.Y.Z / CARGO_PKG_VERSION with the GitHub/deb VERSION.
+  "$SCRIPT_DIR/sync-version.sh" "$VERSION"
   log "Building release binaries…"
   (
     cd "$WORKSPACE"

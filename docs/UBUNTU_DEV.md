@@ -14,7 +14,7 @@ Debian 13, or Arch, prefer the repo-root installer:
 ```bash
 sudo apt update
 sudo apt install -y \
-  build-essential pkg-config libssl-dev \
+  build-essential pkg-config libssl-dev libclang-dev \
   libgtk-4-dev libadwaita-1-dev \
   libpulse-dev \
   curl git

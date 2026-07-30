@@ -1,6 +1,6 @@
 [package]
 name = "metis-shell"
-version = "0.2.0"
+version.workspace = true
 edition.workspace = true
 description = "Metis Shell — configurable edge bar and command overlay"
 

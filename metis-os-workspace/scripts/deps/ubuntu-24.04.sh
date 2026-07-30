@@ -8,6 +8,7 @@ METIS_APT_PACKAGES=(
   build-essential
   pkg-config
   libssl-dev
+  libclang-dev
   curl
   git
   gettext

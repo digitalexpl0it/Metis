@@ -103,11 +103,34 @@ VERSION=0.1.0.12 DISTRO_SUITE=debian13 ./scripts/package-deb.sh
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `VERSION` | *(required)* | Package version |
+| `VERSION` | *(required)* | Package / GitHub version (e.g. `0.1.0.13`) |
 | `DISTRO_SUITE` | `ubuntu24.04` | `ubuntu24.04` \| `ubuntu26.04` \| `debian13` |
 | `UBUNTU_SUITE` | — | Legacy (`24.04` → `ubuntu24.04`) |
 | `BUNDLE_GTK4_LAYER_SHELL` | suite default | `1` bundles the .so into the deb |
 | `SKIP_BUILD` | `0` | `1` = stage existing `target/release` only |
+
+### Crate versions vs GitHub tags
+
+Cargo requires SemVer (`MAJOR.MINOR.PATCH`). GitHub tags use a four-part product
+scheme (`v0.1.0.13`). All crates inherit one workspace version:
+
+```toml
+# metis-os-workspace/Cargo.toml
+[workspace.package]
+version = "0.1.13"
+```
+
+| GitHub / `.deb` `VERSION` | Cargo workspace version |
+|---------------------------|-------------------------|
+| `0.1.0.13` | `0.1.13` |
+| `0.1.0.13a` | `0.1.13-a` |
+| `0.1.0` | `0.1.0` |
+
+Before a release build, sync (also done automatically by `package-deb.sh`):
+
+```bash
+./scripts/sync-version.sh 0.1.0.14   # or: VERSION=0.1.0.14 ./scripts/sync-version.sh
+```
 
 Shared FHS staging: [`scripts/stage-fhs.sh`](../metis-os-workspace/scripts/stage-fhs.sh)
 (used by deb, Arch PKGBUILD, and aligned with Nix `postInstall`).

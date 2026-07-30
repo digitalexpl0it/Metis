@@ -8,6 +8,7 @@ METIS_PACMAN_PACKAGES=(
   rust
   pkgconf
   openssl
+  clang
   curl
   git
   gettext
