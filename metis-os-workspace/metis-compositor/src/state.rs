@@ -295,6 +295,9 @@ pub struct MetisState {
     last_bar_reveal_cmd: Option<std::time::Instant>,
     /// True while the pointer last sampled inside the bar strip (edge-trigger).
     bar_edge_pointer_in: bool,
+    /// After `close-popovers`, ignore bar-edge IPC briefly so hover/leave cannot
+    /// overwrite the dismiss command before the shell polls the command file.
+    suppress_bar_edge_cmd_until: Option<std::time::Instant>,
     /// Last applied maximize/snap gap from `bar.json` (`window_gap_px`).
     last_window_gap_px: i32,
     /// Throttle for re-reading `window_gap_px` (~1s, same cadence as blur).
@@ -970,6 +973,7 @@ impl MetisState {
             bar_auto_hidden: std::collections::HashMap::new(),
             last_bar_reveal_cmd: None,
             bar_edge_pointer_in: false,
+            suppress_bar_edge_cmd_until: None,
             last_window_gap_px: metis_config::bar::window_gap_px(&metis_config::load_bar_config()),
             last_window_gap_check: std::time::Instant::now(),
             last_scroll_tick: None,
@@ -2719,6 +2723,9 @@ impl MetisState {
             return;
         }
         self.bar_edge_pointer_in = true;
+        if self.bar_edge_cmd_suppressed() {
+            return;
+        }
         // Pulse while the pointer rests in the strip so a GTK leave into the
         // margin gap cannot complete a hide (shell hide grace is ~180ms).
         const PULSE_MS: u128 = 100;
@@ -2759,20 +2766,42 @@ impl MetisState {
                 .is_some_and(|geo| geo.contains(location.to_i32_round()))
         }) else {
             self.bar_edge_pointer_in = false;
-            let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            if !self.bar_edge_cmd_suppressed() {
+                let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            }
             return;
         };
         let Some(output_geo) = self.space.output_geometry(output) else {
             self.bar_edge_pointer_in = false;
-            let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            if !self.bar_edge_cmd_suppressed() {
+                let _ = metis_protocol::write_runtime_command("bar-edge-leave");
+            }
             return;
         };
         let (x, y) = (location.x as i32, location.y as i32);
         if !point_in_rect(x, y, Self::bar_config_strip_rect(&output_geo)) {
             self.bar_edge_pointer_in = false;
+            if self.bar_edge_cmd_suppressed() {
+                return;
+            }
             if let Err(err) = metis_protocol::write_runtime_command("bar-edge-leave") {
                 tracing::debug!(%err, "failed to write bar-edge-leave");
             }
+        }
+    }
+
+    fn bar_edge_cmd_suppressed(&self) -> bool {
+        self.suppress_bar_edge_cmd_until
+            .is_some_and(|until| std::time::Instant::now() < until)
+    }
+
+    /// Dismiss bar popovers / NC and briefly pause edge-hover IPC so the shell
+    /// actually receives `close-popovers` (same command file as edge hover).
+    pub(crate) fn request_close_bar_popovers(&mut self) {
+        self.suppress_bar_edge_cmd_until =
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(350));
+        if let Err(err) = metis_protocol::write_runtime_command("close-popovers") {
+            tracing::debug!(%err, "failed to write close-popovers");
         }
     }
 

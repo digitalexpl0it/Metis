@@ -521,8 +521,7 @@ impl MetisState {
                                     && !modifiers.alt
                                     && matches!(sym, keysyms::KEY_q | keysyms::KEY_Q);
                                 if bare_escape || super_q {
-                                    let _ =
-                                        metis_protocol::write_runtime_command("close-popovers");
+                                    state.request_close_bar_popovers();
                                     return FilterResult::Intercept(());
                                 }
                             }
@@ -791,7 +790,7 @@ impl MetisState {
                     // on the NC panel itself must not dismiss.
                     if !pointer.is_grabbed() && !on_nc {
                         if !on_bar_ui || self.notification_center_mapped() {
-                            let _ = metis_protocol::write_runtime_command("close-popovers");
+                            self.request_close_bar_popovers();
                         }
                     }
                     // Terminals (kitty, foot, …) use right/middle-click paste and

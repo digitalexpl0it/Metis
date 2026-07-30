@@ -62,6 +62,8 @@ struct BarHandle {
     edge_strip_hover: Cell<bool>,
     /// Pending idle hide timeout.
     hide_timeout: RefCell<Option<glib::SourceId>>,
+    /// Pointer left while a popover/NC/dashboard was open — hide once UI closes.
+    hide_when_ui_closes: Cell<bool>,
     /// Per-bar CSS provider for pixel-accurate auto-hide transforms (GTK CSS
     /// does not reliably parse `calc()` inside `transform`).
     autohide_css: RefCell<Option<gtk::CssProvider>>,
@@ -261,6 +263,7 @@ fn build_bar(
         pointer_over: Cell::new(false),
         edge_strip_hover: Cell::new(false),
         hide_timeout: RefCell::new(None),
+        hide_when_ui_closes: Cell::new(false),
         autohide_css: RefCell::new(None),
     }
 }
@@ -514,9 +517,12 @@ fn watch_compositor_dismiss() {
             let (verb, arg) = cmd.split_once(char::is_whitespace).unwrap_or((cmd, ""));
             match verb {
                 "close-popovers" => {
-                    dropdown::request_close_all();
+                    // Sync close so auto-hide can re-arm on the same turn (idle
+                    // popdown left `dropdown::is_open()` true and skipped hide).
+                    dropdown::close_all();
                     crate::ui::dashboard::request_close();
                     crate::ui::notification_center::dismiss();
+                    rearm_auto_hide_after_ui_dismiss();
                 }
                 "toggle-menu" => widgets::toggle_menu(),
                 // Multimedia / hardware keys forwarded by the compositor
@@ -1087,11 +1093,19 @@ fn on_bar_pointer_leave(window: &gtk::Window) {
 fn schedule_auto_hide(handle: &BarHandle) {
     cancel_hide_timeout(handle);
     if !handle.config.borrow().auto_hide {
+        handle.hide_when_ui_closes.set(false);
         return;
     }
-    if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
+    if auto_hide_pointer_blocks(handle) {
+        handle.hide_when_ui_closes.set(false);
         return;
     }
+    // Popover / NC / dashboard open: remember to hide when they dismiss.
+    if bar_ui_blocks_hide() {
+        handle.hide_when_ui_closes.set(true);
+        return;
+    }
+    handle.hide_when_ui_closes.set(false);
     // Short grace so a leave into the margin gap can be cancelled by
     // `bar-edge-hover` before the slide starts.
     const HIDE_GRACE_MS: u64 = 120;
@@ -1106,6 +1120,9 @@ fn schedule_auto_hide(handle: &BarHandle) {
                     }
                     *handle.hide_timeout.borrow_mut() = None;
                     if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
+                        if bar_ui_blocks_hide() && !auto_hide_pointer_blocks(handle) {
+                            handle.hide_when_ui_closes.set(true);
+                        }
                         break;
                     }
                     if !handle.config.borrow().auto_hide {
@@ -1121,6 +1138,27 @@ fn schedule_auto_hide(handle: &BarHandle) {
         },
     );
     *handle.hide_timeout.borrow_mut() = Some(id);
+}
+
+/// After popovers / NC / dashboard close, slide the bar away if the pointer is
+/// no longer over it (outside click while a panel was open).
+fn rearm_auto_hide_after_ui_dismiss() {
+    BARS.with(|bars| {
+        for handle in bars.borrow().iter() {
+            if !handle.config.borrow().auto_hide || handle.chrome_suppressed.get() {
+                handle.hide_when_ui_closes.set(false);
+                continue;
+            }
+            handle.hide_when_ui_closes.set(false);
+            // Outside click left the bar UI; drop stale strip-hover. If the
+            // pointer is still in the edge band, the next compositor pulse
+            // restores it and cancels hide within the grace window.
+            handle.edge_strip_hover.set(false);
+            if !handle.pointer_over.get() && !bar_ui_blocks_hide() {
+                schedule_auto_hide(handle);
+            }
+        }
+    });
 }
 
 fn cancel_hide_timeout(handle: &BarHandle) {
