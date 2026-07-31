@@ -70,6 +70,10 @@ cd Metis
 
 Supported: **Ubuntu 24.04 / 26.04**, **Debian 13**, **Arch Linux**. Dep lists live in
 [`metis-os-workspace/scripts/deps/`](../metis-os-workspace/scripts/deps/).
+Build deps include **`libclang-dev`** (bindgen for PipeWire/`libspa-sys`). On
+Ubuntu 24.04, gtk4-layer-shell is fetched via
+[`scripts/fetch-gtk4-layer-shell.sh`](../metis-os-workspace/scripts/fetch-gtk4-layer-shell.sh)
+(tarball with retries) when building from source.
 
 This installs to **`/usr/local`** via `run-metis.sh --install-session`. Prefer the
 `.deb` for production machines.

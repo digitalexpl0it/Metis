@@ -5,6 +5,33 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-30]
+
+### Fixed
+
+- **Edge bar auto-hide overlays windows** — peek/reveal no longer resizes
+  maximized or snapped windows. With `auto_hide` on, the bar draws over the
+  desktop; layout only reflows when auto-hide itself is toggled.
+- **Top auto-hide vs titlebar controls** — while peeked, only the thin edge
+  strip opens the bar; the titlebar band just below stays usable. The auto-hidden
+  full-size layer surface no longer steals clicks from traffic-light buttons.
+- **Edge bar squashed after moving position** — remount resets the Control Center
+  host size/visibility and re-applies strip geometry so the pill keeps its height.
+- **Ubuntu 26.04 / Debian 13 layer-shell package name** — use
+  `libgtk4-layer-shell-dev` (not `libgtk-4-layer-shell-dev`).
+- **PipeWire 1.x builds** — `metis-portal` uses `pipewire` 0.9 (fixes `libspa`
+  `spa_pod_builder` bindgen breakage on newer headers).
+- **Debian CI libclang** — install `libclang-dev` so `libspa-sys` bindgen can run
+  in bare `debian:trixie` images.
+- **gtk4-layer-shell fetch in CI** — `scripts/fetch-gtk4-layer-shell.sh` downloads
+  the release tarball with retries (git clone fallback) to survive DNS blips.
+
+### Changed
+
+- **Workspace crate versions** — all crates inherit `[workspace.package].version`;
+  `scripts/sync-version.sh` maps GitHub `v0.1.0.N` → Cargo `0.1.N` (also run by
+  `package-deb.sh`).
+
 ## [2026-07-29]
 
 ### Fixed

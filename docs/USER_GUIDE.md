@@ -619,7 +619,7 @@ and cannot be rebound.
 | `Super`+`Alt`+`←` / `→` | Cycle to previous / next workspace (wraps at 1..=count) |
 | `Super`+`Shift`+`←` / `→` | (grid) Move the focused window to the adjacent monitor; (scroll) move column/window |
 | `Super`+`Ctrl`+`Shift`+`←` / `→` | Move the active workspace to the adjacent monitor (independent mode) |
-| `Super`+`F` | Toggle maximize for the focused window (fills the area below the edge bar) |
+| `Super`+`F` | Toggle maximize for the focused window (fills the usable area, with Settings → Windows padding; with edge-bar auto-hide the bar overlays rather than shrinking the window) |
 | `Super`+`Shift`+`F` | Toggle true fullscreen |
 | `Super`+`Q` | Close the focused window |
 | `Super`+`M` | Minimize the focused window |
@@ -734,12 +734,15 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   Gradient (start/end + direction) — applied live and remembered, with per-output
   overrides. The **Edge bar** card covers position (top/bottom/left/right),
   distance from the edge, **bar length** (40–100%, centered), **bar background**
-  (theme / solid / gradient + direction), **auto-hide** (instant slide to a peek;
-  move to the edge to slide open again),
+  (theme / solid / gradient + direction), **auto-hide** (slides to a peek and
+  **overlays** maximized windows — peek/reveal does not resize them; move to the
+  thin edge strip to open again; with a top bar, use the titlebar band just below
+  the peek for window controls),
   the bar border, *Show bar on* (all displays / primary
   only), *Workspaces* (independent vs linked), and *New workspace layout* (grid
   vs scrolling). The **Windows** card covers titlebar opacity, the title pill
-  border, and the window frame border.
+  border, the window frame border, and **window padding** around maximized /
+  snapped windows.
 - **Desktop widgets** — optional wallpaper panels (Folders, Apps, Clock, System,
   Weather, Equalizer, plus **JSON extensions**; off by default) hosted by a
   separate `metis-shell --desktop-widgets` process so a hung widget cannot freeze
@@ -1095,7 +1098,8 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `menu_opacity` | App launcher panel opacity |
 | `blur` / `blur_radius` | Compositor backdrop blur behind the bar |
 | `bar_fill` | Pill fill: theme / solid / gradient + `gradient_direction` |
-| `auto_hide` / `auto_hide_peek_px` | Instant auto-hide on pointer leave; move to the bar edge to slide open |
+| `auto_hide` / `auto_hide_peek_px` | Auto-hide to a peek strip; bar **overlays** windows (no maximize reflow on show/hide). Move to the peek edge to open; top-bar title controls use the band just below the peek |
+| `window_gap_px` | Padding around maximized / edge-snapped windows (0–10) |
 | `displays` | Show the bar on all displays or the primary only |
 | `workspace_mode` | Workspaces independent per display, or linked across displays |
 | `default_layout` | Default workspace layout: grid or scrolling (live global switch) |
@@ -1114,6 +1118,8 @@ changes live.
 | Symptom | Try |
 |---------|-----|
 | Settings window shows desktop wallpaper through the body, or scrolling hitchs | Rebuild/restart Settings — page chrome is opaque; see [`CHANGELOG.md`](../CHANGELOG.md) 2026-07-26. Modal password/widget sheets intentionally stay transparent outside the rounded card. |
+| Missing layer-shell | Install `libgtk4-layer-shell-dev` (26.04 / Debian 13), or build from source on 24.04 |
+| Maximized title controls unusable (top auto-hide bar) | Move the pointer just **below** the thin peek strip to reveal the titlebar; the absolute screen edge opens the edge bar instead |
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk4-layer-shell` is installed |
 | Electron app (e.g. Claude Desktop) opens then immediately closes | Metis launches Electron/Chromium apps on native Wayland by default (`ELECTRON_OZONE_PLATFORM_HINT=auto`, and `CLAUDE_USE_WAYLAND=1` for Claude), which is stable; their XWayland path can quit on launch. Re-login after `./run-metis.sh --install-session` so the session env applies. To force XWayland for one app, launch it with `ELECTRON_OZONE_PLATFORM_HINT=x11` (or `CLAUDE_USE_WAYLAND=0`) |
 | GitHub Desktop / Electron logs `Failed to read color-scheme` (`dark_mode_manager_linux.cc`) | Rebuild/restart `metis-portal` (session reinstall). Confirm the portal returns uint32: `busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop org.freedesktop.portal.Settings Read ss org.freedesktop.appearance color-scheme` should print `v v u …` (not `i`). See [`CHANGELOG.md`](../CHANGELOG.md) 2026-07-25 |
