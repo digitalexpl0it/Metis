@@ -490,10 +490,10 @@ impl MetisState {
         }
         let output_geo = self.space.output_geometry(&output).unwrap();
         let (x, y) = (pos.x as i32, pos.y as i32);
+        let auto_hidden = self.bar_is_auto_hidden(&output);
 
-        // Always block the configured bar strip + shadow pad so window titlebars
-        // underneath cannot receive hover/resize chrome even when layer geometry
-        // or buffer state is briefly stale.
+        // Peek-only while auto-hidden so maximized titlebar controls under the
+        // (CSS-slid) full layer surface stay clickable. Full strip when shown.
         if let Some(strip) = self.bar_input_block_rect(&output, &output_geo) {
             if point_in_rect(x, y, strip) {
                 return true;
@@ -512,6 +512,21 @@ impl MetisState {
                     || ns == "metis-control-center"
             })
         {
+            if layer.namespace().starts_with("metis-bar") && auto_hidden {
+                // Invisible full-size layer must not steal titlebar clicks —
+                // only real popovers outside the peek strip count.
+                if !surface_has_buffer(layer.wl_surface()) {
+                    continue;
+                }
+                let Some(layer_geo) = layers.layer_geometry(layer) else {
+                    continue;
+                };
+                let local = rel - layer_geo.loc.to_f64();
+                if metis_bar_popup_tree_contains(layer.wl_surface(), local) {
+                    return true;
+                }
+                continue;
+            }
             if layer_accepts_pointer(layer, &layers, rel) {
                 return true;
             }

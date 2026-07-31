@@ -311,6 +311,11 @@ fn remount_bar_chrome(handle: &BarHandle, cfg: &BarConfig) {
         handle.outer.remove(&child);
     }
 
+    // Collapse the CC host before remounting. Leftover size/expand from a prior
+    // left/right layout (or an open Control Center) inside a fixed-height top/
+    // bottom column steals strip pixels and visually squashes the pill.
+    reset_dash_host_strip(&handle.dash_host);
+
     mount_dash_host(
         cfg,
         &handle.outer,
@@ -333,6 +338,17 @@ fn remount_bar_chrome(handle: &BarHandle, cfg: &BarConfig) {
     }
 }
 
+/// Zero the in-bar Control Center host so it cannot compete with the pill for
+/// the fixed strip allocation.
+fn reset_dash_host_strip(host: &gtk::Box) {
+    host.set_visible(false);
+    host.set_hexpand(false);
+    host.set_vexpand(false);
+    host.set_halign(gtk::Align::Fill);
+    host.set_valign(gtk::Align::Fill);
+    host.set_size_request(0, 0);
+}
+
 /// Keep the edge-bar layer at its closed strip size. Control Center uses a
 /// separate layer surface, so opening it must never grow/shrink this window.
 pub(crate) fn ensure_bar_strip_geometry(shell: &BarShell) {
@@ -340,29 +356,33 @@ pub(crate) fn ensure_bar_strip_geometry(shell: &BarShell) {
     let closed = bar_body_thickness(&cfg);
     let cross = bar_cross_thickness(&cfg);
 
+    reset_dash_host_strip(&shell.host);
+
     match cfg.position {
         BarPosition::Top | BarPosition::Bottom => {
             shell.window.set_height_request(closed);
+            shell.window.set_width_request(-1);
             shell.column.set_size_request(-1, closed);
             shell.outer.set_size_request(-1, closed);
             shell.host.set_size_request(-1, 0);
-            shell.host.set_visible(false);
-            shell.host.set_vexpand(false);
             let valign = edge_valign(cfg.position);
             shell.outer.set_valign(valign);
             shell.column.set_valign(valign);
+            shell.outer.set_halign(gtk::Align::Fill);
+            shell.column.set_halign(gtk::Align::Fill);
             shell.window.set_exclusive_zone(cross);
         }
         BarPosition::Left | BarPosition::Right => {
             shell.window.set_width_request(closed);
+            shell.window.set_height_request(-1);
             shell.outer.set_size_request(closed, -1);
             shell.column.set_size_request(closed, -1);
             shell.host.set_size_request(0, -1);
-            shell.host.set_visible(false);
-            shell.host.set_hexpand(false);
             let halign = edge_halign(cfg.position);
             shell.outer.set_halign(halign);
             shell.column.set_halign(halign);
+            shell.outer.set_valign(gtk::Align::Fill);
+            shell.column.set_valign(gtk::Align::Fill);
             shell.window.set_exclusive_zone(0);
         }
     }
@@ -1261,6 +1281,9 @@ fn clear_autohide_transform(outer: &gtk::Box) {
 /// set of outputs).
 fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
     dropdown::close_all();
+    // Closing CC before remount avoids a visible dash_host fighting the pill
+    // for the fixed strip height/width after an edge change.
+    crate::ui::dashboard::request_close();
     BARS.with(|bars| {
         let mut bars = bars.borrow_mut();
         let cfg = config.borrow();
@@ -1269,6 +1292,13 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
             configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
             remount_bar_chrome(handle, &cfg);
             apply_layer_geometry(&handle.window, &cfg);
+            let shell = BarShell {
+                window: handle.window.clone(),
+                outer: handle.outer.clone(),
+                column: handle.column.clone(),
+                host: handle.dash_host.clone(),
+            };
+            ensure_bar_strip_geometry(&shell);
             apply_bar_visibility(handle);
             handle.window.set_default_size(win_w, win_h);
             handle.outer.queue_resize();
@@ -1277,12 +1307,6 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
             while let Some(child) = handle.pill.first_child() {
                 handle.pill.remove(&child);
             }
-            let shell = BarShell {
-                window: handle.window.clone(),
-                outer: handle.outer.clone(),
-                column: handle.column.clone(),
-                host: handle.dash_host.clone(),
-            };
             handle.widget_refs = widgets::build(
                 &handle.pill,
                 config.clone(),
@@ -1323,6 +1347,13 @@ fn apply_bars_live(config: Rc<RefCell<BarConfig>>) {
         for handle in bars.borrow_mut().iter_mut() {
             configure_surface(&handle.outer, &handle.column, &handle.pill, &cfg);
             apply_layer_geometry(&handle.window, &cfg);
+            let shell = BarShell {
+                window: handle.window.clone(),
+                outer: handle.outer.clone(),
+                column: handle.column.clone(),
+                host: handle.dash_host.clone(),
+            };
+            ensure_bar_strip_geometry(&shell);
             apply_bar_visibility(handle);
             handle.window.set_default_size(win_w, win_h);
             handle.outer.queue_resize();
