@@ -282,6 +282,11 @@ pub fn set_below_screenshot(below: bool) {
         center
             .window
             .set_layer(if below { Layer::Top } else { Layer::Overlay });
+        center.window.set_keyboard_mode(if below {
+            KeyboardMode::OnDemand
+        } else {
+            KeyboardMode::Exclusive
+        });
     });
 }
 

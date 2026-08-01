@@ -5,6 +5,22 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-07-31]
+
+### Fixed
+
+- **PrtSc over Metis Menu / Control Center / Notification Center** — screenshot
+  chords fire globally even while Exclusive shell layers own the keyboard.
+- **Screenshot no longer dismisses shell chrome** — edge-bar popovers, Control
+  Center, and Notification Center stay mapped under the picker so hide-before-capture
+  can include them.
+- **Selection drag no longer tears down the UI being captured** — while the
+  screenshot picker owns the pointer, presses are not treated as outside clicks,
+  so `close-popovers` is not broadcast. Edge-bar auto-hide reveal/hide is also
+  frozen, so the shot matches what was on screen when PrtSc was pressed.
+- **Screenshot options persist** — mode, include-pointer, delay, and after-capture
+  write to `screenshot.json` as soon as they change in the overlay.
+
 ## [2026-07-30]
 
 ### Fixed

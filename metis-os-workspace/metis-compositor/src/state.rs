@@ -2737,6 +2737,11 @@ impl MetisState {
     pub(crate) fn maybe_reveal_auto_hidden_bar(&mut self, location: Point<f64, Logical>) {
         use crate::desk_input::point_in_rect;
 
+        // Freeze reveal/hide while the screenshot picker owns the pointer so the
+        // capture matches what was on screen when the overlay opened.
+        if self.screenshot_overlay_active() {
+            return;
+        }
         let cfg = metis_config::load_bar_config();
         if !cfg.auto_hide {
             return;
@@ -2792,6 +2797,9 @@ impl MetisState {
     pub(crate) fn maybe_clear_bar_edge_hover(&mut self, location: Point<f64, Logical>) {
         use crate::desk_input::point_in_rect;
 
+        if self.screenshot_overlay_active() {
+            return;
+        }
         if !self.bar_edge_pointer_in {
             return;
         }

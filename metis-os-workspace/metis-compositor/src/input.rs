@@ -529,18 +529,33 @@ impl MetisState {
                             if capture_active() {
                                 return FilterResult::Forward;
                             }
-                            // While an Exclusive layer owns the keyboard (menu,
-                            // Control Center, …), skip compositor chords so typing
-                            // and Escape reach the shell surface instead.
-                            if state.exclusive_keyboard_layer().is_some() {
-                                return FilterResult::Forward;
-                            }
+                            // Screenshot chords are global (like hardware keys): fire
+                            // even while an Exclusive shell layer owns the keyboard
+                            // (Metis Menu, Control Center, Notification Center).
                             if let Some(token) = keysym_to_token(sym, digit_sym) {
                                 if let Some(action) = state.keybinds.lookup(modifiers, &token) {
-                                    if dispatch_keybind(state, action) {
+                                    let is_screenshot = matches!(
+                                        action,
+                                        KeybindAction::Screenshot
+                                            | KeybindAction::ScreenshotFull
+                                            | KeybindAction::ScreenshotWindow
+                                    );
+                                    if is_screenshot {
+                                        if dispatch_keybind(state, action) {
+                                            return FilterResult::Intercept(());
+                                        }
+                                    } else if state.exclusive_keyboard_layer().is_none()
+                                        && dispatch_keybind(state, action)
+                                    {
                                         return FilterResult::Intercept(());
                                     }
                                 }
+                            }
+                            // While an Exclusive layer owns the keyboard (menu,
+                            // Control Center, …), skip remaining compositor chords
+                            // so typing and Escape reach the shell surface instead.
+                            if state.exclusive_keyboard_layer().is_some() {
+                                return FilterResult::Forward;
                             }
                             // Trace bare Esc forwarded to a game (usually opens pause menu).
                             if sym == keysyms::KEY_Escape
@@ -787,8 +802,14 @@ impl MetisState {
                     let on_nc = self.metis_notification_center_hit(loc);
                     // Any press outside the Notification Center dismisses it (and
                     // bar popovers) — including presses on the edge bar. Presses
-                    // on the NC panel itself must not dismiss.
-                    if !pointer.is_grabbed() && !on_nc {
+                    // on the NC panel itself must not dismiss. While a capture
+                    // picker owns the pointer, no press counts as an outside click:
+                    // the shell UI being framed must survive the selection drag.
+                    if !pointer.is_grabbed()
+                        && !on_nc
+                        && !self.screenshot_overlay_active()
+                        && !self.capture_overlay_active()
+                    {
                         if !on_bar_ui || self.notification_center_mapped() {
                             self.request_close_bar_popovers();
                         }

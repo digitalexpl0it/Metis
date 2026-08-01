@@ -11,7 +11,7 @@ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_capture::{capture_png, CaptureOptions};
 use metis_config::{
     expand_save_dir, load_screenshot_config, parse_hex_rgb, save_default_screenshot_config,
-    AfterCaptureAction, ScreenshotConfig, ScreenshotMode,
+    save_screenshot_config, AfterCaptureAction, ScreenshotConfig, ScreenshotMode,
 };
 use metis_protocol::{CompositorCommand, OutputInfo, PixelRect, WindowInfo};
 
@@ -99,10 +99,9 @@ pub fn show(mode: LaunchMode) {
     if OVERLAY.with(|o| o.borrow().is_some()) {
         return;
     }
-    // Close bar popovers / dashboard, but keep the Notification Center open so
-    // it can be included in the capture.
-    crate::ui::bar::close_bar_popovers();
-    crate::ui::dashboard::request_close();
+    // Leave bar popovers, Control Center, and Notification Center mapped so
+    // hide-before-capture can include them. The Overlay picker paints above
+    // and owns the keyboard via Exclusive layer-shell.
 
     let config = load_screenshot_config();
     match mode {
@@ -122,9 +121,11 @@ pub fn show(mode: LaunchMode) {
 
 fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     let _ = send_compositor(CompositorCommand::BeginScreenshotOverlay);
-    // Keep NC visible for capture, but park it on Top so this Overlay picker
-    // paints above it (otherwise the panel covers the selection UI).
+    // Park Exclusive Overlay shell chrome under this picker so it stays visible
+    // for capture without covering the selection UI or stealing keyboard focus.
     crate::ui::notification_center::set_below_screenshot(true);
+    crate::ui::dashboard::set_below_screenshot(true);
+    crate::ui::bar::widgets::set_menu_below_screenshot(true);
 
     let (monitor_origin, output_index) = monitor_context();
     let windows = list_windows_best_effort();
@@ -435,6 +436,7 @@ fn wire_after_buttons(
             overlay
                 .after_capture
                 .set(after_from_buttons(&copy, &save, &both, &open));
+            persist_settings(&overlay);
         }
     };
     copy.connect_toggled({
@@ -455,6 +457,19 @@ fn wire_after_buttons(
     });
 }
 
+fn persist_settings(overlay: &Overlay) {
+    let cfg = ScreenshotConfig {
+        default_mode: overlay.mode.get(),
+        draw_cursor: overlay.draw_cursor.get(),
+        delay_seconds: overlay.delay_seconds.get(),
+        after_capture: overlay.after_capture.get(),
+        save_dir: overlay.config.save_dir.clone(),
+    };
+    if let Err(err) = save_screenshot_config(&cfg) {
+        tracing::warn!(%err, "failed to save screenshot.json");
+    }
+}
+
 fn wire_toolbar(
     overlay: &Rc<Overlay>,
     mode_buttons: &ModeButtons,
@@ -463,7 +478,10 @@ fn wire_toolbar(
 ) {
     options.pointer.connect_active_notify({
         let overlay = overlay.clone();
-        move |sw| overlay.draw_cursor.set(sw.is_active())
+        move |sw| {
+            overlay.draw_cursor.set(sw.is_active());
+            persist_settings(&overlay);
+        }
     });
     options.delay.connect_value_changed({
         let overlay = overlay.clone();
@@ -471,6 +489,7 @@ fn wire_toolbar(
             overlay
                 .delay_seconds
                 .set(spin.value().max(0.0).round() as u32);
+            persist_settings(&overlay);
         }
     });
     wire_after_buttons(
@@ -497,6 +516,7 @@ fn wire_toolbar(
             overlay.window_locked.set(false);
             overlay.canvas.queue_draw();
             overlay.size_label.set_visible(false);
+            persist_settings(&overlay);
         }
     };
 
@@ -972,6 +992,8 @@ pub fn dismiss() {
     });
     let _ = send_compositor(CompositorCommand::EndScreenshotOverlay);
     crate::ui::notification_center::set_below_screenshot(false);
+    crate::ui::dashboard::set_below_screenshot(false);
+    crate::ui::bar::widgets::set_menu_below_screenshot(false);
 }
 
 fn monitor_context() -> ((i32, i32), usize) {

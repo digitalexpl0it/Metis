@@ -249,6 +249,29 @@ pub(crate) fn request_toggle() {
     }
 }
 
+/// Demote the bar's Exclusive keyboard while the screenshot Overlay is up so
+/// Esc reaches the picker; restore Exclusive if the menu is still open after.
+pub(crate) fn set_below_screenshot(below: bool) {
+    MENU_POPOVERS.with(|menus| {
+        for weak in menus.borrow().iter() {
+            let Some(popover) = weak.upgrade() else {
+                continue;
+            };
+            if !popover.is_visible() {
+                continue;
+            }
+            let Some(window) = popover.root().and_downcast::<gtk::Window>() else {
+                continue;
+            };
+            window.set_keyboard_mode(if below {
+                KeyboardMode::OnDemand
+            } else {
+                KeyboardMode::Exclusive
+            });
+        }
+    });
+}
+
 /// Build the menu popover and wire it to `button` (the brand launcher button).
 pub fn install(button: &gtk::Button) {
     let panel = gtk::Box::new(gtk::Orientation::Horizontal, 0);

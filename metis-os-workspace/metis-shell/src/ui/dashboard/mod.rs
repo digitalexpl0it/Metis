@@ -267,6 +267,25 @@ pub fn is_open() -> bool {
     })
 }
 
+/// Demote Exclusive keyboard while the screenshot Overlay owns input so Control
+/// Center stays visible for capture without covering Esc / type-ahead.
+pub fn set_below_screenshot(below: bool) {
+    DASHBOARD.with(|d| {
+        let borrow = d.borrow();
+        let Some(dash) = borrow.as_ref() else {
+            return;
+        };
+        if !dash.window.is_visible() && !dash.open.get() {
+            return;
+        }
+        dash.window.set_keyboard_mode(if below {
+            KeyboardMode::OnDemand
+        } else {
+            KeyboardMode::Exclusive
+        });
+    });
+}
+
 /// Open or close the control center with the same slide animation as a bar pull.
 pub fn request_toggle(shell: &BarShell) {
     if !load_dashboard_config().enabled {

@@ -159,6 +159,11 @@ Press **PrtSc** to open the interactive overlay (default **Selection** mode):
 | **Ctrl+PrtSc** | Interactive overlay starting in **Window** mode |
 | **Esc** | Close the overlay without capturing (all modes) |
 
+**PrtSc works over shell UI** — Metis Menu, Control Center, Notification Center,
+and edge-bar widget popovers stay open when you open the picker (they are included
+in the capture after the overlay hides). Screenshot shortcuts are not blocked by
+those Exclusive keyboard layers.
+
 The overlay uses your active Metis theme (dark/light/custom tokens): frosted
 toolbar, accent **Capture** button, and dashed selection border all update live when
 you change theme in Settings or edit `themes/*.json`.
@@ -169,11 +174,11 @@ you change theme in Settings or edit `themes/*.json`.
 
 **Options** (gear icon) — include pointer in the PNG, capture delay (seconds), and
 after-capture action (Copy, Save, Both, or Open in the default image viewer).
-
-Configure defaults in `~/.config/metis/screenshot.json` (`default_mode`,
-`draw_cursor`, `delay_seconds`, `after_capture`, `save_dir`). PNGs save under
-`~/Pictures/Metis` by default; copies go to the compositor clipboard when
-`after_capture` is `copy` or `copy_and_save`.
+Changes are written immediately to `~/.config/metis/screenshot.json` (including the
+last mode) so the next PrtSc restores them. You can also edit that file by hand
+(`default_mode`, `draw_cursor`, `delay_seconds`, `after_capture`, `save_dir`).
+PNGs save under `~/Pictures/Metis` by default; copies go to the compositor
+clipboard when `after_capture` is `copy` or `copy_and_save`.
 
 From a script: `metis-cmd screenshot` (same as PrtSc).
 

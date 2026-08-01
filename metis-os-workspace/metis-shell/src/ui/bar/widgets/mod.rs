@@ -9,6 +9,7 @@ mod tray;
 mod volumes;
 mod weather;
 pub(crate) use menu::request_toggle as toggle_menu;
+pub(crate) use menu::set_below_screenshot as set_menu_below_screenshot;
 pub mod workspaces;
 
 use std::cell::RefCell;
