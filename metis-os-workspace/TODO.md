@@ -1149,7 +1149,8 @@ clipboard/save, and compositor exclusion so overlay chrome never appears in the 
 - [x] **`AfterCaptureAction::Edit`** — interactive default; instant path never
       auto-opens the editor.
 - [x] **Settings → System → Screenshot** — binds `screenshot.json`.
-- [x] **Scroll mode** — selection + synthetic scroll stitch (`stitch_vertical_append`).
+- [ ] ~~**Scroll mode** — selection + synthetic scroll stitch (`stitch_vertical_append`).~~
+      Removed; not useful enough to keep.
 - [x] **Pin + Record** — layer-shell pin window; ffmpeg WebM record handoff.
 
 **Dependencies:** Phase 1 theme/CSS pipeline (done); compositor image capture (done).

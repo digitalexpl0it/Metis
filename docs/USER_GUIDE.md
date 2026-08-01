@@ -154,7 +154,7 @@ Press **PrtSc** to open the interactive overlay (default **Selection** mode):
 
 | Key | Action |
 |-----|--------|
-| **PrtSc** | Interactive overlay (Selection / Screen / Window / Scroll) |
+| **PrtSc** | Interactive overlay (Selection / Screen / Window) |
 | **Shift+PrtSc** | Instant full-screen on the monitor under the pointer (no editor) |
 | **Ctrl+PrtSc** | Interactive overlay starting in **Window** mode |
 | **Esc** | Close the overlay without capturing (all modes) |
@@ -206,8 +206,8 @@ The overlay uses your active Metis theme (dark/light/custom tokens): frosted
 toolbar, accent **Capture** button, and dashed selection border all update live when
 you change theme in Settings or edit `themes/*.json`.
 
-**Modes** — **Selection**, **Full screen**, **Window**, and **Scroll** (stitched
-vertical capture). Press **Esc** at any time to close without capturing.
+**Modes** — **Selection**, **Full screen**, and **Window**. Press **Esc** at any
+time to close without capturing.
 
 **Options** (gear) and **Settings → System → Screenshot** share
 `~/.config/metis/screenshot.json`. PNGs save under `~/Pictures/Metis` by default.

@@ -8,9 +8,7 @@ use std::time::{Duration, SystemTime};
 use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
-use metis_capture::{
-    capture_png, capture_rgba, stitch_vertical_append, write_png, CaptureOptions,
-};
+use metis_capture::{capture_png, CaptureOptions};
 use metis_config::{
     expand_save_dir, load_screenshot_config, parse_hex_rgb, save_default_screenshot_config,
     save_screenshot_config, AfterCaptureAction, ScreenshotConfig, ScreenshotMode,
@@ -26,7 +24,6 @@ pub enum LaunchMode {
     Interactive,
     InstantFull,
     Window,
-    Scroll,
     Record,
 }
 
@@ -119,10 +116,6 @@ pub fn show(mode: LaunchMode, connector: Option<String>) {
         }
         LaunchMode::Window => {
             show_interactive(ScreenshotMode::Window, config, connector);
-            return;
-        }
-        LaunchMode::Scroll => {
-            show_interactive(ScreenshotMode::Scroll, config, connector);
             return;
         }
         LaunchMode::Record => {
@@ -262,7 +255,6 @@ struct ModeButtons {
     selection: gtk::ToggleButton,
     screen: gtk::ToggleButton,
     window: gtk::ToggleButton,
-    scroll: gtk::ToggleButton,
 }
 
 struct OptionsWidgets {
@@ -289,11 +281,9 @@ fn build_toolbar(
     let selection_btn = mode_button("edit-select-symbolic", &metis_i18n::tr("Selection"));
     let screen_btn = mode_button("view-fullscreen-symbolic", &metis_i18n::tr("Full screen"));
     let window_btn = mode_button("window-new-symbolic", &metis_i18n::tr("Window"));
-    let scroll_btn = mode_button("view-paged-symbolic", &metis_i18n::tr("Scroll"));
     mode_box.append(&selection_btn);
     mode_box.append(&screen_btn);
     mode_box.append(&window_btn);
-    mode_box.append(&scroll_btn);
     toolbar.append(&mode_box);
 
     let options_btn = gtk::MenuButton::new();
@@ -310,12 +300,12 @@ fn build_toolbar(
     after_seg.add_css_class("metis-screenshot-after-seg");
     after_seg.add_css_class("linked");
 
-    let (after_copy, after_save, after_both, after_edit) = {
+    let (after_edit, after_copy, after_save, after_both) = {
         let labels = [
+            metis_i18n::tr("Edit"),
             metis_i18n::tr("Copy"),
             metis_i18n::tr("Save"),
             metis_i18n::tr("Both"),
-            metis_i18n::tr("Edit"),
         ];
         let mut buttons = Vec::new();
         let mut leader: Option<gtk::ToggleButton> = None;
@@ -375,7 +365,6 @@ fn build_toolbar(
         selection: selection_btn,
         screen: screen_btn,
         window: window_btn,
-        scroll: scroll_btn,
     };
     sync_mode_buttons(&mode_buttons, initial_mode);
 
@@ -415,7 +404,6 @@ fn sync_mode_buttons(buttons: &ModeButtons, mode: ScreenshotMode) {
     buttons.selection.set_active(mode == ScreenshotMode::Selection);
     buttons.screen.set_active(mode == ScreenshotMode::Screen);
     buttons.window.set_active(mode == ScreenshotMode::Window);
-    buttons.scroll.set_active(mode == ScreenshotMode::Scroll);
 }
 
 fn sync_after_buttons(
@@ -440,14 +428,16 @@ fn after_from_buttons(
     both: &gtk::ToggleButton,
     edit: &gtk::ToggleButton,
 ) -> AfterCaptureAction {
-    if save.is_active() {
+    if edit.is_active() {
+        AfterCaptureAction::Edit
+    } else if save.is_active() {
         AfterCaptureAction::Save
     } else if both.is_active() {
         AfterCaptureAction::CopyAndSave
-    } else if edit.is_active() {
-        AfterCaptureAction::Edit
-    } else {
+    } else if copy.is_active() {
         AfterCaptureAction::Copy
+    } else {
+        AfterCaptureAction::Edit
     }
 }
 
@@ -506,6 +496,12 @@ fn wire_after_buttons(
         let both = both.clone();
         let edit = edit.clone();
         move || {
+            // Only commit when a button is active. During radio-group switches GTK
+            // fires the deactivation first; treating that as Copy would overwrite
+            // the Edit default.
+            if !copy.is_active() && !save.is_active() && !both.is_active() && !edit.is_active() {
+                return;
+            }
             overlay
                 .after_capture
                 .set(after_from_buttons(&copy, &save, &both, &edit));
@@ -514,19 +510,35 @@ fn wire_after_buttons(
     };
     copy.connect_toggled({
         let sync = sync.clone();
-        move |_| sync()
+        move |btn| {
+            if btn.is_active() {
+                sync();
+            }
+        }
     });
     save.connect_toggled({
         let sync = sync.clone();
-        move |_| sync()
+        move |btn| {
+            if btn.is_active() {
+                sync();
+            }
+        }
     });
     both.connect_toggled({
         let sync = sync.clone();
-        move |_| sync()
+        move |btn| {
+            if btn.is_active() {
+                sync();
+            }
+        }
     });
     edit.connect_toggled({
         let sync = sync.clone();
-        move |_| sync()
+        move |btn| {
+            if btn.is_active() {
+                sync();
+            }
+        }
     });
 }
 
@@ -537,6 +549,7 @@ fn persist_settings(overlay: &Overlay) {
         delay_seconds: overlay.delay_seconds.get(),
         after_capture: overlay.after_capture.get(),
         interactive_after_capture: None,
+        instant_after_capture: overlay.config.instant_after_capture,
         prefer_pointer_output: overlay.config.prefer_pointer_output,
         save_dir: overlay.config.save_dir.clone(),
     };
@@ -581,7 +594,6 @@ fn wire_toolbar(
             selection: mode_buttons.selection.clone(),
             screen: mode_buttons.screen.clone(),
             window: mode_buttons.window.clone(),
-            scroll: mode_buttons.scroll.clone(),
         };
         move |mode: ScreenshotMode| {
             overlay.mode.set(mode);
@@ -603,7 +615,6 @@ fn wire_toolbar(
             selection: mode_buttons.selection.clone(),
             screen: mode_buttons.screen.clone(),
             window: mode_buttons.window.clone(),
-            scroll: mode_buttons.scroll.clone(),
         };
         let apply_mode = apply_mode.clone();
         btn.connect_toggled(move |btn| {
@@ -617,7 +628,6 @@ fn wire_toolbar(
     wire_mode(&mode_buttons.selection, ScreenshotMode::Selection);
     wire_mode(&mode_buttons.screen, ScreenshotMode::Screen);
     wire_mode(&mode_buttons.window, ScreenshotMode::Window);
-    wire_mode(&mode_buttons.scroll, ScreenshotMode::Scroll);
 
     capture_btn.connect_clicked({
         let overlay = overlay.clone();
@@ -660,7 +670,7 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
         move |_, x, y| {
             if !matches!(
                 overlay.mode.get(),
-                ScreenshotMode::Selection | ScreenshotMode::Scroll
+                ScreenshotMode::Selection
             ) {
                 return;
             }
@@ -679,7 +689,7 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
         move |_, offset_x, offset_y| {
             if !matches!(
                 overlay.mode.get(),
-                ScreenshotMode::Selection | ScreenshotMode::Scroll
+                ScreenshotMode::Selection
             ) {
                 return;
             }
@@ -765,7 +775,6 @@ impl Overlay {
         let config = self.config.clone();
         let output_index = self.output_index;
         let connector = self.connector.clone();
-        let scroll = self.mode.get() == ScreenshotMode::Scroll;
         let record = self.record_handoff.get();
         self.window.set_visible(false);
 
@@ -779,17 +788,13 @@ impl Overlay {
                 if delay > 0 {
                     std::thread::sleep(Duration::from_secs(delay as u64));
                 }
-                let result = if scroll {
-                    perform_scroll_capture(crop, draw_cursor, output_index, connector.as_deref(), &config)
-                } else {
-                    perform_capture(
-                        crop,
-                        draw_cursor,
-                        output_index,
-                        connector.as_deref(),
-                        &config,
-                    )
-                };
+                let result = perform_capture(
+                    crop,
+                    draw_cursor,
+                    output_index,
+                    connector.as_deref(),
+                    &config,
+                );
                 glib::idle_add_once(move || {
                     dismiss();
                     match result {
@@ -806,7 +811,7 @@ impl Overlay {
 
     fn capture_rect(&self) -> Option<PixelRect> {
         match self.mode.get() {
-            ScreenshotMode::Selection | ScreenshotMode::Scroll => {
+            ScreenshotMode::Selection => {
                 let drag = self.drag.borrow().clone()?;
                 if drag.valid() {
                     let local = drag.normalized();
@@ -857,7 +862,7 @@ fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i
     cr.paint().ok();
 
     let highlight = match overlay.mode.get() {
-        ScreenshotMode::Selection | ScreenshotMode::Scroll => overlay
+        ScreenshotMode::Selection => overlay
             .drag
             .borrow()
             .clone()
@@ -1016,60 +1021,6 @@ fn perform_capture(
         Some(local),
         &path,
     )?;
-    Ok(path)
-}
-
-const SCROLL_MAX_HEIGHT: u32 = 16_384;
-const SCROLL_STEPS: usize = 24;
-
-fn perform_scroll_capture(
-    crop: PixelRect,
-    draw_cursor: bool,
-    output_index: usize,
-    connector: Option<&str>,
-    config: &ScreenshotConfig,
-) -> Result<PathBuf, String> {
-    let (ox, oy) = output_origin(output_index, connector);
-    let local = PixelRect {
-        x: crop.x - ox,
-        y: crop.y - oy,
-        width: crop.width,
-        height: crop.height,
-    };
-    let opts = CaptureOptions {
-        draw_cursor,
-        output_index,
-        connector: connector.map(str::to_string),
-    };
-    let cx = crop.x as f64 + crop.width as f64 / 2.0;
-    let cy = crop.y as f64 + crop.height as f64 / 2.0;
-    let _ = crate::compositor::inject_pointer_absolute(cx, cy);
-
-    let (mut w, mut h, mut rgba) = capture_rgba(opts.clone(), Some(local))?;
-    let mut stagnant = 0u32;
-    for _ in 0..SCROLL_STEPS {
-        if h >= SCROLL_MAX_HEIGHT {
-            break;
-        }
-        let _ = crate::compositor::inject_pointer_scroll(0.0, -(crop.height as f64 * 0.75));
-        std::thread::sleep(Duration::from_millis(220));
-        let (nw, nh, next) = capture_rgba(opts.clone(), Some(local))?;
-        let before = h;
-        let (sw, sh, stitched) = stitch_vertical_append(w, h, &rgba, nw, nh, &next)?;
-        w = sw;
-        h = sh;
-        rgba = stitched;
-        if h == before {
-            stagnant += 1;
-            if stagnant >= 2 {
-                break;
-            }
-        } else {
-            stagnant = 0;
-        }
-    }
-    let path = capture_path(config);
-    write_png(&path, w, h, &rgba)?;
     Ok(path)
 }
 

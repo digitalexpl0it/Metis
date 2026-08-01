@@ -7,7 +7,6 @@ pub enum ScreenshotMode {
     Selection,
     Screen,
     Window,
-    Scroll,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -35,13 +34,15 @@ pub struct ScreenshotConfig {
     pub draw_cursor: bool,
     #[serde(default)]
     pub delay_seconds: u32,
-    /// After-capture action for instant/full-screen (Shift+PrtSc). When set to
-    /// `edit`, the instant path falls back to copy so the editor is never forced.
+    /// After-capture action for interactive PrtSc. Defaults to opening the editor.
     #[serde(default)]
     pub after_capture: AfterCaptureAction,
     /// Optional override for interactive PrtSc. When absent, uses `after_capture`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interactive_after_capture: Option<AfterCaptureAction>,
+    /// After-capture action for Shift+PrtSc. Never opens the editor.
+    #[serde(default = "default_instant_after_capture")]
+    pub instant_after_capture: AfterCaptureAction,
     /// Prefer the output under the pointer for picker + capture (multi-monitor).
     #[serde(default = "default_true")]
     pub prefer_pointer_output: bool,
@@ -57,6 +58,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_instant_after_capture() -> AfterCaptureAction {
+    AfterCaptureAction::Copy
+}
+
 impl Default for ScreenshotConfig {
     fn default() -> Self {
         Self {
@@ -65,6 +70,7 @@ impl Default for ScreenshotConfig {
             delay_seconds: 0,
             after_capture: AfterCaptureAction::Edit,
             interactive_after_capture: None,
+            instant_after_capture: AfterCaptureAction::Copy,
             prefer_pointer_output: true,
             save_dir: default_save_dir(),
         }
@@ -72,14 +78,14 @@ impl Default for ScreenshotConfig {
 }
 
 impl ScreenshotConfig {
-    /// Action after interactive capture (picker). Defaults to `after_capture`.
+    /// Action after interactive capture (picker). Defaults to Edit.
     pub fn interactive_action(&self) -> AfterCaptureAction {
         self.interactive_after_capture.unwrap_or(self.after_capture)
     }
 
     /// Action after instant full-screen capture. Never opens the editor.
     pub fn instant_action(&self) -> AfterCaptureAction {
-        match self.after_capture {
+        match self.instant_after_capture {
             AfterCaptureAction::Edit | AfterCaptureAction::Open => AfterCaptureAction::Copy,
             other => other,
         }
@@ -94,8 +100,15 @@ pub fn load_screenshot_config() -> ScreenshotConfig {
     let path = screenshot_config_path();
     if path.exists() {
         if let Ok(text) = std::fs::read_to_string(&path) {
-            if let Ok(cfg) = serde_json::from_str(&text) {
-                return sanitize_screenshot_config(cfg);
+            // Retired scroll-capture mode: map leftover configs to Selection so
+            // the rest of the file still loads.
+            if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&text) {
+                if value.get("default_mode").and_then(|v| v.as_str()) == Some("scroll") {
+                    value["default_mode"] = serde_json::json!("selection");
+                }
+                if let Ok(cfg) = serde_json::from_value(value) {
+                    return sanitize_screenshot_config(cfg);
+                }
             }
         }
     }
@@ -121,6 +134,24 @@ fn sanitize_screenshot_config(mut cfg: ScreenshotConfig) -> ScreenshotConfig {
     cfg.delay_seconds = cfg.delay_seconds.min(30);
     if cfg.save_dir.trim().is_empty() {
         cfg.save_dir = default_save_dir();
+    }
+    // Older Settings builds stored Instant in `after_capture` and Interactive in
+    // `interactive_after_capture`. Promote the interactive choice to the primary
+    // field and keep Instant separate so Edit stays the interactive default.
+    if let Some(interactive) = cfg.interactive_after_capture.take() {
+        if !matches!(
+            cfg.after_capture,
+            AfterCaptureAction::Edit | AfterCaptureAction::Open
+        ) {
+            cfg.instant_after_capture = cfg.after_capture;
+        }
+        cfg.after_capture = interactive;
+    }
+    if matches!(
+        cfg.instant_after_capture,
+        AfterCaptureAction::Edit | AfterCaptureAction::Open
+    ) {
+        cfg.instant_after_capture = AfterCaptureAction::Copy;
     }
     cfg
 }

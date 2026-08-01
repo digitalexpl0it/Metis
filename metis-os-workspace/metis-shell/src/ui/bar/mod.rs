@@ -573,7 +573,7 @@ fn watch_compositor_dismiss() {
                 }
                 "screenshot" => {
                     // Forms: `screenshot [CONNECTOR]`,
-                    // `screenshot instant-full|window|scroll|record [CONNECTOR]`.
+                    // `screenshot instant-full|window|record [CONNECTOR]`.
                     let mut parts = arg.trim().split_whitespace();
                     let first = parts.next().unwrap_or("");
                     let (mode, connector) = match first {
@@ -587,10 +587,6 @@ fn watch_compositor_dismiss() {
                         ),
                         "window" => (
                             crate::ui::screenshot::LaunchMode::Window,
-                            parts.next().map(str::to_string),
-                        ),
-                        "scroll" => (
-                            crate::ui::screenshot::LaunchMode::Scroll,
                             parts.next().map(str::to_string),
                         ),
                         "record" => (

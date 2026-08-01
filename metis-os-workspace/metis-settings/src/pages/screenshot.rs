@@ -34,7 +34,6 @@ pub fn build() -> gtk::Widget {
         &tr("Selection"),
         &tr("Full screen"),
         &tr("Window"),
-        &tr("Scroll"),
     ]);
     mode.set_selected(mode_to_index(cfg.borrow().default_mode));
     capture_body.append(&ui::row(&tr("Default mode"), &mode));
@@ -60,17 +59,13 @@ pub fn build() -> gtk::Widget {
         ui::section_with_icon(&tr("After capture"), "document-save-symbolic");
 
     let after = gtk::DropDown::from_strings(&[
+        &tr("Edit in Metis"),
         &tr("Copy"),
         &tr("Save"),
         &tr("Copy and save"),
-        &tr("Edit in Metis"),
         &tr("Open externally"),
     ]);
-    after.set_selected(action_to_index(
-        cfg.borrow()
-            .interactive_after_capture
-            .unwrap_or(cfg.borrow().after_capture),
-    ));
+    after.set_selected(action_to_index(cfg.borrow().interactive_action()));
     after_body.append(&ui::row(&tr("Interactive (PrtSc)"), &after));
 
     let instant = gtk::DropDown::from_strings(&[
@@ -116,8 +111,9 @@ pub fn build() -> gtk::Widget {
                 default_mode: index_to_mode(mode.selected()),
                 draw_cursor: pointer.is_active(),
                 delay_seconds: delay.value().max(0.0).round() as u32,
-                after_capture: instant_action,
-                interactive_after_capture: Some(interactive),
+                after_capture: interactive,
+                interactive_after_capture: None,
+                instant_after_capture: instant_action,
                 prefer_pointer_output: prefer.is_active(),
                 save_dir: dir_entry.text().to_string(),
             };
@@ -193,7 +189,6 @@ fn mode_to_index(mode: ScreenshotMode) -> u32 {
         ScreenshotMode::Selection => 0,
         ScreenshotMode::Screen => 1,
         ScreenshotMode::Window => 2,
-        ScreenshotMode::Scroll => 3,
     }
 }
 
@@ -201,27 +196,26 @@ fn index_to_mode(index: u32) -> ScreenshotMode {
     match index {
         1 => ScreenshotMode::Screen,
         2 => ScreenshotMode::Window,
-        3 => ScreenshotMode::Scroll,
         _ => ScreenshotMode::Selection,
     }
 }
 
 fn action_to_index(action: AfterCaptureAction) -> u32 {
     match action {
-        AfterCaptureAction::Copy => 0,
-        AfterCaptureAction::Save => 1,
-        AfterCaptureAction::CopyAndSave => 2,
-        AfterCaptureAction::Edit => 3,
+        AfterCaptureAction::Edit => 0,
+        AfterCaptureAction::Copy => 1,
+        AfterCaptureAction::Save => 2,
+        AfterCaptureAction::CopyAndSave => 3,
         AfterCaptureAction::Open => 4,
     }
 }
 
 fn index_to_action(index: u32) -> AfterCaptureAction {
     match index {
-        1 => AfterCaptureAction::Save,
-        2 => AfterCaptureAction::CopyAndSave,
-        3 => AfterCaptureAction::Edit,
+        1 => AfterCaptureAction::Copy,
+        2 => AfterCaptureAction::Save,
+        3 => AfterCaptureAction::CopyAndSave,
         4 => AfterCaptureAction::Open,
-        _ => AfterCaptureAction::Copy,
+        _ => AfterCaptureAction::Edit,
     }
 }

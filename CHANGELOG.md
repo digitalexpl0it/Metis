@@ -26,7 +26,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   package because screen recording is a standard screenshot feature.
 - **Settings → System → Screenshot** — defaults for mode, pointer, delay,
   after-capture, save folder, and pointer-output targeting.
-- **Scroll capture mode** — stitched vertical screenshots via synthetic scroll.
 - **Per-output PrtSc targeting** — compositor appends the connector under the
   pointer; picker and capture use that output.
 
@@ -58,6 +57,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   write to `screenshot.json` as soon as they change in the overlay.
 - **`screenshot instant-full` / `window` runtime commands** — shell parsing used
   only the first token, so Shift/Ctrl+PrtSc never reached those launch modes.
+- **Removed scroll capture mode** — the stitched vertical screenshot path and its
+  picker/settings entry are gone; leftover `default_mode: "scroll"` in
+  `screenshot.json` maps to Selection.
+- **Interactive after-capture defaults to Edit** — Settings no longer stores the
+  Instant (Shift+PrtSc) choice in the interactive field, and the picker options
+  segment leads with Edit so PrtSc opens `metis-screenshot` by default.
 
 ## [2026-07-30]
 

@@ -93,18 +93,6 @@ pub fn launch_program(program: &str) -> std::io::Result<()> {
     launch_argv(metis_protocol::split_command_line(program))
 }
 
-/// Inject a pointer scroll (logical pixels) — used by scroll-screenshot stitching.
-pub fn inject_pointer_scroll(dx: f64, dy: f64) -> std::io::Result<()> {
-    let _ = send_command(CompositorCommand::InjectRemotePointerScroll { dx, dy })?;
-    Ok(())
-}
-
-/// Move the pointer to an absolute desktop position before scroll injection.
-pub fn inject_pointer_absolute(x: f64, y: f64) -> std::io::Result<()> {
-    let _ = send_command(CompositorCommand::InjectRemotePointerAbsolute { x, y })?;
-    Ok(())
-}
-
 /// Spawn via compositor IPC using an argv vector (no shell).
 pub fn launch_argv(argv: impl IntoIterator<Item = impl Into<String>>) -> std::io::Result<()> {
     let argv: Vec<String> = argv.into_iter().map(Into::into).collect();
