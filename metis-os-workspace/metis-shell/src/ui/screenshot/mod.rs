@@ -423,7 +423,7 @@ fn sync_after_buttons(
 }
 
 fn after_from_buttons(
-    _copy: &gtk::ToggleButton,
+    copy: &gtk::ToggleButton,
     save: &gtk::ToggleButton,
     both: &gtk::ToggleButton,
     edit: &gtk::ToggleButton,
