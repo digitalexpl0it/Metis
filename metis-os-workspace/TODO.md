@@ -1141,8 +1141,16 @@ clipboard/save, and compositor exclusion so overlay chrome never appears in the 
 - [x] **`metis-cmd screenshot`** — open overlay from script/launcher.
 - [x] **Docs** — `USER_GUIDE.md`, `CHANGELOG.md`.
 
-**Deferred (v1.1):** Settings → System → Screenshot page; annotation editor; OCR;
-scroll/pin/recording; per-output capture index for multi-monitor polish.
+**v1.1 (2026-07-31):**
+- [x] **Per-output targeting** — PrtSc appends pointer connector; picker
+      `set_monitor` + `CaptureOptions.connector`.
+- [x] **`metis-screenshot` binary** — post-capture editor (annotate / OCR /
+      pin / record); spawned via compositor `Launch`.
+- [x] **`AfterCaptureAction::Edit`** — interactive default; instant path never
+      auto-opens the editor.
+- [x] **Settings → System → Screenshot** — binds `screenshot.json`.
+- [x] **Scroll mode** — selection + synthetic scroll stitch (`stitch_vertical_append`).
+- [x] **Pin + Record** — layer-shell pin window; ffmpeg WebM record handoff.
 
 **Dependencies:** Phase 1 theme/CSS pipeline (done); compositor image capture (done).
 

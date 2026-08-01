@@ -246,6 +246,13 @@ pub const NAV: &[NavItem] = &[
         hue: Some(NavHue::Gray),
         subtitle: Some("Installed printers and system print settings"),
     },
+    NavItem {
+        page_id: Some("screenshot"),
+        title: "Screenshot",
+        icon: Some("camera-photo-symbolic"),
+        hue: Some(NavHue::Blue),
+        subtitle: Some("Capture defaults, editor, and save location"),
+    },
 ];
 
 pub fn page_ids() -> Vec<&'static str> {

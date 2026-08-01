@@ -29,6 +29,9 @@ depends=(
   openssl
   kitty
   xdg-desktop-portal
+  tesseract
+  tesseract-data-eng
+  ffmpeg
 )
 optdepends=(
   'gnome-keyring: Secret Service provider'
@@ -78,6 +81,7 @@ build() {
     -p metis-portal \
     -p metis-remote \
     -p metis-viewer \
+    -p metis-screenshot \
     -p metis-gaming
 }
 

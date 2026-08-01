@@ -571,12 +571,38 @@ fn watch_compositor_dismiss() {
                 "reload-desktop-widgets" => {
                     tracing::debug!("reload-desktop-widgets ignored in bar process");
                 }
-                "screenshot" => crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Interactive),
-                "screenshot instant-full" => {
-                    crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::InstantFull);
-                }
-                "screenshot window" => {
-                    crate::ui::screenshot::show(crate::ui::screenshot::LaunchMode::Window);
+                "screenshot" => {
+                    // Forms: `screenshot [CONNECTOR]`,
+                    // `screenshot instant-full|window|scroll|record [CONNECTOR]`.
+                    let mut parts = arg.trim().split_whitespace();
+                    let first = parts.next().unwrap_or("");
+                    let (mode, connector) = match first {
+                        "" => (
+                            crate::ui::screenshot::LaunchMode::Interactive,
+                            None,
+                        ),
+                        "instant-full" => (
+                            crate::ui::screenshot::LaunchMode::InstantFull,
+                            parts.next().map(str::to_string),
+                        ),
+                        "window" => (
+                            crate::ui::screenshot::LaunchMode::Window,
+                            parts.next().map(str::to_string),
+                        ),
+                        "scroll" => (
+                            crate::ui::screenshot::LaunchMode::Scroll,
+                            parts.next().map(str::to_string),
+                        ),
+                        "record" => (
+                            crate::ui::screenshot::LaunchMode::Record,
+                            parts.next().map(str::to_string),
+                        ),
+                        connector => (
+                            crate::ui::screenshot::LaunchMode::Interactive,
+                            Some(connector.to_string()),
+                        ),
+                    };
+                    crate::ui::screenshot::show(mode, connector);
                 }
                 "reload-theme" => {
                     let _ = crate::ui::theme::init_theme();

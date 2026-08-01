@@ -7,16 +7,24 @@ pub enum ScreenshotMode {
     Selection,
     Screen,
     Window,
+    Scroll,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AfterCaptureAction {
-    #[default]
     Copy,
     Save,
     CopyAndSave,
     Open,
+    /// Open the Metis screenshot editor (`metis-screenshot`).
+    Edit,
+}
+
+impl Default for AfterCaptureAction {
+    fn default() -> Self {
+        Self::Edit
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -27,8 +35,16 @@ pub struct ScreenshotConfig {
     pub draw_cursor: bool,
     #[serde(default)]
     pub delay_seconds: u32,
+    /// After-capture action for instant/full-screen (Shift+PrtSc). When set to
+    /// `edit`, the instant path falls back to copy so the editor is never forced.
     #[serde(default)]
     pub after_capture: AfterCaptureAction,
+    /// Optional override for interactive PrtSc. When absent, uses `after_capture`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interactive_after_capture: Option<AfterCaptureAction>,
+    /// Prefer the output under the pointer for picker + capture (multi-monitor).
+    #[serde(default = "default_true")]
+    pub prefer_pointer_output: bool,
     #[serde(default = "default_save_dir")]
     pub save_dir: String,
 }
@@ -37,14 +53,35 @@ fn default_save_dir() -> String {
     "~/Pictures/Metis".into()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Default for ScreenshotConfig {
     fn default() -> Self {
         Self {
             default_mode: ScreenshotMode::Selection,
             draw_cursor: false,
             delay_seconds: 0,
-            after_capture: AfterCaptureAction::Copy,
+            after_capture: AfterCaptureAction::Edit,
+            interactive_after_capture: None,
+            prefer_pointer_output: true,
             save_dir: default_save_dir(),
+        }
+    }
+}
+
+impl ScreenshotConfig {
+    /// Action after interactive capture (picker). Defaults to `after_capture`.
+    pub fn interactive_action(&self) -> AfterCaptureAction {
+        self.interactive_after_capture.unwrap_or(self.after_capture)
+    }
+
+    /// Action after instant full-screen capture. Never opens the editor.
+    pub fn instant_action(&self) -> AfterCaptureAction {
+        match self.after_capture {
+            AfterCaptureAction::Edit | AfterCaptureAction::Open => AfterCaptureAction::Copy,
+            other => other,
         }
     }
 }

@@ -154,8 +154,8 @@ Press **PrtSc** to open the interactive overlay (default **Selection** mode):
 
 | Key | Action |
 |-----|--------|
-| **PrtSc** | Interactive overlay (Selection / Screen / Window) |
-| **Shift+PrtSc** | Instant full-screen capture (no overlay) |
+| **PrtSc** | Interactive overlay (Selection / Screen / Window / Scroll) |
+| **Shift+PrtSc** | Instant full-screen on the monitor under the pointer (no editor) |
 | **Ctrl+PrtSc** | Interactive overlay starting in **Window** mode |
 | **Esc** | Close the overlay without capturing (all modes) |
 
@@ -164,21 +164,53 @@ and edge-bar widget popovers stay open when you open the picker (they are includ
 in the capture after the overlay hides). Screenshot shortcuts are not blocked by
 those Exclusive keyboard layers.
 
+**Multi-monitor** — picker and capture target the output under the pointer.
+Toggle in Settings → Screenshot → *Capture monitor under pointer*.
+
+**After capture** — interactive PrtSc defaults to **Edit**, opening
+`metis-screenshot`. Shift+PrtSc never auto-opens the editor. Toolbar **Record**
+starts a region recording as a player-compatible MP4 under `~/Videos/Metis`.
+Metis uses H.264 when the installed FFmpeg supports it and falls back to MPEG-4.
+
+### The screenshot editor
+
+The editor's tool row holds **Pen**, **Highlighter**, **Arrow**, **Rectangle**,
+**Ellipse**, and **Text**, then **Pixelate**, **Crop**, and **Extract text**
+after the divider. Drag on the image to use the selected tool; the colour chip
+beside the tools opens a palette and a stroke-size slider that both apply to the
+next thing you draw. The image is scaled to fit the window and never upscaled,
+so the pointer always lands on the pixel under it.
+
+Pixelate and Crop rewrite the picture itself; every other tool stays an editable
+overlay until you export. For text, drag out a dotted box and type directly on
+the image. Drag the box to move it and drag its lower-right handle to resize it;
+the text wraps live inside the new bounds. A blinking caret marks the current
+typing position.
+
+**Extract text** scans the full image immediately and opens a selectable results
+view. Drag across any passage to highlight and copy it, use **Copy Selection**,
+or choose **Copy All**. Official Metis packages and dependency installers include
+Tesseract plus English language data automatically.
+
+| Shortcut | Action |
+| --- | --- |
+| **Ctrl+Z** / **Ctrl+Shift+Z** | Undo / redo (covers crop and pixelate too) |
+| **Ctrl+C** | Copy the annotated image to the clipboard |
+| **Ctrl+S** | Overwrite the capture file |
+| **Esc** | Close the editor |
+
+**Copy**, **Save**, **Save As**, and **Pin** all export the same flattened image
+the canvas shows.
+
 The overlay uses your active Metis theme (dark/light/custom tokens): frosted
 toolbar, accent **Capture** button, and dashed selection border all update live when
 you change theme in Settings or edit `themes/*.json`.
 
-**Modes** — toolbar icon toggles for **Selection** (drag a rectangle), **Full screen**
-(entire monitor), and **Window** (hover to preview, **click to lock** a window, then
-**Capture**). Press **Esc** at any time to close the overlay without capturing.
+**Modes** — **Selection**, **Full screen**, **Window**, and **Scroll** (stitched
+vertical capture). Press **Esc** at any time to close without capturing.
 
-**Options** (gear icon) — include pointer in the PNG, capture delay (seconds), and
-after-capture action (Copy, Save, Both, or Open in the default image viewer).
-Changes are written immediately to `~/.config/metis/screenshot.json` (including the
-last mode) so the next PrtSc restores them. You can also edit that file by hand
-(`default_mode`, `draw_cursor`, `delay_seconds`, `after_capture`, `save_dir`).
-PNGs save under `~/Pictures/Metis` by default; copies go to the compositor
-clipboard when `after_capture` is `copy` or `copy_and_save`.
+**Options** (gear) and **Settings → System → Screenshot** share
+`~/.config/metis/screenshot.json`. PNGs save under `~/Pictures/Metis` by default.
 
 From a script: `metis-cmd screenshot` (same as PrtSc).
 

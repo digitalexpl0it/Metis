@@ -267,6 +267,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.add_titled(&pages::shortcuts::build(), Some("shortcuts"), "Shortcuts");
     stack.add_titled(&pages::bluetooth::build(), Some("bluetooth"), "Bluetooth");
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
+    stack.add_titled(&pages::screenshot::build(), Some("screenshot"), "Screenshot");
     stack.add_titled(
         &pages::control_center::build(),
         Some("control_center"),

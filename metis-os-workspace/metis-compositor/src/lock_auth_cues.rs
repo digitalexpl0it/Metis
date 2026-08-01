@@ -101,7 +101,7 @@ fn dir_has_entries(path: &Path) -> bool {
 
 /// Helper for tests that need a writable fake tree under a temp dir.
 #[cfg(test)]
-pub fn ensure_dir(path: &Path) -> PathBuf {
+pub fn ensure_dir(path: &Path) -> std::path::PathBuf {
     std::fs::create_dir_all(path).expect("mkdir");
     path.to_path_buf()
 }

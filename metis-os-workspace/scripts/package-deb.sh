@@ -94,6 +94,7 @@ build_binaries() {
       -p metis-portal \
       -p metis-remote \
       -p metis-viewer \
+      -p metis-screenshot \
       -p metis-gaming
   )
 }
@@ -136,6 +137,8 @@ write_control() {
       fi
       ;;
   esac
+  # OCR is a first-class editor feature, not an optional integration.
+  depends="${depends}, tesseract-ocr, tesseract-ocr-eng, ffmpeg"
 
   cat >"$STAGE/DEBIAN/control" <<EOF
 Package: ${PKG_NAME}

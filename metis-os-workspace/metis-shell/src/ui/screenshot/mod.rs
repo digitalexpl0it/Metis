@@ -8,7 +8,9 @@ use std::time::{Duration, SystemTime};
 use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
-use metis_capture::{capture_png, CaptureOptions};
+use metis_capture::{
+    capture_png, capture_rgba, stitch_vertical_append, write_png, CaptureOptions,
+};
 use metis_config::{
     expand_save_dir, load_screenshot_config, parse_hex_rgb, save_default_screenshot_config,
     save_screenshot_config, AfterCaptureAction, ScreenshotConfig, ScreenshotMode,
@@ -24,6 +26,8 @@ pub enum LaunchMode {
     Interactive,
     InstantFull,
     Window,
+    Scroll,
+    Record,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -67,6 +71,9 @@ struct Overlay {
     window_locked: Cell<bool>,
     monitor_origin: (i32, i32),
     output_index: usize,
+    connector: Option<String>,
+    /// When true, Capture hands the selection rect to `metis-screenshot --mode record`.
+    record_handoff: Cell<bool>,
     config: ScreenshotConfig,
     windows: RefCell<Vec<WindowInfo>>,
 }
@@ -95,7 +102,7 @@ pub fn on_theme_changed() {
     });
 }
 
-pub fn show(mode: LaunchMode) {
+pub fn show(mode: LaunchMode, connector: Option<String>) {
     if OVERLAY.with(|o| o.borrow().is_some()) {
         return;
     }
@@ -104,22 +111,35 @@ pub fn show(mode: LaunchMode) {
     // and owns the keyboard via Exclusive layer-shell.
 
     let config = load_screenshot_config();
+    let connector = resolve_connector(connector, &config);
     match mode {
         LaunchMode::InstantFull => {
-            run_instant_capture(ScreenshotMode::Screen, config);
+            run_instant_capture(ScreenshotMode::Screen, config, connector);
             return;
         }
         LaunchMode::Window => {
-            show_interactive(ScreenshotMode::Window, config);
+            show_interactive(ScreenshotMode::Window, config, connector);
+            return;
+        }
+        LaunchMode::Scroll => {
+            show_interactive(ScreenshotMode::Scroll, config, connector);
+            return;
+        }
+        LaunchMode::Record => {
+            show_interactive_record(config, connector);
             return;
         }
         LaunchMode::Interactive => {
-            show_interactive(config.default_mode, config);
+            show_interactive(config.default_mode, config, connector);
         }
     }
 }
 
-fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
+fn show_interactive(
+    initial_mode: ScreenshotMode,
+    config: ScreenshotConfig,
+    connector: Option<String>,
+) {
     let _ = send_compositor(CompositorCommand::BeginScreenshotOverlay);
     // Park Exclusive Overlay shell chrome under this picker so it stays visible
     // for capture without covering the selection UI or stealing keyboard focus.
@@ -127,7 +147,7 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     crate::ui::dashboard::set_below_screenshot(true);
     crate::ui::bar::widgets::set_menu_below_screenshot(true);
 
-    let (monitor_origin, output_index) = monitor_context();
+    let (monitor_origin, output_index, connector) = monitor_context(connector.as_deref());
     let windows = list_windows_best_effort();
 
     let window = gtk::Window::builder()
@@ -139,6 +159,9 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     window.set_layer(Layer::Overlay);
     window.set_keyboard_mode(KeyboardMode::Exclusive);
     window.set_namespace("metis-screenshot");
+    if let Some(monitor) = gdk_monitor_for_output(&connector, monitor_origin) {
+        window.set_monitor(&monitor);
+    }
     for edge in [Edge::Top, Edge::Bottom, Edge::Left, Edge::Right] {
         window.set_anchor(edge, true);
         window.set_exclusive_zone(-1);
@@ -167,8 +190,13 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     toolbar_wrap.set_margin_bottom(28);
     chrome.add_overlay(&toolbar_wrap);
 
-    let (toolbar, mode_buttons, options_widgets, capture_btn) =
-        build_toolbar(initial_mode, config.draw_cursor, config.delay_seconds, config.after_capture);
+    let interactive_action = config.interactive_action();
+    let (toolbar, mode_buttons, options_widgets, capture_btn) = build_toolbar(
+        initial_mode,
+        config.draw_cursor,
+        config.delay_seconds,
+        interactive_action,
+    );
     toolbar_wrap.append(&toolbar);
 
     let overlay = Rc::new(Overlay {
@@ -179,13 +207,15 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
         mode: Cell::new(initial_mode),
         draw_cursor: Cell::new(config.draw_cursor),
         delay_seconds: Cell::new(config.delay_seconds),
-        after_capture: Cell::new(config.after_capture),
+        after_capture: Cell::new(interactive_action),
         drag: RefCell::new(None),
         hover_window: RefCell::new(None),
         picked_window: RefCell::new(None),
         window_locked: Cell::new(false),
         monitor_origin,
         output_index,
+        connector,
+        record_handoff: Cell::new(false),
         config,
         windows: RefCell::new(windows),
     });
@@ -212,11 +242,27 @@ fn show_interactive(initial_mode: ScreenshotMode, config: ScreenshotConfig) {
     });
 }
 
+fn show_interactive_record(config: ScreenshotConfig, connector: Option<String>) {
+    show_interactive(ScreenshotMode::Selection, config, connector);
+    OVERLAY.with(|o| {
+        if let Some(overlay) = o.borrow().as_ref() {
+            overlay.record_handoff.set(true);
+            // Prefer a capture button label that matches the handoff.
+            if let Some(child) = overlay.toolbar.last_child() {
+                if let Ok(btn) = child.downcast::<gtk::Button>() {
+                    btn.set_label(&metis_i18n::tr("Record"));
+                }
+            }
+        }
+    });
+}
+
 #[derive(Clone)]
 struct ModeButtons {
     selection: gtk::ToggleButton,
     screen: gtk::ToggleButton,
     window: gtk::ToggleButton,
+    scroll: gtk::ToggleButton,
 }
 
 struct OptionsWidgets {
@@ -225,7 +271,7 @@ struct OptionsWidgets {
     after_copy: gtk::ToggleButton,
     after_save: gtk::ToggleButton,
     after_both: gtk::ToggleButton,
-    after_open: gtk::ToggleButton,
+    after_edit: gtk::ToggleButton,
 }
 
 fn build_toolbar(
@@ -243,9 +289,11 @@ fn build_toolbar(
     let selection_btn = mode_button("edit-select-symbolic", &metis_i18n::tr("Selection"));
     let screen_btn = mode_button("view-fullscreen-symbolic", &metis_i18n::tr("Full screen"));
     let window_btn = mode_button("window-new-symbolic", &metis_i18n::tr("Window"));
+    let scroll_btn = mode_button("view-paged-symbolic", &metis_i18n::tr("Scroll"));
     mode_box.append(&selection_btn);
     mode_box.append(&screen_btn);
     mode_box.append(&window_btn);
+    mode_box.append(&scroll_btn);
     toolbar.append(&mode_box);
 
     let options_btn = gtk::MenuButton::new();
@@ -262,12 +310,12 @@ fn build_toolbar(
     after_seg.add_css_class("metis-screenshot-after-seg");
     after_seg.add_css_class("linked");
 
-    let (after_copy, after_save, after_both, after_open) = {
+    let (after_copy, after_save, after_both, after_edit) = {
         let labels = [
             metis_i18n::tr("Copy"),
             metis_i18n::tr("Save"),
             metis_i18n::tr("Both"),
-            metis_i18n::tr("Open"),
+            metis_i18n::tr("Edit"),
         ];
         let mut buttons = Vec::new();
         let mut leader: Option<gtk::ToggleButton> = None;
@@ -293,7 +341,7 @@ fn build_toolbar(
         &after_copy,
         &after_save,
         &after_both,
-        &after_open,
+        &after_edit,
         after_capture,
     );
 
@@ -303,7 +351,7 @@ fn build_toolbar(
         after_copy: after_copy.clone(),
         after_save: after_save.clone(),
         after_both: after_both.clone(),
-        after_open: after_open.clone(),
+        after_edit: after_edit.clone(),
     };
 
     let popover = build_options_popover(
@@ -314,6 +362,11 @@ fn build_toolbar(
     options_btn.set_popover(Some(&popover));
     toolbar.append(&options_btn);
 
+    let record_btn = gtk::Button::from_icon_name("media-record-symbolic");
+    record_btn.add_css_class("metis-screenshot-icon");
+    record_btn.set_tooltip_text(Some(&metis_i18n::tr("Record selection")));
+    toolbar.append(&record_btn);
+
     let capture_btn = gtk::Button::with_label(&metis_i18n::tr("Capture"));
     capture_btn.add_css_class("metis-screenshot-capture");
     toolbar.append(&capture_btn);
@@ -322,8 +375,24 @@ fn build_toolbar(
         selection: selection_btn,
         screen: screen_btn,
         window: window_btn,
+        scroll: scroll_btn,
     };
     sync_mode_buttons(&mode_buttons, initial_mode);
+
+    // Wire record as a one-shot handoff without a mode enum value on the picker.
+    {
+        let capture_btn = capture_btn.clone();
+        record_btn.connect_clicked(move |_| {
+            OVERLAY.with(|o| {
+                if let Some(overlay) = o.borrow().as_ref() {
+                    overlay.record_handoff.set(true);
+                    overlay.mode.set(ScreenshotMode::Selection);
+                    capture_btn.set_label(&metis_i18n::tr("Record"));
+                    toast_message(&metis_i18n::tr("Drag a region, then Record"));
+                }
+            });
+        });
+    }
 
     (toolbar, mode_buttons, options_widgets, capture_btn)
 }
@@ -346,33 +415,37 @@ fn sync_mode_buttons(buttons: &ModeButtons, mode: ScreenshotMode) {
     buttons.selection.set_active(mode == ScreenshotMode::Selection);
     buttons.screen.set_active(mode == ScreenshotMode::Screen);
     buttons.window.set_active(mode == ScreenshotMode::Window);
+    buttons.scroll.set_active(mode == ScreenshotMode::Scroll);
 }
 
 fn sync_after_buttons(
     copy: &gtk::ToggleButton,
     save: &gtk::ToggleButton,
     both: &gtk::ToggleButton,
-    open: &gtk::ToggleButton,
+    edit: &gtk::ToggleButton,
     action: AfterCaptureAction,
 ) {
     copy.set_active(action == AfterCaptureAction::Copy);
     save.set_active(action == AfterCaptureAction::Save);
     both.set_active(action == AfterCaptureAction::CopyAndSave);
-    open.set_active(action == AfterCaptureAction::Open);
+    edit.set_active(matches!(
+        action,
+        AfterCaptureAction::Edit | AfterCaptureAction::Open
+    ));
 }
 
 fn after_from_buttons(
     _copy: &gtk::ToggleButton,
     save: &gtk::ToggleButton,
     both: &gtk::ToggleButton,
-    open: &gtk::ToggleButton,
+    edit: &gtk::ToggleButton,
 ) -> AfterCaptureAction {
     if save.is_active() {
         AfterCaptureAction::Save
     } else if both.is_active() {
         AfterCaptureAction::CopyAndSave
-    } else if open.is_active() {
-        AfterCaptureAction::Open
+    } else if edit.is_active() {
+        AfterCaptureAction::Edit
     } else {
         AfterCaptureAction::Copy
     }
@@ -424,18 +497,18 @@ fn wire_after_buttons(
     copy: &gtk::ToggleButton,
     save: &gtk::ToggleButton,
     both: &gtk::ToggleButton,
-    open: &gtk::ToggleButton,
+    edit: &gtk::ToggleButton,
 ) {
     let sync = {
         let overlay = overlay.clone();
         let copy = copy.clone();
         let save = save.clone();
         let both = both.clone();
-        let open = open.clone();
+        let edit = edit.clone();
         move || {
             overlay
                 .after_capture
-                .set(after_from_buttons(&copy, &save, &both, &open));
+                .set(after_from_buttons(&copy, &save, &both, &edit));
             persist_settings(&overlay);
         }
     };
@@ -451,7 +524,7 @@ fn wire_after_buttons(
         let sync = sync.clone();
         move |_| sync()
     });
-    open.connect_toggled({
+    edit.connect_toggled({
         let sync = sync.clone();
         move |_| sync()
     });
@@ -463,6 +536,8 @@ fn persist_settings(overlay: &Overlay) {
         draw_cursor: overlay.draw_cursor.get(),
         delay_seconds: overlay.delay_seconds.get(),
         after_capture: overlay.after_capture.get(),
+        interactive_after_capture: None,
+        prefer_pointer_output: overlay.config.prefer_pointer_output,
         save_dir: overlay.config.save_dir.clone(),
     };
     if let Err(err) = save_screenshot_config(&cfg) {
@@ -497,7 +572,7 @@ fn wire_toolbar(
         &options.after_copy,
         &options.after_save,
         &options.after_both,
-        &options.after_open,
+        &options.after_edit,
     );
 
     let apply_mode = {
@@ -506,9 +581,11 @@ fn wire_toolbar(
             selection: mode_buttons.selection.clone(),
             screen: mode_buttons.screen.clone(),
             window: mode_buttons.window.clone(),
+            scroll: mode_buttons.scroll.clone(),
         };
         move |mode: ScreenshotMode| {
             overlay.mode.set(mode);
+            overlay.record_handoff.set(false);
             sync_mode_buttons(&mode_buttons, mode);
             overlay.drag.replace(None);
             overlay.hover_window.replace(None);
@@ -520,54 +597,27 @@ fn wire_toolbar(
         }
     };
 
-    mode_buttons.selection.connect_toggled({
+    let wire_mode = |btn: &gtk::ToggleButton, mode: ScreenshotMode| {
         let overlay = overlay.clone();
         let mode_buttons = ModeButtons {
             selection: mode_buttons.selection.clone(),
             screen: mode_buttons.screen.clone(),
             window: mode_buttons.window.clone(),
+            scroll: mode_buttons.scroll.clone(),
         };
         let apply_mode = apply_mode.clone();
-        move |btn| {
+        btn.connect_toggled(move |btn| {
             if btn.is_active() {
-                apply_mode(ScreenshotMode::Selection);
+                apply_mode(mode);
             } else {
                 sync_mode_buttons(&mode_buttons, overlay.mode.get());
             }
-        }
-    });
-    mode_buttons.screen.connect_toggled({
-        let overlay = overlay.clone();
-        let mode_buttons = ModeButtons {
-            selection: mode_buttons.selection.clone(),
-            screen: mode_buttons.screen.clone(),
-            window: mode_buttons.window.clone(),
-        };
-        let apply_mode = apply_mode.clone();
-        move |btn| {
-            if btn.is_active() {
-                apply_mode(ScreenshotMode::Screen);
-            } else {
-                sync_mode_buttons(&mode_buttons, overlay.mode.get());
-            }
-        }
-    });
-    mode_buttons.window.connect_toggled({
-        let overlay = overlay.clone();
-        let mode_buttons = ModeButtons {
-            selection: mode_buttons.selection.clone(),
-            screen: mode_buttons.screen.clone(),
-            window: mode_buttons.window.clone(),
-        };
-        let apply_mode = apply_mode.clone();
-        move |btn| {
-            if btn.is_active() {
-                apply_mode(ScreenshotMode::Window);
-            } else {
-                sync_mode_buttons(&mode_buttons, overlay.mode.get());
-            }
-        }
-    });
+        });
+    };
+    wire_mode(&mode_buttons.selection, ScreenshotMode::Selection);
+    wire_mode(&mode_buttons.screen, ScreenshotMode::Screen);
+    wire_mode(&mode_buttons.window, ScreenshotMode::Window);
+    wire_mode(&mode_buttons.scroll, ScreenshotMode::Scroll);
 
     capture_btn.connect_clicked({
         let overlay = overlay.clone();
@@ -608,7 +658,10 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
     gesture.connect_drag_begin({
         let overlay = overlay.clone();
         move |_, x, y| {
-            if overlay.mode.get() != ScreenshotMode::Selection {
+            if !matches!(
+                overlay.mode.get(),
+                ScreenshotMode::Selection | ScreenshotMode::Scroll
+            ) {
                 return;
             }
             overlay.drag.replace(Some(DragRect {
@@ -624,7 +677,10 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
         let overlay = overlay.clone();
         let size_label = size_label.clone();
         move |_, offset_x, offset_y| {
-            if overlay.mode.get() != ScreenshotMode::Selection {
+            if !matches!(
+                overlay.mode.get(),
+                ScreenshotMode::Selection | ScreenshotMode::Scroll
+            ) {
                 return;
             }
             let Some(mut drag) = overlay.drag.borrow().clone() else {
@@ -708,14 +764,32 @@ impl Overlay {
         let after_capture = self.after_capture.get();
         let config = self.config.clone();
         let output_index = self.output_index;
+        let connector = self.connector.clone();
+        let scroll = self.mode.get() == ScreenshotMode::Scroll;
+        let record = self.record_handoff.get();
         self.window.set_visible(false);
 
         glib::timeout_add_local_once(Duration::from_millis(80), move || {
+            if record {
+                dismiss();
+                launch_recorder(&config, connector.as_deref(), crop);
+                return;
+            }
             std::thread::spawn(move || {
                 if delay > 0 {
                     std::thread::sleep(Duration::from_secs(delay as u64));
                 }
-                let result = perform_capture(crop, draw_cursor, output_index, &config);
+                let result = if scroll {
+                    perform_scroll_capture(crop, draw_cursor, output_index, connector.as_deref(), &config)
+                } else {
+                    perform_capture(
+                        crop,
+                        draw_cursor,
+                        output_index,
+                        connector.as_deref(),
+                        &config,
+                    )
+                };
                 glib::idle_add_once(move || {
                     dismiss();
                     match result {
@@ -732,7 +806,7 @@ impl Overlay {
 
     fn capture_rect(&self) -> Option<PixelRect> {
         match self.mode.get() {
-            ScreenshotMode::Selection => {
+            ScreenshotMode::Selection | ScreenshotMode::Scroll => {
                 let drag = self.drag.borrow().clone()?;
                 if drag.valid() {
                     let local = drag.normalized();
@@ -783,7 +857,7 @@ fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i
     cr.paint().ok();
 
     let highlight = match overlay.mode.get() {
-        ScreenshotMode::Selection => overlay
+        ScreenshotMode::Selection | ScreenshotMode::Scroll => overlay
             .drag
             .borrow()
             .clone()
@@ -874,18 +948,25 @@ fn primary_monitor_geometry() -> gdk::Rectangle {
     gdk::Rectangle::new(0, 0, 1920, 1080)
 }
 
-fn run_instant_capture(mode: ScreenshotMode, config: ScreenshotConfig) {
-    let (origin, output_index) = monitor_context();
+fn run_instant_capture(
+    mode: ScreenshotMode,
+    config: ScreenshotConfig,
+    connector: Option<String>,
+) {
+    let (origin, output_index, connector) = monitor_context(connector.as_deref());
     let crop = match mode {
-        ScreenshotMode::Screen => {
-            let g = primary_monitor_geometry();
-            PixelRect {
-                x: g.x(),
-                y: g.y(),
-                width: g.width(),
-                height: g.height(),
-            }
-        }
+        ScreenshotMode::Screen => PixelRect {
+            x: origin.0,
+            y: origin.1,
+            width: list_outputs_best_effort()
+                .get(output_index)
+                .map(|o| o.rect.width)
+                .unwrap_or(1920),
+            height: list_outputs_best_effort()
+                .get(output_index)
+                .map(|o| o.rect.height)
+                .unwrap_or(1080),
+        },
         _ => PixelRect {
             x: origin.0,
             y: origin.1,
@@ -894,9 +975,16 @@ fn run_instant_capture(mode: ScreenshotMode, config: ScreenshotConfig) {
         },
     };
     let draw_cursor = config.draw_cursor;
+    let action = config.instant_action();
     std::thread::spawn(move || {
-        if let Ok(path) = perform_capture(crop, draw_cursor, output_index, &config) {
-            glib::idle_add_once(move || after_capture_action(&config, &path, config.after_capture));
+        if let Ok(path) = perform_capture(
+            crop,
+            draw_cursor,
+            output_index,
+            connector.as_deref(),
+            &config,
+        ) {
+            glib::idle_add_once(move || after_capture_action(&config, &path, action));
         } else {
             tracing::warn!("instant screenshot failed");
             glib::idle_add_once(|| toast_message(&metis_i18n::tr("Screenshot failed")));
@@ -908,10 +996,11 @@ fn perform_capture(
     crop: PixelRect,
     draw_cursor: bool,
     output_index: usize,
+    connector: Option<&str>,
     config: &ScreenshotConfig,
 ) -> Result<PathBuf, String> {
     let path = capture_path(config);
-    let (ox, oy) = output_origin(output_index);
+    let (ox, oy) = output_origin(output_index, connector);
     let local = PixelRect {
         x: crop.x - ox,
         y: crop.y - oy,
@@ -922,12 +1011,97 @@ fn perform_capture(
         CaptureOptions {
             draw_cursor,
             output_index,
-            connector: None,
+            connector: connector.map(str::to_string),
         },
         Some(local),
         &path,
     )?;
     Ok(path)
+}
+
+const SCROLL_MAX_HEIGHT: u32 = 16_384;
+const SCROLL_STEPS: usize = 24;
+
+fn perform_scroll_capture(
+    crop: PixelRect,
+    draw_cursor: bool,
+    output_index: usize,
+    connector: Option<&str>,
+    config: &ScreenshotConfig,
+) -> Result<PathBuf, String> {
+    let (ox, oy) = output_origin(output_index, connector);
+    let local = PixelRect {
+        x: crop.x - ox,
+        y: crop.y - oy,
+        width: crop.width,
+        height: crop.height,
+    };
+    let opts = CaptureOptions {
+        draw_cursor,
+        output_index,
+        connector: connector.map(str::to_string),
+    };
+    let cx = crop.x as f64 + crop.width as f64 / 2.0;
+    let cy = crop.y as f64 + crop.height as f64 / 2.0;
+    let _ = crate::compositor::inject_pointer_absolute(cx, cy);
+
+    let (mut w, mut h, mut rgba) = capture_rgba(opts.clone(), Some(local))?;
+    let mut stagnant = 0u32;
+    for _ in 0..SCROLL_STEPS {
+        if h >= SCROLL_MAX_HEIGHT {
+            break;
+        }
+        let _ = crate::compositor::inject_pointer_scroll(0.0, -(crop.height as f64 * 0.75));
+        std::thread::sleep(Duration::from_millis(220));
+        let (nw, nh, next) = capture_rgba(opts.clone(), Some(local))?;
+        let before = h;
+        let (sw, sh, stitched) = stitch_vertical_append(w, h, &rgba, nw, nh, &next)?;
+        w = sw;
+        h = sh;
+        rgba = stitched;
+        if h == before {
+            stagnant += 1;
+            if stagnant >= 2 {
+                break;
+            }
+        } else {
+            stagnant = 0;
+        }
+    }
+    let path = capture_path(config);
+    write_png(&path, w, h, &rgba)?;
+    Ok(path)
+}
+
+fn launch_recorder(config: &ScreenshotConfig, connector: Option<&str>, crop: PixelRect) {
+    let (ox, oy) = output_origin(0, connector);
+    let local = PixelRect {
+        x: crop.x - ox,
+        y: crop.y - oy,
+        width: crop.width,
+        height: crop.height,
+    };
+    let mut argv = vec![
+        "metis-screenshot".into(),
+        "--mode".into(),
+        "record".into(),
+        "--crop".into(),
+        format!(
+            "{},{},{},{}",
+            local.x, local.y, local.width, local.height
+        ),
+    ];
+    if let Some(name) = connector {
+        argv.push("--connector".into());
+        argv.push(name.to_string());
+    }
+    let _ = config; // save_dir used inside recorder defaults
+    if let Err(err) = crate::compositor::launch_argv(argv) {
+        tracing::warn!(%err, "failed to launch metis-screenshot record");
+        toast_message(&metis_i18n::tr("Recording failed to start"));
+    } else {
+        toast_message(&metis_i18n::tr("Recording… click Stop when done"));
+    }
 }
 
 fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: AfterCaptureAction) {
@@ -961,6 +1135,19 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
             "xdg-open".to_string(),
             path.display().to_string(),
         ]);
+    }
+    if matches!(action, AfterCaptureAction::Edit) {
+        if let Err(err) = crate::compositor::launch_argv([
+            "metis-screenshot".to_string(),
+            "--mode".to_string(),
+            "edit".to_string(),
+            "--path".to_string(),
+            path.display().to_string(),
+        ]) {
+            tracing::warn!(%err, "failed to launch metis-screenshot editor");
+            toast_message(&metis_i18n::tr("Could not open screenshot editor"));
+            return;
+        }
     }
     toast_message(&metis_i18n::tr("Screenshot captured"));
 }
@@ -996,21 +1183,84 @@ pub fn dismiss() {
     crate::ui::bar::widgets::set_menu_below_screenshot(false);
 }
 
-fn monitor_context() -> ((i32, i32), usize) {
-    let g = primary_monitor_geometry();
-    let outputs = list_outputs_best_effort();
-    let index = outputs
-        .iter()
-        .position(|o| o.rect.x == g.x() && o.rect.y == g.y())
-        .unwrap_or(0);
-    ((g.x(), g.y()), index)
+fn resolve_connector(hint: Option<String>, config: &ScreenshotConfig) -> Option<String> {
+    if !config.prefer_pointer_output {
+        return None;
+    }
+    hint.filter(|s| !s.trim().is_empty())
 }
 
-fn output_origin(output_index: usize) -> (i32, i32) {
-    list_outputs_best_effort()
+fn monitor_context(connector: Option<&str>) -> ((i32, i32), usize, Option<String>) {
+    let outputs = list_outputs_best_effort();
+    if let Some(name) = connector {
+        if let Some((idx, out)) = outputs
+            .iter()
+            .enumerate()
+            .find(|(_, o)| o.name.eq_ignore_ascii_case(name))
+        {
+            return (
+                (out.rect.x, out.rect.y),
+                idx,
+                Some(out.name.clone()),
+            );
+        }
+    }
+    if let Some((idx, out)) = outputs.iter().enumerate().find(|(_, o)| o.primary) {
+        return ((out.rect.x, out.rect.y), idx, Some(out.name.clone()));
+    }
+    if let Some((idx, out)) = outputs.iter().enumerate().next() {
+        return ((out.rect.x, out.rect.y), idx, Some(out.name.clone()));
+    }
+    let g = primary_monitor_geometry();
+    ((g.x(), g.y()), 0, None)
+}
+
+fn output_origin(output_index: usize, connector: Option<&str>) -> (i32, i32) {
+    let outputs = list_outputs_best_effort();
+    if let Some(name) = connector {
+        if let Some(out) = outputs.iter().find(|o| o.name.eq_ignore_ascii_case(name)) {
+            return (out.rect.x, out.rect.y);
+        }
+    }
+    outputs
         .get(output_index)
         .map(|o| (o.rect.x, o.rect.y))
         .unwrap_or((0, 0))
+}
+
+fn gdk_monitor_for_output(
+    connector: &Option<String>,
+    origin: (i32, i32),
+) -> Option<gdk::Monitor> {
+    let display = gdk::Display::default()?;
+    let monitors = display.monitors();
+    let n = monitors.n_items();
+    for i in 0..n {
+        let Ok(monitor) = monitors.item(i)?.downcast::<gdk::Monitor>() else {
+            continue;
+        };
+        if let Some(name) = connector.as_deref() {
+            if monitor
+                .connector()
+                .map(|c| c.eq_ignore_ascii_case(name))
+                .unwrap_or(false)
+            {
+                return Some(monitor);
+            }
+            if monitor
+                .model()
+                .map(|m| m.eq_ignore_ascii_case(name))
+                .unwrap_or(false)
+            {
+                return Some(monitor);
+            }
+        }
+        let g = monitor.geometry();
+        if g.x() == origin.0 && g.y() == origin.1 {
+            return Some(monitor);
+        }
+    }
+    None
 }
 
 fn list_outputs_best_effort() -> Vec<OutputInfo> {

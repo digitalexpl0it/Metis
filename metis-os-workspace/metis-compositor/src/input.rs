@@ -91,6 +91,15 @@ fn hardware_key_command(sym: u32) -> Option<&'static str> {
     })
 }
 
+/// Append the connector name under the pointer so the shell captures the right
+/// output on multi-monitor setups (`screenshot DP-1`, …).
+fn screenshot_runtime_cmd(state: &MetisState, verb: &str) -> String {
+    match state.output_under_pointer() {
+        Some(out) => format!("{verb} {}", out.name()),
+        None => verb.to_string(),
+    }
+}
+
 /// Run a configured desktop shortcut. Returns `true` when the event should be
 /// intercepted (even if the action was a no-op for the current layout).
 fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
@@ -100,15 +109,24 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
 
     match action {
         KeybindAction::Screenshot => {
-            let _ = metis_protocol::write_runtime_command("screenshot");
+            let _ = metis_protocol::write_runtime_command(&screenshot_runtime_cmd(
+                state,
+                "screenshot",
+            ));
             true
         }
         KeybindAction::ScreenshotFull => {
-            let _ = metis_protocol::write_runtime_command("screenshot instant-full");
+            let _ = metis_protocol::write_runtime_command(&screenshot_runtime_cmd(
+                state,
+                "screenshot instant-full",
+            ));
             true
         }
         KeybindAction::ScreenshotWindow => {
-            let _ = metis_protocol::write_runtime_command("screenshot window");
+            let _ = metis_protocol::write_runtime_command(&screenshot_runtime_cmd(
+                state,
+                "screenshot window",
+            ));
             true
         }
         KeybindAction::CycleWorkspacePrev => {

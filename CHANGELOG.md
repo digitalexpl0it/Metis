@@ -7,8 +7,44 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [2026-07-31]
 
+### Added
+
+- **`metis-screenshot` editor** — post-capture annotate, OCR (`tesseract`), pin
+  sticky window, and MP4 region recording (FFmpeg H.264 with MPEG-4 fallback).
+  Interactive PrtSc defaults
+  to **Edit**. The toolbar uses a built-in Cairo icon set (no icon-theme
+  dependency) with a shared colour/size popover, a fit-to-window canvas, real
+  pixelation and crop, live on-canvas text boxes with a blinking caret that can
+  be moved and resized, undo/redo history, and
+  Ctrl+Z / Ctrl+Shift+Z / Ctrl+C / Ctrl+S / Esc shortcuts.
+- **Selectable OCR results** — Extract Text scans the complete edited image and
+  opens recognised text in a selectable view with Copy Selection and Copy All.
+- **OCR runtime included by installers** — Debian/Ubuntu packages and dependency
+  profiles require `tesseract-ocr` plus English data; Arch requires `tesseract`
+  and `tesseract-data-eng`.
+- **Recording runtime included by installers** — FFmpeg is now a required
+  package because screen recording is a standard screenshot feature.
+- **Settings → System → Screenshot** — defaults for mode, pointer, delay,
+  after-capture, save folder, and pointer-output targeting.
+- **Scroll capture mode** — stitched vertical screenshots via synthetic scroll.
+- **Per-output PrtSc targeting** — compositor appends the connector under the
+  pointer; picker and capture use that output.
+
 ### Fixed
 
+- **Screenshot editor annotations landed in the wrong place** — `GestureDrag`
+  reports offsets from the press point, but the canvas treated them as widget
+  coordinates, so arrows, rectangles, and ellipses collapsed toward the top-left
+  corner. Pointer positions now map through the fit transform to image pixels.
+- **Screenshot editor showed two titlebars** — the editor drops its GTK titlebar
+  under a Metis session, and `com.metis.Screenshot` / `com.metis.Viewer` are
+  pinned to server-side decorations.
+- **Saved annotations no longer differ from the preview** — export renders the
+  same Cairo pass as the canvas instead of re-tracing strokes as raw lines, so
+  shapes, highlighter, text, and colours survive Copy / Save / Save As / Pin.
+- **Stopped recordings are finalized before the controller exits** — Stop now
+  remains open in a “Saving MP4…” state until FFmpeg writes the trailer, avoiding
+  truncated, unplayable videos.
 - **PrtSc over Metis Menu / Control Center / Notification Center** — screenshot
   chords fire globally even while Exclusive shell layers own the keyboard.
 - **Screenshot no longer dismisses shell chrome** — edge-bar popovers, Control
@@ -20,6 +56,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   frozen, so the shot matches what was on screen when PrtSc was pressed.
 - **Screenshot options persist** — mode, include-pointer, delay, and after-capture
   write to `screenshot.json` as soon as they change in the overlay.
+- **`screenshot instant-full` / `window` runtime commands** — shell parsing used
+  only the first token, so Shift/Ctrl+PrtSc never reached those launch modes.
 
 ## [2026-07-30]
 

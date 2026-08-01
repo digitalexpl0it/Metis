@@ -8,3 +8,5 @@
 | `arch.sh` | Arch Linux (`pacman`) |
 
 Each file sets package arrays and `METIS_LAYER_SHELL_FROM_SOURCE`.
+All profiles install Tesseract and English language data because Extract Text is
+a standard Metis Screenshot feature rather than an optional integration.

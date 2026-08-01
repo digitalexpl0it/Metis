@@ -67,26 +67,111 @@ pub fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<()
 }
 
 /// Capture one output and optionally crop to `crop` in output-local coordinates.
+pub fn capture_rgba(
+    options: CaptureOptions,
+    crop: Option<PixelRect>,
+) -> Result<(u32, u32, Vec<u8>), String> {
+    let frame = crate::wayland::capture_output_frame(options)?;
+    let rgba = frame_to_rgba(&frame);
+    if let Some(rect) = crop {
+        let cropped = crop_rgba(&rgba, frame.width, frame.height, rect)?;
+        let w = rect.width.max(0) as u32;
+        let h = rect.height.max(0) as u32;
+        Ok((w, h, cropped))
+    } else {
+        Ok((frame.width, frame.height, rgba))
+    }
+}
+
+/// Capture one output and optionally crop to `crop` in output-local coordinates.
 pub fn capture_png(
     options: CaptureOptions,
     crop: Option<PixelRect>,
     path: &Path,
 ) -> Result<(u32, u32), String> {
-    let frame = crate::wayland::capture_output_frame(options)?;
-    let rgba = frame_to_rgba(&frame);
-    let (out_rgba, width, height) = if let Some(rect) = crop {
-        let cropped = crop_rgba(&rgba, frame.width, frame.height, rect)?;
-        let w = rect.width.max(0) as u32;
-        let h = rect.height.max(0) as u32;
-        (cropped, w, h)
-    } else {
-        (rgba, frame.width, frame.height)
-    };
+    let (width, height, out_rgba) = capture_rgba(options, crop)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| format!("create dir: {err}"))?;
     }
     write_png(path, width, height, &out_rgba)?;
     Ok((width, height))
+}
+
+/// Vertically stitch scroll-capture frames. Finds the best overlap between the
+/// bottom of `acc` and the top of `next`, then appends the novel rows.
+pub fn stitch_vertical_append(
+    acc_w: u32,
+    acc_h: u32,
+    acc: &[u8],
+    next_w: u32,
+    next_h: u32,
+    next: &[u8],
+) -> Result<(u32, u32, Vec<u8>), String> {
+    if acc_w == 0 || next_w == 0 || acc_h == 0 || next_h == 0 {
+        return Err("empty stitch frame".into());
+    }
+    if acc_w != next_w {
+        return Err("scroll frames must share width".into());
+    }
+    let max_overlap = (acc_h.min(next_h).saturating_sub(1)).min(next_h * 4 / 5).max(1);
+    let mut best_overlap = 0u32;
+    let mut best_score = i64::MAX;
+    for overlap in 8..=max_overlap {
+        let score = row_diff_score(
+            acc,
+            acc_w,
+            acc_h.saturating_sub(overlap),
+            next,
+            next_w,
+            0,
+            overlap,
+        );
+        if score < best_score {
+            best_score = score;
+            best_overlap = overlap;
+        }
+    }
+    let novel = next_h.saturating_sub(best_overlap);
+    if novel == 0 {
+        return Ok((acc_w, acc_h, acc.to_vec()));
+    }
+    let new_h = acc_h + novel;
+    let mut out = vec![0u8; (acc_w * new_h * 4) as usize];
+    out[..acc.len()].copy_from_slice(acc);
+    let src_off = (best_overlap * next_w * 4) as usize;
+    let dst_off = (acc_h * acc_w * 4) as usize;
+    let bytes = (novel * next_w * 4) as usize;
+    out[dst_off..dst_off + bytes].copy_from_slice(&next[src_off..src_off + bytes]);
+    Ok((acc_w, new_h, out))
+}
+
+fn row_diff_score(
+    a: &[u8],
+    aw: u32,
+    a_row: u32,
+    b: &[u8],
+    bw: u32,
+    b_row: u32,
+    rows: u32,
+) -> i64 {
+    let mut score = 0i64;
+    let step = 4u32; // sample every 4th pixel for speed
+    for r in 0..rows {
+        let ar = ((a_row + r) * aw * 4) as usize;
+        let br = ((b_row + r) * bw * 4) as usize;
+        let mut x = 0u32;
+        while x < aw {
+            let ai = ar + (x * 4) as usize;
+            let bi = br + (x * 4) as usize;
+            if ai + 2 < a.len() && bi + 2 < b.len() {
+                score += (a[ai] as i64 - b[bi] as i64).abs();
+                score += (a[ai + 1] as i64 - b[bi + 1] as i64).abs();
+                score += (a[ai + 2] as i64 - b[bi + 2] as i64).abs();
+            }
+            x += step;
+        }
+    }
+    score
 }
 
 fn bgra_to_rgba(data: &[u8], width: u32, height: u32, stride: u32) -> Vec<u8> {

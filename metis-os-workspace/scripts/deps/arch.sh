@@ -35,6 +35,9 @@ METIS_PACMAN_PACKAGES=(
   gnome-keyring
   xdg-desktop-portal
   xdg-desktop-portal-gtk
+  tesseract
+  tesseract-data-eng
+  ffmpeg
   nftables
   polkit-gnome
 )

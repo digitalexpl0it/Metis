@@ -319,7 +319,7 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
             BUILD_ARGS+=("$prof")
         fi
     fi
-    if ! cargo build "${BUILD_ARGS[@]}" -p metis-compositor -p metis-shell -p metis-settings -p metis-portal -p metis-remote -p metis-viewer -p metis-gaming; then
+    if ! cargo build "${BUILD_ARGS[@]}" -p metis-compositor -p metis-shell -p metis-settings -p metis-portal -p metis-remote -p metis-viewer -p metis-screenshot -p metis-gaming; then
         echo "ERROR: release build failed." >&2
         exit 1
     fi
@@ -351,6 +351,9 @@ if [[ "$DO_INSTALL_SESSION" -eq 1 ]]; then
     fi
     if [[ -x "$REL/metis-viewer" ]]; then
         $SUDO install -Dm755 "$REL/metis-viewer" "$BIN_DST/metis-viewer"
+    fi
+    if [[ -x "$REL/metis-screenshot" ]]; then
+        $SUDO install -Dm755 "$REL/metis-screenshot" "$BIN_DST/metis-screenshot"
     fi
     if [[ -x "$REL/metis-gamingd" ]]; then
         $SUDO install -Dm755 "$REL/metis-gamingd" "$BIN_DST/metis-gamingd"
@@ -610,6 +613,7 @@ binary_needs_rebuild() {
     local newest_src
     newest_src="$(find "$workspace/metis-compositor" "$workspace/metis-shell" "$workspace/metis-grid" "$workspace/metis-protocol" \
         "$workspace/metis-config" "$workspace/metis-secrets" "$workspace/metis-settings" "$workspace/metis-viewer" \
+        "$workspace/metis-screenshot" "$workspace/metis-capture" \
         -name '*.rs' -newer "$bin" 2>/dev/null | head -1)"
     if [[ -n "$newest_src" ]]; then
         log "Source changed since last build ($newest_src) — rebuild required."
@@ -875,11 +879,11 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
                 BUILD_ARGS+=("$prof")
             fi
         fi
-        BUILD_CMD=(cargo build "${BUILD_ARGS[@]}" -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-gaming)
+        BUILD_CMD=(cargo build "${BUILD_ARGS[@]}" -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-screenshot -p metis-gaming)
     else
         SHELL_BIN="$TARGET_DIR/debug/metis-shell"
         COMP_BIN="$TARGET_DIR/debug/metis-compositor"
-        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-gaming)
+        BUILD_CMD=(cargo build -p metis-shell -p metis-compositor -p metis-settings -p metis-remote -p metis-viewer -p metis-screenshot -p metis-gaming)
     fi
 
     if [[ "$FORCE_BUILD" -eq 1 ]] || binary_needs_rebuild "$SHELL_BIN" || binary_needs_rebuild "$COMP_BIN"; then

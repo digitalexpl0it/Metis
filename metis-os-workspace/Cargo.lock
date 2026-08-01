@@ -2432,6 +2432,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "metis-screenshot"
+version = "0.1.15"
+dependencies = [
+ "gdk-pixbuf",
+ "gio",
+ "glib",
+ "gtk4",
+ "gtk4-layer-shell",
+ "image",
+ "metis-capture",
+ "metis-config",
+ "metis-grid",
+ "metis-i18n",
+ "metis-protocol",
+ "png 0.17.16",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "metis-secrets"
 version = "0.1.15"
 dependencies = [

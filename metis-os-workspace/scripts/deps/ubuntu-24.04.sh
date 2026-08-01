@@ -40,6 +40,9 @@ METIS_APT_PACKAGES=(
   gnome-keyring
   xdg-desktop-portal
   xdg-desktop-portal-gtk
+  tesseract-ocr
+  tesseract-ocr-eng
+  ffmpeg
   nftables
   policykit-1-gnome
 )

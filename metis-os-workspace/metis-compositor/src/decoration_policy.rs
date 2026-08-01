@@ -41,6 +41,10 @@ const SSD_APP_IDS: &[&str] = &[
     "st",
     "urxvt",
     "com.metis.Settings",
+    // Metis' own helper toplevels drop their GTK titlebar under a Metis session
+    // and rely on this entry for chrome.
+    "com.metis.Screenshot",
+    "com.metis.Viewer",
     // GNOME Text Editor ships a libadwaita headerbar; Metis SSD gives consistent
     // tiling controls and avoids double-chrome layout fights in grid mode.
     "org.gnome.TextEditor",
@@ -547,6 +551,11 @@ mod tests {
     fn metis_and_terminals_use_ssd() {
         assert!(resolve_uses_ssd(Some("org.kitty"), None, false, None));
         assert!(resolve_uses_ssd(Some("com.metis.Settings"), None, false, None));
+        // Metis helper toplevels drop their GTK titlebar, so they must keep SSD
+        // even though GTK binds xdg-decoration and would otherwise fall to CSD.
+        for id in ["com.metis.Screenshot", "com.metis.Viewer"] {
+            assert!(resolve_uses_ssd(Some(id), None, true, None));
+        }
     }
 
     /// Terminals report bare WM-class app_ids at runtime, and they bind
