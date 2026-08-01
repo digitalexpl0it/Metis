@@ -31,6 +31,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Ubuntu 26.04 `.deb` install failed on `libdisplay-info1`** — resolute ships
+  `libdisplay-info3`; the package `Depends` now accepts
+  `libdisplay-info3 | libdisplay-info2 | libdisplay-info1` (same OR chain on
+  Debian 13). Rebuild/re-download the `…ubuntu26.04.deb` after this change.
 - **Screenshot editor annotations landed in the wrong place** — `GestureDrag`
   reports offsets from the press point, but the canvas treated them as widget
   coordinates, so arrows, rectangles, and ellipses collapsed toward the top-left

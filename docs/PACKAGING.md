@@ -23,12 +23,18 @@ Pick the artifact that matches your OS:
 | `…amd64.debian13.deb` | Debian 13 (trixie) |
 
 ```bash
+# Ubuntu 26.04: enable universe if apt reports libseat1 / kitty / layer-shell missing
+sudo apt update
 sudo apt install ./metis-desktop_VERSION-1_amd64.ubuntu24.04.deb
 dpkg -l metis-desktop
 command -v metis-remote metis-settings metis-session
 ```
 
 Log out and pick **Metis** at the greeter.
+
+**Ubuntu 26.04 note:** packages from `0.1.0.15a` and earlier declared
+`Depends: libdisplay-info1`, which resolute no longer ships (it has
+`libdisplay-info3`). Use a newer `…ubuntu26.04.deb` rebuilt after that fix.
 
 ### Upgrading
 
