@@ -14,6 +14,7 @@ use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::{KeyboardMode, LayerShell};
 
+use crate::gtk_cb::OptFn0Cell;
 use crate::services::{applications, AppEntry};
 
 const APP_ICON_SIZE: i32 = 24;
@@ -419,7 +420,7 @@ pub fn install(button: &gtk::Button) {
     // A shared `refresh` handle lets row/tile context actions (pin/unpin) trigger
     // a full repopulate. It dispatches through a slot so it can reference the
     // rebuild closure that is defined just below it.
-    let rebuild_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let rebuild_slot: OptFn0Cell = Rc::new(RefCell::new(None));
     let refresh: Rc<dyn Fn()> = {
         let slot = rebuild_slot.clone();
         Rc::new(move || {

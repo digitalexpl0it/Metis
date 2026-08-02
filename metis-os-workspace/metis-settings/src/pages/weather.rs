@@ -100,7 +100,7 @@ pub fn build() -> gtk::Widget {
 
     let search_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let search_entry = gtk::Entry::builder()
-        .placeholder_text(&tr("Search for a city…"))
+        .placeholder_text(tr("Search for a city…"))
         .hexpand(true)
         .build();
     let search_btn = gtk::Button::with_label(&tr("Search"));

@@ -331,10 +331,12 @@ fn is_noise_override_key(key: &str) -> bool {
     if k.is_empty() || k.chars().all(|c| c.is_ascii_digit()) {
         return true;
     }
-    if k.contains('_') && k.chars().any(|c| c.is_ascii_hexdigit()) && k.contains('.') {
-        if k.split('_').next().is_some_and(|p| p.len() <= 6) {
-            return true;
-        }
+    if k.contains('_')
+        && k.chars().any(|c| c.is_ascii_hexdigit())
+        && k.contains('.')
+        && k.split('_').next().is_some_and(|p| p.len() <= 6)
+    {
+        return true;
     }
     matches!(
         k.as_str(),

@@ -629,7 +629,7 @@ fn new_instance_id() -> String {
     format!("dw-{nanos:x}")
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct DesktopWidgetsConfig {
     /// Master switch. Default off — wallpaper stays clean until the user opts in.
     #[serde(default)]
@@ -647,18 +647,6 @@ pub struct DesktopWidgetsConfig {
     pub background_opacity: Option<f32>,
     #[serde(default)]
     pub instances: Vec<DesktopWidgetInstance>,
-}
-
-impl Default for DesktopWidgetsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            edit_mode: false,
-            chrome: DesktopWidgetChrome::default(),
-            background_opacity: None,
-            instances: Vec::new(),
-        }
-    }
 }
 
 pub fn desktop_widgets_config_path() -> std::path::PathBuf {

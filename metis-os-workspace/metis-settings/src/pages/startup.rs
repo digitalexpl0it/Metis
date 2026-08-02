@@ -52,7 +52,7 @@ pub fn build() -> gtk::Widget {
     list_body.append(&list);
 
     let add_btn = gtk::MenuButton::builder()
-        .label(&tr("Add application…"))
+        .label(tr("Add application…"))
         .halign(gtk::Align::Start)
         .build();
     let popover = build_app_picker(cfg.clone(), list.clone());

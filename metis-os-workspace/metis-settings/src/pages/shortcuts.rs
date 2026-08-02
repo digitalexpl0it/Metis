@@ -14,7 +14,7 @@ pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("shortcuts");
 
     let search = gtk::SearchEntry::builder()
-        .placeholder_text(&tr("Search shortcuts…"))
+        .placeholder_text(tr("Search shortcuts…"))
         .hexpand(true)
         .build();
     search.add_css_class("metis-settings-search");

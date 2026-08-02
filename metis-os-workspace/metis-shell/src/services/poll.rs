@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use crate::services::notifications::BarNotification;
 use crate::services::workspaces;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum AudioCommand {
     SetVolumeAbsolute(u8),
@@ -337,8 +338,10 @@ fn poll_loop(
     network_rx: Receiver<NetworkCommand>,
 ) {
     let mut tick: u64 = 0;
-    let mut cached = BarSnapshot::default();
-    cached.workspaces = workspaces::workspace_snapshot();
+    let mut cached = BarSnapshot {
+        workspaces: workspaces::workspace_snapshot(),
+        ..Default::default()
+    };
     let mut last_sent = cached.clone();
     let mut wifi_scan_grace_until: Option<std::time::Instant> = None;
 
@@ -352,12 +355,12 @@ fn poll_loop(
         let network_dirty = NETWORK_DIRTY.swap(false, Ordering::Relaxed);
 
         // Battery/BT: slow fallback (~12–24 s). Network: D-Bus dirty or timed tick.
-        if tick % 30 == 0 {
+        if tick.is_multiple_of(30) {
             cached.battery_percent = read_battery_percent();
             cached.battery_charging = read_battery_charging();
             cached.bluetooth = read_bluetooth_status();
         }
-        if network_dirty || tick % 5 == 0 {
+        if network_dirty || tick.is_multiple_of(5) {
             cached.wifi_enabled = read_wifi_radio_enabled();
             if let Some(eth) = read_ethernet_status() {
                 cached.ethernet = eth;
@@ -384,7 +387,7 @@ fn poll_loop(
                 cached.wifi.clear();
             }
         }
-        if tick % 2 == 0 || audio_changed {
+        if tick.is_multiple_of(2) || audio_changed {
             // Keep the last good reading when pactl times out / reports nothing,
             // so a transient failure doesn't snap sliders to 0 or flip mute state.
             if let Some(v) = read_volume_percent() {

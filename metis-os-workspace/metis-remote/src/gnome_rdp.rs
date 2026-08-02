@@ -218,13 +218,11 @@ fn parse_grdctl_status(text: &str) -> ParsedStatus {
                             .into(),
                     );
                 }
-                "TLS fingerprint" if val.eq_ignore_ascii_case("(null)") => {
-                    if error.is_none() {
-                        error = Some(
-                            "RDP TLS certificate is not configured — disable and re-enable sharing"
-                                .into(),
-                        );
-                    }
+                "TLS fingerprint" if val.eq_ignore_ascii_case("(null)") && error.is_none() => {
+                    error = Some(
+                        "RDP TLS certificate is not configured — disable and re-enable sharing"
+                            .into(),
+                    );
                 }
                 _ => {}
             }

@@ -492,8 +492,8 @@ impl Inner {
                 Some(d) => d,
                 None => continue,
             };
-            let col = (cell % 7) as i32;
-            let row = (cell / 7) as i32 + 1;
+            let col = cell % 7;
+            let row = (cell / 7) + 1;
 
             let cell_box = gtk::Box::builder()
                 .orientation(gtk::Orientation::Vertical)

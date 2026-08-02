@@ -37,7 +37,7 @@ fn require_root() -> Result<(), String> {
 }
 
 fn package_allowed(pkg: &str) -> bool {
-    APT_ALLOWLIST.iter().any(|p| *p == pkg)
+    APT_ALLOWLIST.contains(&pkg)
 }
 
 /// `apt-get install -y -- <allowlisted packages…>` — root only.

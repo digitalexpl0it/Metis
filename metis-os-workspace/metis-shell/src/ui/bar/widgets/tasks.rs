@@ -428,7 +428,7 @@ fn rebuild(
                 let resolved = w
                     .app_id
                     .as_deref()
-                    .and_then(|id| resolve(id))
+                    .and_then(&resolve)
                     .or_else(|| resolve_by_title(&w.title));
                 if let Some(e) = resolved {
                     groups[i].icon = icon_or_fallback(e);
@@ -439,7 +439,7 @@ fn rebuild(
             } else if groups[i].exec.is_none() {
                 // Pinned with icon/name but missing Exec (e.g. OnlyShowIn hide) —
                 // fill in a launch command once we can resolve the desktop entry.
-                let resolved = w.app_id.as_deref().and_then(|id| resolve(id)).or_else(|| {
+                let resolved = w.app_id.as_deref().and_then(&resolve).or_else(|| {
                     groups[i]
                         .pin_id
                         .as_deref()

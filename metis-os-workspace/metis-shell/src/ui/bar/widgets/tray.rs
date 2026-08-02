@@ -544,9 +544,11 @@ fn attach_tray_tooltip(
                         tip.set_margin_top((y as i32 - 30).max(0));
                     }
                     tip.set_visible(true);
-                    tip.parent()
-                        .and_then(|p| p.downcast::<gtk::Overlay>().ok())
-                        .map(|overlay| overlay.set_clip_overlay(&tip, false));
+                    if let Some(overlay) =
+                        tip.parent().and_then(|p| p.downcast::<gtk::Overlay>().ok())
+                    {
+                        overlay.set_clip_overlay(&tip, false)
+                    }
                 });
             *timer.borrow_mut() = Some(id);
         });
@@ -675,9 +677,7 @@ fn theme_path_texture(item: &TrayItem) -> Option<gdk::Texture> {
 }
 
 fn pixmap_texture(item: &TrayItem) -> Option<gdk::Texture> {
-    item.icon_pixmap
-        .as_ref()
-        .map(|pixmap| pixmap_to_texture(pixmap))
+    item.icon_pixmap.as_ref().map(pixmap_to_texture)
 }
 
 /// Decode SNI IconPixmap bytes (BGRA / little-endian ARGB32) to a GTK texture.
@@ -720,7 +720,7 @@ fn pixmap_to_texture(pixmap: &crate::services::IconPixmap) -> gdk::Texture {
         pixmap.height,
         gdk::MemoryFormat::R8g8b8a8,
         &glib::Bytes::from(&rgba),
-        (w * 4) as usize,
+        w * 4,
     )
     .into()
 }

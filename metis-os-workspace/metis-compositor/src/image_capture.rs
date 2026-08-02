@@ -155,9 +155,7 @@ fn output_constraints(
     let output = output_for_source(source)?;
     let mode = output.current_mode()?;
     let dma = state.udev.as_ref().and_then(|udev| {
-        if udev.capture_dmabuf_formats.iter().next().is_none() {
-            return None;
-        }
+        udev.capture_dmabuf_formats.iter().next()?;
         let mut by_fourcc: HashMap<Fourcc, Vec<Modifier>> = HashMap::new();
         for fmt in udev.capture_dmabuf_formats.iter() {
             by_fourcc.entry(fmt.code).or_default().push(fmt.modifier);
@@ -398,6 +396,7 @@ where
 /// memory). Wayland `ARGB8888` SHM expects B,G,R,(A|X) — a raw memcpy swaps red
 /// and blue, which shows up as a warm/orange wash in portal screenshots and
 /// screencasts.
+#[allow(clippy::too_many_arguments)]
 fn copy_pixels_to_shm(
     src: &[u8],
     src_stride_px: usize,
@@ -467,6 +466,36 @@ fn copy_pixels_to_shm(
     Ok(())
 }
 
+fn map_buffer_error(err: BufferAccessError) -> CaptureFailureReason {
+    match err {
+        BufferAccessError::NotManaged | BufferAccessError::BadMap => {
+            CaptureFailureReason::BufferConstraints
+        }
+        BufferAccessError::NotReadable | BufferAccessError::NotWritable => {
+            CaptureFailureReason::Unknown
+        }
+    }
+}
+
+pub(crate) fn finish_pending_captures(
+    state: &mut MetisState,
+    renderer: &mut GlesRenderer,
+    start_time: Instant,
+) {
+    let pending = state.image_capture.take_pending();
+    for job in pending {
+        let buffer = job.frame.buffer();
+        match render_output_to_buffer(state, renderer, &job.output, job.draw_cursor, &buffer) {
+            Ok(damage) => {
+                job.frame
+                    .success(Transform::Normal, Some(damage), start_time.elapsed());
+            }
+            Err(reason) => job.frame.fail(reason),
+        }
+    }
+    state.image_capture.cleanup();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -508,34 +537,4 @@ mod tests {
         .expect("copy");
         assert_eq!(dst, src);
     }
-}
-
-fn map_buffer_error(err: BufferAccessError) -> CaptureFailureReason {
-    match err {
-        BufferAccessError::NotManaged | BufferAccessError::BadMap => {
-            CaptureFailureReason::BufferConstraints
-        }
-        BufferAccessError::NotReadable | BufferAccessError::NotWritable => {
-            CaptureFailureReason::Unknown
-        }
-    }
-}
-
-pub(crate) fn finish_pending_captures(
-    state: &mut MetisState,
-    renderer: &mut GlesRenderer,
-    start_time: Instant,
-) {
-    let pending = state.image_capture.take_pending();
-    for job in pending {
-        let buffer = job.frame.buffer();
-        match render_output_to_buffer(state, renderer, &job.output, job.draw_cursor, &buffer) {
-            Ok(damage) => {
-                job.frame
-                    .success(Transform::Normal, Some(damage), start_time.elapsed());
-            }
-            Err(reason) => job.frame.fail(reason),
-        }
-    }
-    state.image_capture.cleanup();
 }

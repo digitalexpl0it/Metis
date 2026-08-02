@@ -51,21 +51,12 @@ pub struct BriefingItem {
     pub source: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BriefingConfig {
     #[serde(default)]
     pub weather: WeatherConfig,
     #[serde(default)]
     pub rss: RssConfig,
-}
-
-impl Default for BriefingConfig {
-    fn default() -> Self {
-        Self {
-            weather: WeatherConfig::default(),
-            rss: RssConfig::default(),
-        }
-    }
 }
 
 pub fn load_briefing_config() -> BriefingConfig {

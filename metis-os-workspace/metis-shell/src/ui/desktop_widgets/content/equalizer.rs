@@ -281,6 +281,7 @@ fn draw_bars(cr: &Context, w: f64, h: f64, bands: &[f32], peaks: &[f32], opts: &
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_segmented_column(
     cr: &Context,
     x: f64,
@@ -309,6 +310,7 @@ fn draw_segmented_column(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_solid_column(
     cr: &Context,
     x: f64,
@@ -348,6 +350,7 @@ fn draw_solid_column(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_dot_column(
     cr: &Context,
     x: f64,

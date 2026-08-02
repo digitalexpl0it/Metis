@@ -162,7 +162,7 @@ fn sync_keyboard_leds(state: &mut MetisState) {
     };
     for device in &mut state.input_runtime.devices {
         if device.has_capability(DeviceCapability::Keyboard) {
-            let _ = device.led_update(led_state.into());
+            device.led_update(led_state.into());
         }
     }
 }

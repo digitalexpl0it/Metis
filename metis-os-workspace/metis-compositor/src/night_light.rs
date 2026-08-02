@@ -86,36 +86,6 @@ pub fn premultiply(color: Color32F) -> Color32F {
     Color32F::new(color.r() * a, color.g() * a, color.b() * a, a)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn neutral_kelvin_is_minimal_wash() {
-        let c = premultiply(overlay_color_for_temperature(6500));
-        assert!(c.a() < 0.03, "6500 K should be a very light tint");
-    }
-
-    #[test]
-    fn warm_kelvin_is_premultiplied_and_subtle() {
-        let raw = overlay_color_for_temperature(2700);
-        let c = premultiply(raw);
-        assert!(c.r() <= c.a() + 0.001);
-        assert!(c.a() <= 0.20, "max warmth stays readable");
-        assert!(
-            raw.b() < raw.g() && raw.g() <= raw.r(),
-            "warm hue before premult"
-        );
-    }
-
-    #[test]
-    fn warmer_is_stronger_than_cooler() {
-        let warm = premultiply(overlay_color_for_temperature(2700)).a();
-        let cool = premultiply(overlay_color_for_temperature(5500)).a();
-        assert!(warm > cool);
-    }
-}
-
 pub fn night_light_element(
     state: &MetisState,
     target: &RenderTargetInfo<'_>,
@@ -154,5 +124,35 @@ pub fn maybe_tick_schedule(state: &mut MetisState) {
     if state.night_light_schedule_effective.replace(effective) != Some(effective) {
         state.night_light_commit.increment();
         state.schedule_redraw();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn neutral_kelvin_is_minimal_wash() {
+        let c = premultiply(overlay_color_for_temperature(6500));
+        assert!(c.a() < 0.03, "6500 K should be a very light tint");
+    }
+
+    #[test]
+    fn warm_kelvin_is_premultiplied_and_subtle() {
+        let raw = overlay_color_for_temperature(2700);
+        let c = premultiply(raw);
+        assert!(c.r() <= c.a() + 0.001);
+        assert!(c.a() <= 0.20, "max warmth stays readable");
+        assert!(
+            raw.b() < raw.g() && raw.g() <= raw.r(),
+            "warm hue before premult"
+        );
+    }
+
+    #[test]
+    fn warmer_is_stronger_than_cooler() {
+        let warm = premultiply(overlay_color_for_temperature(2700)).a();
+        let cool = premultiply(overlay_color_for_temperature(5500)).a();
+        assert!(warm > cool);
     }
 }

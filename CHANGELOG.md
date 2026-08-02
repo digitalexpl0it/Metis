@@ -35,6 +35,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   and Debian 13 release jobs; `cargo deny` replaces `cargo audit` there.
 - **`clippy::unwrap_used` denied** on `metis-protocol` and `metis-config`
   (non-test builds).
+- **Workspace clippy clean-up** — idiomatic fixes across config/grid/capture/
+  gaming/remote/compositor/portal/settings/shell so PR CI (`-D warnings`) stays
+  green (derive `Default`, collapsible match/if, `clamp`/`contains`, etc.).
 
 ### Fixed
 

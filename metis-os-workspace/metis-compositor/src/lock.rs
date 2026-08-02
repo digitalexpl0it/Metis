@@ -620,6 +620,7 @@ impl MetisState {
     /// Rasterize (or reuse) a centered text line and push it as an element.
     /// Returns the rendered `(width, height)` so callers can position adjacent
     /// elements (e.g. the password caret) precisely.
+    #[allow(clippy::too_many_arguments)]
     fn push_lock_text(
         &mut self,
         renderer: &mut GlesRenderer,
@@ -1053,7 +1054,7 @@ fn pam_service() -> String {
 }
 
 fn lock_cue_status(cues: AuthCues) -> Option<String> {
-    cues.status_ftl_id().map(|id| metis_i18n::tr_ftl(id))
+    cues.status_ftl_id().map(metis_i18n::tr_ftl)
 }
 
 // --- Minimal libpam FFI ------------------------------------------------------

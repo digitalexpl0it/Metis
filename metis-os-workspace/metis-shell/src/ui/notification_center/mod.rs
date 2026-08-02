@@ -437,7 +437,7 @@ fn build_center() -> Rc<Center> {
     let layout = nc_layout();
 
     let window = gtk::Window::builder()
-        .title(&metis_i18n::tr("Notification Center"))
+        .title(metis_i18n::tr("Notification Center"))
         .decorated(false)
         .build();
     window.add_css_class("metis-nc-window");
@@ -530,7 +530,7 @@ fn build_center() -> Rc<Center> {
         .spacing(6)
         .build();
     let date_label = gtk::Label::builder()
-        .label(&Local::now().format("%A %-d %B").to_string())
+        .label(Local::now().format("%A %-d %B").to_string())
         .halign(gtk::Align::Start)
         .hexpand(true)
         .build();

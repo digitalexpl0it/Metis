@@ -357,8 +357,7 @@ fn parse_battery_percentage(field: &str) -> Option<u8> {
 fn parse_field(text: &str, key: &str) -> Option<String> {
     text.lines()
         .find(|l| l.trim_start().starts_with(key))
-        .map(|l| l.split_once(key).map(|(_, v)| v.trim().to_string()))
-        .flatten()
+        .and_then(|l| l.split_once(key).map(|(_, v)| v.trim().to_string()))
         .filter(|s| !s.is_empty())
 }
 

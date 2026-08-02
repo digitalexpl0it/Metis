@@ -25,21 +25,21 @@ pub fn build() -> gtk::Widget {
         input_common::section_card(&tr("Layout"), "input-keyboard-symbolic");
 
     let layout = gtk::Entry::builder()
-        .placeholder_text(&tr("Leave empty for system default, e.g. us"))
+        .placeholder_text(tr("Leave empty for system default, e.g. us"))
         .text(&cfg.keyboard.layout)
         .hexpand(true)
         .build();
     layout_body.append(&crate::ui::row(&tr("Layout"), &layout));
 
     let variant = gtk::Entry::builder()
-        .placeholder_text(&tr("Optional variant"))
+        .placeholder_text(tr("Optional variant"))
         .text(&cfg.keyboard.variant)
         .hexpand(true)
         .build();
     layout_body.append(&crate::ui::row(&tr("Variant"), &variant));
 
     let options = gtk::Entry::builder()
-        .placeholder_text(&tr("Extra xkb options, comma-separated"))
+        .placeholder_text(tr("Extra xkb options, comma-separated"))
         .text(&cfg.keyboard.options)
         .hexpand(true)
         .build();
@@ -624,6 +624,7 @@ fn persist_keybinds(cfg: &KeybindsConfig, status: &gtk::Label) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn save_keyboard(
     layout: &gtk::Entry,
     variant: &gtk::Entry,

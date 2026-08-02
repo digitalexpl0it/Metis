@@ -1,6 +1,7 @@
 mod briefing;
 mod compositor;
 mod config;
+mod gtk_cb;
 mod services;
 mod state;
 mod ui;

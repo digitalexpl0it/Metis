@@ -115,11 +115,7 @@ impl GridLayout {
     pub fn load_from_path(path: &Path) -> Self {
         let layout = if path.exists() {
             if let Ok(text) = std::fs::read_to_string(path) {
-                if let Ok(parsed) = serde_json::from_str(&text) {
-                    parsed
-                } else {
-                    Self::default()
-                }
+                serde_json::from_str(&text).unwrap_or_default()
             } else {
                 Self::default()
             }
@@ -149,8 +145,8 @@ impl GridLayout {
     /// Default slot for a newly opened app window (bottom of the app tiling band).
     pub fn default_app_tile_rect(&self) -> TileRect {
         let region = self.app_tiling_region();
-        let h = region.h.min(4).max(2);
-        let w = region.w.min(6).max(4);
+        let h = region.h.clamp(2, 4);
+        let w = region.w.clamp(4, 6);
         TileRect::new(region.col, region.row + region.h.saturating_sub(h), w, h)
     }
 

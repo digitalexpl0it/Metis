@@ -124,7 +124,7 @@ fn build_bar(config: Rc<RefCell<BarConfig>>, monitor: Option<&gtk::gdk::Monitor>
     let (win_w, win_h) = layer_window_size(&cfg);
 
     let window = gtk::Window::builder()
-        .title(&metis_i18n::tr("Metis Bar"))
+        .title(metis_i18n::tr("Metis Bar"))
         .default_width(win_w)
         .default_height(win_h)
         .build();
@@ -586,7 +586,7 @@ fn watch_compositor_dismiss() {
                 "screenshot" => {
                     // Forms: `screenshot [CONNECTOR]`,
                     // `screenshot instant-full|window|record [CONNECTOR]`.
-                    let mut parts = arg.trim().split_whitespace();
+                    let mut parts = arg.split_whitespace();
                     let first = parts.next().unwrap_or("");
                     let (mode, connector) = match first {
                         "" => (crate::ui::screenshot::LaunchMode::Interactive, None),
@@ -688,11 +688,7 @@ fn configure_surface(outer: &gtk::Box, column: &gtk::Box, pill: &gtk::Box, confi
     let is_vertical = matches!(config.position, BarPosition::Left | BarPosition::Right);
     let thickness = bar_body_thickness(config);
 
-    outer.set_orientation(if is_vertical {
-        gtk::Orientation::Horizontal
-    } else {
-        gtk::Orientation::Horizontal
-    });
+    outer.set_orientation(gtk::Orientation::Horizontal);
     // Stretch along the bar's long axis only (width for top/bottom, height for
     // left/right). Expanding on both axes makes a horizontal pill collapse to its
     // natural content width.
@@ -1102,6 +1098,7 @@ pub fn notify_bar_interaction() {
 }
 
 /// Compositor hot-edge reveal (same as edge hover when already hidden).
+#[allow(dead_code)]
 pub fn reveal_auto_hidden_bars() {
     on_bar_edge_hover();
 }

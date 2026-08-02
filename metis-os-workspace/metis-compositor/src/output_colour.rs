@@ -27,6 +27,7 @@ pub struct ColourPassResult {
 /// Returns `None` when neither LUT nor HDR is active (caller scans out `elements`
 /// directly). On GL failure falls back toward a simpler path and may return
 /// `None` so the caller can use the original stack.
+#[allow(clippy::too_many_arguments)]
 pub fn apply_colour_post_pass(
     lut_runtime: &mut ColorLutRuntime,
     hdr_runtime: &mut HdrEncodeRuntime,

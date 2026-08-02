@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use ashpd::PortalError;
 use wayland_client::protocol::wl_shm::Format;
 
 use metis_capture::dmabuf::format_is_bgr_order;
@@ -172,10 +171,6 @@ pub fn spawn_screencast_pump(
             pipewire.destroy_stream(node_id);
         })
         .expect("spawn screencast pump thread")
-}
-
-pub fn portal_err(msg: impl Into<String>) -> PortalError {
-    PortalError::Failed(msg.into())
 }
 
 fn elapsed_under(start: std::time::Instant, interval: Duration) -> bool {

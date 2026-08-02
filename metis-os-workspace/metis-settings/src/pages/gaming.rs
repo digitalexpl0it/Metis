@@ -459,7 +459,7 @@ fn show_gaming_setup_dialog(
     }
 
     let win = gtk::Window::builder()
-        .title(&tr("Gaming setup"))
+        .title(tr("Gaming setup"))
         .transient_for(parent)
         .modal(true)
         .decorated(false)
@@ -611,7 +611,7 @@ fn show_gaming_setup_dialog(
 fn connect_switch_persist(
     sw: &gtk::Switch,
     seeding: Rc<RefCell<bool>>,
-    persist: Rc<dyn Fn(Box<dyn FnOnce(&mut GamingConfig)>)>,
+    persist: crate::gtk_cb::GamingPersist,
     set: fn(&mut GamingConfig, bool),
 ) {
     sw.connect_active_notify(move |s| {

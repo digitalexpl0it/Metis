@@ -97,7 +97,7 @@ pub fn reload_outputs() {
 /// Like [`reload_outputs`], but never blocks the GTK main thread (used for live
 /// toggles such as night light where `bluetoothctl`-class latency is unacceptable).
 pub fn reload_outputs_async() {
-    std::thread::spawn(|| reload_outputs());
+    std::thread::spawn(reload_outputs);
 }
 
 /// Re-read `power.json` and apply idle preferences (screen blank timeout) live.

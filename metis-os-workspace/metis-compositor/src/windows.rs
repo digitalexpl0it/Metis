@@ -15,7 +15,7 @@ use smithay::{desktop::Window, wayland::shell::xdg::ToplevelSurface};
 #[derive(Clone)]
 pub enum WindowSurface {
     Wayland(ToplevelSurface),
-    X11(X11Surface),
+    X11(Box<X11Surface>),
 }
 
 impl WindowSurface {
@@ -28,7 +28,7 @@ impl WindowSurface {
 
     pub fn x11(&self) -> Option<&X11Surface> {
         match self {
-            WindowSurface::X11(surface) => Some(surface),
+            WindowSurface::X11(surface) => Some(surface.as_ref()),
             WindowSurface::Wayland(_) => None,
         }
     }
@@ -182,7 +182,7 @@ impl WindowRegistry {
         if let Some(surface) = x11.wl_surface() {
             self.surface_to_id.insert(surface.id(), id);
         }
-        self.insert_record(id, window, WindowSurface::X11(x11), title, app_id);
+        self.insert_record(id, window, WindowSurface::X11(Box::new(x11)), title, app_id);
         id
     }
 

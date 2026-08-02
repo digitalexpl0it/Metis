@@ -147,7 +147,7 @@ fn rebuild_entries() {
         out.push(entry_from_mount(&mount, path));
     }
 
-    out.sort_by(|a, b| a.label.to_lowercase().cmp(&b.label.to_lowercase()));
+    out.sort_by_key(|a| a.label.to_lowercase());
     ENTRIES.with(|c| *c.borrow_mut() = out);
 }
 

@@ -259,8 +259,10 @@ pub fn page_ids() -> Vec<&'static str> {
     NAV.iter().filter_map(|item| item.page_id).collect()
 }
 
+use crate::gtk_cb::OptFnStrRef;
+
 thread_local! {
-    static PAGE_REQUEST: RefCell<Option<Rc<dyn Fn(&str)>>> = const { RefCell::new(None) };
+    static PAGE_REQUEST: OptFnStrRef = const { RefCell::new(None) };
 }
 
 /// Register a callback used by pages that need to jump to another Settings page.

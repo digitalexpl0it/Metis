@@ -685,6 +685,7 @@ fn command_prefers_dgpu(program: &str) -> bool {
 
 /// Environment shared by every client the compositor spawns (shell, settings,
 /// menu launches). GTK hardening avoids portal/a11y stalls in a bare session.
+#[allow(clippy::too_many_arguments)]
 fn apply_spawned_client_env(
     cmd: &mut std::process::Command,
     program: &str,
@@ -2109,7 +2110,7 @@ impl MetisState {
                 break;
             }
             if let Some(i) = dead_idx {
-                self.child_processes.remove(i);
+                let _ = self.child_processes.remove(i).wait();
             }
             tracing::warn!(pid, "desktop-widgets process exited — respawning");
             self.widgets_pid = None;
@@ -5597,8 +5598,8 @@ impl MetisState {
             Some(m) => PixelRect {
                 x: m.x,
                 y: m.y,
-                width: m.width as i32,
-                height: m.height as i32,
+                width: m.width,
+                height: m.height,
             },
             None => self.placement_zone_for(output),
         };
@@ -5661,8 +5662,8 @@ impl MetisState {
                 PixelRect {
                     x: monitor.x,
                     y: monitor.y,
-                    width: monitor.width as i32,
-                    height: monitor.height as i32,
+                    width: monitor.width,
+                    height: monitor.height,
                 }
             }
         }
@@ -5681,8 +5682,8 @@ impl MetisState {
                     Some(m) => PixelRect {
                         x: m.x,
                         y: m.y,
-                        width: m.width as i32,
-                        height: m.height as i32,
+                        width: m.width,
+                        height: m.height,
                     },
                     None => zone,
                 }
@@ -5695,8 +5696,8 @@ impl MetisState {
                 PixelRect {
                     x: monitor.x,
                     y: monitor.y,
-                    width: monitor.width as i32,
-                    height: monitor.height as i32,
+                    width: monitor.width,
+                    height: monitor.height,
                 }
             };
             // Layer-shell exclusive zone may not be committed yet at startup.
@@ -6900,12 +6901,10 @@ impl MetisState {
         let Some((id, edges)) = self.resize_edge_at(loc) else {
             return false;
         };
-        if self.is_active_scroll_window(id) {
-            if self.start_scroll_resize(id, edges, loc, serial) {
-                return true;
-            }
-            // Fall through — vertical edges (or scroll-target miss) use normal resize.
+        if self.is_active_scroll_window(id) && self.start_scroll_resize(id, edges, loc, serial) {
+            return true;
         }
+        // Fall through — vertical edges (or scroll-target miss) use normal resize.
         self.start_edge_resize(id, edges, loc, serial, button)
     }
 
@@ -7180,7 +7179,7 @@ impl MetisState {
                 continue;
             };
             if window_id.is_none() {
-                *window_id = existing_wid.clone();
+                *window_id = *existing_wid;
             }
             if class.as_deref().unwrap_or("").is_empty() {
                 *class = existing_class.clone();
@@ -7706,8 +7705,7 @@ impl MetisState {
             tile = Some(metis_grid::GridTile {
                 id: format!("app-{window_id}"),
                 rect: default_app_tile_rect(
-                    &self
-                        .desk(target_key)
+                    self.desk(target_key)
                         .map(|d| &d.layout)
                         .unwrap_or(&self.default_layout),
                 ),
@@ -8881,9 +8879,9 @@ impl MetisState {
         // Choose placement before the first map whenever the window is not yet
         // floating (e.g. app_id arrived after the initial configure).
         if !screenshot_overlay {
-            if kind == metis_grid::LayoutKind::Free {
-                self.place_new_window(id, app_id.as_deref());
-            } else if !self.floating.contains(&id) && !self.windows.placement_chosen(id) {
+            if kind == metis_grid::LayoutKind::Free
+                || (!self.floating.contains(&id) && !self.windows.placement_chosen(id))
+            {
                 self.place_new_window(id, app_id.as_deref());
             }
             self.apply_window_rect(id);
@@ -9185,6 +9183,7 @@ enum BarEdgeAnchor {
 /// gap when the client is larger than the footprint. Honors the footprint origin
 /// when the client fits; otherwise anchors to whichever screen edge the footprint
 /// hugs (so the overflow grows toward the opposite, interior side).
+#[allow(clippy::too_many_arguments)]
 fn anchor_axis(
     foot_min: i32,
     foot_size: i32,

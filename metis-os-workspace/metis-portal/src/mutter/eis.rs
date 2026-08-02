@@ -61,7 +61,6 @@ extern "C" {
     fn eis_event_unref(event: *mut EisEvent);
     fn eis_event_get_type(event: *mut EisEvent) -> u32;
     fn eis_event_get_client(event: *mut EisEvent) -> *mut EisClient;
-    fn eis_event_get_seat(event: *mut EisEvent) -> *mut EisSeat;
     fn eis_event_get_device(event: *mut EisEvent) -> *mut EisDevice;
     fn eis_client_connect(client: *mut EisClient);
     fn eis_client_is_sender(client: *mut EisClient) -> bool;
@@ -412,7 +411,7 @@ unsafe fn attach_default_keymap(device: *mut EisDevice) -> bool {
 
     let fd = libc::memfd_create(
         c"metis-xkb".as_ptr(),
-        (libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING) as u32,
+        libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
     );
     if fd < 0 {
         tracing::warn!("EIS: memfd_create failed for XKB keymap");

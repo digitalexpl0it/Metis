@@ -179,12 +179,12 @@ impl Inner {
         row.add_css_class("metis-sw-lap");
 
         let total_lbl = gtk::Label::builder()
-            .label(&fmt(total))
+            .label(fmt(total))
             .halign(gtk::Align::Start)
             .build();
         total_lbl.add_css_class("metis-sw-lap-total");
         let delta_lbl = gtk::Label::builder()
-            .label(&format!("+{}", fmt(delta)))
+            .label(format!("+{}", fmt(delta)))
             .halign(gtk::Align::Start)
             .hexpand(true)
             .build();

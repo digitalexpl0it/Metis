@@ -96,7 +96,7 @@ pub enum KeybindAction {
 
 impl KeybindAction {
     pub fn all() -> &'static [KeybindAction] {
-        &ALL_ACTIONS
+        ALL_ACTIONS
     }
 
     pub fn label(self) -> &'static str {
@@ -522,12 +522,10 @@ impl KeybindsConfig {
 
     /// Reverse lookup: first action that owns this chord (for conflict checks).
     pub fn action_for_chord(&self, chord: &Chord) -> Option<KeybindAction> {
-        for &action in KeybindAction::all() {
-            if &self.chord_for(action) == chord {
-                return Some(action);
-            }
-        }
-        None
+        KeybindAction::all()
+            .iter()
+            .find(|&&action| &self.chord_for(action) == chord)
+            .copied()
     }
 
     pub fn set_binding(&mut self, action: KeybindAction, chord: Chord) {

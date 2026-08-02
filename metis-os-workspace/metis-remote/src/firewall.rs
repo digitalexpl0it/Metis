@@ -693,15 +693,12 @@ pub fn apply_rustdesk() -> Result<FirewallStatus, String> {
             let _ = save_remote_config(&cfg);
         }
     }
-    let backend = enforceable_backend().map_err(|e| {
-        persist_rustdesk_error(&e);
-        e
-    })?;
+    let backend = enforceable_backend().inspect_err(|e| persist_rustdesk_error(e))?;
     let result = if is_root() {
         apply_rustdesk_as_root()?
     } else {
         escalate(&["firewall", "rustdesk-apply-as-root"]).map_err(|err| {
-            let msg = format!("{err}");
+            let msg = err.to_string();
             persist_rustdesk_error(&msg);
             msg
         })?;

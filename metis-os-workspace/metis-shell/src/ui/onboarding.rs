@@ -154,7 +154,6 @@ fn show_at_step(initial_step: usize) {
             o.window.set_keyboard_mode(KeyboardMode::None);
             o.window.set_visible(true);
             refresh_step(&mut o);
-            return;
         }
     });
 
@@ -163,7 +162,7 @@ fn show_at_step(initial_step: usize) {
     }
 
     let window = gtk::Window::builder()
-        .title(&metis_i18n::tr("Metis Setup"))
+        .title(metis_i18n::tr("Metis Setup"))
         .build();
     window.add_css_class("metis-onboarding-window");
     window.init_layer_shell();

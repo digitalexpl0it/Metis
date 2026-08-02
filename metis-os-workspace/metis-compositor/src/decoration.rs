@@ -1039,16 +1039,15 @@ impl DecorationRuntime {
 
         // Ensure this window's slice buffers exist. Index → source texture is fixed:
         // 0 = rounded TL, 1 = rounded TR, 2..8 = radial (edges + square bottom corners).
-        if !self.shadow_bufs.contains_key(&w.id) {
+        self.shadow_bufs.entry(w.id).or_insert_with(|| {
             let sources = [&ctl, &ctr, &edge, &edge, &edge, &edge, &edge, &edge];
-            let bufs = sources
+            sources
                 .iter()
                 .map(|t| {
                     TextureBuffer::from_texture(renderer, (*t).clone(), 1, Transform::Normal, None)
                 })
-                .collect::<Vec<_>>();
-            self.shadow_bufs.insert(w.id, bufs);
-        }
+                .collect::<Vec<_>>()
+        });
         let Some(bufs) = self.shadow_bufs.get(&w.id) else {
             return Vec::new();
         };
@@ -1058,7 +1057,8 @@ impl DecorationRuntime {
 
         // (src_x, src_y, src_w, src_h, dst_x, dst_y, dst_w, dst_h). Index order must
         // match the `sources` mapping above. Every dst sits outside the frame.
-        let slices: [(i32, i32, i32, i32, i32, i32, i32, i32); 8] = [
+        type ShadowSlice = (i32, i32, i32, i32, i32, i32, i32, i32);
+        let slices: [ShadowSlice; 8] = [
             // Rounded top corners (full corner texture, unstretched).
             (0, 0, s2, s2, f.x - m, f.y - m, s2, s2),
             (0, 0, s2, s2, f.x + f.width - r, f.y - m, s2, s2),

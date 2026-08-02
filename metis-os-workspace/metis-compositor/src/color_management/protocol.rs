@@ -534,18 +534,18 @@ impl
         data_init: &mut DataInit<'_, MetisState>,
     ) {
         match request {
-            wp_image_description_creator_params_v1::Request::SetTfNamed { tf } => {
-                if let WEnum::Value(tf) = tf {
-                    if let Ok(mut slot) = self.tf.lock() {
-                        *slot = Some(tf);
-                    }
+            wp_image_description_creator_params_v1::Request::SetTfNamed {
+                tf: WEnum::Value(tf),
+            } => {
+                if let Ok(mut slot) = self.tf.lock() {
+                    *slot = Some(tf);
                 }
             }
-            wp_image_description_creator_params_v1::Request::SetPrimariesNamed { primaries } => {
-                if let WEnum::Value(primaries) = primaries {
-                    if let Ok(mut slot) = self.primaries.lock() {
-                        *slot = Some(primaries);
-                    }
+            wp_image_description_creator_params_v1::Request::SetPrimariesNamed {
+                primaries: WEnum::Value(primaries),
+            } => {
+                if let Ok(mut slot) = self.primaries.lock() {
+                    *slot = Some(primaries);
                 }
             }
             wp_image_description_creator_params_v1::Request::Create { image_description } => {

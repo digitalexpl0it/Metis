@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use gtk::prelude::*;
 
+use crate::gtk_cb::{OptFnStrRef, TabBarHandler};
 use crate::net::{
     self, ActiveConn, EthDev, NetSnapshot, OpenVpnCreate, ProxyConfig, VpnConn, VpnKind,
     WireGuardCreate, WireGuardProfile,
@@ -21,7 +22,7 @@ use metis_i18n::tr;
 
 thread_local! {
     /// Live Network tab switch (e.g. reuse `--page network/vpn` on an open window).
-    static TAB_REQUEST: RefCell<Option<Rc<dyn Fn(&str)>>> = const { RefCell::new(None) };
+    static TAB_REQUEST: OptFnStrRef = const { RefCell::new(None) };
 }
 
 /// Switch the Network pill tab after the page is already built.
@@ -301,11 +302,7 @@ fn resolve_initial_tab<'a>(tabs: &[(&'a str, &str)], requested: &'a str) -> &'a 
 /// A segmented pill-tab bar that switches `stack` between named children.
 /// Caller must call `stack.set_visible_child_name(initial)` after children exist.
 /// Returns the bar and a live `select(tab_name)` callback for external navigation.
-fn pill_tabs(
-    stack: &gtk::Stack,
-    tabs: &[(&str, &str)],
-    initial: &str,
-) -> (gtk::Box, Rc<dyn Fn(&str)>) {
+fn pill_tabs(stack: &gtk::Stack, tabs: &[(&str, &str)], initial: &str) -> TabBarHandler {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     bar.add_css_class("metis-settings-tabs");
     bar.set_halign(gtk::Align::Center);
@@ -796,7 +793,7 @@ fn show_vpn_password_dialog<F: Fn() + 'static>(
     };
 
     let dialog = gtk::Window::builder()
-        .title(&tr("VPN password"))
+        .title(tr("VPN password"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -829,7 +826,7 @@ fn show_vpn_password_dialog<F: Fn() + 'static>(
     let entry = gtk::PasswordEntry::builder()
         .show_peek_icon(true)
         .hexpand(true)
-        .placeholder_text(&tr("Password"))
+        .placeholder_text(tr("Password"))
         .build();
     outer.append(&entry);
 
@@ -1027,7 +1024,7 @@ fn show_openvpn_dialog(
     }
 
     let dialog = gtk::Window::builder()
-        .title(&tr("Add OpenVPN"))
+        .title(tr("Add OpenVPN"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -1062,7 +1059,7 @@ fn show_openvpn_dialog(
     let password = gtk::PasswordEntry::builder()
         .show_peek_icon(true)
         .hexpand(true)
-        .placeholder_text(&tr("Password (optional)"))
+        .placeholder_text(tr("Password (optional)"))
         .build();
     let ca = wg_entry("/path/to/ca.crt", "");
 
@@ -1225,7 +1222,7 @@ fn show_wireguard_dialog(
     // Undecorated so Metis does not paint a second compositor titlebar over the
     // in-dialog close control (same pattern as Remote / Gaming / Desktop widgets).
     let dialog = gtk::Window::builder()
-        .title(&tr("Add WireGuard"))
+        .title(tr("Add WireGuard"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -1389,7 +1386,7 @@ fn show_wireguard_edit_dialog(
     };
 
     let dialog = gtk::Window::builder()
-        .title(&tr("Edit WireGuard"))
+        .title(tr("Edit WireGuard"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -1769,14 +1766,14 @@ fn host_port_row(label: &str, host: &str, port: u32) -> (gtk::Box, gtk::Entry, g
     row.append(&lbl);
 
     let host_e = gtk::Entry::builder()
-        .placeholder_text(&tr("proxy.example.com"))
+        .placeholder_text(tr("proxy.example.com"))
         .hexpand(true)
         .build();
     host_e.set_text(host);
     row.append(&host_e);
 
     let port_e = gtk::Entry::builder()
-        .placeholder_text(&tr("8080"))
+        .placeholder_text(tr("8080"))
         .max_width_chars(6)
         .build();
     if port != 0 {

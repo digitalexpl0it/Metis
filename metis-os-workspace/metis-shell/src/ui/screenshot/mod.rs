@@ -117,15 +117,12 @@ pub fn show(mode: LaunchMode, connector: Option<String>) {
     match mode {
         LaunchMode::InstantFull => {
             run_instant_capture(ScreenshotMode::Screen, config, connector);
-            return;
         }
         LaunchMode::Window => {
             show_interactive(ScreenshotMode::Window, config, connector);
-            return;
         }
         LaunchMode::Record => {
             show_interactive_record(config, connector);
-            return;
         }
         LaunchMode::Interactive => {
             show_interactive(config.default_mode, config, connector);
@@ -149,7 +146,7 @@ fn show_interactive(
     let windows = list_windows_best_effort();
 
     let window = gtk::Window::builder()
-        .title(&metis_i18n::tr("Screenshot"))
+        .title(metis_i18n::tr("Screenshot"))
         .decorated(false)
         .build();
     window.add_css_class("metis-screenshot-window");
@@ -696,7 +693,7 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
             if !matches!(overlay.mode.get(), ScreenshotMode::Selection) {
                 return;
             }
-            let Some(mut drag) = overlay.drag.borrow().clone() else {
+            let Some(mut drag) = *overlay.drag.borrow() else {
                 return;
             };
             drag.x2 = drag.x1 + offset_x;
@@ -815,7 +812,7 @@ impl Overlay {
     fn capture_rect(&self) -> Option<PixelRect> {
         match self.mode.get() {
             ScreenshotMode::Selection => {
-                let drag = self.drag.borrow().clone()?;
+                let drag = (*self.drag.borrow())?;
                 if drag.valid() {
                     let local = drag.normalized();
                     Some(PixelRect {
@@ -830,8 +827,8 @@ impl Overlay {
             }
             ScreenshotMode::Screen => {
                 let (mx, my) = self.monitor_origin;
-                let w = self.canvas.width() as i32;
-                let h = self.canvas.height() as i32;
+                let w = self.canvas.width();
+                let h = self.canvas.height();
                 Some(PixelRect {
                     x: mx,
                     y: my,
@@ -841,12 +838,9 @@ impl Overlay {
             }
             ScreenshotMode::Window => {
                 if self.window_locked.get() {
-                    self.picked_window.borrow().clone()
+                    *self.picked_window.borrow()
                 } else {
-                    self.picked_window
-                        .borrow()
-                        .clone()
-                        .or_else(|| self.hover_window.borrow().clone())
+                    (*self.picked_window.borrow()).or_else(|| *self.hover_window.borrow())
                 }
             }
         }
@@ -860,10 +854,7 @@ fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i
     cr.paint().ok();
 
     let highlight = match overlay.mode.get() {
-        ScreenshotMode::Selection => overlay
-            .drag
-            .borrow()
-            .clone()
+        ScreenshotMode::Selection => (*overlay.drag.borrow())
             .filter(|d| d.valid())
             .map(|d| d.normalized()),
         ScreenshotMode::Screen => Some(PixelRect {
@@ -918,13 +909,9 @@ fn position_size_label(label: &gtk::Label, drag: &DragRect) {
 
 fn window_highlight_rect(overlay: &Overlay) -> Option<PixelRect> {
     let global = if overlay.window_locked.get() {
-        overlay.picked_window.borrow().clone()
+        *overlay.picked_window.borrow()
     } else {
-        overlay
-            .picked_window
-            .borrow()
-            .clone()
-            .or_else(|| overlay.hover_window.borrow().clone())
+        (*overlay.picked_window.borrow()).or_else(|| *overlay.hover_window.borrow())
     }?;
     Some(PixelRect {
         x: global.x - overlay.monitor_origin.0,
@@ -1108,7 +1095,7 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
 fn toast_message(message: &str) {
     crate::ui::toast::show(&BarNotification::internal(
         NotificationKind::Information,
-        &metis_i18n::tr("Screenshot"),
+        metis_i18n::tr("Screenshot"),
         message,
     ));
 }

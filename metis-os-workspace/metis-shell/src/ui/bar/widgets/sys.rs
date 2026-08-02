@@ -4,6 +4,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use crate::gtk_cb::OptFn0Cell;
 use crate::ui::icons::{self, names};
 
 use crate::services::{
@@ -1146,7 +1147,7 @@ impl VolumeWidget {
         // Late-bound so the row handlers can broadcast the *combined* audio state
         // (output + input) to every bar after a user action — the real closure is
         // installed below, once both rows (and their cells) exist.
-        let on_change_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+        let on_change_slot: OptFn0Cell = Rc::new(RefCell::new(None));
         let on_change: Rc<dyn Fn()> = {
             let slot = on_change_slot.clone();
             Rc::new(move || {

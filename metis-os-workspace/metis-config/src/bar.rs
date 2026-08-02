@@ -1,52 +1,37 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum BarPosition {
+    #[default]
     Top,
     Bottom,
     Left,
     Right,
 }
 
-impl Default for BarPosition {
-    fn default() -> Self {
-        Self::Top
-    }
-}
-
 /// Which outputs (monitors) the edge bar appears on in a multi-monitor session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum BarDisplays {
     /// One bar per connected output (default).
+    #[default]
     All,
     /// A single bar on the primary output only.
     Primary,
 }
 
-impl Default for BarDisplays {
-    fn default() -> Self {
-        Self::All
-    }
-}
-
 /// How virtual workspaces behave across multiple outputs (monitors).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum WorkspaceMode {
     /// Each output owns an independent set of workspaces; switching one output's
     /// workspace leaves the others alone (default).
+    #[default]
     Separate,
     /// All outputs switch together: changing to workspace N moves every monitor to
     /// its own workspace N at once.
     Linked,
-}
-
-impl Default for WorkspaceMode {
-    fn default() -> Self {
-        Self::Separate
-    }
 }
 
 /// The layout mode new workspaces start in. Mirrors `metis_grid::LayoutKind`
@@ -183,21 +168,16 @@ pub fn notification_center_attach_inset(cfg: &BarConfig) -> i32 {
 }
 
 /// How the compositor strokes an accent border (title pill or window frame).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum BorderMode {
     /// Follow the active theme's accent gradient (auto-tracks light/dark).
+    #[default]
     Accent,
     /// A single flat color (`color`).
     Solid,
     /// A custom gradient across `gradient`'s stops.
     Gradient,
-}
-
-impl Default for BorderMode {
-    fn default() -> Self {
-        Self::Accent
-    }
 }
 
 /// Appearance of the thin accent border around the compositor-drawn title pill.

@@ -200,18 +200,13 @@ fn default_size_pair() -> [u32; 2] {
     [320, 200]
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WidgetExtSettingType {
+    #[default]
     String,
     Bool,
     Number,
-}
-
-impl Default for WidgetExtSettingType {
-    fn default() -> Self {
-        Self::String
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

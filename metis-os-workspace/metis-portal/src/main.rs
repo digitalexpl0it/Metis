@@ -69,7 +69,7 @@ async fn main() -> ashpd::Result<()> {
             tracing::info!(%path, "capture test");
             let captured = capture::capture_fullscreen_png()
                 .await
-                .map_err(|err| ashpd::PortalError::Failed(err))?;
+                .map_err(ashpd::PortalError::Failed)?;
             std::fs::copy(&captured.path, &path).map_err(|err| {
                 ashpd::PortalError::Failed(format!("copy screenshot to {path}: {err}"))
             })?;

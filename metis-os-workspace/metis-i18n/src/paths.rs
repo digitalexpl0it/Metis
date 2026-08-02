@@ -88,10 +88,8 @@ pub fn discover_installed_languages() -> Vec<String> {
                     .join(format!("{GETTEXT_DOMAIN}.po"))
                     .is_file();
             let has_ftl = path.join("compositor").join("metis.ftl").is_file();
-            if has_mo || has_ftl {
-                if !tags.iter().any(|t| t == &name) {
-                    tags.push(name);
-                }
+            if (has_mo || has_ftl) && !tags.iter().any(|t| t == &name) {
+                tags.push(name);
             }
         }
     }

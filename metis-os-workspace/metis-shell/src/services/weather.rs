@@ -778,8 +778,8 @@ fn parse_hourly(hourly: Option<&serde_json::Value>, current_time: &str) -> Vec<H
         .unwrap_or(0);
 
     let mut points = Vec::new();
-    for i in start..(start + HOURLY_POINTS).min(times.len()) {
-        let hour24 = times[i]
+    for (i, time) in times.iter().enumerate().skip(start).take(HOURLY_POINTS) {
+        let hour24 = time
             .as_str()
             .and_then(|s| s.get(11..13))
             .and_then(|h| h.parse::<u32>().ok())

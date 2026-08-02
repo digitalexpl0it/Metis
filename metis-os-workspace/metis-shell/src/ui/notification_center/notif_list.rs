@@ -282,7 +282,7 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
         glib::idle_add_local_once(move || crate::services::dismiss_notification(uid));
     };
 
-    if let Some(row) = build_action_row(notif, dismiss.clone()) {
+    if let Some(row) = build_action_row(notif, dismiss) {
         text.append(&row);
     }
 
@@ -292,7 +292,6 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
         card.add_css_class("metis-notif-card-clickable");
         let gesture = gtk::GestureClick::new();
         let id = notif.id;
-        let dismiss = dismiss.clone();
         gesture.connect_released(move |gesture, _, _, _| {
             gesture.set_state(gtk::EventSequenceState::Claimed);
             crate::services::invoke_action(id, "default");

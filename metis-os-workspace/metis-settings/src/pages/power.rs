@@ -259,8 +259,8 @@ fn render_devices(sections: &Sections, bt: &BluetoothSnapshot) {
                 if pct <= 20 && !charging {
                     value.add_css_class("metis-bt-battery-low");
                 }
-                let row = ui::row_with_icon(icon, &dev.name, &value);
-                row
+
+                ui::row_with_icon(icon, &dev.name, &value)
             }
             None => {
                 let value = gtk::Label::new(Some(&tr("No battery info")));

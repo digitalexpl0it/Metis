@@ -6,6 +6,7 @@
 mod apps;
 mod bluetooth;
 mod gaming;
+mod gtk_cb;
 mod i18n_gtk;
 mod msauth;
 mod nav;
@@ -624,7 +625,7 @@ fn apply_nav_filter(nav: &gtk::ListBox, query: &str, selecting: &Cell<bool>, sta
 
     let mut first_visible_page: Option<usize> = None;
 
-    for index in 0..NAV.len() {
+    for (index, _item) in NAV.iter().enumerate() {
         let Some(row) = nav.row_at_index(index as i32) else {
             continue;
         };

@@ -410,10 +410,10 @@ fn push_neighbors_into_region(
             if other.id == id || other.id == bid || other.pinned {
                 continue;
             }
-            if other.rect.intersects(target) || other.rect.intersects(&new_rect) {
-                if !pending.iter().any(|p| p == &other.id) {
-                    pending.push(other.id.clone());
-                }
+            if (other.rect.intersects(target) || other.rect.intersects(&new_rect))
+                && !pending.iter().any(|p| p == &other.id)
+            {
+                pending.push(other.id.clone());
             }
         }
     }
@@ -469,10 +469,10 @@ fn push_neighbors_relocate(
             if other.id == id || other.id == bid || other.pinned {
                 continue;
             }
-            if other.rect.intersects(target) || other.rect.intersects(&new_rect) {
-                if !pending.iter().any(|p| p == &other.id) {
-                    pending.push(other.id.clone());
-                }
+            if (other.rect.intersects(target) || other.rect.intersects(&new_rect))
+                && !pending.iter().any(|p| p == &other.id)
+            {
+                pending.push(other.id.clone());
             }
         }
     }

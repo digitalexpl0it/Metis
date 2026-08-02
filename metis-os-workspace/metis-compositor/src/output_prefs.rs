@@ -99,11 +99,11 @@ pub fn apply_outputs(state: &mut MetisState, cfg: &OutputsConfig) -> bool {
     for output in &outputs {
         let name = output.name();
         let prefs = output_prefs(cfg, &name);
-        if prefs.enabled != state.is_output_enabled(&name) {
-            if state.set_output_enabled(&name, prefs.enabled) {
-                enable_changed = true;
-                changed = true;
-            }
+        if prefs.enabled != state.is_output_enabled(&name)
+            && state.set_output_enabled(&name, prefs.enabled)
+        {
+            enable_changed = true;
+            changed = true;
         }
     }
     if enable_changed {
@@ -296,11 +296,9 @@ pub fn persist_hotplug_connect(
     let needs_layout = {
         let entry = cfg.outputs.entry(name.to_string()).or_default();
         // Brand-new connector → start enabled. Existing `enabled: false` is kept.
-        if !known {
-            if !entry.enabled {
-                entry.enabled = true;
-                changed = true;
-            }
+        if !known && !entry.enabled {
+            entry.enabled = true;
+            changed = true;
         }
 
         if entry.mode_width.is_none()

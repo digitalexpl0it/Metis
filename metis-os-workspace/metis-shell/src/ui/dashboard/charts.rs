@@ -232,7 +232,7 @@ pub fn core_color(index: usize, _total: usize, tokens: &ThemeTokens) -> (f64, f6
 
 fn core_color_fade(index: usize, total: usize, tokens: &ThemeTokens) -> (f64, f64, f64) {
     let (r, g, b) = core_color(index, total, tokens);
-    if index % 16 == 0 {
+    if index.is_multiple_of(16) {
         return (r * 0.42, g * 0.42, b * 0.48);
     }
     (r * 0.5 + 0.1, g * 0.5 + 0.1, b * 0.5 + 0.12)
@@ -273,7 +273,7 @@ fn draw_chart_axes(cr: &gtk::cairo::Context, plot: &PlotRect, tokens: &ThemeToke
 fn draw_axis_label(cr: &gtk::cairo::Context, x: f64, y: f64, text: &str, tokens: &ThemeTokens) {
     let (r, g, b) = parse_hex(&tokens.text_muted);
     cr.save().ok();
-    let _ = cr.select_font_face(
+    cr.select_font_face(
         "Sans",
         gtk::cairo::FontSlant::Normal,
         gtk::cairo::FontWeight::Normal,
@@ -413,6 +413,7 @@ fn draw_series_fill(
     let _ = cr.fill();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_series_stroke(
     cr: &gtk::cairo::Context,
     plot: &PlotRect,
@@ -443,6 +444,7 @@ fn draw_series_stroke(
     let _ = cr.stroke();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_series(
     cr: &gtk::cairo::Context,
     plot: &PlotRect,
@@ -564,6 +566,6 @@ fn gauge_scale_label(cr: &gtk::cairo::Context, x: f64, y: f64, text: &str, token
     cr.set_font_size(9.0);
     let (mr, mg, mb) = parse_hex(&tokens.text_muted);
     cr.set_source_rgba(mr, mg, mb, 0.85);
-    let _ = cr.move_to(x, y);
+    cr.move_to(x, y);
     let _ = cr.show_text(text);
 }

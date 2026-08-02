@@ -15,6 +15,7 @@ use crate::power::{
     SessionPowerAction,
 };
 
+#[derive(Default)]
 pub struct GamingDaemon {
     game_active: bool,
     saved_profile: Option<PowerProfile>,
@@ -24,12 +25,7 @@ pub struct GamingDaemon {
 
 impl GamingDaemon {
     pub fn new() -> Self {
-        Self {
-            game_active: false,
-            saved_profile: None,
-            game_pid: None,
-            window_app_ids: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn on_game_session(&mut self, active: bool, label: Option<String>, pid: Option<u32>) {
@@ -65,27 +61,31 @@ impl GamingDaemon {
             CompositorEvent::GameSession { active, label, pid } => {
                 self.on_game_session(active, label, pid);
             }
-            CompositorEvent::WindowMetadata { id, app_id, .. } => {
-                if let Some(app_id) = app_id {
-                    self.window_app_ids.insert(id, app_id);
-                }
+            CompositorEvent::WindowMetadata {
+                id,
+                app_id: Some(app_id),
+                ..
+            } => {
+                self.window_app_ids.insert(id, app_id);
             }
             CompositorEvent::WindowClosed { id } => {
                 self.window_app_ids.remove(&id);
             }
-            CompositorEvent::WindowFullscreen { id, fullscreen, .. } => {
-                if fullscreen {
-                    let app_id = self.window_app_ids.get(&id).cloned();
-                    let game_like = app_id.as_deref().is_some_and(|id| {
-                        let l = id.to_ascii_lowercase();
-                        l.contains("steam_app_")
-                            || l.contains("lutris")
-                            || l.contains("wine")
-                            || l.contains(".exe")
-                    });
-                    if game_like {
-                        self.on_game_session(true, app_id, None);
-                    }
+            CompositorEvent::WindowFullscreen {
+                id,
+                fullscreen: true,
+                ..
+            } => {
+                let app_id = self.window_app_ids.get(&id).cloned();
+                let game_like = app_id.as_deref().is_some_and(|id| {
+                    let l = id.to_ascii_lowercase();
+                    l.contains("steam_app_")
+                        || l.contains("lutris")
+                        || l.contains("wine")
+                        || l.contains(".exe")
+                });
+                if game_like {
+                    self.on_game_session(true, app_id, None);
                 }
             }
             _ => {}

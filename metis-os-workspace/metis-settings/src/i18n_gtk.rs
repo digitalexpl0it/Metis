@@ -3,10 +3,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::gtk_cb::OptFnStringRef;
 use gtk::glib;
 
 thread_local! {
-    static REBUILD_UI: RefCell<Option<Rc<dyn Fn(String)>>> = const { RefCell::new(None) };
+    static REBUILD_UI: OptFnStringRef = const { RefCell::new(None) };
 }
 
 /// Set the default text direction for the display from the active Metis locale.

@@ -141,7 +141,7 @@ pub fn build() -> gtk::Widget {
     {
         let seeding = seeding.clone();
         enabled.connect_active_notify(move |sw| {
-            if seeding.borrow().clone() {
+            if *seeding.borrow() {
                 return;
             }
             persist(|cfg| cfg.enabled = sw.is_active());
@@ -150,7 +150,7 @@ pub fn build() -> gtk::Widget {
     {
         let seeding = seeding.clone();
         max_height.connect_value_changed(move |scale| {
-            if seeding.borrow().clone() {
+            if *seeding.borrow() {
                 return;
             }
             persist(|cfg| cfg.max_height_percent = scale.value().round() as u8);
@@ -159,7 +159,7 @@ pub fn build() -> gtk::Widget {
     {
         let seeding = seeding.clone();
         refresh.connect_value_changed(move |scale| {
-            if seeding.borrow().clone() {
+            if *seeding.borrow() {
                 return;
             }
             persist(|cfg| cfg.refresh_interval_ms = scale.value().round() as u32);
@@ -168,7 +168,7 @@ pub fn build() -> gtk::Widget {
     {
         let seeding = seeding.clone();
         confirm_kill.connect_active_notify(move |sw| {
-            if seeding.borrow().clone() {
+            if *seeding.borrow() {
                 return;
             }
             persist(|cfg| cfg.confirm_before_kill = sw.is_active());
@@ -181,7 +181,7 @@ pub fn build() -> gtk::Widget {
             let seeding = seeding.clone();
             let toggles = toggles.clone();
             toggle.connect_active_notify(move |_| {
-                if seeding.borrow().clone() {
+                if *seeding.borrow() {
                     return;
                 }
                 persist(|cfg| cfg.widgets = collect_widgets(&toggles));

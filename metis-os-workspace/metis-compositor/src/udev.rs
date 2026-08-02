@@ -401,7 +401,7 @@ pub fn init_udev(
                         .get_keyboard()
                         .map(|keyboard| keyboard.led_state())
                     {
-                        let _ = device.led_update(led_state.into());
+                        device.led_update(led_state.into());
                     }
                 }
                 if device.has_capability(DeviceCapability::Touch) {
@@ -547,7 +547,7 @@ fn pick_primary_gpu(seat: &str) -> Option<DrmNode> {
     }
 
     // Higher score wins: a connected output dominates; boot_vga breaks ties.
-    let best = candidates.into_iter().max_by_key(|node| gpu_rank(node));
+    let best = candidates.into_iter().max_by_key(gpu_rank);
     if let Some(node) = best {
         tracing::info!(
             ?node,
@@ -598,7 +598,7 @@ fn gpu_has_connected_output(node: DrmNode) -> bool {
         None => return false,
     };
     let Ok(entries) = std::fs::read_dir(
-        &dir.parent()
+        dir.parent()
             .unwrap_or(std::path::Path::new("/sys/class/drm")),
     ) else {
         return false;
@@ -740,6 +740,7 @@ fn build_surface_dmabuf_feedback(
 }
 
 /// Composite + scan out on the output's local GPU (non-transfer path).
+#[allow(clippy::too_many_arguments)]
 fn render_local_output_frame(
     state: &mut MetisState,
     gpus: &mut MetisGpuManager,

@@ -188,7 +188,5 @@ fn resolve_name_icon(id: &str) -> (String, gio::Icon) {
 }
 
 fn prettify(id: &str) -> String {
-    id.trim_end_matches(".desktop")
-        .replace('.', " ")
-        .replace('-', " ")
+    id.trim_end_matches(".desktop").replace(['.', '-'], " ")
 }

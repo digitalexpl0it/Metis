@@ -532,8 +532,8 @@ unsafe fn alloc_memfd_data(
     }
 
     let fd = libc::memfd_create(
-        b"metis-screencast\0".as_ptr() as *const libc::c_char,
-        (libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING) as u32,
+        c"metis-screencast".as_ptr(),
+        libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
     );
     if fd < 0 {
         return Err(format!(
@@ -619,10 +619,11 @@ unsafe fn fill_screencast_frame(
 
     let height = *state.height.lock().unwrap_or_else(|e| e.into_inner());
     let stride = *state.stride.lock().unwrap_or_else(|e| e.into_inner());
-    if d.type_ == spa::sys::SPA_DATA_DmaBuf && d.data.is_null() {
-        if alloc_memfd_data(d, stride, height).is_err() {
-            return false;
-        }
+    if d.type_ == spa::sys::SPA_DATA_DmaBuf
+        && d.data.is_null()
+        && alloc_memfd_data(d, stride, height).is_err()
+    {
+        return false;
     }
     if d.data.is_null() || d.maxsize == 0 {
         return false;
@@ -714,7 +715,7 @@ unsafe fn set_header_meta(spa_buf: *mut spa::sys::spa_buffer, state: &StreamShar
     let buf = &*spa_buf;
     for i in 0..buf.n_metas {
         let meta = &*buf.metas.add(i as usize);
-        if meta.type_ == spa::sys::SPA_META_Header as u32 && !meta.data.is_null() {
+        if meta.type_ == spa::sys::SPA_META_Header && !meta.data.is_null() {
             let header = &mut *(meta.data as *mut SpaMetaHeader);
             header.flags = 0;
             header.offset = 0;
@@ -850,7 +851,7 @@ fn build_buffer_params(stride: i32, height: u32) -> Result<Vec<Vec<u8>>, String>
         properties: vec![
             Property::new(
                 spa::sys::SPA_PARAM_META_type,
-                Value::Id(Id(spa::sys::SPA_META_Header as u32)),
+                Value::Id(Id(spa::sys::SPA_META_Header)),
             ),
             Property::new(
                 spa::sys::SPA_PARAM_META_size,
@@ -866,7 +867,7 @@ fn build_buffer_params(stride: i32, height: u32) -> Result<Vec<Vec<u8>>, String>
         properties: vec![
             Property::new(
                 spa::sys::SPA_PARAM_META_type,
-                Value::Id(Id(spa::sys::SPA_META_Cursor as u32)),
+                Value::Id(Id(spa::sys::SPA_META_Cursor)),
             ),
             Property::new(
                 spa::sys::SPA_PARAM_META_size,

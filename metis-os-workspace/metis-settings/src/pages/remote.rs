@@ -410,7 +410,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                 if enable_pending_poll.get()
                     || warming_up_poll.get()
                     || firewall_pending_poll.get()
-                    || tick % 5 == 0
+                    || tick.is_multiple_of(5)
                 {
                     refresh_periodic();
                 }
@@ -763,7 +763,7 @@ fn readout_row_widget(title: &str, value: &impl IsA<gtk::Widget>) -> gtk::Box {
 /// Confirm turning off LAN-only while desktop sharing is active.
 fn confirm_disable_lan_only(parent: &gtk::Window, on_done: impl Fn(bool) + 'static) {
     let dialog = gtk::Window::builder()
-        .title(&tr("Allow RDP beyond the LAN?"))
+        .title(tr("Allow RDP beyond the LAN?"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)
@@ -1060,7 +1060,7 @@ fn show_password_dialog(
     password_ui_open.set(true);
 
     let dialog = gtk::Window::builder()
-        .title(&tr("Session sharing password"))
+        .title(tr("Session sharing password"))
         .modal(true)
         .transient_for(parent)
         .decorated(false)

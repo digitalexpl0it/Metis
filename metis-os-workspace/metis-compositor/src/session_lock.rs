@@ -36,8 +36,9 @@ use crate::render::OutputStack;
 use crate::state::MetisState;
 
 /// Runtime state for an active (or pending) protocol session lock.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum ProtocolLock {
+    #[default]
     Unlocked,
     Locked {
         lock: ExtSessionLockV1,
@@ -46,12 +47,6 @@ pub enum ProtocolLock {
         blank_id: Id,
         blank_commit: CommitCounter,
     },
-}
-
-impl Default for ProtocolLock {
-    fn default() -> Self {
-        Self::Unlocked
-    }
 }
 
 impl ProtocolLock {

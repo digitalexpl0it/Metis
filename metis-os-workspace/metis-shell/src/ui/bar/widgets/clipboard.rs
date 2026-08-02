@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use gtk::prelude::*;
 
+use crate::gtk_cb::ClipboardItemCells;
 use crate::services::{
     active_entry_id, clear_history, delete_entry, filtered_entries, load_history, page_size,
     private_mode, recall_entry, register_clipboard_refresh, set_page_size, set_private_mode,
@@ -284,10 +285,7 @@ impl ClipboardWidget {
     }
 }
 
-fn sync_settings_selection(
-    items: &Rc<RefCell<Vec<(gtk::Button, gtk::Image, usize)>>>,
-    active_size: usize,
-) {
+fn sync_settings_selection(items: &ClipboardItemCells, active_size: usize) {
     for (btn, check, size) in items.borrow().iter() {
         let selected = *size == active_size;
         check.set_visible(selected);

@@ -82,11 +82,12 @@ pub struct TrayChannels {
     pub commands: async_mpsc::Sender<TrayCommand>,
 }
 
+type ContextMenuReady = RefCell<Option<std::rc::Rc<dyn Fn(&TrayItem) -> bool>>>;
+
 thread_local! {
     static REFRESH: RefCell<Vec<std::rc::Weak<dyn Fn()>>> =
         const { RefCell::new(Vec::new()) };
-    static CONTEXT_MENU_READY: RefCell<Option<std::rc::Rc<dyn Fn(&TrayItem) -> bool>>> =
-        const { RefCell::new(None) };
+    static CONTEXT_MENU_READY: ContextMenuReady = const { RefCell::new(None) };
 }
 
 /// GTK hook: return `true` when the pending context menu was shown (skip bar rebuild).
@@ -168,9 +169,9 @@ pub struct TraySnapshot {
 }
 
 thread_local! {
-    static STORE: RefCell<TraySnapshot> = RefCell::new(TraySnapshot {
+    static STORE: RefCell<TraySnapshot> = const { RefCell::new(TraySnapshot {
         items: Vec::new(),
-    });
+    }) };
 }
 
 pub fn snapshot() -> TraySnapshot {
@@ -187,8 +188,7 @@ fn upsert_item(snap: &mut TraySnapshot, item: TrayItem) {
     } else {
         snap.items.push(item);
     }
-    snap.items
-        .sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    snap.items.sort_by_key(|a| a.title.to_lowercase());
 }
 
 pub fn apply_event(event: TrayEvent) {

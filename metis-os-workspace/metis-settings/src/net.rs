@@ -882,7 +882,7 @@ pub fn vpn_get_wireguard(uuid: &str) -> Option<WireGuardProfile> {
             }
             "ipv4.dns" => {
                 profile.dns = val
-                    .split(|c| c == ',' || c == '|' || c == ' ')
+                    .split([',', '|', ' '])
                     .map(str::trim)
                     .filter(|s| !s.is_empty() && *s != "--")
                     .collect::<Vec<_>>()
@@ -1036,7 +1036,7 @@ fn fill_wg_profile_from_export(export: &str, profile: &mut WireGuardProfile) {
             }
             if key == "dns" && profile.dns.is_empty() {
                 profile.dns = val
-                    .split(|c| c == ',' || c == ';')
+                    .split([',', ';'])
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<_>>()
@@ -1055,15 +1055,13 @@ fn fill_wg_profile_from_export(export: &str, profile: &mut WireGuardProfile) {
                     profile.endpoint = val.to_string();
                 }
             }
-            "allowed-ips" | "allowedips" => {
-                if profile.allowed_ips.is_empty() {
-                    profile.allowed_ips = val
-                        .split(|c| c == ',' || c == ';')
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                }
+            "allowed-ips" | "allowedips" if profile.allowed_ips.is_empty() => {
+                profile.allowed_ips = val
+                    .split([',', ';'])
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ");
             }
             _ => {}
         }

@@ -187,7 +187,7 @@ impl MetisState {
         if record
             .app_id
             .as_deref()
-            .is_some_and(|app_id| crate::decoration_policy::id_looks_chromium_family(app_id))
+            .is_some_and(crate::decoration_policy::id_looks_chromium_family)
         {
             return false;
         }

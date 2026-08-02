@@ -348,7 +348,7 @@ impl Inner {
         let info = gtk::Box::new(gtk::Orientation::Vertical, 1);
         info.set_hexpand(true);
         let time = gtk::Label::builder()
-            .label(&fmt_time(alarm.hour, alarm.minute))
+            .label(fmt_time(alarm.hour, alarm.minute))
             .halign(gtk::Align::Start)
             .build();
         time.add_css_class("metis-clock-alarm-time");

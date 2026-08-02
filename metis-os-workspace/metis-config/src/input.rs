@@ -102,7 +102,7 @@ pub struct KeyboardConfig {
     pub num_lock: NumLockStartup,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct InputConfig {
     #[serde(default)]
     pub mouse: MouseConfig,
@@ -169,16 +169,6 @@ impl Default for KeyboardConfig {
             caps_lock: CapsLockBehavior::default(),
             compose_key: ComposeKey::default(),
             num_lock: NumLockStartup::default(),
-        }
-    }
-}
-
-impl Default for InputConfig {
-    fn default() -> Self {
-        Self {
-            mouse: MouseConfig::default(),
-            touchpad: TouchpadConfig::default(),
-            keyboard: KeyboardConfig::default(),
         }
     }
 }

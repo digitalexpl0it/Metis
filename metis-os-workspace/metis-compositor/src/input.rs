@@ -824,10 +824,9 @@ impl MetisState {
                         && !on_nc
                         && !self.screenshot_overlay_active()
                         && !self.capture_overlay_active()
+                        && (!on_bar_ui || self.notification_center_mapped())
                     {
-                        if !on_bar_ui || self.notification_center_mapped() {
-                            self.request_close_bar_popovers();
-                        }
+                        self.request_close_bar_popovers();
                     }
                     // Terminals (kitty, foot, …) use right/middle-click paste and
                     // context menus against the surface under the pointer — align
@@ -1058,16 +1057,16 @@ impl MetisState {
                 // and the game repositions its cursor as if focus changed — the
                 // "mouse jumps from the menu on the left to the middle-top where
                 // the dialog should be" report during Proton gameplay.
-                if self.windows.id_for_window(&window) == self.focused_window_id() {
+                if self.windows.id_for_window(window) == self.focused_window_id() {
                     return;
                 }
-                self.space.raise_element(&window, true);
+                self.space.raise_element(window, true);
                 if let Some(toplevel) = window.toplevel() {
                     toplevel.send_pending_configure();
                 }
                 // Tell the shell (taskbar) which window now has focus — focus
                 // changes are otherwise only reported as a reply to FocusWindow.
-                if let Some(id) = self.windows.id_for_window(&window) {
+                if let Some(id) = self.windows.id_for_window(window) {
                     self.note_window_focus(id);
                     self.sync_scroll_focus_for_window(id);
                     self.event_bus

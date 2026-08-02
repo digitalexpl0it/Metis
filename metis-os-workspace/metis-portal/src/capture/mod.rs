@@ -13,7 +13,6 @@ use crate::pipewire::PipeWireHub;
 
 pub use metis_capture::Frame;
 pub use pump::spawn_screencast_pump;
-pub use session::CaptureSession;
 
 #[derive(Debug, Clone)]
 pub struct CapturedPng {
@@ -68,6 +67,7 @@ pub async fn capture_fullscreen_png() -> Result<CapturedPng, String> {
     Ok(CapturedPng { path })
 }
 
+#[allow(dead_code)]
 pub fn save_frame_png(frame: &Frame, path: &Path) -> Result<(), String> {
     let rgba = frame_to_rgba(frame);
     write_png(path, frame.width, frame.height, &rgba)

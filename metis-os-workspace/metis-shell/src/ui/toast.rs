@@ -47,7 +47,7 @@ fn overlay() -> Rc<RefCell<Toast>> {
         }
 
         let window = gtk::Window::builder()
-            .title(&metis_i18n::tr("Metis Notifications"))
+            .title(metis_i18n::tr("Metis Notifications"))
             .build();
         window.add_css_class("metis-toast-window");
         window.init_layer_shell();

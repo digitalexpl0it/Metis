@@ -99,12 +99,12 @@ pub fn build() -> gtk::Widget {
                 if sections.scanning.get() {
                     sections.scanning.set(false);
                     sections.scan_btn.set_label(&tr("Scan for devices"));
-                    std::thread::spawn(|| bluetooth::stop_scan());
+                    std::thread::spawn(bluetooth::stop_scan);
                     schedule_refresh(&refresh, 600);
                 } else {
                     sections.scanning.set(true);
                     sections.scan_btn.set_label(&tr("Stop scanning"));
-                    std::thread::spawn(|| bluetooth::start_scan());
+                    std::thread::spawn(bluetooth::start_scan);
                     schedule_refresh(&refresh, 1500);
                     schedule_auto_stop_scan(&sections, &refresh, 30_000);
                 }
@@ -262,7 +262,7 @@ fn schedule_auto_stop_scan(
     let refresh = refresh.clone();
     glib::timeout_add_local_once(Duration::from_millis(delay_ms), move || {
         if sections.scanning.get() {
-            std::thread::spawn(|| bluetooth::stop_scan());
+            std::thread::spawn(bluetooth::stop_scan);
             sections.scanning.set(false);
             sections.scan_btn.set_label(&tr("Scan for devices"));
             refresh();

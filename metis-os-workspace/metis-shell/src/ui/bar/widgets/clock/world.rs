@@ -50,7 +50,7 @@ impl WorldClocksPage {
             .build();
         local_name.add_css_class("metis-clock-card-name");
         let local_offset = gtk::Label::builder()
-            .label(&Local::now().format("%A, %B %-d").to_string())
+            .label(Local::now().format("%A, %B %-d").to_string())
             .halign(gtk::Align::Start)
             .build();
         local_offset.add_css_class("metis-clock-card-offset");
@@ -97,7 +97,7 @@ impl WorldClocksPage {
         for name in &tz_names {
             let row = gtk::ListBoxRow::new();
             let label = gtk::Label::builder()
-                .label(&name.replace('_', " "))
+                .label(name.replace('_', " "))
                 .halign(gtk::Align::Start)
                 .build();
             label.add_css_class("metis-tz-row");
@@ -262,12 +262,12 @@ impl WorldInner {
             let info = gtk::Box::new(gtk::Orientation::Vertical, 2);
             info.set_hexpand(true);
             let name = gtk::Label::builder()
-                .label(&pretty_zone(&tz))
+                .label(pretty_zone(&tz))
                 .halign(gtk::Align::Start)
                 .build();
             name.add_css_class("metis-clock-card-name");
             let offset = gtk::Label::builder()
-                .label(&offset_label(&tz, now))
+                .label(offset_label(&tz, now))
                 .halign(gtk::Align::Start)
                 .build();
             offset.add_css_class("metis-clock-card-offset");

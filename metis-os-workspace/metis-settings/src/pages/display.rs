@@ -17,6 +17,8 @@ use gtk::prelude::*;
 use metis_config::{load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode};
 use metis_protocol::{OutputInfo, OutputModeInfo};
 
+use crate::gtk_cb::{OptFn0Cell, OutputModesCache};
+
 use crate::runtime;
 use crate::ui;
 
@@ -34,12 +36,11 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     ));
     let canvas_slot: Rc<RefCell<Option<Rc<ArrangementCanvas>>>> = Rc::new(RefCell::new(None));
     let display_dirty: Rc<RefCell<bool>> = Rc::new(RefCell::new(false));
-    let rebuild_arrangement_slot: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let rebuild_arrangement_slot: OptFn0Cell = Rc::new(RefCell::new(None));
     // Guards programmatic mirror-toggle sync from re-entering `rebuild_arrangement`.
     let syncing_arrangement = Rc::new(std::cell::Cell::new(false));
 
-    let modes_cache: Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>> =
-        Rc::new(RefCell::new(HashMap::new()));
+    let modes_cache: OutputModesCache = Rc::new(RefCell::new(HashMap::new()));
 
     let (gfx_card, gfx_body) = ui::section_with_icon(&tr("Graphics"), "computer-symbolic");
     let graphics_profile = {
@@ -684,15 +685,16 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     scroller.upcast()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_output_panel(
     out: &OutputInfo,
     index: usize,
     cfg: &Rc<RefCell<metis_config::OutputsConfig>>,
     outputs: &Rc<RefCell<Vec<OutputInfo>>>,
-    modes_cache: &Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>>,
+    modes_cache: &OutputModesCache,
     mark_display_dirty: &Rc<dyn Fn()>,
     multi_display: bool,
-    rebuild_arrangement: &Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    rebuild_arrangement: &OptFn0Cell,
     parent: &gtk::Window,
 ) -> gtk::Widget {
     let title = panel_title(out, index);
@@ -873,7 +875,7 @@ fn build_output_panel(
         hint.add_css_class("metis-settings-hint");
         mode_body.append(&hint);
     } else {
-        let labels: Vec<String> = modes.iter().map(|m| mode_dropdown_label(m)).collect();
+        let labels: Vec<String> = modes.iter().map(mode_dropdown_label).collect();
         let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let mode_dd = gtk::DropDown::from_strings(&label_refs);
         // Long mode labels ("3840 × 2160 @ 60.00 Hz · recommended") otherwise
@@ -1142,7 +1144,7 @@ fn mode_index_for_prefs(
 }
 
 fn cached_output_modes(
-    cache: &Rc<RefCell<HashMap<String, (Vec<OutputModeInfo>, Option<OutputModeInfo>)>>>,
+    cache: &OutputModesCache,
     output: &str,
 ) -> (Vec<OutputModeInfo>, Option<OutputModeInfo>) {
     if let Some(entry) = cache.borrow().get(output) {
@@ -1154,7 +1156,7 @@ fn cached_output_modes(
 }
 
 thread_local! {
-    static SAVE_DEBOUNCE: RefCell<Option<glib::SourceId>> = RefCell::new(None);
+    static SAVE_DEBOUNCE: RefCell<Option<glib::SourceId>> = const { RefCell::new(None) };
 }
 
 fn save_and_apply(cfg: &metis_config::OutputsConfig) {
@@ -1190,6 +1192,7 @@ fn refresh_outputs(outputs: &Rc<RefCell<Vec<OutputInfo>>>, rebuild: &Rc<dyn Fn()
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_arrangement_view(
     outputs: &Rc<RefCell<Vec<OutputInfo>>>,
     selected_name: &Rc<RefCell<Option<String>>>,

@@ -207,7 +207,7 @@ fn drm_path_for_dev(dev: libc::dev_t) -> Option<PathBuf> {
     for entry in dir.flatten() {
         let path = entry.path();
         let meta = std::fs::metadata(&path).ok()?;
-        if meta.rdev() == dev as u64 {
+        if meta.rdev() == dev {
             return Some(path);
         }
     }
@@ -226,7 +226,7 @@ fn pick_format(formats: &[(u32, Vec<u64>)]) -> Option<(u32, Vec<u64>)> {
             let mut mods = mods.clone();
             // Prefer linear so we can mmap for MemFd fallback.
             let linear = u64::from(DrmModifier::Linear);
-            if mods.iter().any(|m| *m == linear) {
+            if mods.contains(&linear) {
                 mods.retain(|m| *m == linear);
             }
             return Some((code, mods));

@@ -23,7 +23,6 @@ const KEY_GTK_THEME: &str = "gtk-theme";
 /// headerbar clients (Cheese, Calculator, …) and browsers keep native CSD.
 /// Serving `":"` here hid minimize/maximize on Firefox/Chromium and could
 /// leave a partial headerbar visible alongside Metis SSD on misclassified apps.
-
 static SETTINGS_EMITTER: OnceLock<Mutex<Option<Arc<dyn SettingsSignalEmitter>>>> = OnceLock::new();
 static THEME_WATCH_STARTED: OnceLock<()> = OnceLock::new();
 
@@ -197,7 +196,7 @@ fn ensure_theme_watch() {
     tokio::spawn(async {
         // Session start: push gsettings so early GTK apps see Metis dark/light.
         metis_config::sync_session_appearance_from_config();
-        let mut last = load_theme_preference().unwrap_or(ThemeMode::Dark).clone();
+        let mut last = load_theme_preference().unwrap_or(ThemeMode::Dark);
         // Emit once so portal clients that subscribe after connect get a baseline.
         emit_appearance(&Snapshot::from_config()).await;
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
@@ -208,9 +207,9 @@ fn ensure_theme_watch() {
             if mode == last {
                 continue;
             }
-            last = mode.clone();
+            last = mode;
             let snapshot = Snapshot::from_config();
-            metis_config::apply_session_appearance_gsettings(snapshot.mode.clone());
+            metis_config::apply_session_appearance_gsettings(snapshot.mode);
             emit_appearance(&snapshot).await;
             tracing::info!(?mode, "portal: appearance updated from config");
         }

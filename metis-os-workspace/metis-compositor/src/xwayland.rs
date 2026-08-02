@@ -663,12 +663,12 @@ impl XwmHandler for MetisState {
         match selection {
             SelectionTarget::Clipboard => {
                 if current_data_device_selection_userdata(&self.seat).is_some() {
-                    let _ = clear_data_device_selection(&self.display_handle, &self.seat);
+                    clear_data_device_selection(&self.display_handle, &self.seat);
                 }
             }
             SelectionTarget::Primary => {
                 if current_primary_selection_userdata(&self.seat).is_some() {
-                    let _ = clear_primary_selection(&self.display_handle, &self.seat);
+                    clear_primary_selection(&self.display_handle, &self.seat);
                 }
             }
         }

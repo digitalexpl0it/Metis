@@ -54,8 +54,8 @@ impl MetisState {
                 .output_geometry(o)
                 .is_some_and(|geo| geo.contains(pos.to_i32_round()))
         })?;
-        let output_geo = self.space.output_geometry(&output)?;
-        let layers = layer_map_for_output(&output);
+        let output_geo = self.space.output_geometry(output)?;
+        let layers = layer_map_for_output(output);
         let layer_geo = layers.layer_geometry(&layer)?;
         let rel = pos - output_geo.loc.to_f64();
         let local = rel - layer_geo.loc.to_f64();

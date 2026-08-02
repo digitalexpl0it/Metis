@@ -29,6 +29,7 @@ use metis_capture::{
 };
 
 enum CaptureMode {
+    #[allow(dead_code)]
     OneShot,
     Continuous,
 }
@@ -342,7 +343,7 @@ fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<Wl
 
 /// Live capture handle — keeps an ext-image-copy session open across frames.
 pub struct CaptureSession {
-    conn: Connection,
+    _conn: Connection,
     queue: wayland_client::EventQueue<AppState>,
     state: AppState,
 }
@@ -390,7 +391,11 @@ impl CaptureSession {
 
         state.start_capture(&qh);
 
-        let mut session = Self { conn, queue, state };
+        let mut session = Self {
+            _conn: conn,
+            queue,
+            state,
+        };
         session.wait_until_ready(Duration::from_secs(8))?;
         Ok(session)
     }
@@ -559,11 +564,12 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
                 session.constraints.width = width;
                 session.constraints.height = height;
             }
-            ext_image_copy_capture_session_v1::Event::ShmFormat { format, .. } => {
-                if let WEnum::Value(fmt) = format {
-                    session.constraints.format =
-                        prefer_shm_format_local(session.constraints.format, fmt);
-                }
+            ext_image_copy_capture_session_v1::Event::ShmFormat {
+                format: WEnum::Value(fmt),
+                ..
+            } => {
+                session.constraints.format =
+                    prefer_shm_format_local(session.constraints.format, fmt);
             }
             ext_image_copy_capture_session_v1::Event::DmabufDevice { device, .. } => {
                 session.dmabuf_offer.device = parse_dev_t(&device);
@@ -576,10 +582,10 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
                     .formats
                     .push((format, modifiers_from_array(&modifiers)));
             }
-            ext_image_copy_capture_session_v1::Event::Done { .. } => {
+            ext_image_copy_capture_session_v1::Event::Done => {
                 session.needs_allocate = true;
             }
-            ext_image_copy_capture_session_v1::Event::Stopped { .. } => {
+            ext_image_copy_capture_session_v1::Event::Stopped => {
                 state.fail("capture session stopped");
             }
             _ => {}
@@ -608,7 +614,7 @@ impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for AppState {
         _qhandle: &QueueHandle<Self>,
     ) {
         match event {
-            ext_image_copy_capture_frame_v1::Event::Ready { .. } => {
+            ext_image_copy_capture_frame_v1::Event::Ready => {
                 if let Some(session) = state.session.as_mut() {
                     session.frame_pending = false;
                     session.frame_ready = true;

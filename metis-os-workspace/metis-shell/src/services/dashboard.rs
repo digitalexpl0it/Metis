@@ -208,7 +208,7 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
         // Full process enumeration is expensive; refresh it every third poll
         // (~3 s at the default 1 s interval). CPU/memory/network stay live.
         process_tick = process_tick.wrapping_add(1);
-        let refresh_processes = process_tick % 3 == 0;
+        let refresh_processes = process_tick.is_multiple_of(3);
         if refresh_processes {
             sys.refresh_processes(ProcessesToUpdate::All, true);
         }

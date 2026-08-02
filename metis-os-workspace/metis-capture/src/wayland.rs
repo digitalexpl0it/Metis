@@ -33,7 +33,7 @@ pub struct Frame {
     pub dmabuf: Option<DmabufPlanes>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CaptureOptions {
     pub draw_cursor: bool,
     /// Zero-based index into the connected `wl_output` list (used when
@@ -42,16 +42,6 @@ pub struct CaptureOptions {
     /// Prefer the output whose `wl_output.name` (or description) matches this
     /// connector string (e.g. `HDMI-A-1`, `eDP-1`). Case-insensitive.
     pub connector: Option<String>,
-}
-
-impl Default for CaptureOptions {
-    fn default() -> Self {
-        Self {
-            draw_cursor: false,
-            output_index: 0,
-            connector: None,
-        }
-    }
 }
 
 struct SessionState {
@@ -402,15 +392,16 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
                 session.constraints.width = width;
                 session.constraints.height = height;
             }
-            ext_image_copy_capture_session_v1::Event::ShmFormat { format, .. } => {
-                if let WEnum::Value(fmt) = format {
-                    session.constraints.format = prefer_shm_format(session.constraints.format, fmt);
-                }
+            ext_image_copy_capture_session_v1::Event::ShmFormat {
+                format: WEnum::Value(fmt),
+                ..
+            } => {
+                session.constraints.format = prefer_shm_format(session.constraints.format, fmt);
             }
-            ext_image_copy_capture_session_v1::Event::Done { .. } => {
+            ext_image_copy_capture_session_v1::Event::Done => {
                 session.needs_allocate = true;
             }
-            ext_image_copy_capture_session_v1::Event::Stopped { .. } => {
+            ext_image_copy_capture_session_v1::Event::Stopped => {
                 state.fail("capture session stopped");
             }
             _ => {}
@@ -439,7 +430,7 @@ impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for AppState {
         _qhandle: &QueueHandle<Self>,
     ) {
         match event {
-            ext_image_copy_capture_frame_v1::Event::Ready { .. } => {
+            ext_image_copy_capture_frame_v1::Event::Ready => {
                 if let Some(session) = state.session.as_mut() {
                     session.frame_pending = false;
                     session.frame_ready = true;

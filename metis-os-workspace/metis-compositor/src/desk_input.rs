@@ -30,7 +30,7 @@ fn popup_geometry_contains(
     if geo.size.w <= 0 || geo.size.h <= 0 {
         return false;
     }
-    let origin = Point::from(location) + geo.loc;
+    let origin = location + geo.loc;
     Rectangle::new(origin, geo.size).to_f64().contains(local)
 }
 
@@ -284,7 +284,7 @@ impl MetisState {
             .or_else(|| {
                 self.space
                     .element_under(pos)
-                    .and_then(|(window, _)| self.windows.id_for_window(&window))
+                    .and_then(|(window, _)| self.windows.id_for_window(window))
             })
     }
 
@@ -486,25 +486,25 @@ impl MetisState {
         }) else {
             return false;
         };
-        if !self.output_has_bar(&output) {
+        if !self.output_has_bar(output) {
             return false;
         }
-        let Some(output_geo) = self.space.output_geometry(&output) else {
+        let Some(output_geo) = self.space.output_geometry(output) else {
             return false;
         };
         let (x, y) = (pos.x as i32, pos.y as i32);
-        let auto_hidden = self.bar_is_auto_hidden(&output);
+        let auto_hidden = self.bar_is_auto_hidden(output);
 
         // Peek-only while auto-hidden so maximized titlebar controls under the
         // (CSS-slid) full layer surface stay clickable. Full strip when shown.
-        if let Some(strip) = self.bar_input_block_rect(&output, &output_geo) {
+        if let Some(strip) = self.bar_input_block_rect(output, &output_geo) {
             if point_in_rect(x, y, strip) {
                 return true;
             }
         }
 
         let rel = pos - output_geo.loc.to_f64();
-        let layers = layer_map_for_output(&output);
+        let layers = layer_map_for_output(output);
 
         for layer in layers.layers().filter(|layer| {
             let ns = layer.namespace();
@@ -603,11 +603,11 @@ impl MetisState {
         }) else {
             return false;
         };
-        let Some(output_geo) = self.space.output_geometry(&output) else {
+        let Some(output_geo) = self.space.output_geometry(output) else {
             return false;
         };
         let rel = pos - output_geo.loc.to_f64();
-        let layers = layer_map_for_output(&output);
+        let layers = layer_map_for_output(output);
         for layer in layers
             .layers()
             .filter(|layer| layer.namespace() == "metis-notification-center")
@@ -1030,7 +1030,7 @@ fn metis_bar_layer_surface_at(
     // geometry contains the point, searching nested popovers (tray menus, etc.).
     let root = layer.wl_surface();
     if let Some((popup, location)) = metis_bar_deepest_popup(root, local) {
-        let popup_origin_global = (Point::from(location) + layer_loc + output_geo.loc).to_f64();
+        let popup_origin_global = (location + layer_loc + output_geo.loc).to_f64();
         return Some((popup.wl_surface().clone(), popup_origin_global));
     }
 

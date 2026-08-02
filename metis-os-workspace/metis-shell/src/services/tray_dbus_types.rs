@@ -116,77 +116,6 @@ fn normalize_object_path(service: &str) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{resolve_tray_display_title, service_parts};
-
-    #[test]
-    fn parses_ayatana_item_id() {
-        let parts = service_parts(":1.45/org/ayatana/NotificationItem/123").unwrap();
-        assert_eq!(parts.bus_name, ":1.45");
-        assert_eq!(parts.object_path, "/org/ayatana/NotificationItem/123");
-    }
-
-    #[test]
-    fn parses_kde_well_known_service_name() {
-        let parts = service_parts(":1.282org.kde.StatusNotifierItem-229658-1").unwrap();
-        assert_eq!(parts.bus_name, "org.kde.StatusNotifierItem-229658-1");
-        assert_eq!(parts.object_path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn parses_kde_item_id_without_leading_slash() {
-        let parts = service_parts(":1.250org.kde.StatusNotifierItem-205764-1").unwrap();
-        assert_eq!(parts.bus_name, "org.kde.StatusNotifierItem-205764-1");
-        assert_eq!(parts.object_path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn parses_unique_name_only_fallback() {
-        let parts = service_parts(":1.253").unwrap();
-        assert_eq!(parts.bus_name, ":1.253");
-        assert_eq!(parts.object_path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn parses_duplicate_unique_service() {
-        let parts = service_parts(":1.285:1.285").unwrap();
-        assert_eq!(parts.bus_name, ":1.285");
-        assert_eq!(parts.object_path, "/StatusNotifierItem");
-    }
-
-    #[test]
-    fn resolves_electron_tray_tooltip() {
-        let title = resolve_tray_display_title(
-            "",
-            "chrome_status_icon_1",
-            "Cursor",
-            "",
-            "org.chromium.StatusNotifierItem-1-1",
-        );
-        assert_eq!(title, "Cursor");
-    }
-
-    #[test]
-    fn skips_internal_title_for_tooltip() {
-        let title = resolve_tray_display_title(
-            "chrome_status_icon_1",
-            "chrome_status_icon_1",
-            "Cursor",
-            "",
-            "",
-        );
-        assert_eq!(title, "Cursor");
-    }
-
-    #[test]
-    fn friendly_name_from_bus_name() {
-        let title =
-            resolve_tray_display_title("", "chrome_status_icon_1", "", "", "co.anysphere.Cursor");
-        assert_eq!(title, "Cursor");
-    }
-}
-
 pub fn parse_item_props(props: &HashMap<String, OwnedValue>) -> ParsedItemProps {
     let id = get_string(props, "Id")
         .filter(|s| !s.is_empty())
@@ -295,9 +224,7 @@ fn humanize_identifier(raw: &str) -> String {
             prev_was_sep = true;
             continue;
         }
-        if prev_was_sep && ch.is_ascii_lowercase() {
-            out.push(ch.to_ascii_uppercase());
-        } else if out.is_empty() && ch.is_ascii_lowercase() {
+        if (prev_was_sep || out.is_empty()) && ch.is_ascii_lowercase() {
             out.push(ch.to_ascii_uppercase());
         } else {
             out.push(ch);
@@ -395,4 +322,75 @@ fn get_icon_pixmap(props: &HashMap<String, OwnedValue>) -> Option<IconPixmap> {
         }
     }
     best.map(|(_, pm)| pm)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_tray_display_title, service_parts};
+
+    #[test]
+    fn parses_ayatana_item_id() {
+        let parts = service_parts(":1.45/org/ayatana/NotificationItem/123").unwrap();
+        assert_eq!(parts.bus_name, ":1.45");
+        assert_eq!(parts.object_path, "/org/ayatana/NotificationItem/123");
+    }
+
+    #[test]
+    fn parses_kde_well_known_service_name() {
+        let parts = service_parts(":1.282org.kde.StatusNotifierItem-229658-1").unwrap();
+        assert_eq!(parts.bus_name, "org.kde.StatusNotifierItem-229658-1");
+        assert_eq!(parts.object_path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn parses_kde_item_id_without_leading_slash() {
+        let parts = service_parts(":1.250org.kde.StatusNotifierItem-205764-1").unwrap();
+        assert_eq!(parts.bus_name, "org.kde.StatusNotifierItem-205764-1");
+        assert_eq!(parts.object_path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn parses_unique_name_only_fallback() {
+        let parts = service_parts(":1.253").unwrap();
+        assert_eq!(parts.bus_name, ":1.253");
+        assert_eq!(parts.object_path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn parses_duplicate_unique_service() {
+        let parts = service_parts(":1.285:1.285").unwrap();
+        assert_eq!(parts.bus_name, ":1.285");
+        assert_eq!(parts.object_path, "/StatusNotifierItem");
+    }
+
+    #[test]
+    fn resolves_electron_tray_tooltip() {
+        let title = resolve_tray_display_title(
+            "",
+            "chrome_status_icon_1",
+            "Cursor",
+            "",
+            "org.chromium.StatusNotifierItem-1-1",
+        );
+        assert_eq!(title, "Cursor");
+    }
+
+    #[test]
+    fn skips_internal_title_for_tooltip() {
+        let title = resolve_tray_display_title(
+            "chrome_status_icon_1",
+            "chrome_status_icon_1",
+            "Cursor",
+            "",
+            "",
+        );
+        assert_eq!(title, "Cursor");
+    }
+
+    #[test]
+    fn friendly_name_from_bus_name() {
+        let title =
+            resolve_tray_display_title("", "chrome_status_icon_1", "", "", "co.anysphere.Cursor");
+        assert_eq!(title, "Cursor");
+    }
 }

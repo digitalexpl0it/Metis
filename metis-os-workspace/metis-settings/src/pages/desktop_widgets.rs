@@ -24,6 +24,7 @@ use metis_config::{
     EqualizerBarShape, EqualizerColorMode, EqualizerVizStyle, WidgetExtSettingType,
 };
 
+use crate::gtk_cb::OptFn0Cell;
 use crate::pages::appearance_common::{color_dialog_button, hex_to_rgba, rgba_to_hex};
 use crate::ui;
 use metis_i18n::tr;
@@ -259,7 +260,7 @@ pub fn build() -> gtk::Widget {
 
     content.append(&list_card);
 
-    let refresh_list: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let refresh_list: OptFn0Cell = Rc::new(RefCell::new(None));
     {
         let cfg = cfg.clone();
         let list = list.clone();
@@ -448,7 +449,7 @@ fn instance_row(
     inst: &DesktopWidgetInstance,
     index: usize,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
-    refresh_list: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    refresh_list: OptFn0Cell,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
 ) -> gtk::Widget {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
@@ -544,7 +545,7 @@ fn open_configure_dialog(
     parent: Option<&gtk::Window>,
     id: &str,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
-    refresh_list: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    refresh_list: OptFn0Cell,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
 ) {
     let Some(inst) = cfg.borrow().instances.iter().find(|i| i.id == id).cloned() else {
@@ -603,7 +604,7 @@ fn open_configure_dialog(
     scroll.set_child(Some(&body));
     outer.append(&scroll);
 
-    let rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let rebuild_body: OptFn0Cell = Rc::new(RefCell::new(None));
     {
         let cfg = cfg.clone();
         let id = id.to_string();
@@ -660,7 +661,7 @@ fn fill_configure_body(
     inst: &DesktopWidgetInstance,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
-    rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    rebuild_body: OptFn0Cell,
 ) {
     let geo = gtk::Label::new(Some(&format!(
         "Size {}×{} at ({}, {}){}",
@@ -966,7 +967,7 @@ fn equalizer_options(
     inst: &DesktopWidgetInstance,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
-    rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    rebuild_body: OptFn0Cell,
 ) -> gtk::Widget {
     let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
 
@@ -1330,7 +1331,7 @@ fn equalizer_options(
 fn text_style_options(
     inst: &DesktopWidgetInstance,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
-    rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    rebuild_body: OptFn0Cell,
 ) -> gtk::Widget {
     let col = gtk::Box::new(gtk::Orientation::Vertical, 8);
     col.append(&font_row(inst, cfg.clone()));
@@ -1555,7 +1556,7 @@ fn instance_chrome_overrides(
     inst: &DesktopWidgetInstance,
     cfg: Rc<RefCell<DesktopWidgetsConfig>>,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
-    rebuild_body: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
+    rebuild_body: OptFn0Cell,
 ) -> gtk::Widget {
     let expander = gtk::Expander::new(Some(&tr("Look overrides (optional)")));
     expander.set_expanded(!inst.chrome.is_empty());

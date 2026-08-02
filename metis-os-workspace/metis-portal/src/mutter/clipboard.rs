@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::os::fd::{FromRawFd, OwnedFd};
+use std::os::fd::OwnedFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -243,13 +243,13 @@ impl ClipboardSession {
             inner.pending_write_mime = Some(mime_type.to_string());
             inner.transfer_serial
         };
-        let _ = self.conn.emit_signal(
+        std::mem::drop(self.conn.emit_signal(
             None::<&str>,
             self.session_path.as_str(),
             "org.gnome.Mutter.RemoteDesktop.Session",
             "SelectionTransfer",
             &(mime_type, serial),
-        );
+        ));
     }
 
     pub fn on_local_clipboard_changed(
@@ -293,13 +293,13 @@ impl ClipboardSession {
             options.insert("mime-types".into(), Value::from(mime_types.to_vec()));
             options.insert("session-is-owner".into(), Value::from(session_is_owner));
         }
-        let _ = self.conn.emit_signal(
+        std::mem::drop(self.conn.emit_signal(
             None::<&str>,
             self.session_path.as_str(),
             "org.gnome.Mutter.RemoteDesktop.Session",
             "SelectionOwnerChanged",
             &(options,),
-        );
+        ));
     }
 }
 

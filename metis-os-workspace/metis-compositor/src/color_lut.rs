@@ -252,10 +252,10 @@ void main() {
 "#;
 
     let program = link_program(gl, vs, fs)?;
-    let loc_scene = gl.GetUniformLocation(program, b"scene\0".as_ptr() as *const _);
-    let loc_lut = gl.GetUniformLocation(program, b"lut\0".as_ptr() as *const _);
-    let loc_lut_size = gl.GetUniformLocation(program, b"lut_size\0".as_ptr() as *const _);
-    let attrib_pos = gl.GetAttribLocation(program, b"pos\0".as_ptr() as *const _);
+    let loc_scene = gl.GetUniformLocation(program, c"scene".as_ptr() as *const _);
+    let loc_lut = gl.GetUniformLocation(program, c"lut".as_ptr() as *const _);
+    let loc_lut_size = gl.GetUniformLocation(program, c"lut_size".as_ptr() as *const _);
+    let attrib_pos = gl.GetAttribLocation(program, c"pos".as_ptr() as *const _);
     if loc_scene < 0 || loc_lut < 0 || loc_lut_size < 0 || attrib_pos < 0 {
         return Err("LUT blit missing uniform/attrib".into());
     }

@@ -379,11 +379,9 @@ pub fn handle_commit(popups: &mut PopupManager, _space: &Space<Window>, surface:
     // and placement size. An early bare `send_configure` here made Chromium
     // latch server-side mode (close button only) before app_id was known.
     popups.commit(surface);
-    if let Some(popup) = popups.find_popup(surface) {
-        if let PopupKind::Xdg(ref xdg) = popup {
-            if !xdg.is_initial_configure_sent() {
-                let _ = xdg.send_configure();
-            }
+    if let Some(PopupKind::Xdg(ref xdg)) = popups.find_popup(surface) {
+        if !xdg.is_initial_configure_sent() {
+            let _ = xdg.send_configure();
         }
     }
 }

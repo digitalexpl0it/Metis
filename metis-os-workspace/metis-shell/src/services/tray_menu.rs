@@ -57,7 +57,7 @@ pub fn parse_menu_layout(layout: MenuLayout) -> TrayMenu {
 }
 
 fn parse_menu_item(value: &OwnedValue) -> Option<MenuItem> {
-    parse_menu_value(&**value)
+    parse_menu_value(value)
 }
 
 fn parse_menu_value(value: &Value<'_>) -> Option<MenuItem> {
