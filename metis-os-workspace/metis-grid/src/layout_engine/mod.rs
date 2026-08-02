@@ -205,7 +205,12 @@ fn union_rect(a: &TileRect, b: &TileRect) -> TileRect {
     let row = a.row.min(b.row);
     let right = a.right().max(b.right());
     let bottom = a.bottom().max(b.bottom());
-    TileRect::new(col, row, right.saturating_sub(col), bottom.saturating_sub(row))
+    TileRect::new(
+        col,
+        row,
+        right.saturating_sub(col),
+        bottom.saturating_sub(row),
+    )
 }
 
 pub fn repair_layout(layout: &mut GridLayout) {
@@ -261,8 +266,7 @@ fn layout_needs_reset(layout: &GridLayout) -> bool {
         return true;
     }
     layout.tiles.iter().any(|t| {
-        matches!(t.kind, crate::model::TileKind::Widget { .. })
-            && (t.rect.w < 2 || t.rect.h < 2)
+        matches!(t.kind, crate::model::TileKind::Widget { .. }) && (t.rect.w < 2 || t.rect.h < 2)
     }) || !layout.app_tiling_region_viable()
 }
 
@@ -300,7 +304,9 @@ fn reset_to_default_preserving_apps(layout: &mut GridLayout) {
 /// Repair overlaps; reset degenerate saved layouts. Strips legacy on-desktop
 /// widget tiles — those modules live in the edge bar until desk widgets ship.
 pub fn sanitize_layout(layout: &mut GridLayout) {
-    layout.tiles.retain(|t| !matches!(t.kind, crate::model::TileKind::Widget { .. }));
+    layout
+        .tiles
+        .retain(|t| !matches!(t.kind, crate::model::TileKind::Widget { .. }));
     repair_layout(layout);
     if layout_needs_reset(layout) {
         reset_to_default_preserving_apps(layout);
@@ -312,9 +318,10 @@ fn can_place(layout: &GridLayout, ignore_id: &str, rect: &TileRect) -> bool {
     if rect.right() > layout.columns || rect.bottom() > layout.rows {
         return false;
     }
-    layout.tiles.iter().all(|t| {
-        t.id == ignore_id || !t.rect.intersects(rect)
-    })
+    layout
+        .tiles
+        .iter()
+        .all(|t| t.id == ignore_id || !t.rect.intersects(rect))
 }
 
 fn complement_region(target: &TileRect, columns: u32, rows: u32) -> Option<TileRect> {
@@ -572,9 +579,7 @@ mod tests {
         GridTile {
             id: id.into(),
             rect,
-            kind: TileKind::Widget {
-                module: id.into(),
-            },
+            kind: TileKind::Widget { module: id.into() },
             glow: "cool".into(),
             pinned: false,
             min_w: None,
@@ -604,12 +609,7 @@ mod tests {
     fn no_overlap(layout: &GridLayout) {
         for (i, a) in layout.tiles.iter().enumerate() {
             for b in layout.tiles.iter().skip(i + 1) {
-                assert!(
-                    !a.rect.intersects(&b.rect),
-                    "{} overlaps {}",
-                    a.id,
-                    b.id
-                );
+                assert!(!a.rect.intersects(&b.rect), "{} overlaps {}", a.id, b.id);
             }
         }
     }
@@ -634,7 +634,10 @@ mod tests {
             "app tile preserved after sanitize"
         );
         assert!(
-            !layout.tiles.iter().any(|t| matches!(t.kind, TileKind::Widget { .. })),
+            !layout
+                .tiles
+                .iter()
+                .any(|t| matches!(t.kind, TileKind::Widget { .. })),
             "legacy widget tiles stripped"
         );
         no_overlap(&layout);

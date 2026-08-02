@@ -47,8 +47,8 @@ pub fn build() -> gtk::Widget {
 
     layout_body.append(&input_common::hint(&tr(
         "Layout uses xkb rules. Common layouts: us, gb, de, fr, es. See \
-         /usr/share/X11/xkb/rules/base.lst on your system."
-        )));
+         /usr/share/X11/xkb/rules/base.lst on your system.",
+    )));
     content.append(&layout_card);
 
     let (typing_card, typing_body) =
@@ -79,7 +79,13 @@ pub fn build() -> gtk::Widget {
     typing_body.append(&crate::ui::row(&tr("Caps Lock"), &caps));
 
     let compose = {
-        let __dd_labels = [tr("Disabled"), tr("Right Alt"), tr("Menu"), tr("Left Alt"), tr("Scroll Lock")];
+        let __dd_labels = [
+            tr("Disabled"),
+            tr("Right Alt"),
+            tr("Menu"),
+            tr("Left Alt"),
+            tr("Scroll Lock"),
+        ];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
@@ -106,8 +112,8 @@ pub fn build() -> gtk::Widget {
 
     typing_body.append(&input_common::hint(&tr(
         "Auto turns Num Lock on when a keyboard with a numeric keypad is \
-         present. Keyboard settings apply live in the Metis session within ~1s."
-        )));
+         present. Keyboard settings apply live in the Metis session within ~1s.",
+    )));
     content.append(&typing_card);
 
     content.append(&build_shortcuts_section());
@@ -133,8 +139,9 @@ pub fn build() -> gtk::Widget {
     };
 
     layout.connect_changed({
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -142,8 +149,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     variant.connect_changed({
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -151,8 +159,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     options.connect_changed({
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -160,8 +169,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     delay.connect_value_changed({
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -169,8 +179,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     rate.connect_value_changed({
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -178,8 +189,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     caps.connect_notify_local(Some("selected"), {
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_, _| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -187,8 +199,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     compose.connect_notify_local(Some("selected"), {
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_, _| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -196,8 +209,9 @@ pub fn build() -> gtk::Widget {
         }
     });
     num_lock.connect_notify_local(Some("selected"), {
-        let (layout, variant, options, delay, rate, caps, compose, num_lock) =
-            wire(&layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock);
+        let (layout, variant, options, delay, rate, caps, compose, num_lock) = wire(
+            &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
+        );
         move |_, _| {
             save_keyboard(
                 &layout, &variant, &options, &delay, &rate, &caps, &compose, &num_lock,
@@ -209,8 +223,10 @@ pub fn build() -> gtk::Widget {
 }
 
 fn build_shortcuts_section() -> gtk::Box {
-    let (card, body) =
-        input_common::section_card(&tr("Shortcuts"), "preferences-desktop-keyboard-shortcuts-symbolic");
+    let (card, body) = input_common::section_card(
+        &tr("Shortcuts"),
+        "preferences-desktop-keyboard-shortcuts-symbolic",
+    );
 
     let cfg = Rc::new(RefCell::new(load_keybinds_config()));
     let status = gtk::Label::new(None);
@@ -254,8 +270,8 @@ fn build_shortcuts_section() -> gtk::Box {
     body.append(&input_common::hint(&tr(
         "Click Change, then press a shortcut in the field that appears, then Save. \
          Esc cancels. Ctrl+Alt+F1–F12 and Ctrl+Alt+Backspace are system-only and \
-         cannot be changed."
-        )));
+         cannot be changed.",
+    )));
     body.append(&status);
 
     // Placeholder marker so rebuild can clear dynamic rows.
@@ -267,11 +283,7 @@ fn build_shortcuts_section() -> gtk::Box {
     card
 }
 
-fn rebuild_shortcut_rows(
-    body: &gtk::Box,
-    cfg: &Rc<RefCell<KeybindsConfig>>,
-    status: &gtk::Label,
-) {
+fn rebuild_shortcut_rows(body: &gtk::Box, cfg: &Rc<RefCell<KeybindsConfig>>, status: &gtk::Label) {
     let mut child = body.first_child();
     while let Some(w) = child {
         let next = w.next_sibling();
@@ -288,11 +300,7 @@ fn rebuild_shortcut_rows(
     }
 }
 
-fn fill_shortcut_rows(
-    host: &gtk::Box,
-    cfg: &Rc<RefCell<KeybindsConfig>>,
-    status: &gtk::Label,
-) {
+fn fill_shortcut_rows(host: &gtk::Box, cfg: &Rc<RefCell<KeybindsConfig>>, status: &gtk::Label) {
     for group in KeybindGroup::all() {
         if *group == KeybindGroup::System {
             let title = gtk::Label::new(Some(group.label()));
@@ -464,7 +472,9 @@ fn editable_row(
                 return;
             };
             if chord.is_reserved() {
-                status.set_text(&tr("That shortcut is reserved for the system and cannot be used."));
+                status.set_text(&tr(
+                    "That shortcut is reserved for the system and cannot be used.",
+                ));
                 status.set_visible(true);
                 return;
             }
@@ -549,8 +559,8 @@ fn chord_from_gdk(keyval: gdk::Key, mods: gdk::ModifierType) -> Result<Chord, St
     let ctrl = mods.contains(gdk::ModifierType::CONTROL_MASK);
     let alt = mods.contains(gdk::ModifierType::ALT_MASK);
     let shift = mods.contains(gdk::ModifierType::SHIFT_MASK);
-    let super_key = mods.contains(gdk::ModifierType::SUPER_MASK)
-        || mods.contains(gdk::ModifierType::META_MASK);
+    let super_key =
+        mods.contains(gdk::ModifierType::SUPER_MASK) || mods.contains(gdk::ModifierType::META_MASK);
 
     let key = keyval_to_token(keyval).ok_or_else(|| "Unsupported key".to_string())?;
     Ok(Chord {

@@ -78,18 +78,20 @@ pub fn page(header: PageHeader<'_>) -> (gtk::ScrolledWindow, gtk::Box) {
     header_box.set_margin_bottom(4);
 
     if let Some(icon) = header.icon {
-        let wrap = gtk::Box::builder()
-            .width_request(52)
-            .height_request(52)
-            .halign(gtk::Align::Start)
-            .valign(gtk::Align::Center)
-            .build();
+        // Equal CSS padding centers the glyph; avoid fixed width/height requests.
+        let wrap = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        wrap.set_halign(gtk::Align::Start);
+        wrap.set_valign(gtk::Align::Center);
         wrap.add_css_class("metis-settings-page-icon-wrap");
         if let Some(hue) = header.hue {
             wrap.add_css_class(hue.css_class());
+        } else {
+            wrap.add_css_class(crate::nav::NavHue::Gray.css_class());
         }
         let img = gtk::Image::from_icon_name(icon);
         img.set_pixel_size(28);
+        img.set_halign(gtk::Align::Center);
+        img.set_valign(gtk::Align::Center);
         img.add_css_class("metis-settings-page-icon");
         wrap.append(&img);
         header_box.append(&wrap);
@@ -295,11 +297,7 @@ pub fn section_with_icon(title: &str, icon: &str) -> (gtk::Box, gtk::Box) {
 }
 
 /// A leading-icon + label + trailing control row.
-pub fn row_with_icon(
-    icon: &str,
-    label: &str,
-    control: &impl IsA<gtk::Widget>,
-) -> gtk::Box {
+pub fn row_with_icon(icon: &str, label: &str, control: &impl IsA<gtk::Widget>) -> gtk::Box {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     row.add_css_class("metis-settings-row");
     let img = gtk::Image::from_icon_name(icon);

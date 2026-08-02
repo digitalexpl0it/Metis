@@ -2,15 +2,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use ashpd::{
-    MaybeAppID, PortalError, WindowIdentifierType,
-    backend::{
-        request::RequestImpl,
-        screenshot::ScreenshotImpl,
-    },
+    backend::{request::RequestImpl, screenshot::ScreenshotImpl},
     desktop::{
-        Color, HandleToken,
         screenshot::{ColorOptions, Screenshot, ScreenshotOptions},
+        Color, HandleToken,
     },
+    MaybeAppID, PortalError, WindowIdentifierType,
 };
 use async_trait::async_trait;
 
@@ -55,7 +52,10 @@ impl ScreenshotImpl for MetisScreenshot {
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
             .is_err()
         {
-            tracing::warn!(?app_id, "portal screenshot rejected — capture already in progress");
+            tracing::warn!(
+                ?app_id,
+                "portal screenshot rejected — capture already in progress"
+            );
             return Err(PortalError::Failed(
                 "Another screenshot capture is already in progress".into(),
             ));
@@ -64,7 +64,12 @@ impl ScreenshotImpl for MetisScreenshot {
 
         tracing::info!(?app_id, "portal screenshot request");
         let portal_app = compositor_ipc::portal_app_id(app_id);
-        compositor_ipc::begin_capture_overlay(portal_app.clone());
+        if let Err(message) = compositor_ipc::begin_capture_overlay(portal_app.clone()) {
+            tracing::warn!(%message, "BeginCaptureOverlay rejected");
+            if message.contains("session is locked") {
+                return Err(PortalError::Failed(message));
+            }
+        }
         let result = self.capture.screenshot_png().await;
         if result.is_err() {
             compositor_ipc::end_capture_overlay(portal_app);

@@ -23,10 +23,7 @@ impl WorkspacesWidget {
             BarPosition::Left | BarPosition::Right => gtk::Orientation::Vertical,
         };
 
-        let root = gtk::Box::builder()
-            .orientation(axis)
-            .spacing(6)
-            .build();
+        let root = gtk::Box::builder().orientation(axis).spacing(6).build();
         root.add_css_class("metis-bar-widget");
         root.add_css_class("metis-bar-workspaces");
         root.set_vexpand(false);

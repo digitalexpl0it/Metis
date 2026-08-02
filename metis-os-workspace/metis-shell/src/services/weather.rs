@@ -82,10 +82,7 @@ static WEATHER_CMD_TX: OnceLock<Sender<WeatherCommand>> = OnceLock::new();
 /// Last weather snapshot — used to re-hydrate bar / desktop widgets after a
 /// rebuild (the async service only pushes every ~15 minutes).
 pub fn last_weather_snapshot() -> Option<WeatherSnapshot> {
-    LAST_WEATHER
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone())
+    LAST_WEATHER.lock().ok().and_then(|guard| guard.clone())
 }
 
 /// Remember a snapshot on the GTK thread (also written by the worker).
@@ -307,7 +304,11 @@ async fn ip_geolocate() -> Option<Geo> {
             return None;
         }
     };
-    if !json.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if !json
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         return None;
     }
     let lat = json.get("latitude")?.as_f64()?;
@@ -346,8 +347,7 @@ fn tz_geo(tz: &str) -> Option<Geo> {
                 continue;
             }
             let mut cols = line.split('\t');
-            let (Some(codes), Some(coords), Some(name)) =
-                (cols.next(), cols.next(), cols.next())
+            let (Some(codes), Some(coords), Some(name)) = (cols.next(), cols.next(), cols.next())
             else {
                 continue;
             };
@@ -512,7 +512,10 @@ async fn fetch_openmeteo(geo: &Geo, fahrenheit: bool) -> Result<LocationWeather,
         .get("temperature_2m")
         .and_then(|v| v.as_f64())
         .ok_or(WeatherError::Invalid)?;
-    let code = current.get("weather_code").and_then(|v| v.as_i64()).unwrap_or(0);
+    let code = current
+        .get("weather_code")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
     let is_day = current.get("is_day").and_then(|v| v.as_i64()).unwrap_or(1) != 0;
     let current_time = current.get("time").and_then(|v| v.as_str()).unwrap_or("");
 

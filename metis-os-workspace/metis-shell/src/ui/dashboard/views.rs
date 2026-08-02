@@ -325,10 +325,7 @@ pub fn build_overview() -> OverviewPage {
     body.append(&batt_logs);
 
     // Row 4: System
-    let system_card = card_with_icon(
-        &tr("System"),
-        &["computer-symbolic", "system-run-symbolic"],
-    );
+    let system_card = card_with_icon(&tr("System"), &["computer-symbolic", "system-run-symbolic"]);
     let sys_grid = gtk::Grid::builder()
         .column_spacing(16)
         .row_spacing(6)
@@ -772,10 +769,7 @@ pub fn build_temp_gauge_card(title: &str, icons: &[&str]) -> (gtk::Box, TempGaug
 }
 
 fn sort_header(text: &str, width: i32, align: gtk::Align) -> gtk::Button {
-    let btn = gtk::Button::builder()
-        .label(text)
-        .halign(align)
-        .build();
+    let btn = gtk::Button::builder().label(text).halign(align).build();
     if width > 0 {
         btn.set_width_request(width);
     }

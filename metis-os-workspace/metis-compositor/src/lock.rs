@@ -275,9 +275,9 @@ impl MetisState {
         // Repaint at 2 Hz: clock text caches by content, caret toggles here so
         // blink stays a clean 1 Hz even when nothing else is damaging frames.
         let tick = Duration::from_millis(500);
-        match self
-            .loop_handle
-            .insert_source(Timer::from_duration(tick), move |_, _, state: &mut MetisState| {
+        match self.loop_handle.insert_source(
+            Timer::from_duration(tick),
+            move |_, _, state: &mut MetisState| {
                 if state.lock.locked {
                     state.lock.caret_on = !state.lock.caret_on;
                     state.damaged = true;
@@ -287,7 +287,8 @@ impl MetisState {
                     state.lock.clock_timer = None;
                     TimeoutAction::Drop
                 }
-            }) {
+            },
+        ) {
             Ok(token) => self.lock.clock_timer = Some(token),
             Err(err) => tracing::warn!(?err, "lock: failed to arm clock timer"),
         }
@@ -398,7 +399,10 @@ impl MetisState {
                 if !success {
                     std::thread::sleep(Duration::from_millis(1200));
                 }
-                let _ = tx.send(AuthOutcome { generation, success });
+                let _ = tx.send(AuthOutcome {
+                    generation,
+                    success,
+                });
             });
         if let Err(err) = spawned {
             tracing::warn!(?err, "lock: failed to spawn PAM worker");
@@ -472,13 +476,37 @@ impl MetisState {
                 now.format("%-I:%M %p").to_string()
             };
             let date = now.format("%A, %B %-d").to_string();
-            self.push_lock_text(renderer, &mut elems, &time, 120.0, [1.0, 1.0, 1.0, 0.96], cx, cy - 150.0);
-            self.push_lock_text(renderer, &mut elems, &date, 30.0, [1.0, 1.0, 1.0, 0.72], cx, cy - 60.0);
+            self.push_lock_text(
+                renderer,
+                &mut elems,
+                &time,
+                120.0,
+                [1.0, 1.0, 1.0, 0.96],
+                cx,
+                cy - 150.0,
+            );
+            self.push_lock_text(
+                renderer,
+                &mut elems,
+                &date,
+                30.0,
+                [1.0, 1.0, 1.0, 0.72],
+                cx,
+                cy - 60.0,
+            );
         }
 
         // Greeting: the account's display name (GECOS), falling back to the login.
         if let Some(name) = current_display_name() {
-            self.push_lock_text(renderer, &mut elems, &name, 26.0, [1.0, 1.0, 1.0, 0.82], cx, field_y - 66.0);
+            self.push_lock_text(
+                renderer,
+                &mut elems,
+                &name,
+                26.0,
+                [1.0, 1.0, 1.0, 0.82],
+                cx,
+                field_y - 66.0,
+            );
         }
 
         // Password entry: dots (or a placeholder) drawn over a rounded field box,
@@ -491,7 +519,15 @@ impl MetisState {
         let caret_x = if count > 0 {
             let dots: String = "•".repeat(count.min(32));
             let w = self
-                .push_lock_text(renderer, &mut elems, &dots, 32.0, [1.0, 1.0, 1.0, 0.95], cx, field_y)
+                .push_lock_text(
+                    renderer,
+                    &mut elems,
+                    &dots,
+                    32.0,
+                    [1.0, 1.0, 1.0, 0.95],
+                    cx,
+                    field_y,
+                )
                 .map(|(w, _)| w as f64)
                 .unwrap_or(0.0);
             // The rasterizer pads each side; trim it so the caret hugs the dots.
@@ -533,7 +569,15 @@ impl MetisState {
             } else {
                 [1.0, 1.0, 1.0, 0.65]
             };
-            self.push_lock_text(renderer, &mut elems, &status, 20.0, color, cx, field_y + 60.0);
+            self.push_lock_text(
+                renderer,
+                &mut elems,
+                &status,
+                20.0,
+                color,
+                cx,
+                field_y + 60.0,
+            );
         }
 
         // Power controls (suspend / restart / shut down) at the bottom-right.
@@ -599,13 +643,14 @@ impl MetisState {
             else {
                 return None;
             };
-            let buffer =
-                TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
+            let buffer = TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
             // Bound the cache so a long session of typing can't grow it forever.
             if self.lock.text_cache.len() > 128 {
                 self.lock.text_cache.clear();
             }
-            self.lock.text_cache.insert(key, CachedText { buffer, w, h });
+            self.lock
+                .text_cache
+                .insert(key, CachedText { buffer, w, h });
         }
         if let Some(cached) = self.lock.text_cache.get(&key) {
             let (w, h) = (cached.w, cached.h);
@@ -613,14 +658,16 @@ impl MetisState {
                 center_x - w as f64 / 2.0,
                 center_y - h as f64 / 2.0,
             ));
-            elems.push(OutputStack::Wallpaper(TextureRenderElement::from_texture_buffer(
-                loc,
-                &cached.buffer,
-                None,
-                None,
-                None,
-                Kind::Unspecified,
-            )));
+            elems.push(OutputStack::Wallpaper(
+                TextureRenderElement::from_texture_buffer(
+                    loc,
+                    &cached.buffer,
+                    None,
+                    None,
+                    None,
+                    Kind::Unspecified,
+                ),
+            ));
             return Some((w, h));
         }
         None
@@ -646,23 +693,26 @@ impl MetisState {
             else {
                 return;
             };
-            let buffer =
-                TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
+            let buffer = TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
             if self.lock.text_cache.len() > 160 {
                 self.lock.text_cache.clear();
             }
-            self.lock.text_cache.insert(key, CachedText { buffer, w, h });
+            self.lock
+                .text_cache
+                .insert(key, CachedText { buffer, w, h });
         }
         if let Some(cached) = self.lock.text_cache.get(&key) {
             let loc = Point::<f64, Physical>::from(top_left);
-            elems.push(OutputStack::Wallpaper(TextureRenderElement::from_texture_buffer(
-                loc,
-                &cached.buffer,
-                None,
-                None,
-                None,
-                Kind::Unspecified,
-            )));
+            elems.push(OutputStack::Wallpaper(
+                TextureRenderElement::from_texture_buffer(
+                    loc,
+                    &cached.buffer,
+                    None,
+                    None,
+                    None,
+                    Kind::Unspecified,
+                ),
+            ));
         }
     }
 
@@ -687,7 +737,10 @@ impl MetisState {
             } else {
                 [1.0, 1.0, 1.0, 0.78]
             };
-            let icon_key = sprite_key("power-icon", &[btn as i64, icon_side as i64, hovered as i64]);
+            let icon_key = sprite_key(
+                "power-icon",
+                &[btn as i64, icon_side as i64, hovered as i64],
+            );
             let ix = bx + (side - icon_side as f64) / 2.0;
             let iy = by + (side - icon_side as f64) / 2.0;
             self.push_lock_sprite(
@@ -742,12 +795,13 @@ impl MetisState {
             else {
                 return;
             };
-            let buffer =
-                TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
+            let buffer = TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
             if self.lock.text_cache.len() > 160 {
                 self.lock.text_cache.clear();
             }
-            self.lock.text_cache.insert(key, CachedText { buffer, w, h });
+            self.lock
+                .text_cache
+                .insert(key, CachedText { buffer, w, h });
         }
         if let Some(cached) = self.lock.text_cache.get(&key) {
             let loc = Point::<f64, Physical>::from((
@@ -776,7 +830,14 @@ impl MetisState {
         let (ox, oy, aw, ah) = self
             .output_under_pointer()
             .and_then(|o| self.space.output_geometry(&o))
-            .map(|g| (g.loc.x as f64, g.loc.y as f64, g.size.w as f64, g.size.h as f64))
+            .map(|g| {
+                (
+                    g.loc.x as f64,
+                    g.loc.y as f64,
+                    g.size.w as f64,
+                    g.size.h as f64,
+                )
+            })
             .unwrap_or_else(|| {
                 let b = self.desktop_bounds();
                 (
@@ -928,14 +989,16 @@ impl MetisState {
                             return;
                         }
                     }
-                    elems.push(OutputStack::Wallpaper(TextureRenderElement::from_texture_buffer(
-                        Point::<f64, Physical>::from((0.0, 0.0)),
-                        buffer,
-                        None,
-                        None,
-                        None,
-                        Kind::Unspecified,
-                    )));
+                    elems.push(OutputStack::Wallpaper(
+                        TextureRenderElement::from_texture_buffer(
+                            Point::<f64, Physical>::from((0.0, 0.0)),
+                            buffer,
+                            None,
+                            None,
+                            None,
+                            Kind::Unspecified,
+                        ),
+                    ));
                 } else {
                     elems.push(OutputStack::Overlay(SolidColorRenderElement::new(
                         self.lock.solid_id.clone(),
@@ -990,8 +1053,7 @@ fn pam_service() -> String {
 }
 
 fn lock_cue_status(cues: AuthCues) -> Option<String> {
-    cues.status_ftl_id()
-        .map(|id| metis_i18n::tr_ftl(id))
+    cues.status_ftl_id().map(|id| metis_i18n::tr_ftl(id))
 }
 
 // --- Minimal libpam FFI ------------------------------------------------------
@@ -1122,7 +1184,12 @@ fn pam_check(service: &str, user: &str, password: &str) -> bool {
     };
     let mut handle: *mut PamHandle = std::ptr::null_mut();
     unsafe {
-        let start = pam_start(c_service.as_ptr(), c_user_start.as_ptr(), &conv, &mut handle);
+        let start = pam_start(
+            c_service.as_ptr(),
+            c_user_start.as_ptr(),
+            &conv,
+            &mut handle,
+        );
         if start != PAM_SUCCESS || handle.is_null() {
             tracing::warn!(service, "lock: pam_start failed");
             return false;
@@ -1178,7 +1245,12 @@ fn text_key(text: &str, px: f32, color: [f32; 4]) -> u64 {
 
 /// Rasterize `text` at `font_px` into a premultiplied RGBA buffer on a fully
 /// transparent background. Returns `(pixels, width, height)`.
-fn rasterize_text(font: &Font, text: &str, font_px: f32, color: [f32; 4]) -> Option<(Vec<u8>, i32, i32)> {
+fn rasterize_text(
+    font: &Font,
+    text: &str,
+    font_px: f32,
+    color: [f32; 4],
+) -> Option<(Vec<u8>, i32, i32)> {
     if text.is_empty() {
         return None;
     }
@@ -1292,8 +1364,11 @@ enum PowerButton {
 }
 
 /// Left-to-right button order (indices match hover/hit-test bookkeeping).
-const POWER_ORDER: [PowerButton; 3] =
-    [PowerButton::Suspend, PowerButton::Restart, PowerButton::Shutdown];
+const POWER_ORDER: [PowerButton; 3] = [
+    PowerButton::Suspend,
+    PowerButton::Restart,
+    PowerButton::Shutdown,
+];
 /// Logical button box side, gap between boxes, and margin from the screen edge.
 const POWER_BTN: f64 = 48.0;
 const POWER_GAP: f64 = 16.0;
@@ -1556,7 +1631,11 @@ fn rasterize_round_bg(side: i32) -> Option<(Vec<u8>, i32, i32)> {
 }
 
 /// Rasterize a power-control glyph (moon / circular-arrow / power symbol).
-fn rasterize_power_icon(btn: PowerButton, side: i32, color: [f32; 4]) -> Option<(Vec<u8>, i32, i32)> {
+fn rasterize_power_icon(
+    btn: PowerButton,
+    side: i32,
+    color: [f32; 4],
+) -> Option<(Vec<u8>, i32, i32)> {
     if side <= 0 {
         return None;
     }

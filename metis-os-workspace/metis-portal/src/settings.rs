@@ -2,16 +2,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use ashpd::{
-    PortalError,
     backend::settings::{SettingsImpl, SettingsSignalEmitter},
-    desktop::settings::{
-        APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY, ColorScheme, Namespace,
-    },
+    desktop::settings::{ColorScheme, Namespace, APPEARANCE_NAMESPACE, COLOR_SCHEME_KEY},
     zbus::zvariant::{OwnedValue, Value},
+    PortalError,
 };
 use async_trait::async_trait;
 use metis_config::{
-    ThemeMode, load_theme_preference, SESSION_GTK_DECORATION_LAYOUT, SESSION_WM_BUTTON_LAYOUT,
+    load_theme_preference, ThemeMode, SESSION_GTK_DECORATION_LAYOUT, SESSION_WM_BUTTON_LAYOUT,
 };
 
 const NS_WM: &str = "org.gnome.desktop.wm.preferences";
@@ -104,10 +102,7 @@ fn interface_namespace(snapshot: &Snapshot) -> Namespace {
         KEY_DECO_LAYOUT.to_owned(),
         owned_string(SESSION_GTK_DECORATION_LAYOUT),
     );
-    map.insert(
-        KEY_GTK_THEME.to_owned(),
-        owned_string(&snapshot.gtk_theme),
-    );
+    map.insert(KEY_GTK_THEME.to_owned(), owned_string(&snapshot.gtk_theme));
     map
 }
 
@@ -164,7 +159,11 @@ async fn emit_appearance(snapshot: &Snapshot) {
         tracing::warn!(%err, "portal: emit color-scheme failed");
     }
     if let Err(err) = emitter
-        .emit_changed(NS_INTERFACE, KEY_GTK_THEME, Value::from(snapshot.gtk_theme.as_str()))
+        .emit_changed(
+            NS_INTERFACE,
+            KEY_GTK_THEME,
+            Value::from(snapshot.gtk_theme.as_str()),
+        )
         .await
     {
         tracing::warn!(%err, "portal: emit gtk-theme failed");
@@ -198,9 +197,7 @@ fn ensure_theme_watch() {
     tokio::spawn(async {
         // Session start: push gsettings so early GTK apps see Metis dark/light.
         metis_config::sync_session_appearance_from_config();
-        let mut last = load_theme_preference()
-            .unwrap_or(ThemeMode::Dark)
-            .clone();
+        let mut last = load_theme_preference().unwrap_or(ThemeMode::Dark).clone();
         // Emit once so portal clients that subscribe after connect get a baseline.
         emit_appearance(&Snapshot::from_config()).await;
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
@@ -238,10 +235,7 @@ impl SettingsImpl for MetisSettings {
             );
         }
         if namespace_allowed(&namespaces, NS_INTERFACE) {
-            out.insert(
-                NS_INTERFACE.to_owned(),
-                interface_namespace(&snapshot),
-            );
+            out.insert(NS_INTERFACE.to_owned(), interface_namespace(&snapshot));
         }
         if namespace_allowed(&namespaces, NS_WM) {
             out.insert(NS_WM.to_owned(), wm_namespace());

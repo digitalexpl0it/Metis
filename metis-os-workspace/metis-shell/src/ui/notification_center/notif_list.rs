@@ -315,11 +315,31 @@ fn build_notification_card(entry: &NotificationEntry) -> gtk::Box {
 pub fn seed_demo_notifications() {
     use crate::services::push_notification;
     let demos = [
-        (NotificationKind::Success, "Workspace saved", "Layout stored to disk."),
-        (NotificationKind::Payment, "Payment received", "Invoice #1042 was paid."),
-        (NotificationKind::Error, "Sync failed", "Could not reach the calendar server."),
-        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
-        (NotificationKind::Notification, "New message", "Ping from Metis Core."),
+        (
+            NotificationKind::Success,
+            "Workspace saved",
+            "Layout stored to disk.",
+        ),
+        (
+            NotificationKind::Payment,
+            "Payment received",
+            "Invoice #1042 was paid.",
+        ),
+        (
+            NotificationKind::Error,
+            "Sync failed",
+            "Could not reach the calendar server.",
+        ),
+        (
+            NotificationKind::Notification,
+            "New message",
+            "Ping from Metis Core.",
+        ),
+        (
+            NotificationKind::Notification,
+            "New message",
+            "Ping from Metis Core.",
+        ),
     ];
     for (kind, title, message) in demos {
         push_notification(BarNotification::internal(kind, title, message));

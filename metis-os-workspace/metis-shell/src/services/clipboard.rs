@@ -184,11 +184,7 @@ pub fn filtered_entries(search: &str, page: usize) -> ClipboardPage {
     };
     let page = page.min(total_pages.saturating_sub(1));
     let start = page * per_page;
-    let entries = matching
-        .into_iter()
-        .skip(start)
-        .take(per_page)
-        .collect();
+    let entries = matching.into_iter().skip(start).take(per_page).collect();
     ClipboardPage {
         entries,
         page,
@@ -217,11 +213,7 @@ fn trim_entries(entries: &mut Vec<ClipboardEntry>) {
     }
 }
 
-pub fn apply_clipboard_event(
-    mime: &str,
-    preview_text: Option<String>,
-    image_path: Option<String>,
-) {
+pub fn apply_clipboard_event(mime: &str, preview_text: Option<String>, image_path: Option<String>) {
     if private_mode() {
         return;
     }

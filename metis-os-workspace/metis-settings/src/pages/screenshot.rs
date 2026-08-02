@@ -30,11 +30,7 @@ pub fn build() -> gtk::Widget {
     let (capture_card, capture_body) =
         ui::section_with_icon(&tr("Capture"), "camera-photo-symbolic");
 
-    let mode = gtk::DropDown::from_strings(&[
-        &tr("Selection"),
-        &tr("Full screen"),
-        &tr("Window"),
-    ]);
+    let mode = gtk::DropDown::from_strings(&[&tr("Selection"), &tr("Full screen"), &tr("Window")]);
     mode.set_selected(mode_to_index(cfg.borrow().default_mode));
     capture_body.append(&ui::row(&tr("Default mode"), &mode));
 
@@ -68,11 +64,7 @@ pub fn build() -> gtk::Widget {
     after.set_selected(action_to_index(cfg.borrow().interactive_action()));
     after_body.append(&ui::row(&tr("Interactive (PrtSc)"), &after));
 
-    let instant = gtk::DropDown::from_strings(&[
-        &tr("Copy"),
-        &tr("Save"),
-        &tr("Copy and save"),
-    ]);
+    let instant = gtk::DropDown::from_strings(&[&tr("Copy"), &tr("Save"), &tr("Copy and save")]);
     instant.set_selected(match cfg.borrow().instant_action() {
         AfterCaptureAction::Save => 1,
         AfterCaptureAction::CopyAndSave => 2,

@@ -77,9 +77,7 @@ impl CalendarPage {
         left.set_width_request(-1);
         left.set_hexpand(true);
 
-        let header_weekday = gtk::Label::builder()
-            .halign(gtk::Align::Start)
-            .build();
+        let header_weekday = gtk::Label::builder().halign(gtk::Align::Start).build();
         header_weekday.add_css_class("metis-cal-head-weekday");
         let header_date = gtk::Label::builder().halign(gtk::Align::Start).build();
         header_date.add_css_class("metis-cal-head-date");
@@ -97,7 +95,9 @@ impl CalendarPage {
         title.add_css_class("metis-cal-title");
         let next_month = nav_button("\u{203A}");
         let next_year = nav_button("\u{00BB}");
-        let today_btn = gtk::Button::builder().label(metis_i18n::tr("Today")).build();
+        let today_btn = gtk::Button::builder()
+            .label(metis_i18n::tr("Today"))
+            .build();
         today_btn.add_css_class("metis-cal-today-btn");
         nav.append(&prev_year);
         nav.append(&prev_month);
@@ -157,7 +157,9 @@ impl CalendarPage {
         events_scroll.add_css_class("metis-cal-events-scroll");
         right.append(&events_scroll);
 
-        let add_btn = gtk::Button::builder().label(metis_i18n::tr("+ Add event")).build();
+        let add_btn = gtk::Button::builder()
+            .label(metis_i18n::tr("+ Add event"))
+            .build();
         add_btn.add_css_class("metis-cal-add-btn");
         add_btn.set_halign(gtk::Align::Start);
         right.append(&add_btn);
@@ -450,9 +452,9 @@ impl Inner {
 
     fn rebuild_header(&self) {
         let sel = *self.selected.borrow();
-        self.header_weekday
-            .set_label(&sel.format("%A").to_string());
-        self.header_date.set_label(&sel.format("%B %-d %Y").to_string());
+        self.header_weekday.set_label(&sel.format("%A").to_string());
+        self.header_date
+            .set_label(&sel.format("%B %-d %Y").to_string());
         let anchor = *self.shown.borrow();
         self.title.set_label(&anchor.format("%B %Y").to_string());
     }
@@ -678,12 +680,22 @@ impl Inner {
 fn inline_color_css(color: &str) -> Result<gtk::CssProvider, ()> {
     let safe: String = color
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '#' || *c == '(' || *c == ')' || *c == ',' || *c == '.' || *c == ' ')
+        .filter(|c| {
+            c.is_ascii_alphanumeric()
+                || *c == '#'
+                || *c == '('
+                || *c == ')'
+                || *c == ','
+                || *c == '.'
+                || *c == ' '
+        })
         .collect();
     if safe.is_empty() {
         return Err(());
     }
     let provider = gtk::CssProvider::new();
-    provider.load_from_data(&format!(".metis-cal-event-color {{ background-color: {safe}; }}"));
+    provider.load_from_data(&format!(
+        ".metis-cal-event-color {{ background-color: {safe}; }}"
+    ));
     Ok(provider)
 }

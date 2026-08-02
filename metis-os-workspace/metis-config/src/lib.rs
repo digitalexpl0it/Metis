@@ -1,6 +1,7 @@
 //! Shared Metis configuration: pure serde + filesystem types consumed by both the
 //! shell (`metis-shell`) and the settings app (`metis-settings`). No GTK here so
 //! the settings binary can link it without pulling in the shell.
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 
 pub mod bar;
 pub mod calendars;
@@ -26,9 +27,9 @@ pub mod sanitize;
 pub mod screenshot;
 pub mod startup;
 pub mod theme;
+pub mod viewer;
 pub mod wallpaper;
 pub mod weather;
-pub mod viewer;
 pub mod widget_ext;
 
 use serde::{Deserialize, Serialize};
@@ -299,20 +300,10 @@ pub const SESSION_GTK_DECORATION_LAYOUT: &str = "icon:minimize,maximize,close";
 pub fn apply_session_appearance_gsettings(mode: ThemeMode) {
     let (scheme, gtk_theme) = appearance_gsettings_values(mode);
     let _ = std::process::Command::new("gsettings")
-        .args([
-            "set",
-            "org.gnome.desktop.interface",
-            "color-scheme",
-            scheme,
-        ])
+        .args(["set", "org.gnome.desktop.interface", "color-scheme", scheme])
         .status();
     let _ = std::process::Command::new("gsettings")
-        .args([
-            "set",
-            "org.gnome.desktop.interface",
-            "gtk-theme",
-            gtk_theme,
-        ])
+        .args(["set", "org.gnome.desktop.interface", "gtk-theme", gtk_theme])
         .status();
     let _ = std::process::Command::new("gsettings")
         .args([
@@ -407,11 +398,77 @@ pub fn load_theme_tokens(name: &str) -> theme::ThemeTokens {
     }
 }
 
+pub use bar::{
+    bar_config_path, load_bar_config, sanitize_bar_config, save_bar_config,
+    save_default_bar_config, BarBorder, BarConfig, BarDisplays, BarFill, BarFillMode,
+    BarGradientDirection, BarPosition, BarWidgetId, BorderMode, ClockConfig, DefaultLayout,
+    TitlebarPillBorder, TrayIconMode, WindowBorder, WorkspaceMode,
+};
+pub use calendars::{
+    calendars_config_path, default_local_dir, load_calendars_config, save_calendars_config,
+    AccountKind, CalendarAccount, CalendarsConfig,
+};
+pub use clocks::{
+    alarm_sound_canberra_id, clocks_config_path, load_clocks_config, save_clocks_config, Alarm,
+    AlarmSound, ClocksConfig, ALARM_SOUNDS,
+};
+pub use css::build_stylesheet;
+pub use dashboard::{
+    dashboard_config_path, load_dashboard_config, process_monitor_needs_terminal,
+    save_dashboard_config, save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
+    KNOWN_PROCESS_MONITORS,
+};
+pub use decorations::{
+    decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,
+    DecorationsOverride,
+};
+pub use desktop_widgets::{
+    desktop_widgets_config_path, load_desktop_widgets_config, save_desktop_widgets_config,
+    DesktopWidgetChrome, DesktopWidgetChromeOverride, DesktopWidgetInstance, DesktopWidgetKind,
+    DesktopWidgetView, DesktopWidgetsConfig, EqualizerBarShape, EqualizerColorMode,
+    EqualizerVizStyle, ResolvedDesktopWidgetChrome,
+};
+pub use game_rules::{
+    game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,
+    WindowRule, WindowRuleOutcome,
+};
+pub use gaming::{
+    command_is_web_browser, command_prefers_dgpu, gaming_config_path, gaming_flatpak_state_path,
+    load_gaming_config, load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch,
+    save_default_gaming_config, save_gaming_config, save_gaming_flatpak_state, GameScopeProfile,
+    GamingConfig, GamingFlatpakState, GraphicsMode,
+};
+pub use gpu_offload::{
+    detect_hybrid_gpu, display_gpu_pci, offload_env_vars, GpuOffloadKind, HybridGpuInfo,
+};
+pub use graphics::{
+    effective_graphics_compatibility, effective_graphics_profile_label, is_virtual_machine,
+    session_graphics_compatibility, GraphicsProfile,
+};
+pub use input::{
+    input_config_path, load_input_config, save_input_config, AccelProfile, CapsLockBehavior,
+    ComposeKey, InputConfig, KeyboardConfig, MouseConfig, NumLockStartup, TouchpadConfig,
+};
+pub use keybinds::{
+    default_chord, keybinds_config_path, load_keybinds_config, reserved_chords,
+    reserved_system_rows, save_default_keybinds_config, save_keybinds_config, Chord, KeybindAction,
+    KeybindGroup, KeybindsConfig, ModKey,
+};
+pub use kitty::{ensure_kitty_defaults, kitty_config_path, KITTY_DEFAULT_CONF};
+pub use locale::{load_locale_config, locale_config_path, save_locale_config, LocaleConfig};
+pub use lock::{
+    load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
+};
+pub use menu::{
+    argv_in_terminal, binary_in_path, load_menu_config, menu_config_path, resolve_executable,
+    resolve_file_manager, resolve_terminal, save_menu_config, MenuConfig, KNOWN_FILE_MANAGERS,
+    KNOWN_TERMINALS,
+};
 pub use outputs::{
-    load_outputs_config, load_outputs_config_with_fallback, night_light_effective, output_prefs, outputs_config_path,
-    parse_hhmm, save_outputs_config, DisplayLayoutMode, NightLightSchedule, OutputPrefs,
-    OutputsConfig, format_schedule_hhmm, format_schedule_minutes, minutes_to_hhmm,
-    parse_schedule_input, schedule_half_hour_presets,
+    format_schedule_hhmm, format_schedule_minutes, load_outputs_config,
+    load_outputs_config_with_fallback, minutes_to_hhmm, night_light_effective, output_prefs,
+    outputs_config_path, parse_hhmm, parse_schedule_input, save_outputs_config,
+    schedule_half_hour_presets, DisplayLayoutMode, NightLightSchedule, OutputPrefs, OutputsConfig,
 };
 pub use power::{
     load_power_config, power_config_path, save_power_config, LidCloseAction, PowerConfig,
@@ -420,33 +477,30 @@ pub use power::{
 pub use remote::{
     load_remote_config, remote_config_path, save_remote_config, RemoteBackend, RemoteConfig,
 };
-pub use startup::{
-    load_startup_config, resolve_desktop_launch_argv, save_startup_config, sanitize_startup_config,
-    startup_config_path, StartupConfig, StartupEntry,
-};
-pub use viewer::{
-    load_viewer_config, remember_host, remove_recent, save_viewer_config, viewer_config_path,
-    ViewerConfig, ViewerHost,
-};
 pub use sanitize::{is_safe_nm_token, validate_nm_id, validate_ssid, validate_vpn_data_fragment};
 pub use screenshot::{
     expand_save_dir, load_screenshot_config, save_default_screenshot_config,
     save_screenshot_config, screenshot_config_path, AfterCaptureAction, ScreenshotConfig,
     ScreenshotMode,
 };
-pub use lock::{
-    load_lock_config, lock_config_path, save_lock_config, LockBackgroundSource, LockConfig,
+pub use startup::{
+    load_startup_config, resolve_desktop_launch_argv, sanitize_startup_config, save_startup_config,
+    startup_config_path, StartupConfig, StartupEntry,
 };
-pub use dashboard::{
-    dashboard_config_path, load_dashboard_config, process_monitor_needs_terminal,
-    save_dashboard_config, save_default_dashboard_config, DashboardConfig, DashboardWidgetId,
-    KNOWN_PROCESS_MONITORS,
+pub use theme::{SemanticColors, ThemeMode, ThemeTokens};
+pub use viewer::{
+    load_viewer_config, remember_host, remove_recent, save_viewer_config, viewer_config_path,
+    ViewerConfig, ViewerHost,
 };
-pub use desktop_widgets::{
-    desktop_widgets_config_path, load_desktop_widgets_config, save_desktop_widgets_config,
-    DesktopWidgetChrome, DesktopWidgetChromeOverride, DesktopWidgetInstance, DesktopWidgetKind,
-    DesktopWidgetView, DesktopWidgetsConfig, EqualizerBarShape, EqualizerColorMode,
-    EqualizerVizStyle, ResolvedDesktopWidgetChrome,
+pub use wallpaper::{
+    bundled_wallpaper_dir, bundled_wallpaper_dirs, collect_wallpaper_images,
+    default_wallpaper_path, list_bundled_wallpapers, load_wallpaper_config, parse_hex_rgb,
+    save_wallpaper_config, wallpaper_config_path, wallpaper_store_dir, BackgroundKind,
+    GradientDirection, WallpaperConfig, WALLPAPER_IMAGE_EXTS,
+};
+pub use weather::{
+    load_weather_config, save_weather_config, weather_config_path, TempUnit, WeatherConfig,
+    WeatherLocation,
 };
 pub use widget_ext::{
     default_extension_settings, discover_widget_extensions, find_widget_extension,
@@ -458,70 +512,4 @@ pub use widget_ext::{
     WidgetExtNode, WidgetExtSetting, WidgetExtSettingType, WIDGET_EXT_API,
     WIDGET_EXT_HELPER_MAX_STDOUT, WIDGET_EXT_HELPER_TIMEOUT_SECS, WIDGET_EXT_MAX_COPY,
     WIDGET_EXT_MAX_DEPTH, WIDGET_EXT_MAX_JSON_BYTES, WIDGET_EXT_MAX_NODES, WIDGET_EXT_MAX_STRING,
-};
-pub use decorations::{
-    decorations_config_path, load_decorations_config, save_decorations_config, DecorationsConfig,
-    DecorationsOverride,
-};
-pub use game_rules::{
-    game_rules_config_path, load_game_rules_config, save_game_rules_config, GameRulesConfig,
-    WindowRule, WindowRuleOutcome,
-};
-pub use gaming::{
-    command_is_web_browser, command_prefers_dgpu, gaming_config_path, gaming_flatpak_state_path,
-    load_gaming_config, load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch,
-    save_default_gaming_config,
-    save_gaming_config, save_gaming_flatpak_state, GameScopeProfile, GamingConfig,
-    GamingFlatpakState, GraphicsMode,
-};
-pub use gpu_offload::{
-    detect_hybrid_gpu, display_gpu_pci, offload_env_vars, GpuOffloadKind, HybridGpuInfo,
-};
-pub use graphics::{
-    effective_graphics_compatibility, effective_graphics_profile_label, is_virtual_machine,
-    session_graphics_compatibility, GraphicsProfile,
-};
-pub use input::{
-    load_input_config, save_input_config, input_config_path, AccelProfile, CapsLockBehavior,
-    ComposeKey, InputConfig, KeyboardConfig, MouseConfig, NumLockStartup, TouchpadConfig,
-};
-pub use keybinds::{
-    default_chord, keybinds_config_path, load_keybinds_config, reserved_chords,
-    reserved_system_rows, save_default_keybinds_config, save_keybinds_config, Chord, KeybindAction,
-    KeybindGroup, KeybindsConfig, ModKey,
-};
-pub use kitty::{ensure_kitty_defaults, kitty_config_path, KITTY_DEFAULT_CONF};
-pub use locale::{
-    load_locale_config, locale_config_path, save_locale_config, LocaleConfig,
-};
-pub use bar::{
-    bar_config_path, load_bar_config, sanitize_bar_config, save_bar_config, save_default_bar_config,
-    BarBorder, BarConfig, BarDisplays, BarFill, BarFillMode, BarGradientDirection, BarPosition,
-    BarWidgetId, BorderMode, ClockConfig, DefaultLayout, TitlebarPillBorder, TrayIconMode,
-    WindowBorder, WorkspaceMode,
-};
-pub use calendars::{
-    calendars_config_path, default_local_dir, load_calendars_config, save_calendars_config,
-    AccountKind, CalendarAccount, CalendarsConfig,
-};
-pub use clocks::{
-    alarm_sound_canberra_id, clocks_config_path, load_clocks_config, save_clocks_config, Alarm,
-    AlarmSound, ClocksConfig, ALARM_SOUNDS,
-};
-pub use css::build_stylesheet;
-pub use menu::{
-    argv_in_terminal, binary_in_path, load_menu_config, menu_config_path, resolve_executable,
-    resolve_file_manager, resolve_terminal, save_menu_config, MenuConfig, KNOWN_FILE_MANAGERS,
-    KNOWN_TERMINALS,
-};
-pub use theme::{SemanticColors, ThemeMode, ThemeTokens};
-pub use wallpaper::{
-    bundled_wallpaper_dir, bundled_wallpaper_dirs, collect_wallpaper_images,
-    default_wallpaper_path, list_bundled_wallpapers, load_wallpaper_config, parse_hex_rgb,
-    save_wallpaper_config, wallpaper_config_path, wallpaper_store_dir, WALLPAPER_IMAGE_EXTS,
-    BackgroundKind, GradientDirection, WallpaperConfig,
-};
-pub use weather::{
-    load_weather_config, save_weather_config, weather_config_path, TempUnit, WeatherConfig,
-    WeatherLocation,
 };

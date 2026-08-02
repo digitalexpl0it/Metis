@@ -42,7 +42,9 @@ pub async fn get(account: &str, kind: &str) -> SecretResult<Option<String>> {
     match items.first() {
         Some(item) => {
             let secret = item.secret().await?;
-            Ok(Some(String::from_utf8_lossy(secret.as_bytes()).into_owned()))
+            Ok(Some(
+                String::from_utf8_lossy(secret.as_bytes()).into_owned(),
+            ))
         }
         None => Ok(None),
     }

@@ -4,15 +4,19 @@ pub fn portal_app_id(app_id: Option<ashpd::MaybeAppID>) -> Option<String> {
     app_id.map(|id| id.to_string())
 }
 
-pub fn begin_capture_overlay(app_id: Option<String>) {
+/// Ask the compositor to elevate capture UI. Returns `Err` when the compositor
+/// explicitly rejects (e.g. session locked); transport failures are soft-logged
+/// and treated as `Ok` so nested/dev sessions without a compositor still work.
+pub fn begin_capture_overlay(app_id: Option<String>) -> Result<(), String> {
     let cmd = CompositorCommand::BeginCaptureOverlay { app_id };
     match metis_protocol::send_compositor_command(&cmd) {
-        Ok(CompositorEvent::Pong) => {}
-        Ok(CompositorEvent::Error { message }) => {
-            tracing::warn!(%message, "BeginCaptureOverlay rejected");
+        Ok(CompositorEvent::Pong) => Ok(()),
+        Ok(CompositorEvent::Error { message }) => Err(message),
+        Ok(_) => Ok(()),
+        Err(err) => {
+            tracing::debug!(%err, "BeginCaptureOverlay IPC failed");
+            Ok(())
         }
-        Ok(_) => {}
-        Err(err) => tracing::debug!(%err, "BeginCaptureOverlay IPC failed"),
     }
 }
 

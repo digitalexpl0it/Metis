@@ -117,10 +117,7 @@ pub fn spawn_freerdp(mut req: ConnectRequest) -> Result<SpawnedFreerdp, String> 
         }
     }
 
-    Ok(SpawnedFreerdp {
-        binary: bin,
-        child,
-    })
+    Ok(SpawnedFreerdp { binary: bin, child })
 }
 
 #[derive(Debug)]
@@ -264,8 +261,7 @@ fn format_failure(_code: Option<i32>, detail: Option<&str>) -> String {
             || lower.contains("no route")
             || lower.contains("failed to connect")
         {
-            return "Could not reach the host. Check address, port, and that sharing is on."
-                .into();
+            return "Could not reach the host. Check address, port, and that sharing is on.".into();
         }
         // Keep a short FreeRDP detail when it is actually useful (not log spam).
         if d.len() <= 120 && !lower.contains("[com.freerdp") {

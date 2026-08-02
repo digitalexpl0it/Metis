@@ -90,7 +90,10 @@ impl IdleManager {
                     self.suspend_inhibit = Some(child);
                 }
                 Err(err) => {
-                    tracing::debug!(?err, "idle: systemd-inhibit unavailable; suspend not blocked")
+                    tracing::debug!(
+                        ?err,
+                        "idle: systemd-inhibit unavailable; suspend not blocked"
+                    )
                 }
             },
             (false, true) => {
@@ -155,10 +158,12 @@ impl MetisState {
 
     fn idle_insert_timer(&mut self, after: Duration) {
         let timer = Timer::from_duration(after);
-        match self.loop_handle.insert_source(timer, |_, _, state: &mut MetisState| {
-            state.idle_on_timeout();
-            TimeoutAction::Drop
-        }) {
+        match self
+            .loop_handle
+            .insert_source(timer, |_, _, state: &mut MetisState| {
+                state.idle_on_timeout();
+                TimeoutAction::Drop
+            }) {
             Ok(token) => self.idle.timer_token = Some(token),
             Err(err) => tracing::warn!(?err, "idle: failed to arm blank timer"),
         }
@@ -231,7 +236,11 @@ impl MetisState {
     /// Take an external idle inhibitor identified by `cookie`. Called from the
     /// IPC handler when the portal forwards a `Inhibit` request.
     pub fn idle_add_external_inhibitor(&mut self, cookie: u32, label: String) {
-        let existed = self.idle.external_inhibitors.insert(cookie, label).is_some();
+        let existed = self
+            .idle
+            .external_inhibitors
+            .insert(cookie, label)
+            .is_some();
         if !existed {
             tracing::info!(cookie, "idle: external inhibitor engaged");
             self.idle_inhibit_changed();

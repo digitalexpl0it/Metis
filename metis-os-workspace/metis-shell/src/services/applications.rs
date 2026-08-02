@@ -5,9 +5,9 @@
 //! Launching routes through the compositor (`launch_program`) so children inherit
 //! the nested Wayland environment and are tracked for cleanup.
 
+use gio::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use gio::prelude::*;
 
 use metis_config::{load_menu_config, save_menu_config};
 
@@ -201,7 +201,9 @@ pub fn search_in(apps: &[AppEntry], query: &str) -> Vec<AppEntry> {
         .iter()
         .filter(|e| {
             e.name.to_lowercase().contains(&needle)
-                || e.keywords.iter().any(|k| k.to_lowercase().contains(&needle))
+                || e.keywords
+                    .iter()
+                    .any(|k| k.to_lowercase().contains(&needle))
         })
         .cloned()
         .collect();
@@ -475,10 +477,7 @@ pub fn resolve_entry_for_id(id: &str) -> Option<AppEntry> {
     if needle.is_empty() {
         return None;
     }
-    if let Some(entry) = list_apps()
-        .into_iter()
-        .find(|e| matches_app_id(e, &needle))
-    {
+    if let Some(entry) = list_apps().into_iter().find(|e| matches_app_id(e, &needle)) {
         return Some(entry);
     }
     for candidate in desktop_id_candidates(id) {

@@ -51,8 +51,9 @@ pub fn save_viewer_config(cfg: &ViewerConfig) -> std::io::Result<()> {
 /// Push `entry` to the front of recent hosts (dedupe by host+port+user).
 pub fn remember_host(entry: ViewerHost) -> std::io::Result<()> {
     let mut cfg = load_viewer_config();
-    cfg.recent
-        .retain(|h| !(h.host == entry.host && h.port == entry.port && h.username == entry.username));
+    cfg.recent.retain(|h| {
+        !(h.host == entry.host && h.port == entry.port && h.username == entry.username)
+    });
     cfg.recent.insert(0, entry);
     if cfg.recent.len() > MAX_RECENT {
         cfg.recent.truncate(MAX_RECENT);
@@ -64,8 +65,9 @@ pub fn remember_host(entry: ViewerHost) -> std::io::Result<()> {
 pub fn remove_recent(entry: &ViewerHost) -> std::io::Result<()> {
     let mut cfg = load_viewer_config();
     let before = cfg.recent.len();
-    cfg.recent
-        .retain(|h| !(h.host == entry.host && h.port == entry.port && h.username == entry.username));
+    cfg.recent.retain(|h| {
+        !(h.host == entry.host && h.port == entry.port && h.username == entry.username)
+    });
     if cfg.recent.len() == before {
         return Ok(());
     }
@@ -83,10 +85,7 @@ mod tests {
     #[test]
     fn remember_and_remove_recent_roundtrip() {
         let _guard = ENV_LOCK.lock().unwrap();
-        let dir = std::env::temp_dir().join(format!(
-            "metis-viewer-test-{}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("metis-viewer-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("metis")).unwrap();
         // SAFETY: serialized test; restored before unlock.

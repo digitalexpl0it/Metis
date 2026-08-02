@@ -38,10 +38,7 @@ pub async fn run(
         .await?;
 
     let flags = RequestNameFlags::ReplaceExisting | RequestNameFlags::AllowReplacement;
-    match conn
-        .request_name_with_flags(WATCHER_NAME, flags)
-        .await
-    {
+    match conn.request_name_with_flags(WATCHER_NAME, flags).await {
         Ok(_) => tracing::info!("tray: acquired {WATCHER_NAME}"),
         Err(err) => {
             tracing::warn!(
@@ -60,25 +57,23 @@ pub async fn run(
         async move {
             while let Some(msg) = item_rx.recv().await {
                 match msg {
-                    ItemMsg::Update(parts) => {
-                        match fetch_item(&conn, &parts).await {
-                            Some(item) => {
-                                tracing::info!(
-                                    id = %item.id,
-                                    title = %item.title,
-                                    "tray: item updated"
-                                );
-                                let _ = event_tx_loop.send(TrayEvent::Update(item));
-                            }
-                            None => {
-                                tracing::warn!(
-                                    bus = %parts.bus_name,
-                                    path = %parts.object_path,
-                                    "tray: failed to fetch item properties"
-                                );
-                            }
+                    ItemMsg::Update(parts) => match fetch_item(&conn, &parts).await {
+                        Some(item) => {
+                            tracing::info!(
+                                id = %item.id,
+                                title = %item.title,
+                                "tray: item updated"
+                            );
+                            let _ = event_tx_loop.send(TrayEvent::Update(item));
                         }
-                    }
+                        None => {
+                            tracing::warn!(
+                                bus = %parts.bus_name,
+                                path = %parts.object_path,
+                                "tray: failed to fetch item properties"
+                            );
+                        }
+                    },
                     ItemMsg::Remove { bus_name } => {
                         tracing::info!(%bus_name, "tray: item removed");
                         let _ = event_tx_loop.send(TrayEvent::Remove { bus_name });
@@ -280,7 +275,10 @@ fn spawn_item_listener(conn: Arc<zbus::Connection>, item_tx: mpsc::UnboundedSend
             let Ok(args) = signal.args() else {
                 continue;
             };
-            tracing::info!(service = args.service(), "tray: StatusNotifierItemRegistered");
+            tracing::info!(
+                service = args.service(),
+                "tray: StatusNotifierItemRegistered"
+            );
             sync_registered_items(&conn, &item_tx).await;
         }
     });
@@ -401,11 +399,7 @@ async fn fetch_item(conn: &zbus::Connection, parts: &ServiceParts) -> Option<Tra
 
 const MENU_PROPS: &[&str] = &["label", "enabled", "visible", "type", "children-display"];
 
-async fn fetch_menu(
-    conn: &zbus::Connection,
-    bus_name: &str,
-    menu_path: &str,
-) -> Option<TrayMenu> {
+async fn fetch_menu(conn: &zbus::Connection, bus_name: &str, menu_path: &str) -> Option<TrayMenu> {
     let proxy = DBusMenuProxy::builder(conn)
         .destination(bus_name)
         .ok()?
@@ -722,10 +716,7 @@ trait Watcher {
     fn status_notifier_item_registered(&self, service: &str) -> zbus::Result<()>;
 }
 
-#[proxy(
-    interface = "org.freedesktop.DBus.Properties",
-    assume_defaults = true
-)]
+#[proxy(interface = "org.freedesktop.DBus.Properties", assume_defaults = true)]
 trait Properties {
     #[zbus(name = "GetAll")]
     fn get_all(&self, interface_name: &str) -> zbus::Result<HashMap<String, OwnedValue>>;
@@ -740,19 +731,10 @@ trait DBusMenu {
         recursion_depth: i32,
         property_names: &[&str],
     ) -> zbus::Result<MenuLayout>;
-    fn event(
-        &self,
-        id: i32,
-        event_id: &str,
-        data: &Value<'_>,
-        timestamp: u32,
-    ) -> zbus::Result<()>;
+    fn event(&self, id: i32, event_id: &str, data: &Value<'_>, timestamp: u32) -> zbus::Result<()>;
 }
 
-#[proxy(
-    interface = "org.kde.StatusNotifierItem",
-    assume_defaults = true
-)]
+#[proxy(interface = "org.kde.StatusNotifierItem", assume_defaults = true)]
 trait StatusNotifierItem {
     #[zbus(property)]
     fn item_is_menu(&self) -> zbus::Result<bool>;

@@ -52,7 +52,10 @@ impl AppEntry {
         if let Some(bin) = &self.exec_bin {
             // Skip wrapper executables that never appear as window app_ids.
             let b = bin.to_ascii_lowercase();
-            if !matches!(b.as_str(), "env" | "flatpak" | "snap" | "sh" | "bash" | "python3" | "python") {
+            if !matches!(
+                b.as_str(),
+                "env" | "flatpak" | "snap" | "sh" | "bash" | "python3" | "python"
+            ) {
                 push(&mut ids, bin);
             }
         }
@@ -98,7 +101,10 @@ fn looks_like_app_id_token(raw: &str) -> bool {
         "desktop",
         "emblem",
     ];
-    if GENERIC.iter().any(|g| lower == *g || lower.starts_with(&format!("{g}-"))) {
+    if GENERIC
+        .iter()
+        .any(|g| lower == *g || lower.starts_with(&format!("{g}-")))
+    {
         return false;
     }
     // Prefer reverse-DNS (`org.xfce.thunar`), hyphenated ids (`transmission-gtk`),

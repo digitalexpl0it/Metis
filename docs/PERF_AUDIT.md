@@ -1,7 +1,7 @@
 # Metis performance audit
 
-Audit date: 2026-06-28. Scope: compositor hot path, shell/bar overhead, portal
-capture, binary footprint, and recommended follow-ups.
+Audit date: **2026-08-02** (refresh of 2026-06-28 baseline). Scope: compositor
+hot path, shell/bar overhead, portal capture, binary footprint, and follow-ups.
 
 ---
 
@@ -10,15 +10,16 @@ capture, binary footprint, and recommended follow-ups.
 | Area | Rating | Notes |
 |------|--------|-------|
 | Idle CPU (compositor) | **Good** | Damage-gated render; ~60 fps cap; near-zero work when idle |
-| Interactive latency | **Good–OK** | Pointer throttling, partial damage; 6k-line `state.rs` monolith |
-| DRM session | **OK** | Vblank + damage-gated flips; single-GPU only |
-| Shell / edge bar | **OK** | Background poll thread; subprocess I/O every 400 ms–6 s |
-| Screen capture | **Early** | Full-scene GL render + CPU SHM copy per screenshot |
-| Gaming / Steam | **Improving** | Fullscreen fast path + scanout trace; `metis-gamingd` auto performance profile; hybrid PRIME smoke script — verify on real hybrid laptops |
-| Install footprint | **Improved** | Release profiles use LTO + strip; optional `release-small` |
+| Interactive latency | **Good–OK** | Pointer throttling, partial damage; `state.rs` still large (~9k lines) |
+| DRM session | **OK** | Vblank + damage-gated flips; hybrid PRIME validated |
+| Shell / edge bar | **OK** | Background poll + D-Bus where available; ~400 ms–6 s fallbacks |
+| Screen capture | **Good** | DRM: dmabuf → PipeWire; MemFd fallback; nested winit SHM-only |
+| Gaming / Steam | **Improving** | Fullscreen fast path + scanout trace; `metis-gamingd`; PRIME smoke |
+| Install footprint | **Improved** | Release: LTO + strip + **`panic = "abort"`** + overflow-checks |
 
 Metis is **past prototype** on compositor fundamentals (no busy loops, deliberate
-throttles, async portal warm-up). It is **not yet gaming- or streaming-optimized**.
+throttles, async portal warm-up). ScreenCast dmabuf is landed; remaining gaps are
+hybrid NVIDIA MemFd fallbacks and shell poll wakeups.
 
 ---
 
@@ -43,20 +44,28 @@ throttles, async portal warm-up). It is **not yet gaming- or streaming-optimized
 ### Cheap bar blur
 
 - Backdrop blur samples **wallpaper texture under the bar**, not a full
-  framebuffer capture (`blur.rs`) — avoids transform hazards and heavy readback.
+  framebuffer capture (`blur.rs`). Skipped while the bar is auto-hidden.
 
 ### Shared logic
 
 - **`metis-grid`** — pure layout/reflow, no I/O in hot path.
 - **`metis-protocol`** — JSON IPC for control plane only (windows, workspaces).
 
+### Release profile hardening (current)
+
+Workspace [`Cargo.toml`](../metis-os-workspace/Cargo.toml) `release` profile:
+
+- `opt-level = 3`, `lto = "thin"`, `codegen-units = 1`, `strip = "symbols"`
+- **`panic = "abort"`** and **`overflow-checks = true`** (Phase 15) — applied on
+  default `release` and inherited by `release-small`.
+
 ---
 
 ## Hotspots & risks (priority order)
 
-### P0 — ScreenCast / continuous capture
+### P0 — ScreenCast / continuous capture — **landed**
 
-**Status (2026-07-24):** DRM sessions advertise dmabuf capture constraints.
+**Status (2026-07-24+):** DRM sessions advertise dmabuf capture constraints.
 The compositor renders ScreenCast frames into client GBM buffers (no
 `copy_framebuffer` readback). `metis-portal` prefers linux-dmabuf + PipeWire
 `SPA_DATA_DmaBuf`, with MemFd BGRx fallback for peers that reject DmaBuf
@@ -64,68 +73,53 @@ The compositor renders ScreenCast frames into client GBM buffers (no
 
 **Remaining gap:** multi-plane / non-linear modifiers may still take the MemFd
 fallback; profile on hybrid NVIDIA stacks. Full multi-GPU (`GpuManager`) is
-**validated 2026-07-26** on hybrid iGPU+dGPU (HDMI projector, gaming PRIME);
-explicit `MultiRenderer` transfer remains deferred.
+**validated 2026-07-26** on hybrid iGPU+dGPU; explicit `MultiRenderer` transfer
+remains deferred.
 
 **Recommendation:** validate OBS / gnome-remote-desktop under a live DRM
 session; watch portal logs for `dmabuf` vs MemFd negotiation.
 
 ### P1 — Fullscreen direct scanout (hybrid PRIME)
 
-**Status (2026-07-07):** Fullscreen fast path skips wallpaper, blur, night-light,
-and compositor cursor when a client is true fullscreen. Per-surface dmabuf feedback
-advertises scanout-capable formats; `surface_primary_scanout_output` records
-primary-plane promotion. Compositor emits `scanout_promoted=true` at trace level
-when direct scanout succeeds (`RUST_LOG=metis_compositor=trace`).
+**Status:** Fullscreen fast path skips wallpaper, blur, night-light, and
+compositor cursor when a client is true fullscreen. Per-surface dmabuf feedback
+advertises scanout-capable formats. Trace: `scanout_promoted=true`
+(`RUST_LOG=metis_compositor=trace`).
 
-**Validation:** run `metis-os-workspace/scripts/gaming-prime-smoke.sh` inside a
-Metis session on hybrid hardware — launches a Vulkan test app on the dGPU while
-the panel scans out via the iGPU PRIME path.
+**Validation:** `metis-os-workspace/scripts/gaming-prime-smoke.sh` on hybrid hardware.
 
-**Remaining gap:** cross-GPU dmabuf import on some NVIDIA + AMD APU combos may
-still fall back to compositing; profile with the smoke script and trace logs.
-
-**Recommendation:** optional per-game Gamescope wrapper for problematic titles;
-long-term continue auditing `udev.rs` scanout feedback on real hybrid laptops.
-
-### P2 — `state.rs` monolith (~6k lines)
+### P2 — `state.rs` monolith (~9k lines)
 
 Single `MetisState` holds windowing, workspaces, scroll layout, IPC, wallpaper,
-decorations, grabs, etc.
+decorations, grabs, etc. Phase 16 extracted `ipc_dispatch.rs` for capability
+gating; continue incremental splits when touching areas.
 
-**Impact:** Compile time, cache locality, harder to profile isolated subsystems.
-
-**Recommendation:** Incremental split (input routing, workspace, render prep) when
-touching those areas — not urgent for runtime if damage gating stays correct.
-
-### P3 — Shell bar subprocess polling
+### P3 — Shell bar polling
 
 **File:** `metis-shell/src/services/poll.rs`
 
-Background thread (~400 ms) runs `nmcli`, `bluetoothctl`, `pactl`, `upower`,
-optional `solaar` (~2 s, cached 20 s).
+Background thread (~400 ms) with D-Bus-driven updates where available
+(NetworkManager / UPower / Pulse) and a slow fallback tick for sources without
+signals. Occasional subprocess I/O remains for Bluetooth / Solaar.
 
-**Impact:** Low average CPU; occasional latency spikes; not on compositor thread.
-
-**Recommendation:** Keep as-is for bar; consider D-Bus subscriptions for Wi-Fi/BT
-later if profiling shows wakeups.
+**Impact:** Low average CPU; not on compositor thread.
 
 ### P4 — Default Cairo shell renderer
 
-`METIS_SHELL_GSK_RENDERER=cairo` in session — **software GTK** for reliability on
-fresh DRM sessions.
+Session default: `METIS_SHELL_GSK_RENDERER=cairo` — **software GTK** for
+reliability on fresh DRM sessions.
 
-**Impact:** Shell CPU only; games unaffected.
-
-**Recommendation:** Document `METIS_SHELL_GSK_RENDERER=gl` when drivers are stable.
+**Opt-in GPU GSK:** set `METIS_SHELL_GSK_RENDERER=gl` in the session environment
+(or Flatpak override for GTK apps) when Mesa/NVIDIA drivers are stable. Games are
+unaffected either way.
 
 ### P5 — Dependency feature bloat
 
 | Crate | Issue | Action taken |
 |-------|--------|--------------|
 | `metis-shell` | `tokio` `full` | Trimmed to `rt`, `rt-multi-thread`, `macros`, `time`, `sync` |
-| `metis-compositor` | Smithay `renderer_multi` | Needed for future multi-GPU; keep until split |
-| `metis-shell` | `rusqlite bundled` | SQLite embedded in shell binary (~size) — acceptable for calendar cache |
+| `metis-compositor` | Smithay `renderer_multi` | Needed for multi-GPU; keep |
+| `metis-shell` | `rusqlite bundled` | Acceptable for calendar cache |
 
 ---
 
@@ -141,28 +135,22 @@ Measured on 2026-06-28 (x86_64, after profile + tokio trim):
 | metis-settings | 14 MB | **8.6 MB** (−39%) | **5.0 MB** (−64%) |
 | **Total** | **~61 MB** | **~40 MB** (−34%) | **~27 MB** (−56%) |
 
-Dominant contributors: **Smithay + GLES**, **GTK4 + layer-shell**, **ashpd/zbus**,
-embedded SQLite in shell.
-
 ### Build profiles (`metis-os-workspace/Cargo.toml`)
 
 | Profile | Use | Settings |
 |---------|-----|----------|
-| **`release`** (default) | `./run-metis.sh --release`, `--install-session` | `opt-level=3`, `lto=thin`, `codegen-units=1`, `strip=symbols` |
-| **`release-small`** | `./run-metis.sh --release-small --install-session` | `opt-level=s`, `lto=fat`, `panic=abort`, strip; **compositor stays `opt-level=3`** |
-
-Rebuild after changing profiles:
+| **`release`** (default) | `./run-metis.sh --release`, `--install-session` | `opt-level=3`, `lto=thin`, `codegen-units=1`, `strip=symbols`, **`panic=abort`**, overflow-checks |
+| **`release-small`** | `./run-metis.sh --release-small --install-session` | `opt-level=s`, `lto=fat`, strip; **compositor stays `opt-level=3`** |
 
 ```bash
 cd metis-os-workspace/metis-shell
-./run-metis.sh --build --release          # balanced
-./run-metis.sh --build --release-small    # smallest install
+./run-metis.sh --build --release
+./run-metis.sh --build --release-small
 ls -lh ../target/release/metis-compositor ../target/release-small/metis-compositor
 ```
 
-Further size wins (not yet applied):
+Further size wins (optional):
 
-- `panic = "abort"` on default `release` (saves ~100 KB–1 MB; loses backtraces on panic)
 - Split calendar/SNI into optional features on `metis-shell`
 - System SQLite instead of `rusqlite/bundled` where distros allow
 
@@ -173,30 +161,25 @@ Further size wins (not yet applied):
 Run under a real Metis DRM session when validating changes:
 
 ```bash
-# Idle CPU (should be ~0–2% compositor on one core)
 top -p $(pgrep metis-compositor)
-
-# Frame timing — watch for sustained 100% compositor without input
 perf top -p $(pgrep metis-compositor)
-
-# Binary sizes after profile change
 ls -lh metis-os-workspace/target/{release,release-small}/metis-*
-
-# Capture cost (one-shot)
 /usr/bin/time -f '%e sec' metis-portal --capture-test /tmp/t.png
 ```
+
+**Hybrid NVIDIA MemFd checklist:** confirm ScreenCast/OBS negotiation logs
+`dmabuf` vs MemFd; run `gaming-prime-smoke.sh`; note driver + Flatpak GL version
+match.
 
 ---
 
 ## Recommended roadmap (perf)
 
-1. **ScreenCast** with dmabuf + PipeWire (P0) — landed 2026-07-24; validate on DRM.
-2. **Inhibit portal** — prevent idle dim during games (correctness + fewer wakeups).
-3. **Gamescope** launch-option testing on Metis (P1 gaming path).
-4. **Split `state.rs`** when refactoring (P2 maintainability).
-5. **Phase 5 colour follow-ups** — default-on `wp_color_management_v1` (blocked
-   on upstream wayland-rs **server/sys** ObjectData UAF; 0.3.16 does not fix —
-   [wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949)), true
-   per-surface HDR decode (BT.2020 + HLG encode shipped 2026-07-26).
+1. **ScreenCast** dmabuf + PipeWire — landed; keep validating on DRM / hybrid.
+2. **Shell poll** — prefer D-Bus signals; keep slow fallback (Phase 16).
+3. **Split `state.rs`** when refactoring (maintainability).
+4. **Phase 5 colour** — default-on `wp_color_management_v1` blocked on upstream
+   wayland-rs ObjectData UAF
+   ([wayland-rs#949](https://github.com/Smithay/wayland-rs/issues/949)).
 
-See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 5–6.
+See also [`TODO.md`](../metis-os-workspace/TODO.md) Phase 16.

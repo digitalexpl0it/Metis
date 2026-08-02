@@ -5,9 +5,9 @@ use smithay::{
     desktop::{Space, Window},
     input::pointer::{
         AxisFrame, ButtonEvent, GestureHoldBeginEvent, GestureHoldEndEvent, GesturePinchBeginEvent,
-        GesturePinchEndEvent, GesturePinchUpdateEvent, GestureSwipeBeginEvent, GestureSwipeEndEvent,
-        GestureSwipeUpdateEvent, GrabStartData as PointerGrabStartData, MotionEvent, PointerGrab,
-        PointerInnerHandle, RelativeMotionEvent,
+        GesturePinchEndEvent, GesturePinchUpdateEvent, GestureSwipeBeginEvent,
+        GestureSwipeEndEvent, GestureSwipeUpdateEvent, GrabStartData as PointerGrabStartData,
+        MotionEvent, PointerGrab, PointerInnerHandle, RelativeMotionEvent,
     },
     reexports::{
         wayland_protocols::xdg::shell::server::xdg_toplevel,
@@ -122,8 +122,16 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
 
         let min_width = min_size.w.max(1);
         let min_height = min_size.h.max(1);
-        let max_width = if max_size.w == 0 { i32::MAX } else { max_size.w };
-        let max_height = if max_size.h == 0 { i32::MAX } else { max_size.h };
+        let max_width = if max_size.w == 0 {
+            i32::MAX
+        } else {
+            max_size.w
+        };
+        let max_height = if max_size.h == 0 {
+            i32::MAX
+        } else {
+            max_size.h
+        };
 
         self.last_window_size = Size::from((
             new_window_width.max(min_width).min(max_width),
@@ -133,10 +141,12 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
         // Origin shifts for top/left resizes so the opposite edge stays anchored.
         let mut origin = self.initial_rect.loc;
         if self.edges.intersects(ResizeEdge::LEFT) {
-            origin.x = self.initial_rect.loc.x + (self.initial_rect.size.w - self.last_window_size.w);
+            origin.x =
+                self.initial_rect.loc.x + (self.initial_rect.size.w - self.last_window_size.w);
         }
         if self.edges.intersects(ResizeEdge::TOP) {
-            origin.y = self.initial_rect.loc.y + (self.initial_rect.size.h - self.last_window_size.h);
+            origin.y =
+                self.initial_rect.loc.y + (self.initial_rect.size.h - self.last_window_size.h);
         }
 
         if let Some(xdg) = self.window.toplevel() {
@@ -152,7 +162,10 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
         // Shift the mapped element live for top/left resizes so feedback is not
         // delayed until the client's commit lands.
         if self.edges.intersects(ResizeEdge::TOP | ResizeEdge::LEFT)
-            && data.space.element_location(&self.window).is_some_and(|loc| loc != origin)
+            && data
+                .space
+                .element_location(&self.window)
+                .is_some_and(|loc| loc != origin)
         {
             data.space.map_element(self.window.clone(), origin, false);
         }
@@ -205,7 +218,11 @@ impl PointerGrab<MetisState> for ResizeSurfaceGrab {
                 });
             } else if let Some(x11) = self.window.x11_surface() {
                 let _ = x11.configure(Rectangle::new(origin, final_size));
-                if data.space.element_location(&self.window).is_some_and(|loc| loc != origin) {
+                if data
+                    .space
+                    .element_location(&self.window)
+                    .is_some_and(|loc| loc != origin)
+                {
                     data.space.map_element(self.window.clone(), origin, false);
                 }
             }
@@ -347,8 +364,14 @@ impl ResizeSurfaceState {
 
     fn commit(&mut self) -> Option<(ResizeEdge, Rectangle<i32, Logical>)> {
         match *self {
-            Self::Resizing { edges, initial_rect } => Some((edges, initial_rect)),
-            Self::WaitingForLastCommit { edges, initial_rect } => {
+            Self::Resizing {
+                edges,
+                initial_rect,
+            } => Some((edges, initial_rect)),
+            Self::WaitingForLastCommit {
+                edges,
+                initial_rect,
+            } => {
                 *self = Self::Idle;
                 Some((edges, initial_rect))
             }
@@ -391,9 +414,9 @@ pub fn handle_commit(space: &mut Space<Window>, surface: &WlSurface) -> Option<(
                 edges
                     .intersects(ResizeEdge::TOP | ResizeEdge::LEFT)
                     .then(|| {
-                        let new_x = edges
-                            .intersects(ResizeEdge::LEFT)
-                            .then_some(initial_rect.loc.x + (initial_rect.size.w - geometry.size.w));
+                        let new_x = edges.intersects(ResizeEdge::LEFT).then_some(
+                            initial_rect.loc.x + (initial_rect.size.w - geometry.size.w),
+                        );
                         let new_y = edges.intersects(ResizeEdge::TOP).then_some(
                             initial_rect.loc.y + (initial_rect.size.h - geometry.size.h),
                         );

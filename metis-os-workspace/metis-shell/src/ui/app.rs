@@ -90,8 +90,11 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     crate::services::windows::reconcile_now();
                 }
                 SystemEvent::Compositor(evt) => {
-                    if let metis_protocol::CompositorEvent::WorkspaceChanged { output, active, .. } =
-                        &evt
+                    if let metis_protocol::CompositorEvent::WorkspaceChanged {
+                        output,
+                        active,
+                        ..
+                    } = &evt
                     {
                         crate::services::set_active_workspace(output, *active);
                         crate::ui::bar::refresh_workspaces();
@@ -130,12 +133,7 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                         model,
                     } = &evt
                     {
-                        crate::ui::bar::notify_display_hotplug(
-                            *connected,
-                            name,
-                            make,
-                            model,
-                        );
+                        crate::ui::bar::notify_display_hotplug(*connected, name, make, model);
                     }
                 }
                 SystemEvent::BriefingReady(items) => {

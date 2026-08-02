@@ -278,7 +278,10 @@ fn rebuild(
     // Skip no-op rebuilds (e.g. the idle 5-second reconcile) so an open picker /
     // right-click menu isn't dismissed when nothing actually changed. The active
     // workspace is part of the signature so switching workspaces always repaints.
-    let sig = format!("ws:{active_ws}|{}", dock_signature(&visible, snap.focused, pinned));
+    let sig = format!(
+        "ws:{active_ws}|{}",
+        dock_signature(&visible, snap.focused, pinned)
+    );
     if last_sig.borrow().as_deref() == Some(sig.as_str()) {
         return;
     }
@@ -436,16 +439,12 @@ fn rebuild(
             } else if groups[i].exec.is_none() {
                 // Pinned with icon/name but missing Exec (e.g. OnlyShowIn hide) —
                 // fill in a launch command once we can resolve the desktop entry.
-                let resolved = w
-                    .app_id
-                    .as_deref()
-                    .and_then(|id| resolve(id))
-                    .or_else(|| {
-                        groups[i].pin_id.as_deref().and_then(|id| {
-                            apps.iter()
-                                .find(|e| matches_app_id(e, &id.to_lowercase()))
-                        })
-                    });
+                let resolved = w.app_id.as_deref().and_then(|id| resolve(id)).or_else(|| {
+                    groups[i]
+                        .pin_id
+                        .as_deref()
+                        .and_then(|id| apps.iter().find(|e| matches_app_id(e, &id.to_lowercase())))
+                });
                 if let Some(e) = resolved {
                     groups[i].exec = Some(e.exec.clone());
                     groups[i].pin_id = Some(e.id.clone());
@@ -794,10 +793,7 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
 }
 
 fn menu_item(label: &str) -> gtk::Button {
-    let item = gtk::Button::builder()
-        .label(label)
-        .has_frame(false)
-        .build();
+    let item = gtk::Button::builder().label(label).has_frame(false).build();
     item.add_css_class("metis-bar-task-menu-item");
     if let Some(child) = item.child() {
         if let Ok(lbl) = child.downcast::<gtk::Label>() {

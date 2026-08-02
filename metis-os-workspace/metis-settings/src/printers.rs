@@ -41,9 +41,7 @@ pub fn open_printer_settings() {
             return;
         }
     }
-    let _ = Command::new("xdg-open")
-        .arg("http://localhost:631")
-        .spawn();
+    let _ = Command::new("xdg-open").arg("http://localhost:631").spawn();
 }
 
 fn list_printers(default: &Option<String>) -> Vec<PrinterInfo> {

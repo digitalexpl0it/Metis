@@ -11,9 +11,7 @@ use std::ffi::CStr;
 
 use metis_config::{output_prefs, OutputsConfig};
 use smithay::backend::allocator::Fourcc;
-use smithay::reexports::drm::control::{
-    connector, property, Device as DrmControlDevice,
-};
+use smithay::reexports::drm::control::{connector, property, Device as DrmControlDevice};
 
 use crate::hdr_encode::HdrTransfer;
 use crate::state::MetisState;
@@ -150,10 +148,7 @@ fn apply_output_hdrs_inner(state: &mut MetisState, cfg: &OutputsConfig, force: b
 }
 
 fn sync_hdr_for_output(state: &mut MetisState, name: &str, want: bool, force: bool) -> bool {
-    let id = state
-        .udev
-        .as_ref()
-        .and_then(|u| u.output_id_by_name(name));
+    let id = state.udev.as_ref().and_then(|u| u.output_id_by_name(name));
     let Some(id) = id else {
         return false;
     };
@@ -384,8 +379,8 @@ fn apply_hdr_signaling(
         tracing::debug!(output = %name, blob = blob_id, ?transfer, "HDR_OUTPUT_METADATA set");
     }
 
-    if let Some(handle) = find_prop(device, conn, "Colorspace")
-        .or_else(|| find_prop(device, conn, "COLOR_ENCODING"))
+    if let Some(handle) =
+        find_prop(device, conn, "Colorspace").or_else(|| find_prop(device, conn, "COLOR_ENCODING"))
     {
         if let Some(value) = pick_enum_value(device, handle, HDR_COLORSPACE_PREFS) {
             if let Err(err) = device.set_property(conn, handle, value) {
@@ -396,8 +391,8 @@ fn apply_hdr_signaling(
         }
     }
 
-    if let Some(handle) = find_prop(device, conn, "max bpc")
-        .or_else(|| find_prop(device, conn, "max_bpc"))
+    if let Some(handle) =
+        find_prop(device, conn, "max bpc").or_else(|| find_prop(device, conn, "max_bpc"))
     {
         if let Err(err) = device.set_property(conn, handle, 10) {
             tracing::debug!(output = %name, ?err, "max_bpc=10 rejected (optional)");
@@ -421,8 +416,8 @@ fn clear_hdr_signaling(
     if let Some(old) = old_blob {
         let _ = device.destroy_property_blob(old);
     }
-    if let Some(handle) = find_prop(device, conn, "Colorspace")
-        .or_else(|| find_prop(device, conn, "COLOR_ENCODING"))
+    if let Some(handle) =
+        find_prop(device, conn, "Colorspace").or_else(|| find_prop(device, conn, "COLOR_ENCODING"))
     {
         if let Some(value) = pick_enum_value(device, handle, SDR_COLORSPACE_PREFS) {
             if let Err(err) = device.set_property(conn, handle, value) {
@@ -530,10 +525,7 @@ pub fn maybe_log_scanout_format(state: &mut MetisState, id: UdevOutputId) {
     let format = surface.drm_output.with_compositor(|c| c.format());
     let ten_bit = matches!(
         format,
-        Fourcc::Abgr2101010
-            | Fourcc::Argb2101010
-            | Fourcc::Xbgr2101010
-            | Fourcc::Xrgb2101010
+        Fourcc::Abgr2101010 | Fourcc::Argb2101010 | Fourcc::Xbgr2101010 | Fourcc::Xrgb2101010
     );
     tracing::info!(
         output = %surface.output.name(),
@@ -563,7 +555,7 @@ mod tests {
         edid[126] = 1; // one extension
         edid[128] = 0x02; // CTA
         edid[130] = 0; // dtd offset 0 → scan until 127
-        // Data block at 132: tag=7 (extended), length=3, ext_tag=6, eotf=0x04 (ST2084)
+                       // Data block at 132: tag=7 (extended), length=3, ext_tag=6, eotf=0x04 (ST2084)
         edid[132] = (7 << 5) | 3;
         edid[133] = 6;
         edid[134] = 0x04;

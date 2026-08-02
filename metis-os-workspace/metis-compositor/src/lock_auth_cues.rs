@@ -112,7 +112,8 @@ mod tests {
 
     #[test]
     fn no_devices_means_no_cues() {
-        let root = std::env::temp_dir().join(format!("metis-auth-cues-empty-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("metis-auth-cues-empty-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let fp = ensure_dir(&root.join("fingerprint"));
         let fprint = ensure_dir(&root.join("fprint"));

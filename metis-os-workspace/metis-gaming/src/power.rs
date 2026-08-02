@@ -25,7 +25,10 @@ pub fn apply_session_power(action: SessionPowerAction, previous: Option<PowerPro
 }
 
 pub fn read_current_power_profile() -> Option<PowerProfile> {
-    let output = Command::new("powerprofilesctl").args(["get"]).output().ok()?;
+    let output = Command::new("powerprofilesctl")
+        .args(["get"])
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }

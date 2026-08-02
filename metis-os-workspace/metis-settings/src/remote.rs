@@ -236,7 +236,11 @@ fn metis_viewer_bin() -> String {
 }
 
 /// Launch Metis Viewer with optional host/port prefill (argv only; no shell).
-pub fn open_viewer(host: Option<&str>, port: Option<u16>, username: Option<&str>) -> Result<(), String> {
+pub fn open_viewer(
+    host: Option<&str>,
+    port: Option<u16>,
+    username: Option<&str>,
+) -> Result<(), String> {
     let bin = metis_viewer_bin();
     let mut cmd = Command::new(&bin);
     // Match Appearance even if this Settings process still has a stale GTK_THEME
@@ -356,9 +360,9 @@ fn flatpak_has_app(app_id: &str) -> bool {
 /// Open RustDesk UI (argv only; no shell).
 pub fn open_rustdesk(install: &RustDeskInstall) -> Result<(), String> {
     match install {
-        RustDeskInstall::Missing => Err(
-            "RustDesk is not installed. Copy the install instructions, then try again.".into(),
-        ),
+        RustDeskInstall::Missing => {
+            Err("RustDesk is not installed. Copy the install instructions, then try again.".into())
+        }
         RustDeskInstall::Path(path) => {
             Command::new(path)
                 .stdin(Stdio::null())

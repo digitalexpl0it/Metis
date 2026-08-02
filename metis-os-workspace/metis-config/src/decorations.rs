@@ -131,9 +131,7 @@ fn keys_related(a: &str, b: &str) -> bool {
 fn wine_alnum_stem(id: &str) -> String {
     let lower = id.trim().to_ascii_lowercase();
     let bare = lower.strip_suffix(".exe").unwrap_or(&lower);
-    bare.chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect()
+    bare.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
 fn wine_stems_related(a: &str, b: &str) -> bool {
@@ -186,10 +184,7 @@ mod tests {
     #[test]
     fn lookup_related_reverse_dns_and_bare_class() {
         let mut cfg = DecorationsConfig::default();
-        cfg.set_override(
-            "org.gnome.shotwell",
-            Some(DecorationsOverride::Client),
-        );
+        cfg.set_override("org.gnome.shotwell", Some(DecorationsOverride::Client));
         assert_eq!(cfg.lookup("shotwell"), Some(DecorationsOverride::Client));
         assert_eq!(
             cfg.lookup("org.gnome.Shotwell"),

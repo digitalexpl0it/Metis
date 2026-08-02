@@ -4,19 +4,19 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use ashpd::{
-    MaybeAppID, PortalError, WindowIdentifierType,
     backend::{
         request::RequestImpl,
         screencast::{ScreencastImpl, SelectSourcesResponse},
         session::{CreateSessionResponse, SessionImpl},
     },
     desktop::{
-        CreateSessionOptions, HandleToken,
         screencast::{
-            CursorMode, SelectSourcesOptions, SourceType, StartCastOptions,
-            StreamBuilder, Streams, StreamsBuilder,
+            CursorMode, SelectSourcesOptions, SourceType, StartCastOptions, StreamBuilder, Streams,
+            StreamsBuilder,
         },
+        CreateSessionOptions, HandleToken,
     },
+    MaybeAppID, PortalError, WindowIdentifierType,
 };
 use async_trait::async_trait;
 use enumflags2::BitFlags;
@@ -26,6 +26,13 @@ use metis_capture::CaptureOptions;
 use crate::capture::{spawn_screencast_pump, CaptureHub};
 use crate::compositor_ipc;
 use crate::pipewire::PipeWireHub;
+
+/// Screen capture must not start while the session is locked — the framebuffer
+/// shows lock UI, and refusing avoids leaking even that. Mirrors compositor
+/// `process_pending_captures` / IPC `BeginCaptureOverlay` denylist policy.
+pub(crate) fn should_refuse_cast_while_locked(session_locked: bool) -> bool {
+    session_locked
+}
 
 struct CastSession {
     streams: Vec<u32>,
@@ -128,7 +135,14 @@ impl ScreencastImpl for MetisScreencast {
         _options: StartCastOptions,
     ) -> ashpd::backend::Result<Streams> {
         tracing::info!(?app_id, "portal screencast start");
-        compositor_ipc::begin_capture_overlay(compositor_ipc::portal_app_id(app_id));
+        let portal_app = compositor_ipc::portal_app_id(app_id);
+        if let Err(message) = compositor_ipc::begin_capture_overlay(portal_app) {
+            let locked = message.contains("session is locked");
+            if should_refuse_cast_while_locked(locked) {
+                return Err(PortalError::Failed(message));
+            }
+            tracing::warn!(%message, "BeginCaptureOverlay rejected");
+        }
         let (width, height) = self.capture.output_size(None).await;
         let stream = self
             .pipewire
@@ -162,5 +176,16 @@ impl ScreencastImpl for MetisScreencast {
             .build();
 
         Ok(StreamsBuilder::new(vec![pw_stream]).build())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn refuse_cast_while_locked_policy() {
+        assert!(should_refuse_cast_while_locked(true));
+        assert!(!should_refuse_cast_while_locked(false));
     }
 }

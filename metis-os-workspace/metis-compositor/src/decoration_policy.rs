@@ -220,9 +220,17 @@ pub fn id_looks_chromium_family(app_id: &str) -> bool {
 /// like `chromium-browser`, `google-chrome-stable`, or `brave-browser` count.
 fn exe_is_chromium_browser(exe: &str) -> bool {
     let base = exe.rsplit('/').next().unwrap_or(exe).to_lowercase();
-    ["chrome", "chromium", "brave", "msedge", "microsoft-edge", "vivaldi", "opera"]
-        .iter()
-        .any(|b| base.contains(b))
+    [
+        "chrome",
+        "chromium",
+        "brave",
+        "msedge",
+        "microsoft-edge",
+        "vivaldi",
+        "opera",
+    ]
+    .iter()
+    .any(|b| base.contains(b))
 }
 
 /// Frameless Electron apps (e.g. Claude Desktop) report the generic `chromium`
@@ -316,10 +324,7 @@ pub fn id_looks_csd(app_id: &str) -> bool {
     if id == "electron" {
         return false;
     }
-    id.contains("electron")
-        || id.contains("cursor")
-        || id.ends_with(".code")
-        || id == "code"
+    id.contains("electron") || id.contains("cursor") || id.ends_with(".code") || id == "code"
 }
 
 /// Wine / Proton X11 class (`*.exe`, `wine-*`).
@@ -415,8 +420,18 @@ mod tests {
 
     #[test]
     fn firefox_uses_native_csd() {
-        assert!(!resolve_uses_ssd(Some("firefox_firefox"), None, false, None));
-        assert!(!resolve_uses_ssd(Some("org.mozilla.firefox"), None, false, None));
+        assert!(!resolve_uses_ssd(
+            Some("firefox_firefox"),
+            None,
+            false,
+            None
+        ));
+        assert!(!resolve_uses_ssd(
+            Some("org.mozilla.firefox"),
+            None,
+            false,
+            None
+        ));
         assert!(id_looks_csd("firefox_firefox"));
     }
 
@@ -438,7 +453,12 @@ mod tests {
             false,
             None
         ));
-        assert!(!resolve_uses_ssd(Some("com.google.Chrome"), None, false, None));
+        assert!(!resolve_uses_ssd(
+            Some("com.google.Chrome"),
+            None,
+            false,
+            None
+        ));
         assert!(!resolve_uses_ssd(Some("chromium"), None, false, None));
         assert!(id_looks_csd("chromium"));
     }
@@ -537,7 +557,12 @@ mod tests {
 
     #[test]
     fn gnome_apps_keep_client_headerbar() {
-        assert!(!resolve_uses_ssd(Some("org.gnome.Cheese"), None, false, None));
+        assert!(!resolve_uses_ssd(
+            Some("org.gnome.Cheese"),
+            None,
+            false,
+            None
+        ));
         assert!(!resolve_uses_ssd(
             Some("org.gnome.Calculator"),
             None,
@@ -550,7 +575,12 @@ mod tests {
     #[test]
     fn metis_and_terminals_use_ssd() {
         assert!(resolve_uses_ssd(Some("org.kitty"), None, false, None));
-        assert!(resolve_uses_ssd(Some("com.metis.Settings"), None, false, None));
+        assert!(resolve_uses_ssd(
+            Some("com.metis.Settings"),
+            None,
+            false,
+            None
+        ));
         // Metis helper toplevels drop their GTK titlebar, so they must keep SSD
         // even though GTK binds xdg-decoration and would otherwise fall to CSD.
         for id in ["com.metis.Screenshot", "com.metis.Viewer"] {
@@ -642,7 +672,11 @@ mod tests {
         assert!(defer_ssd_paint(None, None, true));
         assert!(!defer_ssd_paint(None, None, false));
         assert!(!defer_ssd_paint(Some("org.kitty"), None, true));
-        assert!(!defer_ssd_paint(None, Some(DecorationMode::ClientSide), true));
+        assert!(!defer_ssd_paint(
+            None,
+            Some(DecorationMode::ClientSide),
+            true
+        ));
     }
 
     /// Frameless Electron apps report `chromium` but draw no chrome; a real
@@ -687,17 +721,29 @@ mod tests {
     #[test]
     fn frameless_electron_chromium_gets_metis_ssd() {
         // Claude Desktop and generic Electron shells → Metis SSD.
-        assert!(chromium_class_needs_ssd("chromium", "/usr/bin/claude-desktop"));
+        assert!(chromium_class_needs_ssd(
+            "chromium",
+            "/usr/bin/claude-desktop"
+        ));
         assert!(chromium_class_needs_ssd("chromium", "electron"));
         assert!(chromium_class_needs_ssd("chromium", "/opt/SomeApp/someapp"));
         // Real Chromium-family browsers → native CSD (never Metis SSD).
-        assert!(!chromium_class_needs_ssd("chromium", "/usr/lib/chromium/chromium"));
-        assert!(!chromium_class_needs_ssd("chrome", "/opt/google/chrome/chrome"));
+        assert!(!chromium_class_needs_ssd(
+            "chromium",
+            "/usr/lib/chromium/chromium"
+        ));
+        assert!(!chromium_class_needs_ssd(
+            "chrome",
+            "/opt/google/chrome/chrome"
+        ));
         assert!(!chromium_class_needs_ssd(
             "chromium",
             "/usr/bin/chromium-browser"
         ));
-        assert!(!chromium_class_needs_ssd("com.brave.Browser", "brave-browser"));
+        assert!(!chromium_class_needs_ssd(
+            "com.brave.Browser",
+            "brave-browser"
+        ));
         // Non-chromium windows are never affected by this path.
         assert!(!chromium_class_needs_ssd("kitty", "/usr/bin/kitty"));
         assert!(!chromium_class_needs_ssd("firefox", "/usr/bin/firefox"));

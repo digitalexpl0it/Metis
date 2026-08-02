@@ -124,13 +124,14 @@ impl AppState {
         let Some(session) = self.session.as_mut() else {
             return;
         };
-        if session.constraints.width == 0 || session.constraints.height == 0 {
-            self.fail("invalid capture buffer size from compositor");
+        if let Err(msg) =
+            validate_buffer_constraints(session.constraints.width, session.constraints.height)
+        {
+            self.fail(msg);
             return;
         }
-        if session.constraints.stride == 0 {
-            session.constraints.stride = session.constraints.width * 4;
-        }
+        session.constraints.stride =
+            effective_stride(session.constraints.width, session.constraints.stride);
 
         if session.dmabuf.is_none() && !session.dmabuf_failed && session.dmabuf_offer.is_usable() {
             if let Some(dmabuf_global) = self.dmabuf_global.as_ref() {
@@ -289,25 +290,54 @@ fn bind_all_outputs(
     outputs
 }
 
-fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
-    if let Some(want) = options
-        .connector
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
+/// Reject zero-sized capture buffers from the compositor.
+pub(crate) fn validate_buffer_constraints(width: u32, height: u32) -> Result<(), &'static str> {
+    if width == 0 || height == 0 {
+        Err("invalid capture buffer size from compositor")
+    } else {
+        Ok(())
+    }
+}
+
+/// Default stride to tightly packed RGBA when the compositor omits it.
+pub(crate) fn effective_stride(width: u32, stride: u32) -> u32 {
+    if stride == 0 {
+        width.saturating_mul(4)
+    } else {
+        stride
+    }
+}
+
+/// Pure output selection used by [`resolve_output`] (index into `outputs`).
+pub(crate) fn select_output_index(
+    names: &[(String, String)],
+    connector: Option<&str>,
+    output_index: usize,
+) -> Option<usize> {
+    if let Some(want) = connector.map(str::trim).filter(|s| !s.is_empty()) {
         let want_l = want.to_ascii_lowercase();
-        if let Some(info) = outputs.iter().find(|o| {
-            o.name.eq_ignore_ascii_case(want)
-                || o.description.to_ascii_lowercase().contains(&want_l)
+        if let Some(idx) = names.iter().position(|(name, description)| {
+            name.eq_ignore_ascii_case(want) || description.to_ascii_lowercase().contains(&want_l)
         }) {
-            return info.output.clone();
+            return Some(idx);
         }
     }
-    outputs
-        .get(options.output_index)
-        .or_else(|| outputs.first())
-        .and_then(|o| o.output.clone())
+    if names.is_empty() {
+        None
+    } else if output_index < names.len() {
+        Some(output_index)
+    } else {
+        Some(0)
+    }
+}
+
+fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
+    let names: Vec<(String, String)> = outputs
+        .iter()
+        .map(|o| (o.name.clone(), o.description.clone()))
+        .collect();
+    let idx = select_output_index(&names, options.connector.as_deref(), options.output_index)?;
+    outputs.get(idx).and_then(|o| o.output.clone())
 }
 
 /// Live capture handle — keeps an ext-image-copy session open across frames.
@@ -417,6 +447,40 @@ impl Drop for CaptureSession {
 
 fn prefer_shm_format_local(current: Format, offered: Format) -> Format {
     prefer_shm_format(current, offered)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn buffer_constraints_reject_zero_size() {
+        assert!(validate_buffer_constraints(1920, 1080).is_ok());
+        assert_eq!(
+            validate_buffer_constraints(0, 1080).unwrap_err(),
+            "invalid capture buffer size from compositor"
+        );
+        assert!(validate_buffer_constraints(1920, 0).is_err());
+    }
+
+    #[test]
+    fn effective_stride_defaults_to_rgba_pitch() {
+        assert_eq!(effective_stride(100, 0), 400);
+        assert_eq!(effective_stride(100, 512), 512);
+    }
+
+    #[test]
+    fn select_output_prefers_connector_match_then_index() {
+        let outputs = vec![
+            ("eDP-1".into(), "Built-in".into()),
+            ("HDMI-A-1".into(), "External HDMI".into()),
+        ];
+        assert_eq!(select_output_index(&outputs, Some("hdmi-a-1"), 0), Some(1));
+        assert_eq!(select_output_index(&outputs, Some("External"), 0), Some(1));
+        assert_eq!(select_output_index(&outputs, None, 1), Some(1));
+        assert_eq!(select_output_index(&outputs, None, 99), Some(0));
+        assert_eq!(select_output_index(&[], None, 0), None);
+    }
 }
 
 impl Dispatch<WlRegistry, GlobalListContents> for AppState {

@@ -3,15 +3,15 @@
 //! GRD refuses to bind RDP port 3389 until both `org.gnome.Mutter.RemoteDesktop`
 //! and `org.gnome.Mutter.ScreenCast` are available on the session bus.
 
-mod eis;
 pub mod clipboard;
+mod eis;
 
 use std::collections::HashMap;
 use std::os::fd::OwnedFd as StdOwnedFd;
 
-use zbus::zvariant::OwnedFd;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use zbus::zvariant::OwnedFd;
 
 use ashpd::PortalError;
 use zbus::fdo;
@@ -59,7 +59,9 @@ impl MutterHub {
     }
 
     fn alloc_session_id(&self) -> String {
-        self.next_session.fetch_add(1, Ordering::Relaxed).to_string()
+        self.next_session
+            .fetch_add(1, Ordering::Relaxed)
+            .to_string()
     }
 
     fn alloc_stream_id(&self) -> String {
@@ -116,8 +118,7 @@ impl RemoteDesktopRoot {
             .at(path.as_str(), iface)
             .await
             .map_err(|e| fdo::Error::Failed(e.to_string()))?;
-        OwnedObjectPath::try_from(path.as_str())
-            .map_err(|e| fdo::Error::Failed(e.to_string()))
+        OwnedObjectPath::try_from(path.as_str()).map_err(|e| fdo::Error::Failed(e.to_string()))
     }
 }
 
@@ -158,10 +159,7 @@ impl RemoteDesktopSession {
     }
 
     #[zbus(name = "EnableClipboard")]
-    async fn enable_clipboard(
-        &mut self,
-        options: HashMap<&str, Value<'_>>,
-    ) -> fdo::Result<()> {
+    async fn enable_clipboard(&mut self, options: HashMap<&str, Value<'_>>) -> fdo::Result<()> {
         self.clipboard
             .enable(&options)
             .map_err(|e| fdo::Error::Failed(e))?;
@@ -177,10 +175,7 @@ impl RemoteDesktopSession {
     }
 
     #[zbus(name = "SetSelection")]
-    async fn set_selection(
-        &mut self,
-        options: HashMap<&str, Value<'_>>,
-    ) -> fdo::Result<()> {
+    async fn set_selection(&mut self, options: HashMap<&str, Value<'_>>) -> fdo::Result<()> {
         self.clipboard
             .set_selection(&options)
             .map_err(|e| fdo::Error::Failed(e))?;
@@ -212,10 +207,7 @@ impl RemoteDesktopSession {
     }
 
     #[zbus(name = "ConnectToEIS")]
-    async fn connect_to_eis(
-        &mut self,
-        _options: HashMap<&str, Value<'_>>,
-    ) -> fdo::Result<OwnedFd> {
+    async fn connect_to_eis(&mut self, _options: HashMap<&str, Value<'_>>) -> fdo::Result<OwnedFd> {
         tracing::info!(session = %self.session_id, "mutter shim: ConnectToEIS");
         let fd = eis::client_fd().map_err(|e| fdo::Error::Failed(e))?;
         Ok(fd.into())
@@ -255,8 +247,7 @@ impl ScreenCastRoot {
             .at(path.as_str(), iface)
             .await
             .map_err(|e| fdo::Error::Failed(e.to_string()))?;
-        OwnedObjectPath::try_from(path.as_str())
-            .map_err(|e| fdo::Error::Failed(e.to_string()))
+        OwnedObjectPath::try_from(path.as_str()).map_err(|e| fdo::Error::Failed(e.to_string()))
     }
 }
 
@@ -322,10 +313,7 @@ impl ScreenCastSession {
     ) -> fdo::Result<OwnedObjectPath> {
         let stream_id = self.hub.alloc_stream_id();
         let path = format!("{}/Stream/{stream_id}", self.path);
-        let (width, height) = self
-            .hub
-            .capture_size(connector.as_deref())
-            .await;
+        let (width, height) = self.hub.capture_size(connector.as_deref()).await;
         let mapping_id = mapping_id_from_properties(&properties);
         eis::register_viewport(eis::Viewport {
             mapping_id: mapping_id.clone(),
@@ -350,8 +338,7 @@ impl ScreenCastSession {
             .at(path.as_str(), iface)
             .await
             .map_err(|e| fdo::Error::Failed(e.to_string()))?;
-        OwnedObjectPath::try_from(path.as_str())
-            .map_err(|e| fdo::Error::Failed(e.to_string()))
+        OwnedObjectPath::try_from(path.as_str()).map_err(|e| fdo::Error::Failed(e.to_string()))
     }
 }
 
@@ -401,10 +388,7 @@ impl ScreenCastStream {
         if self.node_id.is_some() {
             return Ok(());
         }
-        let (width, height) = self
-            .hub
-            .capture_size(self.connector.as_deref())
-            .await;
+        let (width, height) = self.hub.capture_size(self.connector.as_deref()).await;
         self.width = width;
         self.height = height;
 
@@ -431,7 +415,11 @@ impl ScreenCastStream {
             .map_err(|e| fdo::Error::Failed(e.to_string()))?;
         self.node_id = Some(handle.node_id);
 
-        compositor_ipc::begin_capture_overlay(Some("gnome-remote-desktop".into()));
+        if let Err(message) =
+            compositor_ipc::begin_capture_overlay(Some("gnome-remote-desktop".into()))
+        {
+            tracing::warn!(%message, "BeginCaptureOverlay rejected");
+        }
 
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let pump = spawn_screencast_pump(
@@ -444,15 +432,17 @@ impl ScreenCastStream {
             },
             Arc::clone(&cancel),
         );
-        self.hub.sc_streams.lock().map_err(|_| {
-            fdo::Error::Failed("stream map lock".into())
-        })?.insert(
-            self.stream_path.clone(),
-            StreamSlot {
-                cancel,
-                pump: Some(pump),
-            },
-        );
+        self.hub
+            .sc_streams
+            .lock()
+            .map_err(|_| fdo::Error::Failed("stream map lock".into()))?
+            .insert(
+                self.stream_path.clone(),
+                StreamSlot {
+                    cancel,
+                    pump: Some(pump),
+                },
+            );
 
         self.conn
             .emit_signal(
@@ -526,9 +516,7 @@ pub async fn serve(
             Ok(()) => tracing::info!(%name, "mutter shim: owning D-Bus name"),
             Err(err) => {
                 tracing::warn!(%name, %err, "mutter shim: could not own D-Bus name");
-                return Err(PortalError::Failed(format!(
-                    "could not own {name}: {err}"
-                )));
+                return Err(PortalError::Failed(format!("could not own {name}: {err}")));
             }
         }
     }

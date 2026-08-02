@@ -12,9 +12,7 @@
 //! brightness. PQ is preferred when EDID advertises ST.2084; HLG is used for
 //! HLG-only panels.
 
-use smithay::backend::renderer::gles::{
-    GlesRenderer, GlesTexProgram, UniformName, UniformType,
-};
+use smithay::backend::renderer::gles::{GlesRenderer, GlesTexProgram, UniformName, UniformType};
 
 /// BT.2408 reference white for mapping SDR peak to HDR (nits).
 pub const REFERENCE_WHITE_NITS: f32 = 203.0;
@@ -241,7 +239,10 @@ impl HdrEncodeRuntime {
                         self.hlg_program = Some(program);
                     }
                     Err(err) => {
-                        tracing::warn!(?err, "hdr: failed to compile HLG encode shader; leaving SDR")
+                        tracing::warn!(
+                            ?err,
+                            "hdr: failed to compile HLG encode shader; leaving SDR"
+                        )
                     }
                 }
             }

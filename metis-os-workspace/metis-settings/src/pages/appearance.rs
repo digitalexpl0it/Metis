@@ -55,7 +55,8 @@ pub fn build() -> gtk::Widget {
     let current_wp = current_wallpaper();
 
     // ---- Style (light / dark) --------------------------------------------
-    let (mode_card, mode_body) = ui::section_with_icon(&tr("Style"), "applications-graphics-symbolic");
+    let (mode_card, mode_body) =
+        ui::section_with_icon(&tr("Style"), "applications-graphics-symbolic");
     let chooser = gtk::Box::new(gtk::Orientation::Horizontal, 16);
     chooser.set_halign(gtk::Align::Center);
     chooser.set_margin_top(4);
@@ -75,7 +76,8 @@ pub fn build() -> gtk::Widget {
     content.append(&mode_card);
 
     // ---- Colors -----------------------------------------------------------
-    let (color_card, color_body) = ui::section_with_icon(&tr("Colors"), "applications-graphics-symbolic");
+    let (color_card, color_body) =
+        ui::section_with_icon(&tr("Colors"), "applications-graphics-symbolic");
     let buttons = ColorButtons {
         accent: color_dialog_button(),
         accent2: color_dialog_button(),
@@ -86,19 +88,31 @@ pub fn build() -> gtk::Widget {
         payment: color_dialog_button(),
         text: color_dialog_button(),
     };
-    color_body.append(&ui::row_with_icon("starred-symbolic", &tr("Accent"), &buttons.accent));
+    color_body.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Accent"),
+        &buttons.accent,
+    ));
     color_body.append(&ui::row_with_icon(
         "starred-symbolic",
         &tr("Accent (secondary)"),
         &buttons.accent2,
     ));
-    color_body.append(&ui::row_with_icon("dialog-error-symbolic", &tr("Error"), &buttons.error));
+    color_body.append(&ui::row_with_icon(
+        "dialog-error-symbolic",
+        &tr("Error"),
+        &buttons.error,
+    ));
     color_body.append(&ui::row_with_icon(
         "dialog-warning-symbolic",
         &tr("Warning"),
         &buttons.warning,
     ));
-    color_body.append(&ui::row_with_icon("emblem-ok-symbolic", &tr("Success"), &buttons.success));
+    color_body.append(&ui::row_with_icon(
+        "emblem-ok-symbolic",
+        &tr("Success"),
+        &buttons.success,
+    ));
     color_body.append(&ui::row_with_icon(
         "dialog-information-symbolic",
         &tr("Info"),
@@ -120,12 +134,24 @@ pub fn build() -> gtk::Widget {
         t.text_on_accent = contrast_on(&hex);
         set_accent(t, 0, hex);
     });
-    wire_color(&buttons.accent2, &state, &suppress, |t, hex| set_accent(t, 1, hex));
-    wire_color(&buttons.error, &state, &suppress, |t, hex| t.semantic.error = hex);
-    wire_color(&buttons.warning, &state, &suppress, |t, hex| t.semantic.warning = hex);
-    wire_color(&buttons.success, &state, &suppress, |t, hex| t.semantic.success = hex);
-    wire_color(&buttons.info, &state, &suppress, |t, hex| t.semantic.info = hex);
-    wire_color(&buttons.payment, &state, &suppress, |t, hex| t.semantic.payment = hex);
+    wire_color(&buttons.accent2, &state, &suppress, |t, hex| {
+        set_accent(t, 1, hex)
+    });
+    wire_color(&buttons.error, &state, &suppress, |t, hex| {
+        t.semantic.error = hex
+    });
+    wire_color(&buttons.warning, &state, &suppress, |t, hex| {
+        t.semantic.warning = hex
+    });
+    wire_color(&buttons.success, &state, &suppress, |t, hex| {
+        t.semantic.success = hex
+    });
+    wire_color(&buttons.info, &state, &suppress, |t, hex| {
+        t.semantic.info = hex
+    });
+    wire_color(&buttons.payment, &state, &suppress, |t, hex| {
+        t.semantic.payment = hex
+    });
 
     // ---- Font -------------------------------------------------------------
     // Text color edits the theme's `text` token (recolors body text DE-wide).
@@ -273,12 +299,11 @@ pub fn build() -> gtk::Widget {
     }
 
     // ---- Re-run first-run wizard ------------------------------------------
-    let (setup_card, setup_body) =
-        ui::section_with_icon(&tr("Setup"), "system-run-symbolic");
+    let (setup_card, setup_body) = ui::section_with_icon(&tr("Setup"), "system-run-symbolic");
     let setup_hint = gtk::Label::new(Some(&tr(
         "Reopen the first-run setup wizard to walk through theme, wallpaper, \
-         clock, edge bar, and weather again."
-        )));
+         clock, edge bar, and weather again.",
+    )));
     setup_hint.set_xalign(0.0);
     setup_hint.set_wrap(true);
     setup_hint.add_css_class("metis-settings-hint");
@@ -396,13 +421,21 @@ fn style_button(label: &str, dark: bool, wallpaper: Option<&Path>) -> gtk::Toggl
     if let Some(path) = wallpaper {
         pic.set_filename(Some(path));
     } else {
-        pic.add_css_class(if dark { "metis-style-fallback-dark" } else { "metis-style-fallback-light" });
+        pic.add_css_class(if dark {
+            "metis-style-fallback-dark"
+        } else {
+            "metis-style-fallback-light"
+        });
     }
     overlay.set_child(Some(&pic));
 
     // Mock window floated over the wallpaper to convey the light/dark surface.
     let mock = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    mock.add_css_class(if dark { "metis-style-mock-dark" } else { "metis-style-mock-light" });
+    mock.add_css_class(if dark {
+        "metis-style-mock-dark"
+    } else {
+        "metis-style-mock-light"
+    });
     mock.set_halign(gtk::Align::Center);
     mock.set_valign(gtk::Align::Center);
     mock.set_size_request(82, 52);

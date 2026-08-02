@@ -3,6 +3,7 @@
 //! the `metis-config` crate; the running shell picks up changes through its file
 //! watchers (or an explicit `reload-*` runtime command).
 
+mod apps;
 mod bluetooth;
 mod gaming;
 mod i18n_gtk;
@@ -17,7 +18,6 @@ mod runtime;
 mod sound;
 mod theme;
 mod ui;
-mod apps;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -224,9 +224,7 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.set_hhomogeneous(false);
     stack.set_vhomogeneous(false);
     // Soft fade between sidebar pages. Skip when the user has animations off.
-    let fade_ms = if gtk::Settings::default()
-        .is_some_and(|s| s.is_gtk_enable_animations())
-    {
+    let fade_ms = if gtk::Settings::default().is_some_and(|s| s.is_gtk_enable_animations()) {
         200
     } else {
         0
@@ -240,7 +238,11 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
         Some("appearance"),
         "Appearance",
     );
-    stack.add_titled(&pages::background::build(), Some("background"), "Background");
+    stack.add_titled(
+        &pages::background::build(),
+        Some("background"),
+        "Background",
+    );
     stack.add_titled(&pages::edgebar::build(), Some("edgebar"), "Edge bar");
     stack.add_titled(
         &pages::desktop_widgets::build(),
@@ -248,7 +250,11 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
         "Desktop widgets",
     );
     stack.add_titled(&pages::windows::build(), Some("windows"), "Windows");
-    stack.add_titled(&pages::titlebars::build(), Some("titlebars"), "App titlebars");
+    stack.add_titled(
+        &pages::titlebars::build(),
+        Some("titlebars"),
+        "App titlebars",
+    );
     stack.add_titled(&pages::menu::build(), Some("menu"), "Metis Menu");
     stack.add_titled(&pages::weather::build(), Some("weather"), "Weather");
     stack.add_titled(
@@ -267,7 +273,11 @@ fn build_ui(app: &gtk::Application, launch: PageLaunch) {
     stack.add_titled(&pages::shortcuts::build(), Some("shortcuts"), "Shortcuts");
     stack.add_titled(&pages::bluetooth::build(), Some("bluetooth"), "Bluetooth");
     stack.add_titled(&pages::printers::build(), Some("printers"), "Printers");
-    stack.add_titled(&pages::screenshot::build(), Some("screenshot"), "Screenshot");
+    stack.add_titled(
+        &pages::screenshot::build(),
+        Some("screenshot"),
+        "Screenshot",
+    );
     stack.add_titled(
         &pages::control_center::build(),
         Some("control_center"),
@@ -649,18 +659,19 @@ fn build_nav_row(title: &str, icon: &str, hue: Option<NavHue>) -> gtk::ListBoxRo
     let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     row_box.add_css_class("metis-settings-nav-row-inner");
 
-    let icon_wrap = gtk::Box::builder()
-        .width_request(30)
-        .height_request(30)
-        .halign(gtk::Align::Center)
-        .valign(gtk::Align::Center)
-        .build();
+    // Sized via CSS padding so the symbolic icon stays optically centered in the badge.
+    let icon_wrap = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    icon_wrap.set_valign(gtk::Align::Center);
     icon_wrap.add_css_class("metis-settings-nav-icon-wrap");
     if let Some(hue) = hue {
         icon_wrap.add_css_class(hue.css_class());
+    } else {
+        icon_wrap.add_css_class(NavHue::Gray.css_class());
     }
     let img = gtk::Image::from_icon_name(icon);
     img.set_pixel_size(16);
+    img.set_halign(gtk::Align::Center);
+    img.set_valign(gtk::Align::Center);
     img.add_css_class("metis-settings-nav-icon");
     icon_wrap.append(&img);
     row_box.append(&icon_wrap);

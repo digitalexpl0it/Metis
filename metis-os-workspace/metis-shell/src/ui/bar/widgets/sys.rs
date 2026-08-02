@@ -79,10 +79,7 @@ impl BatteryWidget {
             self.root
                 .set_tooltip_text(Some(&metis_i18n::tr("AC power")));
         }
-        icons::set_icon(
-            &self.icon,
-            names::battery(percent.unwrap_or(100), charging),
-        );
+        icons::set_icon(&self.icon, names::battery(percent.unwrap_or(100), charging));
     }
 }
 
@@ -161,8 +158,7 @@ impl BluetoothWidget {
 
         let settings_btn = gtk::Button::with_label(&metis_i18n::tr("Bluetooth settings…"));
         settings_btn.connect_clicked(|_| {
-            if let Err(err) = crate::compositor::launch_program("metis-settings --page bluetooth")
-            {
+            if let Err(err) = crate::compositor::launch_program("metis-settings --page bluetooth") {
                 tracing::warn!(%err, "failed to open bluetooth settings");
             }
             super::super::dropdown::request_close_all();
@@ -284,7 +280,6 @@ fn build_bt_device_row(dev: &BluetoothDevice) -> gtk::Box {
     }
     row
 }
-
 
 /// Shared state + interactive widgets for the network popover so row/button
 /// closures can re-render the Wi-Fi list and drive the connect flow.
@@ -780,8 +775,7 @@ impl VpnWidget {
         settings_btn.add_css_class("metis-net-settings-btn");
         settings_btn.set_halign(gtk::Align::Start);
         settings_btn.connect_clicked(|_| {
-            if let Err(err) =
-                crate::compositor::launch_program("metis-settings --page network/vpn")
+            if let Err(err) = crate::compositor::launch_program("metis-settings --page network/vpn")
             {
                 tracing::warn!(%err, "failed to launch VPN settings");
             }
@@ -1035,11 +1029,7 @@ fn vpn_signature(vpn: &[VpnStatus]) -> String {
     for v in vpn {
         s.push_str(&format!(
             "{}:{}:{}:{}:{};",
-            v.uuid,
-            v.name,
-            v.kind,
-            v.active as u8,
-            v.pending as u8
+            v.uuid, v.name, v.kind, v.active as u8, v.pending as u8
         ));
     }
     s

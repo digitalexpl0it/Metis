@@ -139,8 +139,8 @@ pub fn save_default_dashboard_config() -> std::io::Result<()> {
 
 pub fn save_dashboard_config(cfg: &DashboardConfig) -> std::io::Result<()> {
     super::ensure_config_dirs()?;
-    let json = serde_json::to_string_pretty(&sanitize(cfg.clone()))
-        .map_err(std::io::Error::other)?;
+    let json =
+        serde_json::to_string_pretty(&sanitize(cfg.clone())).map_err(std::io::Error::other)?;
     std::fs::write(dashboard_config_path(), json)
 }
 

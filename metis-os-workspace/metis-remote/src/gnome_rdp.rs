@@ -32,24 +32,21 @@ pub fn grdctl_available() -> bool {
 }
 
 pub fn mutter_apis_available() -> bool {
-    let Ok(output) = Command::new("busctl")
-        .args(["--user", "list"])
-        .output()
-    else {
+    let Ok(output) = Command::new("busctl").args(["--user", "list"]).output() else {
         return false;
     };
     if !output.status.success() {
         return false;
     }
     let text = String::from_utf8_lossy(&output.stdout);
-    text.contains("org.gnome.Mutter.RemoteDesktop")
-        && text.contains("org.gnome.Mutter.ScreenCast")
+    text.contains("org.gnome.Mutter.RemoteDesktop") && text.contains("org.gnome.Mutter.ScreenCast")
 }
 
 fn grdctl(args: &[&str]) -> Result<Output, String> {
     let mut cmd = Command::new(GRDCTL);
     cmd.args(args);
-    cmd.output().map_err(|e| format!("failed to run grdctl: {e}"))
+    cmd.output()
+        .map_err(|e| format!("failed to run grdctl: {e}"))
 }
 
 fn systemctl(args: &[&str]) -> Result<Output, String> {
@@ -97,10 +94,7 @@ fn daemon_active() -> bool {
 }
 
 fn rdp_port_listening(port: u16) -> bool {
-    let output = Command::new("ss")
-        .args(["-tln"])
-        .output()
-        .ok();
+    let output = Command::new("ss").args(["-tln"]).output().ok();
     let Some(output) = output else {
         return false;
     };
@@ -238,9 +232,8 @@ fn parse_grdctl_status(text: &str) -> ParsedStatus {
     }
 
     if text.contains("certificate is invalid") {
-        error = Some(
-            "RDP TLS certificate is not configured — toggle sharing off and on again".into(),
-        );
+        error =
+            Some("RDP TLS certificate is not configured — toggle sharing off and on again".into());
     }
 
     ParsedStatus {
@@ -256,15 +249,17 @@ fn grdctl_user_active() -> bool {
     Command::new("busctl")
         .args(["--user", "list"])
         .output()
-        .map(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).contains("org.gnome.RemoteDesktop.User"))
+        .map(|o| {
+            o.status.success()
+                && String::from_utf8_lossy(&o.stdout).contains("org.gnome.RemoteDesktop.User")
+        })
         .unwrap_or(false)
 }
 
 pub fn enable_sharing() -> Result<(), String> {
     if !mutter_apis_available() {
         return Err(
-            "Desktop capture is unavailable — log out and back in to Metis, then try again"
-                .into(),
+            "Desktop capture is unavailable — log out and back in to Metis, then try again".into(),
         );
     }
     ensure_tls_cert()?;
@@ -283,8 +278,14 @@ pub fn enable_sharing() -> Result<(), String> {
                 .into(),
         );
     }
-    run_ok(grdctl(&["rdp", "set-port", &DEFAULT_PORT.to_string()])?, "set RDP port")?;
-    run_ok(grdctl(&["rdp", "disable-view-only"])?, "enable remote control")?;
+    run_ok(
+        grdctl(&["rdp", "set-port", &DEFAULT_PORT.to_string()])?,
+        "set RDP port",
+    )?;
+    run_ok(
+        grdctl(&["rdp", "disable-view-only"])?,
+        "enable remote control",
+    )?;
     run_ok(grdctl(&["rdp", "enable"])?, "enable RDP")?;
     if !rdp_port_listening(DEFAULT_PORT) {
         run_ok(
@@ -360,8 +361,14 @@ pub fn resume_sharing() -> Result<(), String> {
         wait_for_daemon(Duration::from_secs(5));
         let _ = wait_for_grd_user_bus(Duration::from_secs(8));
     }
-    run_ok(grdctl(&["rdp", "set-port", &DEFAULT_PORT.to_string()])?, "set RDP port")?;
-    run_ok(grdctl(&["rdp", "disable-view-only"])?, "enable remote control")?;
+    run_ok(
+        grdctl(&["rdp", "set-port", &DEFAULT_PORT.to_string()])?,
+        "set RDP port",
+    )?;
+    run_ok(
+        grdctl(&["rdp", "disable-view-only"])?,
+        "enable remote control",
+    )?;
     run_ok(grdctl(&["rdp", "enable"])?, "enable RDP")?;
     let _ = wait_for_rdp_port(DEFAULT_PORT, Duration::from_secs(10));
     Ok(())
@@ -402,7 +409,10 @@ fn ensure_tls_cert() -> Result<(), String> {
 
     let cert_s = cert.to_string_lossy();
     let key_s = key.to_string_lossy();
-    run_ok(grdctl(&["rdp", "set-tls-cert", &cert_s])?, "set RDP TLS certificate")?;
+    run_ok(
+        grdctl(&["rdp", "set-tls-cert", &cert_s])?,
+        "set RDP TLS certificate",
+    )?;
     run_ok(grdctl(&["rdp", "set-tls-key", &key_s])?, "set RDP TLS key")?;
     Ok(())
 }
@@ -420,7 +430,9 @@ fn generate_tls_cert(cert: &std::path::Path, key: &std::path::Path) -> Result<()
     }
 
     if !bin_on_path("openssl") {
-        return Err("openssl not found — install openssl to generate the RDP TLS certificate".into());
+        return Err(
+            "openssl not found — install openssl to generate the RDP TLS certificate".into(),
+        );
     }
 
     let host = host::hostname();

@@ -163,7 +163,10 @@ impl ClipboardWidget {
             (metis_i18n::tr("50 entries per page"), 50),
             (metis_i18n::tr("100 entries per page"), 100),
         ] {
-            let btn = gtk::Button::builder().has_frame(false).hexpand(true).build();
+            let btn = gtk::Button::builder()
+                .has_frame(false)
+                .hexpand(true)
+                .build();
             btn.add_css_class("metis-clipboard-settings-item");
 
             let row = gtk::Box::builder()
@@ -191,9 +194,7 @@ impl ClipboardWidget {
                 popover.popdown();
                 repaint();
             });
-            settings_items
-                .borrow_mut()
-                .push((btn.clone(), check, size));
+            settings_items.borrow_mut().push((btn.clone(), check, size));
             settings_panel.append(&btn);
         }
         settings_popover.set_child(Some(&settings_panel));
@@ -312,8 +313,7 @@ fn history_thumbnail(path: &str) -> gtk::Widget {
     glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
         match rx.try_recv() {
             Ok(Some(bytes)) => {
-                if let Ok(pixbuf) =
-                    gtk::gdk_pixbuf::Pixbuf::from_read(std::io::Cursor::new(bytes))
+                if let Ok(pixbuf) = gtk::gdk_pixbuf::Pixbuf::from_read(std::io::Cursor::new(bytes))
                 {
                     let thumb = pixbuf
                         .scale_simple(80, 80, gtk::gdk_pixbuf::InterpType::Bilinear)
@@ -322,9 +322,7 @@ fn history_thumbnail(path: &str) -> gtk::Widget {
                 }
                 glib::ControlFlow::Break
             }
-            Ok(None) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                glib::ControlFlow::Break
-            }
+            Ok(None) | Err(std::sync::mpsc::TryRecvError::Disconnected) => glib::ControlFlow::Break,
             Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
         }
     });
@@ -387,7 +385,10 @@ fn build_row(entry: &ClipboardEntry, is_active: bool) -> gtk::Widget {
     marker.set_width_request(14);
     row.append(&marker);
 
-    let body = gtk::Button::builder().has_frame(false).hexpand(true).build();
+    let body = gtk::Button::builder()
+        .has_frame(false)
+        .hexpand(true)
+        .build();
     body.add_css_class("metis-clipboard-body");
 
     let content = gtk::Box::builder()

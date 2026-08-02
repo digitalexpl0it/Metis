@@ -1,10 +1,10 @@
 //! `wp_color_management_v1` global and object dispatch (protocol version 1).
 
-use std::sync::Mutex;
 use std::ffi::CString;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use smithay::output::Output;
 use smithay::reexports::wayland_protocols::wp::color_management::v1::server::{
@@ -65,13 +65,20 @@ pub struct ColorManagementState {
 ///
 /// Per-output ICC `vcgt` / Stage 2 3D-LUT ([`crate::output_gamma`],
 /// [`crate::color_lut`]) are independent of this global and remain active.
-pub fn color_protocol_enabled() -> bool {
-    std::env::var("METIS_COLOR_MGMT").is_ok_and(|v| {
+/// Parse the opt-in gate used by [`color_protocol_enabled`].
+///
+/// `None` / empty / non-truthy values keep `wp_color_management_v1` off.
+pub(crate) fn color_protocol_enabled_from(value: Option<&str>) -> bool {
+    value.is_some_and(|v| {
         matches!(
             v.trim(),
             "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"
         )
     })
+}
+
+pub fn color_protocol_enabled() -> bool {
+    color_protocol_enabled_from(std::env::var("METIS_COLOR_MGMT").ok().as_deref())
 }
 
 impl ColorManagementState {
@@ -376,7 +383,9 @@ impl Dispatch2<wp_image_description_info_v1::WpImageDescriptionInfoV1, MetisStat
 }
 
 /// sRGB / BT.709 primaries and D65 white (CIE 1931 xy × 1_000_000).
-const SRGB_PRIMARIES_XY: [i32; 8] = [640_000, 330_000, 300_000, 600_000, 150_000, 60_000, 312_700, 329_000];
+const SRGB_PRIMARIES_XY: [i32; 8] = [
+    640_000, 330_000, 300_000, 600_000, 150_000, 60_000, 312_700, 329_000,
+];
 
 /// Typical SDR display luminance (cd/m²). `min_lum` is scaled ×10_000 per protocol.
 const SDR_MIN_LUM_SCALED: u32 = 0;
@@ -406,9 +415,7 @@ fn send_parametric_info(
         NamedPrimaries::Bt2020 => BT2020_PRIMARIES_XY,
     };
     let (min_lum, max_lum, ref_lum) = match tf.unwrap_or(NamedTransferFunction::Srgb) {
-        NamedTransferFunction::St2084Pq | NamedTransferFunction::Hlg => {
-            (0u32, 1000u32, 203u32)
-        }
+        NamedTransferFunction::St2084Pq | NamedTransferFunction::Hlg => (0u32, 1000u32, 203u32),
         _ => (SDR_MIN_LUM_SCALED, SDR_MAX_LUM, SDR_REFERENCE_LUM),
     };
 
@@ -497,8 +504,9 @@ impl Dispatch2<wp_image_description_creator_icc_v1::WpImageDescriptionCreatorIcc
                     );
                     return;
                 };
-                let record_id =
-                    state.color_mgmt.alloc_description(DescriptionKind::Icc(icc), false);
+                let record_id = state
+                    .color_mgmt
+                    .alloc_description(DescriptionKind::Icc(icc), false);
                 init_ready_image_description(state, data_init, image_description, record_id);
             }
             _ => {}
@@ -512,10 +520,9 @@ struct ParametricCreatorData {
     primaries: Mutex<Option<wp_color_manager_v1::Primaries>>,
 }
 
-impl Dispatch2<
-    wp_image_description_creator_params_v1::WpImageDescriptionCreatorParamsV1,
-    MetisState,
-> for ParametricCreatorData
+impl
+    Dispatch2<wp_image_description_creator_params_v1::WpImageDescriptionCreatorParamsV1, MetisState>
+    for ParametricCreatorData
 {
     fn request(
         &self,
@@ -543,11 +550,7 @@ impl Dispatch2<
             }
             wp_image_description_creator_params_v1::Request::Create { image_description } => {
                 let tf = self.tf.lock().ok().and_then(|guard| *guard);
-                let primaries = self
-                    .primaries
-                    .lock()
-                    .ok()
-                    .and_then(|guard| *guard);
+                let primaries = self.primaries.lock().ok().and_then(|guard| *guard);
                 if tf.is_none() || primaries.is_none() {
                     // `create` before both tf + primaries were set: spec requires
                     // the `incomplete_set` protocol error. Initialise the New
@@ -607,8 +610,9 @@ impl Dispatch2<wp_color_management_surface_v1::WpColorManagementSurfaceV1, Metis
                     );
                     return;
                 }
-                let Some(record_id) =
-                    state.color_mgmt.description_id_for_object(&image_description.id())
+                let Some(record_id) = state
+                    .color_mgmt
+                    .description_id_for_object(&image_description.id())
                 else {
                     resource.post_error(
                         wp_color_management_surface_v1::Error::ImageDescription,
@@ -635,7 +639,9 @@ impl Dispatch2<wp_color_management_surface_v1::WpColorManagementSurfaceV1, Metis
         _client: smithay::reexports::wayland_server::backend::ClientId,
         _resource: &wp_color_management_surface_v1::WpColorManagementSurfaceV1,
     ) {
-        state.color_mgmt.unregister_color_surface(&self.surface.id());
+        state
+            .color_mgmt
+            .unregister_color_surface(&self.surface.id());
         state
             .color_mgmt
             .clear_surface_description(&self.surface.id());
@@ -647,10 +653,11 @@ struct SurfaceFeedbackData {
     surface: wl_surface::WlSurface,
 }
 
-impl Dispatch2<
-    wp_color_management_surface_feedback_v1::WpColorManagementSurfaceFeedbackV1,
-    MetisState,
-> for SurfaceFeedbackData
+impl
+    Dispatch2<
+        wp_color_management_surface_feedback_v1::WpColorManagementSurfaceFeedbackV1,
+        MetisState,
+    > for SurfaceFeedbackData
 {
     fn request(
         &self,
@@ -699,9 +706,7 @@ fn preferred_description_for_surface(
     } else {
         state.color_mgmt.profile_for_output(&output_name)
     };
-    state
-        .color_mgmt
-        .alloc_description(kind, true)
+    state.color_mgmt.alloc_description(kind, true)
 }
 
 fn read_icc_fd(fd: OwnedFd, offset: u32, length: u32) -> Option<Arc<[u8]>> {
@@ -718,19 +723,21 @@ fn read_icc_fd(fd: OwnedFd, offset: u32, length: u32) -> Option<Arc<[u8]>> {
 
 fn sealed_memfd(name: &str, data: &[u8]) -> Option<OwnedFd> {
     let c_name = CString::new(name).ok()?;
-    let fd = unsafe {
-        libc::memfd_create(
-            c_name.as_ptr(),
-            libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
-        )
-    };
+    let fd =
+        unsafe { libc::memfd_create(c_name.as_ptr(), libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING) };
     if fd < 0 {
         return None;
     }
     let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
     file.write_all(data).ok()?;
     let _ = file.flush();
-    unsafe { libc::fcntl(file.as_raw_fd(), libc::F_ADD_SEALS, libc::F_SEAL_WRITE | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW) };
+    unsafe {
+        libc::fcntl(
+            file.as_raw_fd(),
+            libc::F_ADD_SEALS,
+            libc::F_SEAL_WRITE | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW,
+        )
+    };
     Some(file.into())
 }
 
@@ -753,5 +760,28 @@ fn map_primaries(p: wp_color_manager_v1::Primaries) -> Option<NamedPrimaries> {
         P::Srgb => Some(NamedPrimaries::Srgb),
         P::Bt2020 => Some(NamedPrimaries::Bt2020),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Default path must not advertise `wp_color_management_v1` — Chromium/Ozone
+    /// binding the global triggers a wayland-rs server ObjectData UAF
+    /// (`docs/upstream/wayland-rs-server-objectdata-uaf.md`).
+    #[test]
+    fn wp_color_management_v1_default_off() {
+        assert!(
+            !color_protocol_enabled_from(None),
+            "unset METIS_COLOR_MGMT must keep color management disabled"
+        );
+        assert!(!color_protocol_enabled_from(Some("")));
+        assert!(!color_protocol_enabled_from(Some("0")));
+        assert!(!color_protocol_enabled_from(Some("false")));
+        assert!(!color_protocol_enabled_from(Some("off")));
+        // Opt-in still works when explicitly requested.
+        assert!(color_protocol_enabled_from(Some("1")));
+        assert!(color_protocol_enabled_from(Some("true")));
     }
 }

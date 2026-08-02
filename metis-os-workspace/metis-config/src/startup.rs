@@ -154,22 +154,16 @@ fn applications_dirs() -> Vec<PathBuf> {
     } else if let Ok(home) = std::env::var("HOME") {
         dirs.push(PathBuf::from(home).join(".local/share/applications"));
     }
-    let data_dirs = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| {
-        "/usr/local/share:/usr/share".into()
-    });
+    let data_dirs =
+        std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
     for dir in data_dirs.split(':').filter(|s| !s.is_empty()) {
         dirs.push(PathBuf::from(dir).join("applications"));
     }
     // Common Flatpak export roots (also often on XDG_DATA_DIRS in Metis sessions).
     if let Ok(home) = std::env::var("HOME") {
-        dirs.push(
-            PathBuf::from(home)
-                .join(".local/share/flatpak/exports/share/applications"),
-        );
+        dirs.push(PathBuf::from(home).join(".local/share/flatpak/exports/share/applications"));
     }
-    dirs.push(PathBuf::from(
-        "/var/lib/flatpak/exports/share/applications",
-    ));
+    dirs.push(PathBuf::from("/var/lib/flatpak/exports/share/applications"));
     dirs
 }
 
@@ -298,10 +292,7 @@ fn split_exec(exec: &str) -> Vec<String> {
 }
 
 fn is_stub_exec(program: &str) -> bool {
-    matches!(
-        program,
-        "false" | "/usr/bin/false" | "/bin/false"
-    )
+    matches!(program, "false" | "/usr/bin/false" | "/bin/false")
 }
 
 #[cfg(test)]

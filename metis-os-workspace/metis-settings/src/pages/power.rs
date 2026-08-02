@@ -53,7 +53,12 @@ pub fn build() -> gtk::Widget {
     suspend.set_digits(0);
     idle_body.append(&ui::row(&tr("Suspend after idle (min, 0=never)"), &suspend));
     let lid = {
-        let __dd_labels = [tr("Suspend"), tr("Ignore"), tr("Hibernate"), tr("Power off")];
+        let __dd_labels = [
+            tr("Suspend"),
+            tr("Ignore"),
+            tr("Hibernate"),
+            tr("Power off"),
+        ];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
@@ -188,19 +193,24 @@ fn render(sections: &Sections, snap: &PowerSnapshot, apply_config: bool) {
         } else {
             tr("discharging")
         };
-        sections.battery_label.set_text(&format!(
-            "{pct}% · {charge} · {}",
-            snap.battery.status
-        ));
+        sections
+            .battery_label
+            .set_text(&format!("{pct}% · {charge} · {}", snap.battery.status));
     } else {
-        sections.battery_label.set_text(&tr("No battery detected (desktop / AC-only)"));
+        sections
+            .battery_label
+            .set_text(&tr("No battery detected (desktop / AC-only)"));
     }
     if !apply_config {
         return;
     }
     sections.profile.set_selected(profile_index(snap.profile));
-    sections.blank.set_value(snap.config.blank_after_minutes as f64);
-    sections.suspend.set_value(snap.config.suspend_after_minutes as f64);
+    sections
+        .blank
+        .set_value(snap.config.blank_after_minutes as f64);
+    sections
+        .suspend
+        .set_value(snap.config.suspend_after_minutes as f64);
     sections.lid.set_selected(lid_index(snap.config.lid_close));
     sections.dim.set_active(snap.config.dim_on_battery);
 }

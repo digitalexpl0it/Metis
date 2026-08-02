@@ -262,7 +262,10 @@ pub fn apply() -> Result<FirewallStatus, String> {
                 detail: None,
             },
             Err(err) => {
-                let msg = if err.contains("pkexec") || err.contains("cancelled") || err.contains("denied") {
+                let msg = if err.contains("pkexec")
+                    || err.contains("cancelled")
+                    || err.contains("denied")
+                {
                     format!(
                         "{err}. No password dialog? Metis needs a PolicyKit agent \
                          (e.g. install `policykit-1-gnome` or `mate-polkit`) in the session, \
@@ -840,10 +843,7 @@ fn apply_ufw_rustdesk() -> Result<(), String> {
     let ufw = ufw_bin().ok_or_else(|| "ufw not found".to_string())?;
     let _ = clear_ufw_rustdesk();
     for cidr in LAN_V4.iter().chain(LAN_V6.iter()) {
-        for proto_port in [
-            ("tcp", RD_TCP_PORTS),
-            ("udp", "21116"),
-        ] {
+        for proto_port in [("tcp", RD_TCP_PORTS), ("udp", "21116")] {
             let out = run(
                 &ufw,
                 &[

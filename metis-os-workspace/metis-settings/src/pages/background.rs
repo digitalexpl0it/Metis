@@ -36,7 +36,11 @@ pub fn build() -> gtk::Widget {
         metis_config::BackgroundKind::Solid => 1,
         metis_config::BackgroundKind::Gradient => 2,
     });
-    bg_body.append(&ui::row_with_icon("view-paged-symbolic", &tr("Type"), &type_dd));
+    bg_body.append(&ui::row_with_icon(
+        "view-paged-symbolic",
+        &tr("Type"),
+        &type_dd,
+    ));
 
     // -- Picture controls --
     let picture_box = gtk::Box::new(gtk::Orientation::Vertical, 12);
@@ -81,14 +85,33 @@ pub fn build() -> gtk::Widget {
     let grad_end = color_dialog_button();
     grad_end.set_rgba(&hex_to_rgba(&bgcfg.borrow().gradient_end));
     let dir_dd = {
-        let __dd_labels = [tr("Top → Bottom"), tr("Bottom → Top"), tr("Left → Right"), tr("Right → Left"), tr("Diagonal ↘"), tr("Diagonal ↗")];
+        let __dd_labels = [
+            tr("Top → Bottom"),
+            tr("Bottom → Top"),
+            tr("Left → Right"),
+            tr("Right → Left"),
+            tr("Diagonal ↘"),
+            tr("Diagonal ↗"),
+        ];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
     dir_dd.set_selected(direction_to_index(bgcfg.borrow().gradient_direction));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", &tr("Start color"), &grad_start));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", &tr("End color"), &grad_end));
-    gradient_box.append(&ui::row_with_icon("object-rotate-right-symbolic", &tr("Direction"), &dir_dd));
+    gradient_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Start color"),
+        &grad_start,
+    ));
+    gradient_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("End color"),
+        &grad_end,
+    ));
+    gradient_box.append(&ui::row_with_icon(
+        "object-rotate-right-symbolic",
+        &tr("Direction"),
+        &dir_dd,
+    ));
     bg_body.append(&gradient_box);
 
     content.append(&bg_card);
@@ -103,8 +126,8 @@ pub fn build() -> gtk::Widget {
             ui::section_with_icon(&tr("Per-display background"), "video-display-symbolic");
         let hint = gtk::Label::new(Some(&tr(
             "Pick a different picture for a specific display. Leave a display on \
-             “Default” to use the background above."
-            )));
+             “Default” to use the background above.",
+        )));
         hint.set_wrap(true);
         hint.set_xalign(0.0);
         hint.add_css_class("dim-label");
@@ -312,7 +335,12 @@ fn build_lock_card() -> gtk::Widget {
 
     // -- Background source --
     let src_dd = {
-        let __dd_labels = [tr("Use desktop wallpaper"), tr("Picture"), tr("Solid color"), tr("Gradient")];
+        let __dd_labels = [
+            tr("Use desktop wallpaper"),
+            tr("Picture"),
+            tr("Solid color"),
+            tr("Gradient"),
+        ];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
@@ -322,7 +350,11 @@ fn build_lock_card() -> gtk::Widget {
         Src::Solid => 2,
         Src::Gradient => 3,
     });
-    body.append(&ui::row_with_icon("view-paged-symbolic", &tr("Background"), &src_dd));
+    body.append(&ui::row_with_icon(
+        "view-paged-symbolic",
+        &tr("Background"),
+        &src_dd,
+    ));
 
     // -- Picture controls --
     let picture_box = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -407,14 +439,33 @@ fn build_lock_card() -> gtk::Widget {
     let grad_end = color_dialog_button();
     grad_end.set_rgba(&hex_to_rgba(&lockcfg.borrow().gradient_end));
     let dir_dd = {
-        let __dd_labels = [tr("Top → Bottom"), tr("Bottom → Top"), tr("Left → Right"), tr("Right → Left"), tr("Diagonal ↘"), tr("Diagonal ↗")];
+        let __dd_labels = [
+            tr("Top → Bottom"),
+            tr("Bottom → Top"),
+            tr("Left → Right"),
+            tr("Right → Left"),
+            tr("Diagonal ↘"),
+            tr("Diagonal ↗"),
+        ];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
     dir_dd.set_selected(direction_to_index(lockcfg.borrow().gradient_direction));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", &tr("Start color"), &grad_start));
-    gradient_box.append(&ui::row_with_icon("starred-symbolic", &tr("End color"), &grad_end));
-    gradient_box.append(&ui::row_with_icon("object-rotate-right-symbolic", &tr("Direction"), &dir_dd));
+    gradient_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Start color"),
+        &grad_start,
+    ));
+    gradient_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("End color"),
+        &grad_end,
+    ));
+    gradient_box.append(&ui::row_with_icon(
+        "object-rotate-right-symbolic",
+        &tr("Direction"),
+        &dir_dd,
+    ));
     body.append(&gradient_box);
     {
         let lockcfg = lockcfg.clone();
@@ -460,7 +511,11 @@ fn build_lock_card() -> gtk::Widget {
     dim_scale.set_draw_value(true);
     dim_scale.set_value_pos(gtk::PositionType::Right);
     dim_scale.set_value(f64::from(lockcfg.borrow().dim_percent));
-    body.append(&ui::row_with_icon("display-brightness-symbolic", &tr("Dim"), &dim_scale));
+    body.append(&ui::row_with_icon(
+        "display-brightness-symbolic",
+        &tr("Dim"),
+        &dim_scale,
+    ));
     {
         let lockcfg = lockcfg.clone();
         let persist = persist.clone();

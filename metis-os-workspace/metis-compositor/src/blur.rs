@@ -139,10 +139,7 @@ impl BlurRuntime {
     /// Shrink the bar's full layer rect down to just the visible pill, excluding
     /// the transparent drop-shadow padding baked into the surface, so the blur
     /// only frosts inside the bar (not the soft shadow around it).
-    pub fn confine_to_pill(
-        &self,
-        rect: Rectangle<i32, Physical>,
-    ) -> Rectangle<i32, Physical> {
+    pub fn confine_to_pill(&self, rect: Rectangle<i32, Physical>) -> Rectangle<i32, Physical> {
         let cfg = metis_config::load_bar_config();
         let pad = metis_config::bar::bar_layer_shadow_pad(&cfg);
         let side = metis_config::bar::bar_pill_side_inset(&cfg);
@@ -178,10 +175,7 @@ impl BlurRuntime {
                 h -= 2 * side;
             }
         }
-        Rectangle::new(
-            Point::from((x, y)),
-            Size::from((w.max(0), h.max(0))),
-        )
+        Rectangle::new(Point::from((x, y)), Size::from((w.max(0), h.max(0))))
     }
 
     /// Lazily compile the blur shader using the renderer. Safe to call every
@@ -312,7 +306,12 @@ fn lock_signature(
     h
 }
 
-fn signature(rect: Rectangle<i32, Physical>, radius: f32, tex_id: u32, tex: Size<i32, Buffer>) -> u64 {
+fn signature(
+    rect: Rectangle<i32, Physical>,
+    radius: f32,
+    tex_id: u32,
+    tex: Size<i32, Buffer>,
+) -> u64 {
     let mut h = 1469598103934665603u64;
     let mut mix = |v: i64| {
         h ^= v as u64;

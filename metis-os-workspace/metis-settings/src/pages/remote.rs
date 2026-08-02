@@ -46,8 +46,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let intro = gtk::Label::new(Some(&tr(
         "Session sharing lets another device view and control the Metis session \
          you are already logged into. Remote login to start a separate session \
-         will be a different option when it is available."
-        )));
+         will be a different option when it is available.",
+    )));
     intro.set_xalign(0.0);
     intro.set_wrap(true);
     intro.add_css_class("metis-settings-hint");
@@ -60,8 +60,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     install_banner.set_visible(false);
     let install_text = gtk::Label::new(Some(&tr(
         "Install gnome-remote-desktop to enable desktop session sharing:\n\
-         sudo apt install gnome-remote-desktop"
-        )));
+         sudo apt install gnome-remote-desktop",
+    )));
     install_text.set_xalign(0.0);
     install_text.set_wrap(true);
     install_text.add_css_class("metis-settings-hint");
@@ -73,8 +73,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     password_banner.set_margin_bottom(12);
     password_banner.set_visible(false);
     let pw_text = gtk::Label::new(Some(&tr(
-        "Set a password before enabling desktop session sharing."
-        )));
+        "Set a password before enabling desktop session sharing.",
+    )));
     pw_text.set_xalign(0.0);
     pw_text.set_hexpand(true);
     pw_text.set_wrap(true);
@@ -94,8 +94,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     error_label.set_visible(false);
     share_body.append(&error_label);
 
-    let (enable_row, enable_sw) =
-        ui::switch_row(&tr("Allow desktop session sharing"));
+    let (enable_row, enable_sw) = ui::switch_row(&tr("Allow desktop session sharing"));
     share_body.append(&enable_row);
     content.append(&share_card);
 
@@ -136,8 +135,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     let clients_hint = gtk::Label::new(Some(&tr(
         "Connect with Metis Viewer, Microsoft Remote Desktop, Remmina, or FreeRDP. \
-         Use the username and password you set above — empty credentials will not work."
-        )));
+         Use the username and password you set above — empty credentials will not work.",
+    )));
     clients_hint.set_xalign(0.0);
     clients_hint.set_wrap(true);
     clients_hint.add_css_class("metis-settings-hint");
@@ -178,8 +177,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         "When LAN only is on and sharing is enabled, Metis applies firewall rules \
          automatically (nftables preferred; ufw only if active). A PolicyKit password \
          dialog may appear. Use a strong password. While locked (Super+L), RDP listen \
-         pauses. Clipboard sync includes text and images."
-        )));
+         pauses. Clipboard sync includes text and images.",
+    )));
     hint_label.set_xalign(0.0);
     hint_label.set_wrap(true);
     hint_label.add_css_class("metis-settings-hint");
@@ -231,8 +230,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let login_hint = gtk::Label::new(Some(&tr(
         "Sign in remotely to start a new desktop session (for example xrdp) — planned \
          for a later milestone. This page only covers sharing the session you are \
-         already in."
-        )));
+         already in.",
+    )));
     login_hint.set_xalign(0.0);
     login_hint.set_wrap(true);
     login_hint.add_css_class("metis-settings-hint");
@@ -655,9 +654,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             let install = remote::detect_rustdesk();
             match remote::open_rustdesk(&install) {
                 Ok(()) => {
-                    sections_rd
-                        .hint_label
-                        .set_text(&tr("Opening RustDesk…"));
+                    sections_rd.hint_label.set_text(&tr("Opening RustDesk…"));
                     refresh_rustdesk();
                 }
                 Err(err) => {
@@ -672,19 +669,17 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     {
         let sections_rd = sections.clone();
         let refresh_rustdesk = refresh_rustdesk.clone();
-        rd_enable_btn.connect_clicked(move |_| {
-            match remote::rustdesk_enable() {
-                Ok(()) => {
-                    sections_rd.hint_label.set_text(&tr(
-                        "RustDesk Metis backend enabled (optional). GRD remains the default host.",
-                    ));
-                    refresh_rustdesk();
-                }
-                Err(err) => {
-                    *sections_rd.action_error.borrow_mut() = Some(err.clone());
-                    sections_rd.error_label.set_text(&err);
-                    sections_rd.error_label.set_visible(true);
-                }
+        rd_enable_btn.connect_clicked(move |_| match remote::rustdesk_enable() {
+            Ok(()) => {
+                sections_rd.hint_label.set_text(&tr(
+                    "RustDesk Metis backend enabled (optional). GRD remains the default host.",
+                ));
+                refresh_rustdesk();
+            }
+            Err(err) => {
+                *sections_rd.action_error.borrow_mut() = Some(err.clone());
+                sections_rd.error_label.set_text(&err);
+                sections_rd.error_label.set_visible(true);
             }
         });
     }
@@ -692,19 +687,17 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     {
         let sections_rd = sections.clone();
         let refresh_rustdesk = refresh_rustdesk.clone();
-        rd_disable_btn.connect_clicked(move |_| {
-            match remote::rustdesk_disable(false) {
-                Ok(()) => {
-                    sections_rd
-                        .hint_label
-                        .set_text(&tr("RustDesk Metis backend preference cleared."));
-                    refresh_rustdesk();
-                }
-                Err(err) => {
-                    *sections_rd.action_error.borrow_mut() = Some(err.clone());
-                    sections_rd.error_label.set_text(&err);
-                    sections_rd.error_label.set_visible(true);
-                }
+        rd_disable_btn.connect_clicked(move |_| match remote::rustdesk_disable(false) {
+            Ok(()) => {
+                sections_rd
+                    .hint_label
+                    .set_text(&tr("RustDesk Metis backend preference cleared."));
+                refresh_rustdesk();
+            }
+            Err(err) => {
+                *sections_rd.action_error.borrow_mut() = Some(err.clone());
+                sections_rd.error_label.set_text(&err);
+                sections_rd.error_label.set_visible(true);
             }
         });
     }
@@ -789,7 +782,7 @@ fn confirm_disable_lan_only(parent: &gtk::Window, on_done: impl Fn(bool) + 'stat
     let body = gtk::Label::new(Some(&tr(
         "Turning off LAN only removes Metis firewall rules for port 3389. \
          Remote desktop may then be reachable from outside your private network \
-         unless you have other protections (VPN, host firewall)."
+         unless you have other protections (VPN, host firewall).",
     )));
     body.set_xalign(0.0);
     body.set_wrap(true);
@@ -844,8 +837,12 @@ fn confirm_disable_lan_only(parent: &gtk::Window, on_done: impl Fn(bool) + 'stat
 
 fn render(sections: &Sections, snap: &RemoteSnapshot) {
     sections.install_banner.set_visible(!snap.available);
-    sections.password_banner.set_visible(snap.available && !snap.password_set);
-    sections.change_pw_btn.set_visible(snap.available && snap.password_set);
+    sections
+        .password_banner
+        .set_visible(snap.available && !snap.password_set);
+    sections
+        .change_pw_btn
+        .set_visible(snap.available && snap.password_set);
 
     // Clear warm-up once RDP is listening, or if sharing was turned off.
     if sections.warming_up.get()
@@ -955,14 +952,18 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
             sections
                 .status_label
                 .set_text(&tr("Running — ready for connections"));
-            sections.address_label.set_text(&remote::connection_hint(snap));
+            sections
+                .address_label
+                .set_text(&remote::connection_hint(snap));
             sections.port_label.set_text(&snap.port.to_string());
             sections.username_label.set_text(&username);
         } else if snap.config_enabled {
-            sections.status_label.set_text(&tr(
-                "Enabled — RDP not listening (locked or starting)",
-            ));
-            sections.address_label.set_text(&remote::connection_hint(snap));
+            sections
+                .status_label
+                .set_text(&tr("Enabled — RDP not listening (locked or starting)"));
+            sections
+                .address_label
+                .set_text(&remote::connection_hint(snap));
             sections.port_label.set_text(&snap.port.to_string());
             sections.username_label.set_text(&username);
         } else {
@@ -988,9 +989,8 @@ fn render(sections: &Sections, snap: &RemoteSnapshot) {
 }
 
 fn render_firewall_status(sections: &Sections, snap: &RemoteSnapshot) {
-    let sharing_on = snap.config_enabled
-        || sections.share_wanted.get()
-        || sections.warming_up.get();
+    let sharing_on =
+        snap.config_enabled || sections.share_wanted.get() || sections.warming_up.get();
 
     if snap.firewall_applied {
         sections.firewall_pending.set(false);
@@ -1028,9 +1028,10 @@ fn render_firewall_status(sections: &Sections, snap: &RemoteSnapshot) {
         };
         (format!("LAN-only rules are active ({backend})."), false)
     } else {
-        let detail = snap.firewall_detail.clone().unwrap_or_else(|| {
-            tr("LAN-only is on, but firewall rules are not applied yet.")
-        });
+        let detail = snap
+            .firewall_detail
+            .clone()
+            .unwrap_or_else(|| tr("LAN-only is on, but firewall rules are not applied yet."));
         (detail, snap.available && !sections.enable_pending.get())
     };
 
@@ -1042,7 +1043,6 @@ fn render_firewall_status(sections: &Sections, snap: &RemoteSnapshot) {
     }
     sections.retry_fw_btn.set_visible(show_retry);
 }
-
 
 /// Centered modal sheet over Settings — undecorated so Metis does not add a
 /// second compositor titlebar; in-dialog header supplies title + close.
@@ -1089,8 +1089,8 @@ fn show_password_dialog(
     outer.append(&header);
 
     let hint = gtk::Label::new(Some(&tr(
-        "Choose the username and password RDP clients use to join this session."
-        )));
+        "Choose the username and password RDP clients use to join this session.",
+    )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");

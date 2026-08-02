@@ -102,7 +102,10 @@ mod tests {
         let c = premultiply(raw);
         assert!(c.r() <= c.a() + 0.001);
         assert!(c.a() <= 0.20, "max warmth stays readable");
-        assert!(raw.b() < raw.g() && raw.g() <= raw.r(), "warm hue before premult");
+        assert!(
+            raw.b() < raw.g() && raw.g() <= raw.r(),
+            "warm hue before premult"
+        );
     }
 
     #[test]

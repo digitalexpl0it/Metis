@@ -11,12 +11,14 @@ use metis_config::{
 const GAMING_APPS: &[(&str, &[&str])] = &[
     (
         "com.valvesoftware.Steam",
-        &["--device=all", "--socket=wayland", "--socket=pulseaudio", "--share=network"],
+        &[
+            "--device=all",
+            "--socket=wayland",
+            "--socket=pulseaudio",
+            "--share=network",
+        ],
     ),
-    (
-        "net.lutris.Lutris",
-        &["--device=all", "--share=network"],
-    ),
+    ("net.lutris.Lutris", &["--device=all", "--share=network"]),
     (
         "com.heroicgameslauncher.hgl",
         &["--device=all", "--share=network"],

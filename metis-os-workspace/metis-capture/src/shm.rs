@@ -27,11 +27,7 @@ pub struct ShmBuffer {
 unsafe impl Send for ShmBuffer {}
 
 impl ShmBuffer {
-    pub fn new<D>(
-        shm: &WlShm,
-        qh: &QueueHandle<D>,
-        format: BufferFormat,
-    ) -> Result<Self, String>
+    pub fn new<D>(shm: &WlShm, qh: &QueueHandle<D>, format: BufferFormat) -> Result<Self, String>
     where
         D: Dispatch<WlShmPool, ()> + Dispatch<WlBuffer, ()> + 'static,
     {

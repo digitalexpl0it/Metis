@@ -7,26 +7,26 @@ pub use layer_shell::handle_layer_commit;
 use std::os::unix::io::OwnedFd;
 
 use crate::clipboard::{serve_compositor_selection, MetisSelectionUserData};
+use crate::state::MetisState;
 use smithay::wayland::selection::data_device::current_data_device_selection_userdata;
 use smithay::wayland::selection::primary_selection::current_primary_selection_userdata;
-use crate::state::MetisState;
 
 use smithay::input::dnd::{DnDGrab, DndGrabHandler, GrabType, Source};
 use smithay::input::pointer::{Focus, PointerHandle};
 use smithay::input::{Seat, SeatHandler, SeatState};
-use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraintsHandler};
-use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
+use smithay::reexports::wayland_server::Resource;
 use smithay::utils::{Logical, Point, Serial};
 use smithay::wayland::output::OutputHandler;
-use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
-use smithay::wayland::selection::primary_selection::{
-    PrimarySelectionHandler, PrimarySelectionState, set_primary_focus,
-};
+use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraintsHandler};
 use smithay::wayland::seat::WaylandFocus;
 use smithay::wayland::selection::data_device::{
-    DataDeviceHandler, DataDeviceState, WaylandDndGrabHandler, set_data_device_focus,
+    set_data_device_focus, DataDeviceHandler, DataDeviceState, WaylandDndGrabHandler,
 };
+use smithay::wayland::selection::primary_selection::{
+    set_primary_focus, PrimarySelectionHandler, PrimarySelectionState,
+};
+use smithay::wayland::selection::{SelectionHandler, SelectionSource, SelectionTarget};
 
 use crate::focus::KeyboardFocusTarget;
 
@@ -187,9 +187,7 @@ impl WaylandDndGrabHandler for MetisState {
 impl OutputHandler for MetisState {}
 
 impl smithay::wayland::drm_syncobj::DrmSyncobjHandler for MetisState {
-    fn drm_syncobj_state(
-        &mut self,
-    ) -> Option<&mut smithay::wayland::drm_syncobj::DrmSyncobjState> {
+    fn drm_syncobj_state(&mut self) -> Option<&mut smithay::wayland::drm_syncobj::DrmSyncobjState> {
         self.drm_syncobj_state.as_mut()
     }
 }
@@ -197,8 +195,10 @@ impl smithay::wayland::drm_syncobj::DrmSyncobjHandler for MetisState {
 impl PointerConstraintsHandler for MetisState {
     fn new_constraint(&mut self, surface: &WlSurface, pointer: &PointerHandle<Self>) {
         use smithay::reexports::wayland_server::Resource;
-        self.pointer_constraint_phases
-            .insert(surface.id(), crate::state::PointerConstraintPhase::NeverActivated);
+        self.pointer_constraint_phases.insert(
+            surface.id(),
+            crate::state::PointerConstraintPhase::NeverActivated,
+        );
         self.trace_game_pointer(surface, pointer, "new pointer constraint", None);
         let mut activated = false;
         if pointer.current_focus().as_ref() == Some(surface) {
@@ -231,9 +231,8 @@ impl PointerConstraintsHandler for MetisState {
         if self.last_pointer_motion_surface.as_ref() == Some(&surface_id) {
             self.last_pointer_motion_surface = None;
         }
-        let should_restore = with_pointer_constraint(surface, pointer, |constraint| {
-            constraint.is_none()
-        });
+        let should_restore =
+            with_pointer_constraint(surface, pointer, |constraint| constraint.is_none());
         if should_restore {
             if let Some((hint_surface, hint_location)) = self.cursor_position_hint.take() {
                 if let Some(origin) = self.surface_space_origin(&hint_surface) {

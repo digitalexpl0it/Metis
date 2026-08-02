@@ -67,9 +67,9 @@ fn render(sections: &Sections, snap: &PrintersSnapshot) {
         sections.list.remove(&child);
     }
     if !snap.cups_available {
-        sections
-            .status
-            .set_text(&tr("CUPS not available. Install cups and system-config-printer."));
+        sections.status.set_text(&tr(
+            "CUPS not available. Install cups and system-config-printer.",
+        ));
         return;
     }
     if let Some(default) = &snap.default_printer {

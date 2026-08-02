@@ -52,13 +52,18 @@ pub fn detect_hybrid_gpu(display_pci: Option<&str>) -> Option<HybridGpuInfo> {
                 });
             }
             Some(_) => {
-                let dri_prime = pci.as_ref().map(|p| format!("pci-{}", p.replace([':', '.'], "_")))?;
+                let dri_prime = pci
+                    .as_ref()
+                    .map(|p| format!("pci-{}", p.replace([':', '.'], "_")))?;
                 let vk_select = match (vendor, device) {
                     (Some(v), Some(d)) => Some(format!("{v}:{d}")),
                     _ => None,
                 };
                 return Some(HybridGpuInfo {
-                    kind: GpuOffloadKind::Mesa { dri_prime, vk_select },
+                    kind: GpuOffloadKind::Mesa {
+                        dri_prime,
+                        vk_select,
+                    },
                     discrete_label: label,
                 });
             }

@@ -1,3 +1,6 @@
+//! Shared JSON IPC contracts and runtime helpers between compositor and shell.
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub use metis_grid::{GridLayout, GridMetrics, LayoutKind, MonitorRect, PixelRect};
 
 /// Commands sent from the Metis shell to the compositor.
@@ -11,20 +14,43 @@ pub enum CompositorCommand {
     ListOutputs,
     /// List DRM video modes for one output (resolution + refresh). Returns the
     /// current mode and every mode the connector advertises.
-    ListOutputModes { output: String },
+    ListOutputModes {
+        output: String,
+    },
     GetLayout,
     ListWindows,
-    MoveWindow { id: u32, rect: PixelRect },
-    CloseWindow { id: u32 },
-    FocusWindow { id: u32 },
+    MoveWindow {
+        id: u32,
+        rect: PixelRect,
+    },
+    CloseWindow {
+        id: u32,
+    },
+    FocusWindow {
+        id: u32,
+    },
     /// Minimize or restore a window by id (works for grid and floating windows).
-    SetMinimized { id: u32, minimized: bool },
+    SetMinimized {
+        id: u32,
+        minimized: bool,
+    },
     /// Bring a window to the foreground: unminimize (if needed), raise, and focus.
     /// Used by the taskbar to surface a background/minimized app.
-    ActivateWindow { id: u32 },
-    SetFullscreen { id: u32, enabled: bool },
-    ApplyLayout { layout: GridLayout, gutter_px: u32 },
-    SetTileMode { tile_id: String, mode: TileMode },
+    ActivateWindow {
+        id: u32,
+    },
+    SetFullscreen {
+        id: u32,
+        enabled: bool,
+    },
+    ApplyLayout {
+        layout: GridLayout,
+        gutter_px: u32,
+    },
+    SetTileMode {
+        tile_id: String,
+        mode: TileMode,
+    },
     /// Switch the active virtual workspace (1-based) on a specific output. Out-of-range
     /// ids are clamped to the configured workspace count. `output` is an output name
     /// (as reported by `ListOutputs`); `None`/empty targets the output under the
@@ -36,7 +62,10 @@ pub enum CompositorCommand {
     },
     /// Move a window to another virtual workspace (1-based). If the target is not
     /// the active workspace the window is hidden until that workspace is shown.
-    MoveWindowToWorkspace { window_id: u32, workspace: u32 },
+    MoveWindowToWorkspace {
+        window_id: u32,
+        workspace: u32,
+    },
     /// Move a window to another output (monitor). Keeps its workspace number on
     /// the destination output. `output` is an output name from `ListOutputs`;
     /// `None`/empty targets the output under the pointer.
@@ -68,7 +97,9 @@ pub enum CompositorCommand {
     /// Apply a layout mode to every workspace on every output at once (used when
     /// the settings "New workspace layout" default changes, so it acts as a live
     /// global on/off rather than only seeding future workspaces).
-    SetDefaultLayout { kind: LayoutKind },
+    SetDefaultLayout {
+        kind: LayoutKind,
+    },
     /// Spawn a client. Prefer `argv` (no shell). If `argv` is empty, `program` is
     /// split with [`split_command_line`] — never passed to `sh -c`.
     Launch {
@@ -90,7 +121,9 @@ pub enum CompositorCommand {
     ReloadKeybinds,
     /// While Settings is capturing a new shortcut, suppress global keybind dispatch
     /// so Super+L etc. do not fire mid-edit.
-    SetKeybindCapture { active: bool },
+    SetKeybindCapture {
+        active: bool,
+    },
     /// Re-read `outputs.json` and apply per-output scale (and related prefs) live.
     ReloadOutputs,
     /// Re-read `power.json` and apply idle preferences live (currently the screen
@@ -132,7 +165,9 @@ pub enum CompositorCommand {
     },
     /// Release an idle inhibitor previously taken via
     /// [`CompositorCommand::InhibitIdle`]. Unknown cookies are ignored.
-    UninhibitIdle { cookie: u32 },
+    UninhibitIdle {
+        cookie: u32,
+    },
     /// Elevate capture UI from a portal screenshot/screencast request.
     BeginCaptureOverlay {
         #[serde(default)]
@@ -148,15 +183,30 @@ pub enum CompositorCommand {
     /// Tear down native screenshot overlay tracking.
     EndScreenshotOverlay,
     /// Inject remote-desktop pointer motion (absolute desktop coordinates).
-    InjectRemotePointerAbsolute { x: f64, y: f64 },
+    InjectRemotePointerAbsolute {
+        x: f64,
+        y: f64,
+    },
     /// Inject remote-desktop pointer motion (relative delta in logical pixels).
-    InjectRemotePointerRelative { dx: f64, dy: f64 },
+    InjectRemotePointerRelative {
+        dx: f64,
+        dy: f64,
+    },
     /// Inject remote-desktop pointer button (Linux evdev button code).
-    InjectRemotePointerButton { button: u32, pressed: bool },
+    InjectRemotePointerButton {
+        button: u32,
+        pressed: bool,
+    },
     /// Inject remote-desktop scroll delta (logical pixels).
-    InjectRemotePointerScroll { dx: f64, dy: f64 },
+    InjectRemotePointerScroll {
+        dx: f64,
+        dy: f64,
+    },
     /// Inject remote-desktop keyboard key (evdev keycode, 8 = ESC).
-    InjectRemoteKey { keycode: u32, pressed: bool },
+    InjectRemoteKey {
+        keycode: u32,
+        pressed: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -173,9 +223,13 @@ pub enum TileMode {
 #[serde(tag = "evt", rename_all = "snake_case")]
 pub enum CompositorEvent {
     Pong,
-    Monitor { rect: MonitorRect },
+    Monitor {
+        rect: MonitorRect,
+    },
     /// Reply to `ListOutputs`: every connected output, primary first.
-    OutputList { outputs: Vec<OutputInfo> },
+    OutputList {
+        outputs: Vec<OutputInfo>,
+    },
     /// Reply to `ListOutputModes`: advertised modes for one output.
     OutputModes {
         modes: Vec<OutputModeInfo>,
@@ -186,16 +240,25 @@ pub enum CompositorEvent {
         gutter_px: u32,
         metrics: GridMetrics,
     },
-    WindowList { windows: Vec<WindowInfo> },
+    WindowList {
+        windows: Vec<WindowInfo>,
+    },
     WindowOpened {
         id: u32,
         title: String,
         app_id: Option<String>,
         suggested_rect: PixelRect,
     },
-    WindowClosed { id: u32 },
-    WindowFocused { id: u32 },
-    WindowMinimized { id: u32, minimized: bool },
+    WindowClosed {
+        id: u32,
+    },
+    WindowFocused {
+        id: u32,
+    },
+    WindowMinimized {
+        id: u32,
+        minimized: bool,
+    },
     /// True fullscreen on `output` — shell hides the edge bar until `visible` is true.
     EdgeBarVisible {
         output: String,
@@ -213,7 +276,9 @@ pub enum CompositorEvent {
         app_id: Option<String>,
     },
     LayoutApplied,
-    MonitorChanged { rect: MonitorRect },
+    MonitorChanged {
+        rect: MonitorRect,
+    },
     /// The active virtual workspace changed (1-based) on `output`, with the current
     /// total count. Each output reports its own active workspace independently.
     WorkspaceChanged {
@@ -222,7 +287,9 @@ pub enum CompositorEvent {
         active: u32,
         count: u32,
     },
-    Error { message: String },
+    Error {
+        message: String,
+    },
     /// Clipboard contents changed (text preview and/or image path under runtime dir).
     ClipboardChanged {
         mime: String,
@@ -380,9 +447,7 @@ pub fn runtime_dir() -> std::path::PathBuf {
     match std::env::var_os("XDG_RUNTIME_DIR") {
         Some(dir) => std::path::PathBuf::from(dir).join("metis"),
         None => {
-            eprintln!(
-                "metis: XDG_RUNTIME_DIR is unset; refusing insecure /tmp/metis fallback"
-            );
+            eprintln!("metis: XDG_RUNTIME_DIR is unset; refusing insecure /tmp/metis fallback");
             std::path::PathBuf::from("/var/empty/metis-no-xdg-runtime-dir")
         }
     }
@@ -419,7 +484,10 @@ pub fn set_mode(path: &std::path::Path, mode: u32) -> std::io::Result<()> {
 
 /// Atomically write `contents` to `path` with mode `0600`, creating parent dirs
 /// as `0700` when they are the Metis runtime dir.
-pub fn write_private_file(path: &std::path::Path, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
+pub fn write_private_file(
+    path: &std::path::Path,
+    contents: impl AsRef<[u8]>,
+) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         if parent.ends_with("metis") {
             let _ = ensure_runtime_dir();
@@ -442,12 +510,85 @@ pub fn write_private_file(path: &std::path::Path, contents: impl AsRef<[u8]>) ->
     Ok(())
 }
 
+/// Maximum length of a runtime command line (verb + args), excluding newline.
+pub const MAX_RUNTIME_COMMAND_LEN: usize = 512;
+
+/// Verbs accepted on `$XDG_RUNTIME_DIR/metis/command` (edge bar).
+pub const BAR_RUNTIME_VERBS: &[&str] = &[
+    "close-popovers",
+    "toggle-menu",
+    "hw",
+    "dismiss-screenshot",
+    "reload-bar",
+    "reveal-edge-bar",
+    "bar-edge-hover",
+    "bar-edge-leave",
+    "reload-dashboard",
+    "reload-desktop-widgets",
+    "screenshot",
+    "reload-theme",
+    "reload-graphics-profile",
+    "reload-weather",
+    "reload-calendars",
+    "reload-gaming",
+    "reload-locale",
+    "optimize-gaming",
+    "show-onboarding",
+    "settings",
+];
+
+/// Verbs accepted on `$XDG_RUNTIME_DIR/metis/command-widgets`.
+pub const WIDGETS_RUNTIME_VERBS: &[&str] = &[
+    "reload-desktop-widgets",
+    "reload-theme",
+    "reload-locale",
+    "reload-weather",
+];
+
+/// Parsed runtime command file line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeCommand<'a> {
+    pub verb: &'a str,
+    pub arg: &'a str,
+}
+
+/// Parse and validate a bar/widgets runtime command line.
+pub fn parse_runtime_command<'a>(
+    line: &'a str,
+    allowlist: &[&str],
+) -> Result<RuntimeCommand<'a>, String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return Err("empty runtime command".into());
+    }
+    if trimmed.len() > MAX_RUNTIME_COMMAND_LEN {
+        return Err(format!(
+            "runtime command exceeds {MAX_RUNTIME_COMMAND_LEN} bytes"
+        ));
+    }
+    if trimmed.bytes().any(|b| b == 0) {
+        return Err("runtime command contains NUL".into());
+    }
+    let (verb, arg) = trimmed
+        .split_once(char::is_whitespace)
+        .map(|(v, a)| (v, a.trim()))
+        .unwrap_or((trimmed, ""));
+    if !allowlist.contains(&verb) {
+        return Err(format!("unknown runtime command verb: {verb}"));
+    }
+    Ok(RuntimeCommand { verb, arg })
+}
+
 pub fn write_runtime_command(action: &str) -> std::io::Result<()> {
+    parse_runtime_command(action, BAR_RUNTIME_VERBS)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
     write_private_file(&runtime_command_path(), format!("{action}\n"))
 }
 
 /// Write a one-shot command for the desktop-widgets process.
 pub fn write_runtime_command_widgets(action: &str) -> std::io::Result<()> {
+    parse_runtime_command(action, WIDGETS_RUNTIME_VERBS)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
     write_private_file(&runtime_command_path_widgets(), format!("{action}\n"))
 }
 
@@ -573,4 +714,144 @@ pub fn send_compositor_command(cmd: &CompositorCommand) -> std::io::Result<Compo
         return Err(std::io::Error::other("empty compositor response"));
     }
     serde_json::from_str(line).map_err(|e| std::io::Error::other(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::net::{UnixListener, UnixStream};
+    use std::sync::{Mutex, OnceLock};
+
+    /// Serialize env mutations across tests in this crate.
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    }
+
+    #[test]
+    fn runtime_dir_uses_xdg_runtime_dir() {
+        let _guard = env_lock();
+        let tmp = tempfile_dir("metis-protocol-runtime");
+        std::env::set_var("XDG_RUNTIME_DIR", &tmp);
+        assert_eq!(runtime_dir(), tmp.join("metis"));
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        assert_eq!(
+            runtime_dir(),
+            std::path::PathBuf::from("/var/empty/metis-no-xdg-runtime-dir")
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn ensure_runtime_dir_sets_0700_and_fails_closed() {
+        let _guard = env_lock();
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        assert!(ensure_runtime_dir().is_err());
+
+        let tmp = tempfile_dir("metis-protocol-ensure");
+        std::env::set_var("XDG_RUNTIME_DIR", &tmp);
+        let dir = ensure_runtime_dir().expect("ensure");
+        assert!(dir.ends_with("metis"));
+        let mode = std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn write_private_file_is_0600() {
+        let _guard = env_lock();
+        let tmp = tempfile_dir("metis-protocol-private");
+        std::env::set_var("XDG_RUNTIME_DIR", &tmp);
+        let path = runtime_dir().join("probe.txt");
+        write_private_file(&path, b"secret\n").expect("write");
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "secret\n");
+        write_private_file(&path, b"overwrite\n").expect("overwrite");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "overwrite\n");
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn split_command_line_handles_quotes_without_shell() {
+        assert!(split_command_line("").is_empty());
+        assert!(split_command_line("   ").is_empty());
+        assert_eq!(
+            split_command_line("kitty --class foo"),
+            vec!["kitty", "--class", "foo"]
+        );
+        assert_eq!(
+            split_command_line(r#"foo "bar baz" 'qux quux'"#),
+            vec!["foo", "bar baz", "qux quux"]
+        );
+        assert_eq!(split_command_line(r#"echo "a\"b""#), vec!["echo", r#"a"b"#]);
+        // No shell expansion — `$HOME` stays literal.
+        assert_eq!(split_command_line("echo $HOME"), vec!["echo", "$HOME"]);
+    }
+
+    #[test]
+    fn launch_argv_prefers_explicit_argv() {
+        assert_eq!(
+            launch_argv(&["a".into(), "b".into()], "ignored args"),
+            vec!["a", "b"]
+        );
+        assert!(launch_argv(&[], "").is_empty());
+        assert_eq!(launch_argv(&[], "foo bar"), vec!["foo", "bar"]);
+    }
+
+    #[test]
+    fn runtime_command_allowlist_and_limits() {
+        assert!(parse_runtime_command("close-popovers", BAR_RUNTIME_VERBS).is_ok());
+        assert!(parse_runtime_command("hw volume-up", BAR_RUNTIME_VERBS).is_ok());
+        assert!(parse_runtime_command("optimize-gaming yes", BAR_RUNTIME_VERBS).is_ok());
+        assert!(parse_runtime_command("rm -rf /", BAR_RUNTIME_VERBS).is_err());
+        assert!(parse_runtime_command("EndSession", BAR_RUNTIME_VERBS).is_err());
+        assert!(
+            parse_runtime_command(&"a".repeat(MAX_RUNTIME_COMMAND_LEN + 1), BAR_RUNTIME_VERBS)
+                .is_err()
+        );
+        assert_eq!(
+            parse_runtime_command("reload-theme", WIDGETS_RUNTIME_VERBS)
+                .unwrap()
+                .verb,
+            "reload-theme"
+        );
+        assert!(parse_runtime_command("toggle-menu", WIDGETS_RUNTIME_VERBS).is_err());
+        assert!(write_runtime_command("not-a-verb").is_err());
+    }
+
+    #[test]
+    fn accept_same_euid_accepts_local_peer() {
+        let dir = tempfile_dir("metis-protocol-sock");
+        let sock = dir.join("t.sock");
+        let listener = UnixListener::bind(&sock).expect("bind");
+        listener.set_nonblocking(true).unwrap();
+        let _client = UnixStream::connect(&sock).expect("connect");
+        match accept_same_euid(&listener).expect("accept") {
+            AcceptPeer::Ready(_) => {}
+            other => panic!("expected Ready, got {other:?}"),
+        }
+        match accept_same_euid(&listener).expect("wouldblock") {
+            AcceptPeer::WouldBlock => {}
+            other => panic!("expected WouldBlock, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn tempfile_dir(prefix: &str) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "{prefix}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
 }

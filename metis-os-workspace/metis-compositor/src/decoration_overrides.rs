@@ -22,10 +22,7 @@ impl DecorationsRuntime {
         let path_mtime = std::fs::metadata(metis_config::decorations_config_path())
             .and_then(|m| m.modified())
             .ok();
-        Self {
-            config,
-            path_mtime,
-        }
+        Self { config, path_mtime }
     }
 
     pub fn reload(&mut self) {

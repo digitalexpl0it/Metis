@@ -28,7 +28,10 @@ pub fn get_first_collision<'a>(
 }
 
 pub fn get_all_collisions<'a>(layout: &'a [LayoutItem], item: &LayoutItem) -> Vec<&'a LayoutItem> {
-    layout.iter().filter(|other| collides(other, item)).collect()
+    layout
+        .iter()
+        .filter(|other| collides(other, item))
+        .collect()
 }
 
 #[cfg(test)]

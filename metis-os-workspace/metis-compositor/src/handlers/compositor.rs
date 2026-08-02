@@ -6,8 +6,8 @@ use smithay::{
     reexports::{
         calloop::Interest,
         wayland_server::{
-            Client, Resource,
             protocol::{wl_buffer, wl_surface::WlSurface},
+            Client, Resource,
         },
     },
     wayland::{

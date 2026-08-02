@@ -41,11 +41,31 @@ pub struct AlarmSound {
 
 /// The alarm sounds offered in the picker. The first entry is the default.
 pub const ALARM_SOUNDS: &[AlarmSound] = &[
-    AlarmSound { id: "default", label: "Default", canberra_id: "alarm-clock-elapsed" },
-    AlarmSound { id: "bell", label: "Bell", canberra_id: "bell" },
-    AlarmSound { id: "complete", label: "Complete", canberra_id: "complete" },
-    AlarmSound { id: "message", label: "Message", canberra_id: "message-new-instant" },
-    AlarmSound { id: "phone", label: "Phone", canberra_id: "phone-incoming-call" },
+    AlarmSound {
+        id: "default",
+        label: "Default",
+        canberra_id: "alarm-clock-elapsed",
+    },
+    AlarmSound {
+        id: "bell",
+        label: "Bell",
+        canberra_id: "bell",
+    },
+    AlarmSound {
+        id: "complete",
+        label: "Complete",
+        canberra_id: "complete",
+    },
+    AlarmSound {
+        id: "message",
+        label: "Message",
+        canberra_id: "message-new-instant",
+    },
+    AlarmSound {
+        id: "phone",
+        label: "Phone",
+        canberra_id: "phone-incoming-call",
+    },
 ];
 
 /// Resolve a stored sound id to its libcanberra event id, falling back to default.

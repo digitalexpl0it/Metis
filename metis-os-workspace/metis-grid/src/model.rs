@@ -51,7 +51,9 @@ pub enum LayoutKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TileKind {
-    Widget { module: String },
+    Widget {
+        module: String,
+    },
     App {
         window_id: Option<u32>,
         class: Option<String>,
@@ -149,12 +151,7 @@ impl GridLayout {
         let region = self.app_tiling_region();
         let h = region.h.min(4).max(2);
         let w = region.w.min(6).max(4);
-        TileRect::new(
-            region.col,
-            region.row + region.h.saturating_sub(h),
-            w,
-            h,
-        )
+        TileRect::new(region.col, region.row + region.h.saturating_sub(h), w, h)
     }
 
     pub fn save_to_path(&self, path: &Path) -> std::io::Result<()> {
@@ -187,7 +184,10 @@ impl GridLayout {
         if delta == 0 || boundary == 0 || boundary >= self.columns {
             return Ok(());
         }
-        let delta = delta.clamp(-(boundary as i32 - 1), self.columns as i32 - boundary as i32);
+        let delta = delta.clamp(
+            -(boundary as i32 - 1),
+            self.columns as i32 - boundary as i32,
+        );
         if delta == 0 {
             return Ok(());
         }
@@ -284,12 +284,8 @@ fn clamp_target(layout: &GridLayout, id: &str, mut target: TileRect) -> TileRect
     let max_h = tile.max_h.unwrap_or(layout.rows);
     target.w = target.w.clamp(min_w, max_w);
     target.h = target.h.clamp(min_h, max_h);
-    target.col = target
-        .col
-        .min(layout.columns.saturating_sub(target.w));
-    target.row = target
-        .row
-        .min(layout.rows.saturating_sub(target.h));
+    target.col = target.col.min(layout.columns.saturating_sub(target.w));
+    target.row = target.row.min(layout.rows.saturating_sub(target.h));
     target
 }
 
@@ -302,9 +298,7 @@ mod tests {
         GridTile {
             id: id.into(),
             rect,
-            kind: TileKind::Widget {
-                module: id.into(),
-            },
+            kind: TileKind::Widget { module: id.into() },
             glow: glow.into(),
             pinned: false,
             min_w: None,
@@ -341,7 +335,11 @@ mod tests {
         layout
             .resize_and_move("app-1", TileRect::new(9, 4, 3, 4))
             .expect("move");
-        let tile = layout.tiles.iter().find(|t| t.id == "app-1").expect("app-1");
+        let tile = layout
+            .tiles
+            .iter()
+            .find(|t| t.id == "app-1")
+            .expect("app-1");
         assert_eq!(tile.rect.col, 9);
         assert_eq!(tile.rect.row, 4);
     }

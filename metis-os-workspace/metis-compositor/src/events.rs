@@ -49,7 +49,9 @@ fn write_event_nonblocking(stream: &mut std::os::unix::net::UnixStream, bytes: &
             Ok(n) => offset += n,
             Err(err) if err.kind() == ErrorKind::Interrupted => continue,
             Err(err) if err.kind() == ErrorKind::WouldBlock => {
-                tracing::debug!("event subscriber temporarily busy; dropping event for that client");
+                tracing::debug!(
+                    "event subscriber temporarily busy; dropping event for that client"
+                );
                 return true;
             }
             Err(_) => return false,
@@ -74,10 +76,7 @@ pub fn init_events_listener(
     Ok(listener)
 }
 
-pub fn accept_event_subscribers(
-    listener: &std::os::unix::net::UnixListener,
-    bus: &EventBus,
-) {
+pub fn accept_event_subscribers(listener: &std::os::unix::net::UnixListener, bus: &EventBus) {
     loop {
         match metis_protocol::accept_same_euid(listener) {
             Ok(metis_protocol::AcceptPeer::Ready(stream)) => {

@@ -74,7 +74,8 @@ impl CalDavProvider {
         if_match: Option<&str>,
     ) -> ProviderResult<String> {
         let password = self.password().await.unwrap_or_default();
-        let method = Method::from_bytes(method.as_bytes()).map_err(|e| Box::new(e) as ProviderError)?;
+        let method =
+            Method::from_bytes(method.as_bytes()).map_err(|e| Box::new(e) as ProviderError)?;
         let mut req = self
             .client
             .request(method, url)
@@ -102,7 +103,13 @@ impl CalDavProvider {
     async fn discover_calendars(&self) -> Vec<DavCalendar> {
         // First try a Depth:1 PROPFIND — works when base is a calendar or a home set.
         if let Ok(xml) = self
-            .dav_request("PROPFIND", &self.base_url, Some("1"), Some(PROPFIND_CALS.into()), None)
+            .dav_request(
+                "PROPFIND",
+                &self.base_url,
+                Some("1"),
+                Some(PROPFIND_CALS.into()),
+                None,
+            )
             .await
         {
             let cals = self.calendars_from_multistatus(&xml);
@@ -113,7 +120,13 @@ impl CalDavProvider {
 
         // Otherwise walk principal -> calendar-home-set -> calendars.
         if let Ok(xml) = self
-            .dav_request("PROPFIND", &self.base_url, Some("0"), Some(PROPFIND_PRINCIPAL.into()), None)
+            .dav_request(
+                "PROPFIND",
+                &self.base_url,
+                Some("0"),
+                Some(PROPFIND_PRINCIPAL.into()),
+                None,
+            )
             .await
         {
             if let Some(principal) = extract_nested_href(&xml, "current-user-principal") {
@@ -191,8 +204,14 @@ impl EventProvider for CalDavProvider {
         since: DateTime<Local>,
         until: DateTime<Local>,
     ) -> ProviderResult<Vec<Event>> {
-        let start = since.with_timezone(&Utc).format("%Y%m%dT%H%M%SZ").to_string();
-        let end = until.with_timezone(&Utc).format("%Y%m%dT%H%M%SZ").to_string();
+        let start = since
+            .with_timezone(&Utc)
+            .format("%Y%m%dT%H%M%SZ")
+            .to_string();
+        let end = until
+            .with_timezone(&Utc)
+            .format("%Y%m%dT%H%M%SZ")
+            .to_string();
         let body = report_body(&start, &end);
 
         let mut out = Vec::new();
@@ -207,7 +226,9 @@ impl EventProvider for CalDavProvider {
                 if response.calendar_data.trim().is_empty() {
                     continue;
                 }
-                let href = self.resolve(&response.href).unwrap_or(response.href.clone());
+                let href = self
+                    .resolve(&response.href)
+                    .unwrap_or(response.href.clone());
                 let etag = if response.etag.is_empty() {
                     None
                 } else {

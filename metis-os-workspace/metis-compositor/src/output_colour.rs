@@ -118,16 +118,12 @@ fn composite_offscreen(
     size_buf: Size<i32, Buffer>,
 ) -> Option<GlesTexture> {
     // Prefer higher bit-depth intermediates when the GLES context supports them.
-    for format in [
-        Fourcc::Abgr16161616f,
-        Fourcc::Abgr2101010,
-        Fourcc::Abgr8888,
-    ] {
-        let mut offscreen = match Offscreen::<GlesTexture>::create_buffer(renderer, format, size_buf)
-        {
-            Ok(buf) => buf,
-            Err(_) => continue,
-        };
+    for format in [Fourcc::Abgr16161616f, Fourcc::Abgr2101010, Fourcc::Abgr8888] {
+        let mut offscreen =
+            match Offscreen::<GlesTexture>::create_buffer(renderer, format, size_buf) {
+                Ok(buf) => buf,
+                Err(_) => continue,
+            };
         let rendered = {
             let mut framebuffer = match renderer.bind(&mut offscreen) {
                 Ok(fb) => fb,

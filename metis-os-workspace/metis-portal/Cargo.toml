@@ -2,6 +2,7 @@
 name = "metis-portal"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 description = "xdg-desktop-portal backend for the Metis session"
 
 [[bin]]

@@ -6,8 +6,8 @@ pub mod health;
 pub mod power;
 pub mod session;
 
-pub use flatpak::{ensure_steam_launcher, flatpak_steam_launch_command, optimize_flatpak_gaming};
 pub use detect::{
     detect_steam, flatpak_has_app, gamemode_installed, i386_vulkan_likely_missing, SteamInstall,
 };
+pub use flatpak::{ensure_steam_launcher, flatpak_steam_launch_command, optimize_flatpak_gaming};
 pub use session::GamingDaemon;

@@ -78,9 +78,7 @@ impl ScrollState {
     }
 
     pub fn contains(&self, window: u32) -> bool {
-        self.columns
-            .iter()
-            .any(|c| c.windows.contains(&window))
+        self.columns.iter().any(|c| c.windows.contains(&window))
     }
 
     /// The currently focused window, if any.
@@ -269,8 +267,7 @@ impl ScrollState {
             return false;
         };
         let denom = zone.width.max(1) as f32;
-        self.columns[ci].width_frac =
-            (width_px as f32 / denom).clamp(MIN_COL_FRAC, FULL_COL_FRAC);
+        self.columns[ci].width_frac = (width_px as f32 / denom).clamp(MIN_COL_FRAC, FULL_COL_FRAC);
         true
     }
 

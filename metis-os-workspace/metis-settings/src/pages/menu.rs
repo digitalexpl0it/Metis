@@ -43,8 +43,8 @@ pub fn build() -> gtk::Widget {
 
     let launch_hint = gtk::Label::new(Some(&tr(
         "Auto-detect uses the first installed option. Choose Custom to point at any \
-         executable on your system."
-        )));
+         executable on your system.",
+    )));
     launch_hint.set_xalign(0.0);
     launch_hint.set_wrap(true);
     launch_hint.add_css_class("metis-settings-hint");
@@ -67,8 +67,8 @@ pub fn build() -> gtk::Widget {
     menu_opacity.connect_value_changed(|s| set_menu_opacity(s.value() as f32));
 
     let look_hint = gtk::Label::new(Some(&tr(
-        "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s."
-        )));
+        "Opacity of the Metis menu panel and its translucent surfaces. Applies within ~1s.",
+    )));
     look_hint.set_xalign(0.0);
     look_hint.set_wrap(true);
     look_hint.add_css_class("metis-settings-hint");

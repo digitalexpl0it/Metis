@@ -249,11 +249,12 @@ fn caldav_password_row(account: &CalendarAccount) -> gtk::Widget {
             run_async({
                 let shared = shared.clone();
                 async move {
-                    let msg =
-                        match metis_secrets::store(&id, metis_secrets::CALDAV_PASSWORD, &pw).await {
-                            Ok(()) => "Password saved".to_string(),
-                            Err(e) => format!("Failed: {e}"),
-                        };
+                    let msg = match metis_secrets::store(&id, metis_secrets::CALDAV_PASSWORD, &pw)
+                        .await
+                    {
+                        Ok(()) => "Password saved".to_string(),
+                        Err(e) => format!("Failed: {e}"),
+                    };
                     if let Ok(mut g) = shared.lock() {
                         *g = msg;
                     }

@@ -142,10 +142,8 @@ fn rebuild_grid(flow: &gtk::FlowBox, path: &Path) {
     for (i, entry) in entries.iter().enumerate() {
         if i >= MAX_ENTRIES {
             let more = gtk::Label::new(Some(
-                &metis_i18n::tr("…and %1 more").replace(
-                    "%1",
-                    &entries.len().saturating_sub(MAX_ENTRIES).to_string(),
-                ),
+                &metis_i18n::tr("…and %1 more")
+                    .replace("%1", &entries.len().saturating_sub(MAX_ENTRIES).to_string()),
             ));
             more.add_css_class("metis-dw-hint");
             flow.insert(&more, -1);
@@ -200,10 +198,8 @@ fn rebuild_list(list: &gtk::Box, path: &Path) {
     for (i, entry) in entries.iter().enumerate() {
         if i >= MAX_ENTRIES {
             let more = gtk::Label::new(Some(
-                &metis_i18n::tr("…and %1 more").replace(
-                    "%1",
-                    &entries.len().saturating_sub(MAX_ENTRIES).to_string(),
-                ),
+                &metis_i18n::tr("…and %1 more")
+                    .replace("%1", &entries.len().saturating_sub(MAX_ENTRIES).to_string()),
             ));
             more.add_css_class("metis-dw-hint");
             list.append(&more);
@@ -399,10 +395,9 @@ fn clean_exec(exec: &str) -> String {
 }
 
 fn open_with_default(path: &Path) {
-    if let Err(err) = crate::compositor::launch_argv([
-        "xdg-open".to_string(),
-        path.display().to_string(),
-    ]) {
+    if let Err(err) =
+        crate::compositor::launch_argv(["xdg-open".to_string(), path.display().to_string()])
+    {
         tracing::warn!(%err, path = %path.display(), "xdg-open failed");
     }
 }
@@ -411,11 +406,7 @@ fn open_with_picker(path: &Path) {
     let file = gio::File::for_path(path);
     let launcher = gtk::FileLauncher::new(Some(&file));
     let parent = active_window();
-    launcher.launch(
-        parent.as_ref(),
-        None::<&gio::Cancellable>,
-        |_| {},
-    );
+    launcher.launch(parent.as_ref(), None::<&gio::Cancellable>, |_| {});
 }
 
 fn active_window() -> Option<gtk::Window> {

@@ -57,7 +57,9 @@ fn detect_virtual_machine() -> bool {
         }
     }
     if let Ok(out) = std::process::Command::new("systemd-detect-virt").output() {
-        let v = String::from_utf8_lossy(&out.stdout).trim().to_ascii_lowercase();
+        let v = String::from_utf8_lossy(&out.stdout)
+            .trim()
+            .to_ascii_lowercase();
         if matches!(
             v.as_str(),
             "oracle" | "kvm" | "qemu" | "vmware" | "microsoft" | "xen" | "bhyve" | "bochs"

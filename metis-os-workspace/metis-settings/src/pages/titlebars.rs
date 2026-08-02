@@ -37,8 +37,8 @@ pub fn build() -> gtk::Widget {
 
     let hint = gtk::Label::new(Some(&tr(
         "Auto uses Metis defaults. Override only when an app shows a double \
-         titlebar or is missing Metis window controls. Changes apply immediately."
-        )));
+         titlebar or is missing Metis window controls. Changes apply immediately.",
+    )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -100,7 +100,8 @@ pub fn build() -> gtk::Widget {
                     if *bind_block.borrow() {
                         return;
                     }
-                    let Some(boxed) = list_item.item().and_downcast::<glib::BoxedAnyObject>() else {
+                    let Some(boxed) = list_item.item().and_downcast::<glib::BoxedAnyObject>()
+                    else {
                         return;
                     };
                     let mode = index_to_mode(dd.selected());
@@ -261,11 +262,7 @@ pub fn build() -> gtk::Widget {
     scroller.upcast()
 }
 
-fn update_empty_state(
-    filtered: &gtk::FilterListModel,
-    empty_label: &gtk::Label,
-    query: &str,
-) {
+fn update_empty_state(filtered: &gtk::FilterListModel, empty_label: &gtk::Label, query: &str) {
     let none = filtered.n_items() == 0;
     empty_label.set_visible(none && !query.is_empty());
 }
@@ -313,7 +310,8 @@ fn load_metas() -> Vec<AppMeta> {
 fn prune_redundant_overrides() {
     let mut cfg = metis_config::load_decorations_config();
     let before = cfg.overrides.len();
-    cfg.overrides.retain(|key, _mode| !is_noise_override_key(key));
+    cfg.overrides
+        .retain(|key, _mode| !is_noise_override_key(key));
     if cfg.overrides.len() != before {
         if let Err(err) = metis_config::save_decorations_config(&cfg) {
             tracing::warn!(%err, "failed to prune decorations.json");

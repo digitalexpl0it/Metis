@@ -30,7 +30,10 @@ impl MetisState {
         self.inject_remote_pointer_at(loc);
     }
 
-    fn inject_remote_pointer_at(&mut self, loc: smithay::utils::Point<f64, smithay::utils::Logical>) {
+    fn inject_remote_pointer_at(
+        &mut self,
+        loc: smithay::utils::Point<f64, smithay::utils::Logical>,
+    ) {
         self.idle_notify_activity();
         let Some(pointer) = self.seat.get_pointer() else {
             return;

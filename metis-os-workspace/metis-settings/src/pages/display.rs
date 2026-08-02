@@ -14,9 +14,7 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
-use metis_config::{
-    load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode,
-};
+use metis_config::{load_outputs_config, output_prefs, save_outputs_config, DisplayLayoutMode};
 use metis_protocol::{OutputInfo, OutputModeInfo};
 
 use crate::runtime;
@@ -64,8 +62,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
          so Settings and other GTK apps stay readable. Compatibility always \
          forces that soft path; Normal forces hardware/GL. Already-running apps \
          keep their renderer until relaunched. Compatibility also turns off \
-         window animations."
-        )));
+         window animations.",
+    )));
     gfx_hint.set_xalign(0.0);
     gfx_hint.set_wrap(true);
     gfx_hint.add_css_class("metis-settings-hint");
@@ -158,8 +156,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     let schedule_hint = gtk::Label::new(Some(&tr(
         "Pick a preset or type a custom time at the top of each menu. Overnight ranges \
          work (e.g. 8:00 PM → 7:00 AM). When schedule is on, night light only tints \
-         inside that window."
-        )));
+         inside that window.",
+    )));
     schedule_hint.set_wrap(true);
     schedule_hint.set_xalign(0.0);
     schedule_hint.add_css_class("metis-settings-hint");
@@ -168,8 +166,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     let night_note = gtk::Label::new(Some(&tr(
         "Applies live. Drag left for a warmer evening tint (like GNOME Night Light); \
-         drag right toward normal daylight colour."
-        )));
+         drag right toward normal daylight colour.",
+    )));
     night_note.set_wrap(true);
     night_note.set_xalign(0.0);
     night_note.add_css_class("metis-settings-hint");
@@ -196,8 +194,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
 
     let mirror_hint = gtk::Label::new(Some(&tr(
         "Duplicate displays requires a DRM session with two or more active monitors. \
-         Nested dev sessions save this preference but the compositor stays in extend mode."
-        )));
+         Nested dev sessions save this preference but the compositor stays in extend mode.",
+    )));
     mirror_hint.set_wrap(true);
     mirror_hint.set_xalign(0.0);
     mirror_hint.add_css_class("metis-settings-hint");
@@ -218,8 +216,8 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
     revert_display_btn.set_sensitive(false);
 
     let empty_hint = gtk::Label::new(Some(&tr(
-        "Compositor not reachable — start a Metis session to configure displays."
-        )));
+        "Compositor not reachable — start a Metis session to configure displays.",
+    )));
     empty_hint.set_wrap(true);
     empty_hint.set_xalign(0.0);
     empty_hint.add_css_class("metis-settings-hint");
@@ -230,10 +228,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         let canvas_slot = canvas_slot.clone();
         let display_dirty = display_dirty.clone();
         Rc::new(move || {
-            let trialing = canvas_slot
-                .borrow()
-                .as_ref()
-                .is_some_and(|c| c.in_trial());
+            let trialing = canvas_slot.borrow().as_ref().is_some_and(|c| c.in_trial());
             let pending = *display_dirty.borrow()
                 || canvas_slot
                     .borrow()
@@ -453,9 +448,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
         save_display_btn.connect_clicked(move |_| {
             let canvas = canvas_slot.borrow().clone();
             let panel_dirty = *display_dirty.borrow();
-            let canvas_pending = canvas
-                .as_ref()
-                .is_some_and(|c| c.has_pending());
+            let canvas_pending = canvas.as_ref().is_some_and(|c| c.has_pending());
             if !panel_dirty && !canvas_pending {
                 return;
             }
@@ -512,17 +505,15 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
                 runtime::reload_outputs();
                 let _ = tx.send(());
             });
-            glib::timeout_add_local(Duration::from_millis(50), move || {
-                match rx.try_recv() {
-                    Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                        *outputs.borrow_mut() = runtime::list_outputs();
-                        canvas.sync_positions();
-                        parent.queue_draw();
-                        display_confirm::show(&parent, on_keep.clone(), on_revert.clone());
-                        glib::ControlFlow::Break
-                    }
-                    Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+            glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+                Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    *outputs.borrow_mut() = runtime::list_outputs();
+                    canvas.sync_positions();
+                    parent.queue_draw();
+                    display_confirm::show(&parent, on_keep.clone(), on_revert.clone());
+                    glib::ControlFlow::Break
                 }
+                Err(std::sync::mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
             });
         });
     }
@@ -657,11 +648,7 @@ pub fn build(parent: &gtk::Window) -> gtk::Widget {
             if !page_mapped.get() {
                 return glib::ControlFlow::Continue;
             }
-            if canvas_slot
-                .borrow()
-                .as_ref()
-                .is_some_and(|c| c.in_trial())
-            {
+            if canvas_slot.borrow().as_ref().is_some_and(|c| c.in_trial()) {
                 return glib::ControlFlow::Continue;
             }
             let fresh = runtime::list_outputs();
@@ -750,7 +737,9 @@ fn build_output_panel(
     }
 
     if out.mirror_source {
-        let label = gtk::Label::new(Some(&tr("Mirror source — other displays duplicate this one")));
+        let label = gtk::Label::new(Some(&tr(
+            "Mirror source — other displays duplicate this one",
+        )));
         label.add_css_class("metis-settings-hint");
         label.set_xalign(0.0);
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
@@ -834,7 +823,7 @@ fn build_output_panel(
         live_body.append(&ui::row(&tr("HDR"), &hdr));
         let hdr_hint = gtk::Label::new(Some(&tr(
             "Signals HDR10 to the display and tone-maps the desktop (SDR→PQ). \
-             Per-surface HDR client content remains experimental (opt-in colour protocol)."
+             Per-surface HDR client content remains experimental (opt-in colour protocol).",
         )));
         hdr_hint.set_wrap(true);
         hdr_hint.set_xalign(0.0);
@@ -877,17 +866,14 @@ fn build_output_panel(
     let (modes, current) = cached_output_modes(modes_cache, &out.name);
     if modes.is_empty() {
         let hint = gtk::Label::new(Some(&tr(
-            "No DRM mode list available — connect displays in a Metis session on real hardware."
-            )));
+            "No DRM mode list available — connect displays in a Metis session on real hardware.",
+        )));
         hint.set_wrap(true);
         hint.set_xalign(0.0);
         hint.add_css_class("metis-settings-hint");
         mode_body.append(&hint);
     } else {
-        let labels: Vec<String> = modes
-            .iter()
-            .map(|m| mode_dropdown_label(m))
-            .collect();
+        let labels: Vec<String> = modes.iter().map(|m| mode_dropdown_label(m)).collect();
         let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let mode_dd = gtk::DropDown::from_strings(&label_refs);
         // Long mode labels ("3840 × 2160 @ 60.00 Hz · recommended") otherwise
@@ -941,8 +927,7 @@ fn build_output_panel(
     profile_label.set_xalign(0.0);
     profile_label.set_wrap(true);
     profile_label.add_css_class("metis-settings-hint");
-    let default_profile_label =
-        tr("Default (sRGB)");
+    let default_profile_label = tr("Default (sRGB)");
     profile_label.set_text(if profile_path.is_empty() {
         default_profile_label.as_str()
     } else {
@@ -963,8 +948,8 @@ fn build_output_panel(
     color_body.append(&profile_actions);
     let color_hint = gtk::Label::new(Some(&tr(
         "Saved to outputs.json. The compositor applies a GLES 3D LUT (sRGB→display) \
-         when possible; otherwise the profile's vcgt tag drives the CRTC gamma ramp."
-        )));
+         when possible; otherwise the profile's vcgt tag drives the CRTC gamma ramp.",
+    )));
     color_hint.set_wrap(true);
     color_hint.set_xalign(0.0);
     color_hint.add_css_class("metis-settings-hint");
@@ -1001,10 +986,8 @@ fn build_output_panel(
                         let path = path.display().to_string();
                         {
                             let mut c = cfg.borrow_mut();
-                            c.outputs
-                                .entry(name.clone())
-                                .or_default()
-                                .color_profile = Some(path.clone());
+                            c.outputs.entry(name.clone()).or_default().color_profile =
+                                Some(path.clone());
                         }
                         profile_label.set_text(&path);
                         clear_profile.set_sensitive(true);
@@ -1126,7 +1109,11 @@ fn refresh_hz_label(millihz: i32) -> String {
 }
 
 fn mode_dropdown_label(mode: &OutputModeInfo) -> String {
-    let recommended = if mode.preferred { " · recommended" } else { "" };
+    let recommended = if mode.preferred {
+        " · recommended"
+    } else {
+        ""
+    };
     format!(
         "{} × {} @ {}{}",
         mode.width,
@@ -1149,7 +1136,9 @@ fn mode_index_for_prefs(
         prefs.mode_height?,
         prefs.mode_refresh_millihz?,
     );
-    modes.iter().position(|m| m.width == w && m.height == h && m.refresh_millihz == r)
+    modes
+        .iter()
+        .position(|m| m.width == w && m.height == h && m.refresh_millihz == r)
 }
 
 fn cached_output_modes(
@@ -1231,11 +1220,7 @@ fn update_arrangement_view(
     }
 
     let needs_new = canvas_slot.borrow().as_ref().is_none_or(|c| {
-        c.output_names()
-            != list
-                .iter()
-                .map(|o| o.name.clone())
-                .collect::<Vec<_>>()
+        c.output_names() != list.iter().map(|o| o.name.clone()).collect::<Vec<_>>()
     });
 
     if needs_new {
@@ -1303,9 +1288,7 @@ fn resolve_selected_output<'a>(
             return (out, idx);
         }
     }
-    list.first()
-        .map(|o| (o, 0))
-        .expect("non-empty output list")
+    list.first().map(|o| (o, 0)).expect("non-empty output list")
 }
 
 fn is_primary_output(cfg: &metis_config::OutputsConfig, out: &OutputInfo) -> bool {

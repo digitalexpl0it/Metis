@@ -140,18 +140,21 @@ impl ArrangementCanvas {
                     }
                     let alloc = widget.allocation();
                     if alloc.width() > 0 && alloc.height() > 0 {
-                        this_w.schedule_layout_for_size(alloc.width() as f64, alloc.height() as f64);
+                        this_w
+                            .schedule_layout_for_size(alloc.width() as f64, alloc.height() as f64);
                     }
                 }
             };
             let on_width = Rc::new(on_alloc);
             let on_height = on_width.clone();
-            this.viewport.connect_notify_local(Some("width"), move |widget, _| {
-                on_width(widget);
-            });
-            this.viewport.connect_notify_local(Some("height"), move |widget, _| {
-                on_height(widget);
-            });
+            this.viewport
+                .connect_notify_local(Some("width"), move |widget, _| {
+                    on_width(widget);
+                });
+            this.viewport
+                .connect_notify_local(Some("height"), move |widget, _| {
+                    on_height(widget);
+                });
             let this_w = this.clone();
             this.root.connect_map(move |_| {
                 this_w.refresh_layout();
@@ -258,7 +261,11 @@ impl ArrangementCanvas {
 
     /// Stable identity of the monitors currently drawn (order matters).
     pub fn output_names(&self) -> Vec<String> {
-        self.blocks.borrow().iter().map(|b| b.name.clone()).collect()
+        self.blocks
+            .borrow()
+            .iter()
+            .map(|b| b.name.clone())
+            .collect()
     }
 
     pub fn block_name(&self, index: usize) -> Option<String> {
@@ -446,11 +453,7 @@ impl ArrangementCanvas {
     }
 
     pub fn set_selected(self: &Rc<Self>, index: usize) {
-        let name = self
-            .blocks
-            .borrow()
-            .get(index)
-            .map(|b| b.name.clone());
+        let name = self.blocks.borrow().get(index).map(|b| b.name.clone());
         if let Some(name) = name {
             *self.selected_name.borrow_mut() = Some(name);
         }
@@ -838,7 +841,6 @@ fn hit_block_index(canvas: &ArrangementCanvas, x: f64, y: f64) -> Option<usize> 
     }
     None
 }
-
 
 fn snap_canvas_position(
     moved_idx: usize,

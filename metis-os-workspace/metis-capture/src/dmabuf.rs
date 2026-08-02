@@ -7,10 +7,7 @@ use std::path::PathBuf;
 
 use drm_fourcc::{DrmFourcc, DrmModifier};
 use gbm::{BufferObject, BufferObjectFlags, Device as GbmDevice, Format as GbmFormat};
-use wayland_client::{
-    protocol::wl_buffer::WlBuffer,
-    Dispatch, QueueHandle,
-};
+use wayland_client::{protocol::wl_buffer::WlBuffer, Dispatch, QueueHandle};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1::{self, ZwpLinuxBufferParamsV1},
     zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1,
@@ -80,14 +77,10 @@ impl DmabufBuffer {
             .map_err(|err| format!("open {}: {err}", path.display()))?;
         let device = GbmDevice::new(file).map_err(|err| format!("gbm device: {err}"))?;
 
-        let (fourcc, modifiers) = pick_format(&offer.formats)
-            .ok_or("no usable dmabuf format from compositor")?;
+        let (fourcc, modifiers) =
+            pick_format(&offer.formats).ok_or("no usable dmabuf format from compositor")?;
         let gbm_format = fourcc_to_gbm(fourcc).ok_or("unsupported dmabuf fourcc")?;
-        let drm_mods: Vec<DrmModifier> = modifiers
-            .iter()
-            .copied()
-            .map(DrmModifier::from)
-            .collect();
+        let drm_mods: Vec<DrmModifier> = modifiers.iter().copied().map(DrmModifier::from).collect();
 
         let bo = device
             .create_buffer_object_with_modifiers2::<()>(

@@ -21,8 +21,7 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use metis_config::{
-    BackgroundKind, BarDisplays, BarPosition, ThemeMode, WeatherConfig,
-    WeatherLocation,
+    BackgroundKind, BarDisplays, BarPosition, ThemeMode, WeatherConfig, WeatherLocation,
 };
 
 /// Metis wordmark (same asset as the splash).
@@ -946,9 +945,8 @@ fn build_gaming() -> gtk::Widget {
     summary.set_wrap(true);
     col.append(&summary);
 
-    let auto_gpu = gtk::CheckButton::with_label(&metis_i18n::tr(
-        "Enable automatic GPU switching for games",
-    ));
+    let auto_gpu =
+        gtk::CheckButton::with_label(&metis_i18n::tr("Enable automatic GPU switching for games"));
     auto_gpu.set_active(GAMING_AUTO_GPU.get());
     auto_gpu.connect_active_notify(|s| GAMING_AUTO_GPU.set(s.is_active()));
     col.append(&auto_gpu);
@@ -1170,8 +1168,7 @@ fn build_optional_software() -> gtk::Widget {
     col.append(&install_btn);
 
     let features = Rc::new(RefCell::new(probe_optional_features()));
-    let switches: Rc<RefCell<Vec<(String, gtk::Switch, bool)>>> =
-        Rc::new(RefCell::new(Vec::new()));
+    let switches: Rc<RefCell<Vec<(String, gtk::Switch, bool)>>> = Rc::new(RefCell::new(Vec::new()));
 
     let refresh_list = {
         let list = list.clone();
@@ -1221,11 +1218,9 @@ fn build_optional_software() -> gtk::Widget {
                 row.append(&sw);
                 list.append(&row);
 
-                switches.borrow_mut().push((
-                    feat.id.to_string(),
-                    sw.clone(),
-                    feat.installed,
-                ));
+                switches
+                    .borrow_mut()
+                    .push((feat.id.to_string(), sw.clone(), feat.installed));
             }
 
             let update_btn = Rc::new({
@@ -1297,28 +1292,26 @@ fn build_optional_software() -> gtk::Widget {
             let status = status.clone();
             let list = list.clone();
             let btn = btn.clone();
-            glib::timeout_add_local(Duration::from_millis(200), move || {
-                match rx.try_recv() {
-                    Ok(Ok(())) => {
-                        *features.borrow_mut() = probe_optional_features();
-                        refresh_list();
-                        list.set_sensitive(true);
-                        status.set_text(&metis_i18n::tr("Installed successfully."));
-                        glib::ControlFlow::Break
-                    }
-                    Ok(Err(err)) => {
-                        list.set_sensitive(true);
-                        btn.set_sensitive(true);
-                        status.set_text(&err);
-                        glib::ControlFlow::Break
-                    }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        list.set_sensitive(true);
-                        btn.set_sensitive(true);
-                        status.set_text(&metis_i18n::tr("Install failed unexpectedly."));
-                        glib::ControlFlow::Break
-                    }
+            glib::timeout_add_local(Duration::from_millis(200), move || match rx.try_recv() {
+                Ok(Ok(())) => {
+                    *features.borrow_mut() = probe_optional_features();
+                    refresh_list();
+                    list.set_sensitive(true);
+                    status.set_text(&metis_i18n::tr("Installed successfully."));
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(err)) => {
+                    list.set_sensitive(true);
+                    btn.set_sensitive(true);
+                    status.set_text(&err);
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    list.set_sensitive(true);
+                    btn.set_sensitive(true);
+                    status.set_text(&metis_i18n::tr("Install failed unexpectedly."));
+                    glib::ControlFlow::Break
                 }
             });
         });
@@ -1340,9 +1333,15 @@ fn build_finish() -> gtk::Widget {
 
     let cfg = metis_config::load_keybinds_config();
     let mod_label = cfg.mod_key.as_str();
-    let close = cfg.chord_for(metis_config::KeybindAction::CloseWindow).display();
-    let layout_free = cfg.chord_for(metis_config::KeybindAction::LayoutFree).display();
-    let ws1 = cfg.chord_for(metis_config::KeybindAction::Workspace1).display();
+    let close = cfg
+        .chord_for(metis_config::KeybindAction::CloseWindow)
+        .display();
+    let layout_free = cfg
+        .chord_for(metis_config::KeybindAction::LayoutFree)
+        .display();
+    let ws1 = cfg
+        .chord_for(metis_config::KeybindAction::Workspace1)
+        .display();
     let keybinds = [
         (
             metis_i18n::tr("Click the brand icon"),

@@ -298,9 +298,7 @@ fn sample_host_binds(extension_id: Option<&str>) -> HostBindValues {
     });
 
     let helper = extension_id
-        .and_then(|id| {
-            HELPER_CACHE.with(|cache| cache.borrow().get(id).map(|e| e.values.clone()))
-        })
+        .and_then(|id| HELPER_CACHE.with(|cache| cache.borrow().get(id).map(|e| e.values.clone())))
         .unwrap_or_default();
 
     HostBindValues {
@@ -316,10 +314,7 @@ fn sample_host_binds(extension_id: Option<&str>) -> HostBindValues {
     }
 }
 
-fn run_action(
-    action: &WidgetExtAction,
-    settings: &serde_json::Map<String, serde_json::Value>,
-) {
+fn run_action(action: &WidgetExtAction, settings: &serde_json::Map<String, serde_json::Value>) {
     if let Err(err) = validate_action(action) {
         tracing::warn!(%err, "extension action blocked");
         return;
@@ -376,9 +371,13 @@ fn run_action(
 fn open_https_uri(uri: &str) {
     let launcher = gtk::UriLauncher::new(uri);
     let uri_owned = uri.to_string();
-    launcher.launch(None::<&gtk::Window>, None::<&gio::Cancellable>, move |res| {
-        if let Err(err) = res {
-            tracing::warn!(%err, uri = %uri_owned, "extension UriLauncher failed");
-        }
-    });
+    launcher.launch(
+        None::<&gtk::Window>,
+        None::<&gio::Cancellable>,
+        move |res| {
+            if let Err(err) = res {
+                tracing::warn!(%err, uri = %uri_owned, "extension UriLauncher failed");
+            }
+        },
+    );
 }

@@ -15,11 +15,8 @@ use std::collections::HashMap;
 use smithay::{
     backend::renderer::{
         element::{
-            solid::SolidColorRenderElement,
-            surface::WaylandSurfaceRenderElement,
-            texture::TextureRenderElement,
-            utils::CropRenderElement,
-            AsRenderElements, Kind,
+            solid::SolidColorRenderElement, surface::WaylandSurfaceRenderElement,
+            texture::TextureRenderElement, utils::CropRenderElement, AsRenderElements, Kind,
         },
         gles::{GlesRenderer, GlesTexture},
         Color32F,
@@ -123,6 +120,16 @@ impl MetisState {
             .space
             .outputs()
             .filter_map(|out| {
+                // The auto-hidden bar keeps its full-size (CSS-slid) layer surface;
+                // frosting behind it would paint a blurred band where no bar is.
+                if self
+                    .bar_auto_hidden
+                    .get(&out.name())
+                    .copied()
+                    .unwrap_or(false)
+                {
+                    return None;
+                }
                 let out_origin = self.space.output_geometry(out)?.loc.to_physical(1);
                 let local = bar_layer_rect(out)?;
                 Some(Rectangle::new(
@@ -185,10 +192,8 @@ impl MetisState {
         // the fractional scale of its output (matching client surface placement).
         let deco_specs = self.decoration_specs();
         self.decorations.begin_frame(&deco_specs);
-        let deco_by_id: HashMap<u32, crate::decoration::WindowDeco> = deco_specs
-            .into_iter()
-            .map(|w| (w.id, w))
-            .collect();
+        let deco_by_id: HashMap<u32, crate::decoration::WindowDeco> =
+            deco_specs.into_iter().map(|w| (w.id, w)).collect();
 
         // Layer-shell surfaces from every output's layer map: background/bottom
         // render beneath windows, top/overlay above them (the Metis bar is Top).
@@ -213,8 +218,8 @@ impl MetisState {
                 let Some(geo) = map.layer_geometry(surface) else {
                     continue;
                 };
-                let loc = (geo.loc + out_origin).to_physical_precise_round(output_scale)
-                    - render_origin;
+                let loc =
+                    (geo.loc + out_origin).to_physical_precise_round(output_scale) - render_origin;
                 let elems = AsRenderElements::<GlesRenderer>::render_elements::<
                     WaylandSurfaceRenderElement<GlesRenderer>,
                 >(surface, renderer, loc, output_scale, 1.0);
@@ -261,7 +266,10 @@ impl MetisState {
                 if spec.overlay || stack_ids.contains(id) {
                     continue;
                 }
-                tracing::warn!(id, "deco: window chrome not matched to a stacked window — drawing on top");
+                tracing::warn!(
+                    id,
+                    "deco: window chrome not matched to a stacked window — drawing on top"
+                );
                 if let Some(record) = self.windows.get(*id) {
                     let win_scale = self.window_output_scale(&record.window, output_scale);
                     let decos = self.decorations.window_elements(renderer, spec, win_scale);
@@ -312,9 +320,7 @@ impl MetisState {
                     }
                 }
             }
-            let mut loc = (elem_loc - geo_off)
-                .to_physical_precise_round(win_scale)
-                - render_origin;
+            let mut loc = (elem_loc - geo_off).to_physical_precise_round(win_scale) - render_origin;
             let mut alpha = 1.0f32;
             if let Some(id) = id {
                 let nudge = self.scroll_render_nudge(id);

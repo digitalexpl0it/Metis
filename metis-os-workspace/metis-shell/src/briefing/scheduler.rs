@@ -30,12 +30,7 @@ pub async fn run_connectors() -> Result<Vec<BriefingItem>, String> {
     let cfg = load_briefing_config();
     let mut items = Vec::new();
 
-    match fetch_summary(
-        cfg.weather.latitude,
-        cfg.weather.longitude,
-    )
-    .await
-    {
+    match fetch_summary(cfg.weather.latitude, cfg.weather.longitude).await {
         Ok(summary) => items.push(BriefingItem {
             id: "weather".into(),
             title: "Weather".into(),

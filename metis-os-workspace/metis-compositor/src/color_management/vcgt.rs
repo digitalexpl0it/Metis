@@ -171,16 +171,12 @@ fn formula_ramp(gamma: f64, min: f64, max: f64) -> Vec<u16> {
 }
 
 fn u16_at(d: &[u8], at: usize) -> Result<u16, VcgtError> {
-    let b = d
-        .get(at..at + 2)
-        .ok_or(VcgtError::MalformedTag)?;
+    let b = d.get(at..at + 2).ok_or(VcgtError::MalformedTag)?;
     Ok(u16::from_be_bytes([b[0], b[1]]))
 }
 
 fn u32_at(d: &[u8], at: usize) -> Result<u32, VcgtError> {
-    let b = d
-        .get(at..at + 4)
-        .ok_or(VcgtError::MalformedTag)?;
+    let b = d.get(at..at + 4).ok_or(VcgtError::MalformedTag)?;
     Ok(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
 }
 

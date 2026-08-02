@@ -44,7 +44,11 @@ pub fn install() {
     };
 
     let base = CssProvider::new();
-    gtk::style_context_add_provider_for_display(&display, &base, STYLE_PROVIDER_PRIORITY_APPLICATION);
+    gtk::style_context_add_provider_for_display(
+        &display,
+        &base,
+        STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
     let extra = CssProvider::new();
     gtk::style_context_add_provider_for_display(
         &display,
@@ -80,8 +84,8 @@ pub fn reapply_for_mode(mode: ThemeMode) {
         }
     };
     let tokens = metis_config::load_theme_tokens(name);
-    let dark = matches!(mode, ThemeMode::Dark)
-        || (matches!(mode, ThemeMode::System) && prefers_dark());
+    let dark =
+        matches!(mode, ThemeMode::Dark) || (matches!(mode, ThemeMode::System) && prefers_dark());
     reapply_tokens(&tokens, dark);
 }
 
@@ -367,32 +371,10 @@ fn settings_css(t: &ThemeTokens) -> String {
         .metis-settings-nav-row-inner {{
             padding: 6px 10px 6px 8px;
         }}
+        /* MacOS-style coloured icon badges — padding (not fixed size) keeps glyphs centred. */
         .metis-settings-nav-icon-wrap {{
             border-radius: 7px;
-            background-color: color-mix(in srgb, {accent} 16%, {raised});
-        }}
-        .metis-nav-hue-blue {{
-            background-color: color-mix(in srgb, #0a84ff 22%, {raised});
-        }}
-        .metis-nav-hue-purple {{
-            background-color: color-mix(in srgb, #bf5af2 22%, {raised});
-        }}
-        .metis-nav-hue-pink {{
-            background-color: color-mix(in srgb, #ff375f 20%, {raised});
-        }}
-        .metis-nav-hue-orange {{
-            background-color: color-mix(in srgb, #ff9f0a 22%, {raised});
-        }}
-        .metis-nav-hue-teal {{
-            background-color: color-mix(in srgb, #64d2ff 22%, {raised});
-        }}
-        .metis-nav-hue-green {{
-            background-color: color-mix(in srgb, #30d158 22%, {raised});
-        }}
-        .metis-nav-hue-yellow {{
-            background-color: color-mix(in srgb, #ffd60a 24%, {raised});
-        }}
-        .metis-nav-hue-gray {{
+            padding: 6px;
             background-color: color-mix(in srgb, {muted} 18%, {raised});
         }}
         .metis-settings-nav-icon {{
@@ -409,7 +391,7 @@ fn settings_css(t: &ThemeTokens) -> String {
             font-weight: 700;
         }}
         .metis-settings-nav-row:selected .metis-settings-nav-icon {{
-            color: {accent};
+            color: {text};
         }}
 
         .metis-settings-content {{ background-color: {bg}; }}
@@ -429,21 +411,56 @@ fn settings_css(t: &ThemeTokens) -> String {
         }}
         .metis-settings-page-icon-wrap {{
             border-radius: 14px;
-            background-color: color-mix(in srgb, {accent} 14%, {surface});
+            padding: 12px;
+            background-color: color-mix(in srgb, {muted} 18%, {surface});
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        }}
+        .metis-settings-page-icon {{
+            color: {accent};
+            -gtk-icon-style: symbolic;
+        }}
+
+        /* Hue badges (nav + page header) — after base wraps so colours always win. */
+        .metis-settings-nav-icon-wrap.metis-nav-hue-blue,
+        .metis-settings-page-icon-wrap.metis-nav-hue-blue {{
+            background-color: color-mix(in srgb, #0a84ff 28%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-purple,
+        .metis-settings-page-icon-wrap.metis-nav-hue-purple {{
+            background-color: color-mix(in srgb, #bf5af2 28%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-pink,
+        .metis-settings-page-icon-wrap.metis-nav-hue-pink {{
+            background-color: color-mix(in srgb, #ff375f 26%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-orange,
+        .metis-settings-page-icon-wrap.metis-nav-hue-orange {{
+            background-color: color-mix(in srgb, #ff9f0a 28%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-teal,
+        .metis-settings-page-icon-wrap.metis-nav-hue-teal {{
+            background-color: color-mix(in srgb, #64d2ff 28%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-green,
+        .metis-settings-page-icon-wrap.metis-nav-hue-green {{
+            background-color: color-mix(in srgb, #30d158 28%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-yellow,
+        .metis-settings-page-icon-wrap.metis-nav-hue-yellow {{
+            background-color: color-mix(in srgb, #ffd60a 30%, {raised});
+        }}
+        .metis-settings-nav-icon-wrap.metis-nav-hue-gray,
+        .metis-settings-page-icon-wrap.metis-nav-hue-gray {{
+            background-color: color-mix(in srgb, {muted} 22%, {raised});
         }}
         .metis-nav-hue-blue .metis-settings-page-icon {{ color: #0a84ff; }}
         .metis-nav-hue-purple .metis-settings-page-icon {{ color: #bf5af2; }}
         .metis-nav-hue-pink .metis-settings-page-icon {{ color: #ff375f; }}
         .metis-nav-hue-orange .metis-settings-page-icon {{ color: #ff9f0a; }}
-        .metis-nav-hue-teal .metis-settings-page-icon {{ color: #32ade6; }}
+        .metis-nav-hue-teal .metis-settings-page-icon {{ color: #64d2ff; }}
         .metis-nav-hue-green .metis-settings-page-icon {{ color: #30d158; }}
         .metis-nav-hue-gray .metis-settings-page-icon {{ color: {muted}; }}
         .metis-nav-hue-yellow .metis-settings-page-icon {{ color: #ffd60a; }}
-        .metis-settings-page-icon {{
-            color: {accent};
-            -gtk-icon-style: symbolic;
-        }}
         .metis-settings-title {{
             font-size: 28px;
             font-weight: 800;

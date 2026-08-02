@@ -67,17 +67,9 @@ impl InhibitService {
 
     /// Release every cookie held by a peer that just dropped off the bus.
     fn release_peer(&self, owner: &str) {
-        let cookies: Vec<u32> = {
+        let cookies = {
             let mut guard = self.owners.lock().unwrap();
-            let cookies: Vec<u32> = guard
-                .iter()
-                .filter(|(_, o)| o.as_str() == owner)
-                .map(|(c, _)| *c)
-                .collect();
-            for cookie in &cookies {
-                guard.remove(cookie);
-            }
-            cookies
+            take_peer_cookies(&mut guard, owner)
         };
         if cookies.is_empty() {
             return;
@@ -87,6 +79,25 @@ impl InhibitService {
             tokio::task::spawn_blocking(move || compositor_ipc::uninhibit_idle(cookie));
         }
     }
+}
+
+/// Remove and return every cookie owned by `owner` (pure map surgery for tests).
+fn take_peer_cookies(owners: &mut HashMap<u32, String>, owner: &str) -> Vec<u32> {
+    let cookies: Vec<u32> = owners
+        .iter()
+        .filter(|(_, o)| o.as_str() == owner)
+        .map(|(c, _)| *c)
+        .collect();
+    for cookie in &cookies {
+        owners.remove(cookie);
+    }
+    cookies
+}
+
+/// `NameOwnerChanged` reclaim predicate: unique bus names with an empty
+/// `new_owner` mean the peer disconnected without `UnInhibit`.
+fn should_reclaim_peer(name: &str, new_owner_absent: bool) -> bool {
+    name.starts_with(':') && new_owner_absent
 }
 
 fn sender_of(header: &Header<'_>) -> Option<String> {
@@ -219,9 +230,39 @@ fn spawn_peer_watch(conn: Connection, svc: InhibitService) {
             let name = args.name().to_string();
             // Only unique names (":1.42") represent a single peer; a lost owner
             // has an empty `new_owner`.
-            if name.starts_with(':') && args.new_owner().is_none() {
+            if should_reclaim_peer(&name, args.new_owner().is_none()) {
                 svc.release_peer(&name);
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn take_peer_cookies_reclaims_only_that_peer() {
+        let mut owners = HashMap::from([
+            (1, ":1.10".into()),
+            (2, ":1.20".into()),
+            (3, ":1.10".into()),
+            (4, ":1.30".into()),
+        ]);
+        let mut gone = take_peer_cookies(&mut owners, ":1.10");
+        gone.sort_unstable();
+        assert_eq!(gone, vec![1, 3]);
+        assert_eq!(owners.len(), 2);
+        assert_eq!(owners.get(&2).map(String::as_str), Some(":1.20"));
+        assert_eq!(owners.get(&4).map(String::as_str), Some(":1.30"));
+        assert!(take_peer_cookies(&mut owners, ":1.10").is_empty());
+    }
+
+    #[test]
+    fn should_reclaim_only_unique_names_with_empty_new_owner() {
+        assert!(should_reclaim_peer(":1.42", true));
+        assert!(!should_reclaim_peer(":1.42", false));
+        assert!(!should_reclaim_peer("org.freedesktop.ScreenSaver", true));
+        assert!(!should_reclaim_peer("", true));
+    }
 }

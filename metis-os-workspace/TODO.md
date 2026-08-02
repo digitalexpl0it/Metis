@@ -1,10 +1,13 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phases **1–15** are complete for their shipped product bars.
-**Phase 15** (Security hardening) closed 2026-07-25 — supply-chain / compiler,
-spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation. **Phase 15 §F
-stretch complete 2026-07-26** (first-party viewer, RustDesk preset, image RDP
-clipboard, lock fingerprint / YubiKey niceties). **`ext-session-lock-v1`
+**Current phase:** Phases **1–16** are complete for their shipped product bars.
+**Phase 16** (Engineering hardening) closed 2026-08-02 — PR CI quality gate,
+trust-boundary tests, compositor panic triage, portal coverage, `cargo-deny`,
+command-file allowlist, PERF_AUDIT refresh, shell poll D-Bus path, packaging CI
+alignment. **Phase 15** (Security hardening) closed 2026-07-25 — supply-chain /
+compiler, spawn + Polkit, lock/VT, capability IPC, opt-in XWayland isolation.
+**Phase 15 §F stretch complete 2026-07-26** (first-party viewer, RustDesk preset,
+image RDP clipboard, lock fingerprint / YubiKey niceties). **`ext-session-lock-v1`
 shipped 2026-07-27** (optional third-party lockers; Metis PAM lock stays default).
 **Phase 3** multi-GPU hardware validation closed 2026-07-26 on hybrid
 iGPU+dGPU (HDMI projector, gaming PRIME, input). **Phase 5** (Display pipeline)
@@ -1433,6 +1436,83 @@ server does not.
 
 **Dependencies:** Phase 7 remote + IPC baseline (done); Phase 14 widget process
 split (done); DRM/libseat VT path (done).
+
+---
+
+## Phase 16 — Engineering hardening
+
+Close the engineering gap after Phase 15 product security: CI that gates PRs,
+trust-boundary unit tests, panic hygiene under `panic = "abort"`, supply-chain
+deny rules, command-file hardening, and focused stability/perf cleanup. No new
+desktop product features in this phase.
+
+**Non-goals:** full Wayland e2e harness in CI; default-on colour management;
+big-bang `state.rs` rewrite; Sober/Flatpak app bugs unrelated to Metis portals.
+
+### A. PR quality gate
+
+- [x] **`.github/workflows/ci.yml`** — on every PR + push to `main`/`master`:
+      `cargo fmt --check`, `clippy --workspace --all-targets -- -D warnings`,
+      `cargo test --workspace`, `cargo deny check` (Ubuntu 24.04 + gtk4-layer-shell)
+- [x] **Fold advisory gate into CI** — `cargo deny` on every PR; remove path-filtered
+      `audit.yml` so advisories are not skipped when Rust paths are untouched
+
+### B. Trust-boundary tests
+
+- [x] **`metis-protocol` unit tests** — `runtime_dir` / `ensure_runtime_dir` 0700,
+      `write_private_file` 0600, `split_command_line` / `launch_argv`, peercred
+      same-euid accept, runtime command allowlist parser
+- [x] **Compositor IPC helpers** — extract `ipc_dispatch.rs` (`IpcCaps`,
+      `resolve_ipc_caps`, widgets allowlist, lock denylist, `gate_ipc_command`)
+      with table-driven unit tests (no live Wayland loop)
+- [x] **Portal unit tests** — clipboard path allowlist + size cap; screencast
+      refuse-while-locked; screensaver idle-inhibit peer reclaim (no full
+      PipeWire/EIS integration in CI)
+
+### C. Panic & structure
+
+- [x] **Compositor hot-path unwrap triage** — replace event-loop unwraps in
+      `xdg_shell`, `desk_input`, `state`, `input`, `udev` with warn+skip/recover;
+      keep init-only expects where invariants are setup-only
+- [x] **Colour-management default-off assertion** — unit/doc coverage that the
+      default env/config path does not enable `wp_color_management_v1`
+- [x] **Opportunistic `state.rs` extract** — `ipc_dispatch.rs` for IPC caps /
+      gating; further extracts as areas are touched (no big-bang rewrite)
+- [x] **Remaining intentional panics** — init-only `expect` / impossible
+      calloop registration failures may still abort under `panic = "abort"`;
+      prefer `tracing::warn!` on hot paths. Defer crate-wide `unwrap_used` deny
+      on compositor/shell until a later pass.
+
+### D. Supply chain & packaging CI
+
+- [x] **`deny.toml`** — advisories, license allowlist, banned unknown git sources
+      (Smithay allowlisted)
+- [x] **`cargo deny` in `release-deb.yml`** — all suite jobs (24.04, 26.04, debian13)
+- [x] **Locale smoke on all suites** — `.mo` / `.ftl` presence checks on every
+      packaged `.deb` (not only Ubuntu 24.04); workspace tests gated by `ci.yml`
+
+### E. Command file & docs
+
+- [x] **Runtime command allowlist** — verb lists + max length +
+      `parse_runtime_command` / `write_runtime_command*` in `metis-protocol`;
+      shell bar, desktop-widgets, gamingd consume the parser
+- [x] **Document same-UID trust model** — USER_GUIDE / UBUNTU_DEV (socket+token
+      vs weaker command file)
+- [x] **`docs/PERF_AUDIT.md` refresh** — ScreenCast dmabuf, `panic = "abort"`,
+      shell poll / GSK (`METIS_SHELL_GSK_RENDERER`), hybrid NVIDIA MemFd checklist
+
+### F. Shell poll
+
+- [x] **D-Bus-driven network dirty flag** — NetworkManager `StateChanged` →
+      immediate refresh; slower battery/BT ticks; adaptive sleep
+- [x] **GSK env documented** — `METIS_SHELL_GSK_RENDERER=gl` opt-in; Cairo default
+
+### G. Lint policy (follow-on)
+
+- [x] **`clippy::unwrap_used` deny** on `metis-protocol` and `metis-config`
+      (non-test builds); defer compositor/shell until further triage
+
+**Dependencies:** Phase 15 IPC / portal / release CI baseline (done).
 
 ---
 

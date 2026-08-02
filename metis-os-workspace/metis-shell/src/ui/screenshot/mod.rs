@@ -41,7 +41,12 @@ impl DragRect {
         let y = self.y1.min(self.y2).round() as i32;
         let width = (self.x2 - self.x1).abs().round() as i32;
         let height = (self.y2 - self.y1).abs().round() as i32;
-        PixelRect { x, y, width, height }
+        PixelRect {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     fn valid(&self) -> bool {
@@ -344,11 +349,7 @@ fn build_toolbar(
         after_edit: after_edit.clone(),
     };
 
-    let popover = build_options_popover(
-        &pointer_switch,
-        &delay_spin,
-        &after_seg,
-    );
+    let popover = build_options_popover(&pointer_switch, &delay_spin, &after_seg);
     options_btn.set_popover(Some(&popover));
     toolbar.append(&options_btn);
 
@@ -401,7 +402,9 @@ fn mode_button(icon_name: &str, tooltip: &str) -> gtk::ToggleButton {
 }
 
 fn sync_mode_buttons(buttons: &ModeButtons, mode: ScreenshotMode) {
-    buttons.selection.set_active(mode == ScreenshotMode::Selection);
+    buttons
+        .selection
+        .set_active(mode == ScreenshotMode::Selection);
     buttons.screen.set_active(mode == ScreenshotMode::Screen);
     buttons.window.set_active(mode == ScreenshotMode::Window);
 }
@@ -458,7 +461,10 @@ fn build_options_popover(
     panel.set_margin_bottom(10);
     panel.set_size_request(280, -1);
 
-    panel.append(&option_row(&metis_i18n::tr("Include pointer"), pointer_switch));
+    panel.append(&option_row(
+        &metis_i18n::tr("Include pointer"),
+        pointer_switch,
+    ));
     panel.append(&option_row(&metis_i18n::tr("Delay (seconds)"), delay_spin));
 
     let after_label = gtk::Label::new(Some(&metis_i18n::tr("After capture")));
@@ -654,7 +660,10 @@ fn on_overlay_key(key: gdk::Key, modifier: gdk::ModifierType) -> glib::Propagati
 }
 
 fn wire_keyboard(window: &gtk::Window, root: &gtk::Overlay) {
-    for widget in [window.upcast_ref::<gtk::Widget>(), root.upcast_ref::<gtk::Widget>()] {
+    for widget in [
+        window.upcast_ref::<gtk::Widget>(),
+        root.upcast_ref::<gtk::Widget>(),
+    ] {
         let controller = gtk::EventControllerKey::new();
         controller.set_propagation_phase(gtk::PropagationPhase::Capture);
         controller.connect_key_pressed(|_, key, _, modifier| on_overlay_key(key, modifier));
@@ -668,10 +677,7 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
     gesture.connect_drag_begin({
         let overlay = overlay.clone();
         move |_, x, y| {
-            if !matches!(
-                overlay.mode.get(),
-                ScreenshotMode::Selection
-            ) {
+            if !matches!(overlay.mode.get(), ScreenshotMode::Selection) {
                 return;
             }
             overlay.drag.replace(Some(DragRect {
@@ -687,10 +693,7 @@ fn wire_canvas(overlay: &Rc<Overlay>, canvas: &gtk::DrawingArea, size_label: &gt
         let overlay = overlay.clone();
         let size_label = size_label.clone();
         move |_, offset_x, offset_y| {
-            if !matches!(
-                overlay.mode.get(),
-                ScreenshotMode::Selection
-            ) {
+            if !matches!(overlay.mode.get(), ScreenshotMode::Selection) {
                 return;
             }
             let Some(mut drag) = overlay.drag.borrow().clone() else {
@@ -853,12 +856,7 @@ impl Overlay {
 fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i32) {
     let tokens = active_tokens();
     let is_light = tokens.mode.eq_ignore_ascii_case("light");
-    cr.set_source_rgba(
-        0.0,
-        0.0,
-        0.0,
-        if is_light { 0.28 } else { 0.45 },
-    );
+    cr.set_source_rgba(0.0, 0.0, 0.0, if is_light { 0.28 } else { 0.45 });
     cr.paint().ok();
 
     let highlight = match overlay.mode.get() {
@@ -879,7 +877,12 @@ fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i
 
     if let Some(rect) = highlight {
         cr.set_operator(gtk::cairo::Operator::Clear);
-        cr.rectangle(rect.x as f64, rect.y as f64, rect.width as f64, rect.height as f64);
+        cr.rectangle(
+            rect.x as f64,
+            rect.y as f64,
+            rect.width as f64,
+            rect.height as f64,
+        );
         cr.fill().ok();
         cr.set_operator(gtk::cairo::Operator::Over);
 
@@ -894,7 +897,12 @@ fn draw_scene(overlay: &Overlay, cr: &gtk::cairo::Context, width: i32, height: i
         cr.set_source_rgb(ar, ag, ab);
         cr.set_line_width(2.0);
         cr.set_dash(&[8.0, 6.0], 0.0);
-        cr.rectangle(rect.x as f64, rect.y as f64, rect.width as f64, rect.height as f64);
+        cr.rectangle(
+            rect.x as f64,
+            rect.y as f64,
+            rect.width as f64,
+            rect.height as f64,
+        );
         cr.stroke().ok();
         cr.set_dash(&[], 0.0);
     }
@@ -953,11 +961,7 @@ fn primary_monitor_geometry() -> gdk::Rectangle {
     gdk::Rectangle::new(0, 0, 1920, 1080)
 }
 
-fn run_instant_capture(
-    mode: ScreenshotMode,
-    config: ScreenshotConfig,
-    connector: Option<String>,
-) {
+fn run_instant_capture(mode: ScreenshotMode, config: ScreenshotConfig, connector: Option<String>) {
     let (origin, output_index, connector) = monitor_context(connector.as_deref());
     let crop = match mode {
         ScreenshotMode::Screen => PixelRect {
@@ -1037,10 +1041,7 @@ fn launch_recorder(config: &ScreenshotConfig, connector: Option<&str>, crop: Pix
         "--mode".into(),
         "record".into(),
         "--crop".into(),
-        format!(
-            "{},{},{},{}",
-            local.x, local.y, local.width, local.height
-        ),
+        format!("{},{},{},{}", local.x, local.y, local.width, local.height),
     ];
     if let Some(name) = connector {
         argv.push("--connector".into());
@@ -1068,7 +1069,10 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
         }
         _ => {}
     }
-    if matches!(action, AfterCaptureAction::Save | AfterCaptureAction::CopyAndSave) {
+    if matches!(
+        action,
+        AfterCaptureAction::Save | AfterCaptureAction::CopyAndSave
+    ) {
         let save_dir = expand_save_dir(&config.save_dir);
         if let Err(err) = std::fs::create_dir_all(&save_dir) {
             tracing::warn!(%err, "failed to create screenshot save dir");
@@ -1082,10 +1086,8 @@ fn after_capture_action(config: &ScreenshotConfig, path: &PathBuf, action: After
         }
     }
     if matches!(action, AfterCaptureAction::Open) {
-        let _ = crate::compositor::launch_argv([
-            "xdg-open".to_string(),
-            path.display().to_string(),
-        ]);
+        let _ =
+            crate::compositor::launch_argv(["xdg-open".to_string(), path.display().to_string()]);
     }
     if matches!(action, AfterCaptureAction::Edit) {
         if let Err(err) = crate::compositor::launch_argv([
@@ -1149,11 +1151,7 @@ fn monitor_context(connector: Option<&str>) -> ((i32, i32), usize, Option<String
             .enumerate()
             .find(|(_, o)| o.name.eq_ignore_ascii_case(name))
         {
-            return (
-                (out.rect.x, out.rect.y),
-                idx,
-                Some(out.name.clone()),
-            );
+            return ((out.rect.x, out.rect.y), idx, Some(out.name.clone()));
         }
     }
     if let Some((idx, out)) = outputs.iter().enumerate().find(|(_, o)| o.primary) {
@@ -1179,10 +1177,7 @@ fn output_origin(output_index: usize, connector: Option<&str>) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
-fn gdk_monitor_for_output(
-    connector: &Option<String>,
-    origin: (i32, i32),
-) -> Option<gdk::Monitor> {
+fn gdk_monitor_for_output(connector: &Option<String>, origin: (i32, i32)) -> Option<gdk::Monitor> {
     let display = gdk::Display::default()?;
     let monitors = display.monitors();
     let n = monitors.n_items();
@@ -1225,6 +1220,8 @@ fn list_windows_best_effort() -> Vec<WindowInfo> {
     crate::compositor::list_windows().unwrap_or_default()
 }
 
-fn send_compositor(cmd: CompositorCommand) -> Result<metis_protocol::CompositorEvent, std::io::Error> {
+fn send_compositor(
+    cmd: CompositorCommand,
+) -> Result<metis_protocol::CompositorEvent, std::io::Error> {
     metis_protocol::send_compositor_command(&cmd)
 }

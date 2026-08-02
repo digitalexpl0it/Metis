@@ -84,8 +84,7 @@ pub fn refresh_night_light(state: &mut MetisState, before: &OutputsConfig) {
 
 fn sync_night_light_schedule_state(state: &mut MetisState, cfg: &OutputsConfig) {
     if cfg.night_light_schedule.enabled {
-        state.night_light_schedule_effective =
-            Some(metis_config::night_light_effective(cfg));
+        state.night_light_schedule_effective = Some(metis_config::night_light_effective(cfg));
     } else {
         state.night_light_schedule_effective = None;
     }
@@ -236,16 +235,13 @@ pub fn apply_output_layout(state: &mut MetisState, cfg: &OutputsConfig) -> bool 
 }
 
 fn position_right_of_primary(state: &MetisState, cfg: &OutputsConfig) -> Point<i32, Logical> {
-    let primary_name = cfg
-        .primary_output
-        .clone()
-        .or_else(|| {
-            state
-                .connected_outputs()
-                .into_iter()
-                .find(|o| state.is_output_enabled(&o.name()))
-                .map(|o| o.name())
-        });
+    let primary_name = cfg.primary_output.clone().or_else(|| {
+        state
+            .connected_outputs()
+            .into_iter()
+            .find(|o| state.is_output_enabled(&o.name()))
+            .map(|o| o.name())
+    });
     if let Some(name) = primary_name {
         if let Some(output) = state
             .connected_outputs()
@@ -415,11 +411,14 @@ pub fn persist_output_snapshot(state: &mut MetisState, output: &Output) {
     tracing::debug!(output = %name, "snapshotted output layout for next reconnect");
 }
 
-pub(crate) fn output_geometry(state: &MetisState, output: &Output) -> Option<Rectangle<i32, Logical>> {
+pub(crate) fn output_geometry(
+    state: &MetisState,
+    output: &Output,
+) -> Option<Rectangle<i32, Logical>> {
     state.space.output_geometry(output).or_else(|| {
-        output.current_mode().map(|mode| {
-            Rectangle::new(Point::from((0, 0)), Size::from((mode.size.w, mode.size.h)))
-        })
+        output
+            .current_mode()
+            .map(|mode| Rectangle::new(Point::from((0, 0)), Size::from((mode.size.w, mode.size.h))))
     })
 }
 
@@ -450,10 +449,7 @@ pub fn output_info_for(
     let active = state.is_output_enabled(&name);
     let mirror_active = state.mirror_mode_active();
     let is_mirror_source = mirror_active && mirror_source.is_some_and(|s| s == name);
-    let is_mirrored = mirror_active
-        && !is_mirror_source
-        && active
-        && prefs.enabled;
+    let is_mirrored = mirror_active && !is_mirror_source && active && prefs.enabled;
     let vrr_support = crate::output_vrr::query_vrr_support(state, &name);
     let vrr_active = crate::output_vrr::query_vrr_active(state, &name);
     let hdr_available = crate::output_hdr::query_hdr_available(state, &name);

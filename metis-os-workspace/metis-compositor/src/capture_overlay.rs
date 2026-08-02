@@ -62,19 +62,18 @@ impl MetisState {
     pub(crate) fn begin_capture_overlay_portal(&mut self, app_id: Option<String>) {
         self.capture_overlay.portal_elevate_baseline = self.windows.ids().into_iter().collect();
         if let Some(id) = app_id {
-            self.capture_overlay
-                .portal_app_ids
-                .insert(norm_app_id(&id));
+            self.capture_overlay.portal_app_ids.insert(norm_app_id(&id));
         }
-        self.capture_overlay.portal_elevate_until =
-            Some(Instant::now() + PORTAL_ELEVATE_TIMEOUT);
+        self.capture_overlay.portal_elevate_until = Some(Instant::now() + PORTAL_ELEVATE_TIMEOUT);
         self.register_portal_capture_windows();
         self.schedule_redraw();
     }
 
     pub(crate) fn end_capture_overlay_portal(&mut self, app_id: Option<String>) {
         if let Some(id) = app_id {
-            self.capture_overlay.portal_app_ids.remove(&norm_app_id(&id));
+            self.capture_overlay
+                .portal_app_ids
+                .remove(&norm_app_id(&id));
         } else {
             self.capture_overlay.portal_app_ids.clear();
         }
@@ -226,11 +225,8 @@ impl MetisState {
             return false;
         }
 
-        let portal_app = self.portal_wants_app(
-            self.windows
-                .get(id)
-                .and_then(|r| r.app_id.as_deref()),
-        );
+        let portal_app =
+            self.portal_wants_app(self.windows.get(id).and_then(|r| r.app_id.as_deref()));
         let needs_prepare = portal_app || !self.window_spans_desktop(id);
         if needs_prepare {
             self.prepare_capture_overlay_window(id);
@@ -242,20 +238,12 @@ impl MetisState {
         }
 
         self.capture_overlay.windows.insert(id);
-        if let Some(app_id) = self
-            .windows
-            .get(id)
-            .and_then(|r| r.app_id.clone())
-        {
+        if let Some(app_id) = self.windows.get(id).and_then(|r| r.app_id.clone()) {
             self.clear_portal_elevate_for_app(&app_id);
         }
         self.enforce_capture_overlay_stacking();
         self.focus_window_id(id);
-        tracing::info!(
-            id,
-            portal_app,
-            "capture overlay registered"
-        );
+        tracing::info!(id, portal_app, "capture overlay registered");
         true
     }
 
@@ -317,7 +305,13 @@ impl MetisState {
         if self.capture_overlay.windows.is_empty() {
             return;
         }
-        for id in self.capture_overlay.windows.iter().copied().collect::<Vec<_>>() {
+        for id in self
+            .capture_overlay
+            .windows
+            .iter()
+            .copied()
+            .collect::<Vec<_>>()
+        {
             let Some(record) = self.windows.get(id).cloned() else {
                 continue;
             };
@@ -331,9 +325,7 @@ impl MetisState {
     }
 
     /// Topmost mapped capture-overlay window in the desktop stack.
-    pub(crate) fn top_capture_overlay_window(
-        &self,
-    ) -> Option<smithay::desktop::Window> {
+    pub(crate) fn top_capture_overlay_window(&self) -> Option<smithay::desktop::Window> {
         self.space
             .elements()
             .rev()
@@ -377,9 +369,8 @@ impl MetisState {
 
         // Do not infer exit while a fullscreen configure is still in flight —
         // committed state lags until the client acks our configure.
-        let pending_fullscreen = toplevel.with_pending_state(|state| {
-            state.states.contains(xdg_toplevel::State::Fullscreen)
-        });
+        let pending_fullscreen = toplevel
+            .with_pending_state(|state| state.states.contains(xdg_toplevel::State::Fullscreen));
         if pending_fullscreen {
             return;
         }

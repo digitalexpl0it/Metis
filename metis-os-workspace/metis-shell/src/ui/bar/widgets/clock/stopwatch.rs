@@ -141,7 +141,8 @@ impl Inner {
         self.running.set(false);
         self.generation.set(self.generation.get().wrapping_add(1));
         if let Some(start) = self.start.take() {
-            self.accumulated.set(self.accumulated.get() + start.elapsed());
+            self.accumulated
+                .set(self.accumulated.get() + start.elapsed());
         }
         self.label.set_label(&fmt(self.accumulated.get()));
         self.primary.set_label(&metis_i18n::tr("Resume"));
@@ -177,7 +178,10 @@ impl Inner {
             .build();
         row.add_css_class("metis-sw-lap");
 
-        let total_lbl = gtk::Label::builder().label(&fmt(total)).halign(gtk::Align::Start).build();
+        let total_lbl = gtk::Label::builder()
+            .label(&fmt(total))
+            .halign(gtk::Align::Start)
+            .build();
         total_lbl.add_css_class("metis-sw-lap-total");
         let delta_lbl = gtk::Label::builder()
             .label(&format!("+{}", fmt(delta)))

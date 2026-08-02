@@ -96,8 +96,8 @@ pub fn load_gaming_config() -> GamingConfig {
 
 pub fn save_gaming_config(cfg: &GamingConfig) -> std::io::Result<()> {
     super::ensure_config_dirs()?;
-    let json = serde_json::to_string_pretty(&sanitize(cfg.clone()))
-        .map_err(std::io::Error::other)?;
+    let json =
+        serde_json::to_string_pretty(&sanitize(cfg.clone())).map_err(std::io::Error::other)?;
     std::fs::write(gaming_config_path(), json)
 }
 
@@ -221,8 +221,7 @@ fn resolve_graphics_mode(program: &str, cfg: &GamingConfig) -> bool {
         GraphicsMode::Off | GraphicsMode::AlwaysIgpu => false,
         GraphicsMode::AlwaysDgpu => true,
         GraphicsMode::Auto | GraphicsMode::DesktopIgpuGamesDgpu => {
-            let wants_dgpu =
-                command_prefers_dgpu(program) || command_is_web_browser(program);
+            let wants_dgpu = command_prefers_dgpu(program) || command_is_web_browser(program);
             if !wants_dgpu {
                 return false;
             }

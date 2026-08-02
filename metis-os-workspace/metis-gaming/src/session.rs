@@ -50,10 +50,7 @@ impl GamingDaemon {
         } else if !active && self.game_active {
             tracing::info!("game session ended");
             if cfg.auto_performance_profile {
-                apply_session_power(
-                    SessionPowerAction::RestoreBalanced,
-                    self.saved_profile,
-                );
+                apply_session_power(SessionPowerAction::RestoreBalanced, self.saved_profile);
             }
             if let Some(pid) = self.game_pid.take() {
                 unregister_gamemode(pid);

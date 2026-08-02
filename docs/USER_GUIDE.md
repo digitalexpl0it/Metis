@@ -1075,6 +1075,12 @@ windows/outputs, light reloads) — it cannot EndSession, inject input, or start
 capture overlays. The edge bar and Settings keep the full-privilege channel
 (no token).
 
+**Command files** (`command`, `command-widgets`) are a same-UID poke channel
+(weaker than the socket + token path). Writers and readers enforce a strict
+verb allowlist, a 512-byte length cap, and reject unknown verbs. That reduces
+accidental or drive-by shell pokes; it does **not** protect against a malicious
+process already running as your UID (it can still use the full IPC socket).
+
 While the session is locked, IPC also rejects focus/launch/clipboard/capture/
 workspace/session-control and remote-input inject commands. Desktop sharing also
 pauses RDP listen until unlock (see Remote desktop above).

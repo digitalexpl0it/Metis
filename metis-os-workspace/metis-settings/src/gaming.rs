@@ -76,9 +76,7 @@ fn detect_steam() -> SteamInstall {
     if on_path("steam") {
         return SteamInstall::Native;
     }
-    if on_path("flatpak")
-        && flatpak_has_app("com.valvesoftware.Steam")
-    {
+    if on_path("flatpak") && flatpak_has_app("com.valvesoftware.Steam") {
         return SteamInstall::Flatpak;
     }
     SteamInstall::None
@@ -144,10 +142,7 @@ fn parse_input_devices() -> Vec<InputDevice> {
                     }
                 }
             } else if let Some(rest) = line.strip_prefix("H: Handlers=") {
-                handlers = rest
-                    .split_whitespace()
-                    .map(str::to_string)
-                    .collect();
+                handlers = rest.split_whitespace().map(str::to_string).collect();
             }
         }
 

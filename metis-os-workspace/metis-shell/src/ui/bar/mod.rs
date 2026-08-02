@@ -9,11 +9,13 @@ use std::sync::mpsc::Receiver;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 
-use crate::config::{load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition};
+use crate::config::{
+    load_bar_config, save_default_bar_config, BarConfig, BarDisplays, BarPosition,
+};
 use crate::services::{
-    last_weather_snapshot, refresh_taskbars, spawn_bar_pollers, spawn_notification_service,
-    spawn_weather_service, apply_event, weather_refresh, workspace_snapshot, BarSnapshot,
-    WeatherSnapshot,
+    apply_event, last_weather_snapshot, refresh_taskbars, spawn_bar_pollers,
+    spawn_notification_service, spawn_weather_service, weather_refresh, workspace_snapshot,
+    BarSnapshot, WeatherSnapshot,
 };
 
 thread_local! {
@@ -69,7 +71,6 @@ struct BarHandle {
     autohide_css: RefCell<Option<gtk::CssProvider>>,
 }
 
-
 pub fn init_and_show() {
     if let Err(err) = save_default_bar_config() {
         tracing::warn!(%err, "failed to write default bar.json");
@@ -118,10 +119,7 @@ pub fn init_and_show() {
 
 /// Build a single bar window, optionally bound to `monitor` (None lets the
 /// compositor choose the output). Returns the handle without registering it.
-fn build_bar(
-    config: Rc<RefCell<BarConfig>>,
-    monitor: Option<&gtk::gdk::Monitor>,
-) -> BarHandle {
+fn build_bar(config: Rc<RefCell<BarConfig>>, monitor: Option<&gtk::gdk::Monitor>) -> BarHandle {
     let cfg = config.borrow().clone();
     let (win_w, win_h) = layer_window_size(&cfg);
 
@@ -473,7 +471,10 @@ fn connected_monitors() -> Vec<gtk::gdk::Monitor> {
     let list = display.monitors();
     let mut out = Vec::new();
     for i in 0..list.n_items() {
-        if let Some(monitor) = list.item(i).and_then(|o| o.downcast::<gtk::gdk::Monitor>().ok()) {
+        if let Some(monitor) = list
+            .item(i)
+            .and_then(|o| o.downcast::<gtk::gdk::Monitor>().ok())
+        {
             out.push(monitor);
         }
     }
@@ -533,8 +534,19 @@ fn watch_compositor_dismiss() {
     glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
         let path = metis_protocol::runtime_command_path();
         if let Ok(cmd) = std::fs::read_to_string(&path) {
-            let cmd = cmd.trim();
-            let (verb, arg) = cmd.split_once(char::is_whitespace).unwrap_or((cmd, ""));
+            let parsed = match metis_protocol::parse_runtime_command(
+                cmd.trim(),
+                metis_protocol::BAR_RUNTIME_VERBS,
+            ) {
+                Ok(p) => p,
+                Err(err) => {
+                    tracing::warn!(%err, "rejected bar runtime command");
+                    let _ = std::fs::remove_file(&path);
+                    return glib::ControlFlow::Continue;
+                }
+            };
+            let verb = parsed.verb;
+            let arg = parsed.arg;
             match verb {
                 "close-popovers" => {
                     // Sync close so auto-hide can re-arm on the same turn (idle
@@ -577,10 +589,7 @@ fn watch_compositor_dismiss() {
                     let mut parts = arg.trim().split_whitespace();
                     let first = parts.next().unwrap_or("");
                     let (mode, connector) = match first {
-                        "" => (
-                            crate::ui::screenshot::LaunchMode::Interactive,
-                            None,
-                        ),
+                        "" => (crate::ui::screenshot::LaunchMode::Interactive, None),
                         "instant-full" => (
                             crate::ui::screenshot::LaunchMode::InstantFull,
                             parts.next().map(str::to_string),
@@ -1152,33 +1161,30 @@ fn schedule_auto_hide(handle: &BarHandle) {
     // `bar-edge-hover` before the slide starts.
     const HIDE_GRACE_MS: u64 = 120;
     let window = handle.window.clone();
-    let id = glib::timeout_add_local(
-        std::time::Duration::from_millis(HIDE_GRACE_MS),
-        move || {
-            BARS.with(|bars| {
-                for handle in bars.borrow().iter() {
-                    if handle.window != window {
-                        continue;
+    let id = glib::timeout_add_local(std::time::Duration::from_millis(HIDE_GRACE_MS), move || {
+        BARS.with(|bars| {
+            for handle in bars.borrow().iter() {
+                if handle.window != window {
+                    continue;
+                }
+                *handle.hide_timeout.borrow_mut() = None;
+                if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
+                    if bar_ui_blocks_hide() && !auto_hide_pointer_blocks(handle) {
+                        handle.hide_when_ui_closes.set(true);
                     }
-                    *handle.hide_timeout.borrow_mut() = None;
-                    if auto_hide_pointer_blocks(handle) || bar_ui_blocks_hide() {
-                        if bar_ui_blocks_hide() && !auto_hide_pointer_blocks(handle) {
-                            handle.hide_when_ui_closes.set(true);
-                        }
-                        break;
-                    }
-                    if !handle.config.borrow().auto_hide {
-                        break;
-                    }
-                    handle.auto_hide_hidden.set(true);
-                    let cfg = handle.config.borrow().clone();
-                    apply_auto_hide_visual(handle, &cfg);
                     break;
                 }
-            });
-            glib::ControlFlow::Break
-        },
-    );
+                if !handle.config.borrow().auto_hide {
+                    break;
+                }
+                handle.auto_hide_hidden.set(true);
+                let cfg = handle.config.borrow().clone();
+                apply_auto_hide_visual(handle, &cfg);
+                break;
+            }
+        });
+        glib::ControlFlow::Break
+    });
     *handle.hide_timeout.borrow_mut() = Some(id);
 }
 
@@ -1238,10 +1244,7 @@ fn force_auto_hide_all() {
 fn apply_auto_hide_visual(handle: &BarHandle, cfg: &BarConfig) {
     // Drop any previous per-bar transform provider.
     if let Some(prev) = handle.autohide_css.borrow_mut().take() {
-        gtk::style_context_remove_provider_for_display(
-            &handle.outer.display(),
-            &prev,
-        );
+        gtk::style_context_remove_provider_for_display(&handle.outer.display(), &prev);
     }
     clear_autohide_transform(&handle.outer);
 
@@ -1251,19 +1254,16 @@ fn apply_auto_hide_visual(handle: &BarHandle, cfg: &BarConfig) {
     }
 
     // GTK's CSS engine often rejects `calc()` inside `transform`, so compute a
-    // pixel offset from the known bar thickness and inject it via CssProvider.
+    // pixel offset in code and inject it via CssProvider.
     let peek = cfg.auto_hide_peek_px.clamp(2, 8) as i32;
-    let thickness = bar_body_thickness(cfg).max(peek + 1);
-    let slide = (thickness - peek).max(1);
+    let slide = (auto_hide_slide_extent(handle, cfg) - peek).max(1);
     let transform = match cfg.position {
         BarPosition::Top => format!("translateY(-{slide}px)"),
         BarPosition::Bottom => format!("translateY({slide}px)"),
         BarPosition::Left => format!("translateX(-{slide}px)"),
         BarPosition::Right => format!("translateX({slide}px)"),
     };
-    let css = format!(
-        ".metis-bar-outer.metis-bar-autohide-hidden {{ transform: {transform}; }}"
-    );
+    let css = format!(".metis-bar-outer.metis-bar-autohide-hidden {{ transform: {transform}; }}");
     let provider = gtk::CssProvider::new();
     provider.load_from_data(&css);
     gtk::style_context_add_provider_for_display(
@@ -1275,6 +1275,33 @@ fn apply_auto_hide_visual(handle: &BarHandle, cfg: &BarConfig) {
 
     handle.outer.add_css_class("metis-bar-autohide-hidden");
     let _ = metis_protocol::set_bar_auto_hidden_flag(true);
+}
+
+/// Real on-screen cross-axis extent of the bar, used as the auto-hide slide
+/// distance. The layer surface is only *requested* at `bar_body_thickness()`;
+/// layer-shell sizes it from the content's natural size, so a taller GTK/theme
+/// minimum (Ubuntu 26.04 ships a newer GTK than 24.04) grows the surface. Sliding
+/// by the configured thickness then leaves that overflow parked on screen as a
+/// fat peek, so take the largest of config, measurement, and live allocation.
+fn auto_hide_slide_extent(handle: &BarHandle, cfg: &BarConfig) -> i32 {
+    let vertical_bar = matches!(cfg.position, BarPosition::Left | BarPosition::Right);
+    let axis = if vertical_bar {
+        gtk::Orientation::Horizontal
+    } else {
+        gtk::Orientation::Vertical
+    };
+    let (min_extent, nat_extent, _, _) = handle.outer.measure(axis, -1);
+    let allocated = if vertical_bar {
+        handle.window.width().max(handle.outer.width())
+    } else {
+        handle.window.height().max(handle.outer.height())
+    };
+    let peek = cfg.auto_hide_peek_px.clamp(2, 8) as i32;
+    bar_body_thickness(cfg)
+        .max(min_extent)
+        .max(nat_extent)
+        .max(allocated)
+        .max(peek + 1)
 }
 
 fn restore_exclusive_zone(window: &gtk::Window, config: &BarConfig) {
@@ -1329,12 +1356,8 @@ fn rebuild_bars_in_place(config: Rc<RefCell<BarConfig>>) {
             while let Some(child) = handle.pill.first_child() {
                 handle.pill.remove(&child);
             }
-            handle.widget_refs = widgets::build(
-                &handle.pill,
-                config.clone(),
-                handle.output.clone(),
-                shell,
-            );
+            handle.widget_refs =
+                widgets::build(&handle.pill, config.clone(), handle.output.clone(), shell);
             rehydrate_widget_state(&handle.widget_refs);
         }
     });

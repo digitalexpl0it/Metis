@@ -38,16 +38,15 @@ fn check_runtime_command() {
     let Ok(cmd) = std::fs::read_to_string(&path) else {
         return;
     };
-    let cmd = cmd.trim();
-    let (verb, arg) = cmd
-        .split_once(char::is_whitespace)
-        .unwrap_or((cmd, ""));
-    match verb {
+    let Ok(parsed) =
+        metis_protocol::parse_runtime_command(cmd.trim(), metis_protocol::BAR_RUNTIME_VERBS)
+    else {
+        return;
+    };
+    match parsed.verb {
         "reload-gaming" => tracing::info!("gamingd: reload-gaming"),
         "optimize-gaming" => {
-            if arg.trim() == "yes"
-                || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some()
-            {
+            if parsed.arg == "yes" || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some() {
                 match metis_gaming::optimize_flatpak_gaming(&[]) {
                     Ok(r) => tracing::info!(?r, "gamingd: flatpak optimize done"),
                     Err(err) => tracing::warn!(%err, "gamingd: flatpak optimize failed"),

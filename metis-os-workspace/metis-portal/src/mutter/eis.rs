@@ -269,8 +269,7 @@ fn apply_viewport(hub: &mut EisHub, viewport: Viewport) {
         height = viewport.height,
         "EIS: registering viewport"
     );
-    hub.viewports
-        .insert(viewport.mapping_id.clone(), viewport);
+    hub.viewports.insert(viewport.mapping_id.clone(), viewport);
     refresh_absolute_devices(hub);
 }
 
@@ -378,7 +377,10 @@ fn refresh_absolute_devices(hub: &mut EisHub) {
 
         propagate_device(device);
         client.abs_pointer = Some(device as usize);
-        tracing::info!(regions = hub.viewports.len(), "EIS: absolute pointer device added");
+        tracing::info!(
+            regions = hub.viewports.len(),
+            "EIS: absolute pointer device added"
+        );
     }
 }
 
@@ -394,15 +396,7 @@ unsafe fn attach_default_keymap(device: *mut EisDevice) -> bool {
     let model = std::env::var("XKB_DEFAULT_MODEL").unwrap_or_default();
     let layout = std::env::var("XKB_DEFAULT_LAYOUT").unwrap_or_else(|_| "us".into());
     let variant = std::env::var("XKB_DEFAULT_VARIANT").unwrap_or_default();
-    let keymap = match Keymap::new_from_names(
-        &ctx,
-        &rules,
-        &model,
-        &layout,
-        &variant,
-        None,
-        0,
-    ) {
+    let keymap = match Keymap::new_from_names(&ctx, &rules, &model, &layout, &variant, None, 0) {
         Some(k) => k,
         None => {
             tracing::warn!("EIS: failed to compile XKB keymap");
@@ -424,11 +418,7 @@ unsafe fn attach_default_keymap(device: *mut EisDevice) -> bool {
         tracing::warn!("EIS: memfd_create failed for XKB keymap");
         return false;
     }
-    let written = libc::write(
-        fd,
-        bytes.as_ptr() as *const libc::c_void,
-        bytes.len(),
-    );
+    let written = libc::write(fd, bytes.as_ptr() as *const libc::c_void, bytes.len());
     if written < 0 || written as usize != bytes.len() {
         let _ = libc::close(fd);
         tracing::warn!("EIS: failed to write XKB keymap to memfd");
@@ -543,20 +533,11 @@ fn handle_seat_bind(ev: *mut EisEvent) {
         }
     }
 
-    tracing::info!(
-        wants_pointer,
-        wants_keyboard,
-        wants_abs,
-        "EIS seat bound"
-    );
+    tracing::info!(wants_pointer, wants_keyboard, wants_abs, "EIS seat bound");
 }
 
 #[cfg(has_libeis)]
-fn desktop_coords_for_absolute(
-    device: *mut EisDevice,
-    x: f64,
-    y: f64,
-) -> Option<(f64, f64)> {
+fn desktop_coords_for_absolute(device: *mut EisDevice, x: f64, y: f64) -> Option<(f64, f64)> {
     if device.is_null() {
         return Some((x, y));
     }

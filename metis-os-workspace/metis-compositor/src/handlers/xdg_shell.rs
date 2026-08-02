@@ -73,17 +73,26 @@ impl XdgShellHandler for MetisState {
             self.floating.insert(id);
         }
 
-        let seat = Seat::from_resource(&seat).unwrap();
+        let Some(seat) = Seat::from_resource(&seat) else {
+            tracing::warn!("xdg move_request: seat resource has no Seat");
+            return;
+        };
         let wl_surface = surface.wl_surface();
 
         if let Some(start_data) = check_grab(&seat, wl_surface, serial) {
-            let pointer = seat.get_pointer().unwrap();
-            let window = self
+            let Some(pointer) = seat.get_pointer() else {
+                tracing::warn!("xdg move_request: seat has no pointer");
+                return;
+            };
+            let Some(window) = self
                 .space
                 .elements()
                 .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == wl_surface))
-                .unwrap()
-                .clone();
+                .cloned()
+            else {
+                tracing::warn!("xdg move_request: no mapped window for surface");
+                return;
+            };
             // Raise to the top before moving. Dragging a GTK headerbar issues this
             // client-side move request; without an explicit raise the window keeps
             // its old stacking position and slides *behind* whatever it's dragged
@@ -98,7 +107,10 @@ impl XdgShellHandler for MetisState {
                     .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
             }
             self.schedule_redraw();
-            let initial_window_location = self.space.element_location(&window).unwrap();
+            let Some(initial_window_location) = self.space.element_location(&window) else {
+                tracing::warn!("xdg move_request: window has no space location");
+                return;
+            };
             let grab = MoveSurfaceGrab {
                 start_data,
                 window,
@@ -123,18 +135,30 @@ impl XdgShellHandler for MetisState {
             }
         }
 
-        let seat = Seat::from_resource(&seat).unwrap();
+        let Some(seat) = Seat::from_resource(&seat) else {
+            tracing::warn!("xdg resize_request: seat resource has no Seat");
+            return;
+        };
         let wl_surface = surface.wl_surface();
 
         if let Some(start_data) = check_grab(&seat, wl_surface, serial) {
-            let pointer = seat.get_pointer().unwrap();
-            let window = self
+            let Some(pointer) = seat.get_pointer() else {
+                tracing::warn!("xdg resize_request: seat has no pointer");
+                return;
+            };
+            let Some(window) = self
                 .space
                 .elements()
                 .find(|w| w.wl_surface().is_some_and(|s| s.as_ref() == wl_surface))
-                .unwrap()
-                .clone();
-            let initial_window_location = self.space.element_location(&window).unwrap();
+                .cloned()
+            else {
+                tracing::warn!("xdg resize_request: no mapped window for surface");
+                return;
+            };
+            let Some(initial_window_location) = self.space.element_location(&window) else {
+                tracing::warn!("xdg resize_request: window has no space location");
+                return;
+            };
             let initial_window_size = window.geometry().size;
 
             surface.with_pending_state(|state| {
@@ -156,7 +180,10 @@ impl XdgShellHandler for MetisState {
         // Honor xdg_popup grabs so GTK popovers that need keyboard/pointer focus
         // (text entries, dropdowns) can present and dismiss correctly. The root of
         // the grab is either an app window or one of our layer surfaces (the bar).
-        let seat: Seat<MetisState> = Seat::from_resource(&seat).unwrap();
+        let Some(seat) = Seat::<MetisState>::from_resource(&seat) else {
+            tracing::warn!("xdg popup grab: seat resource has no Seat");
+            return;
+        };
         let kind = PopupKind::Xdg(surface);
         let Some(root) = find_popup_root_surface(&kind).ok().and_then(|root| {
             self.space
@@ -203,7 +230,8 @@ impl XdgShellHandler for MetisState {
             if let Some(pointer) = seat.get_pointer() {
                 if pointer.is_grabbed()
                     && !(pointer.has_grab(serial)
-                        || pointer.has_grab(grab.previous_serial().unwrap_or_else(|| grab.serial())))
+                        || pointer
+                            .has_grab(grab.previous_serial().unwrap_or_else(|| grab.serial())))
                 {
                     grab.ungrab(PopupUngrabStrategy::All);
                     return;
@@ -235,7 +263,10 @@ impl XdgShellHandler for MetisState {
         output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
     ) {
         if let Some(id) = self.window_id_for_toplevel(&surface) {
-            tracing::info!(id, "client requested fullscreen (xdg_toplevel.set_fullscreen)");
+            tracing::info!(
+                id,
+                "client requested fullscreen (xdg_toplevel.set_fullscreen)"
+            );
             self.set_fullscreen(id, true, output);
         } else if surface.is_initial_configure_sent() {
             surface.send_configure();
@@ -244,7 +275,10 @@ impl XdgShellHandler for MetisState {
 
     fn unfullscreen_request(&mut self, surface: ToplevelSurface) {
         if let Some(id) = self.window_id_for_toplevel(&surface) {
-            tracing::info!(id, "client requested unfullscreen (xdg_toplevel.unset_fullscreen)");
+            tracing::info!(
+                id,
+                "client requested unfullscreen (xdg_toplevel.unset_fullscreen)"
+            );
             self.set_fullscreen(id, false, None);
         } else if surface.is_initial_configure_sent() {
             surface.send_configure();
@@ -435,11 +469,8 @@ impl MetisState {
         }
         if self.windows.is_ready(id) {
             use metis_protocol::CompositorEvent;
-            self.event_bus.emit(&CompositorEvent::WindowMetadata {
-                id,
-                title,
-                app_id,
-            });
+            self.event_bus
+                .emit(&CompositorEvent::WindowMetadata { id, title, app_id });
         }
     }
 
@@ -465,12 +496,15 @@ impl MetisState {
             .elements()
             .find(|w| w.wl_surface().is_some_and(|s| *s == root))
         {
-            let window_geo = self.space.element_geometry(window).unwrap();
+            let Some(window_geo) = self.space.element_geometry(window) else {
+                tracing::warn!("xdg popup: window has no geometry");
+                return;
+            };
             // Constrain to the output the window actually sits on, not always the
             // primary — otherwise toplevel popups on a secondary output get clamped
             // to the wrong monitor's area. Both `output_geo` and `window_geo` are
             // global, so the global origins cancel below.
-            let output = self
+            let Some(output) = self
                 .space
                 .outputs()
                 .find(|o| {
@@ -479,8 +513,14 @@ impl MetisState {
                         .is_some_and(|g| g.overlaps(window_geo))
                 })
                 .or_else(|| self.space.outputs().next())
-                .unwrap();
-            let output_geo = self.space.output_geometry(output).unwrap();
+            else {
+                tracing::warn!("xdg popup: no output for window popup constraint");
+                return;
+            };
+            let Some(output_geo) = self.space.output_geometry(output) else {
+                tracing::warn!("xdg popup: output has no geometry");
+                return;
+            };
 
             let mut target = inset(output_geo);
             target.loc -= get_popup_toplevel_coords(&kind);
@@ -495,7 +535,10 @@ impl MetisState {
         let Some((output, layer_geo)) = self.layer_geometry_for_surface(&root) else {
             return;
         };
-        let output_geo = self.space.output_geometry(&output).unwrap();
+        let Some(output_geo) = self.space.output_geometry(&output) else {
+            tracing::warn!("xdg popup: layer output has no geometry");
+            return;
+        };
         // `get_unconstrained_geometry` expects `target` in the parent layer
         // surface's local frame. `layer_geo.loc` is output-local while `output_geo`
         // is global, so subtract BOTH the output origin and the layer offset —
@@ -514,7 +557,10 @@ impl MetisState {
     fn layer_geometry_for_surface(
         &self,
         surface: &WlSurface,
-    ) -> Option<(smithay::output::Output, smithay::utils::Rectangle<i32, smithay::utils::Logical>)> {
+    ) -> Option<(
+        smithay::output::Output,
+        smithay::utils::Rectangle<i32, smithay::utils::Logical>,
+    )> {
         self.space.outputs().find_map(|output| {
             let map = layer_map_for_output(output);
             let layer = map.layer_for_surface(surface, WindowSurfaceType::TOPLEVEL)?;

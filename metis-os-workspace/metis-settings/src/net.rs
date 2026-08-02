@@ -206,10 +206,7 @@ fn ethernet_devices() -> Vec<EthDev> {
         let connected = f[2].starts_with("connected");
         let conn = f[3].clone();
         let connection = (!conn.is_empty() && conn != "--").then_some(conn);
-        let ipv4 = connection
-            .as_deref()
-            .map(read_ipv4)
-            .unwrap_or_default();
+        let ipv4 = connection.as_deref().map(read_ipv4).unwrap_or_default();
         devs.push(EthDev {
             device: f[0].clone(),
             connection,
@@ -489,7 +486,14 @@ fn refine_vpn_kind(uuid: &str, kind: VpnKind) -> VpnKind {
     }
     // Prefer service-type when TYPE is the generic "vpn".
     let Some(text) = capture(
-        &["-t", "-f", "connection.id,vpn.service-type", "connection", "show", uuid],
+        &[
+            "-t",
+            "-f",
+            "connection.id,vpn.service-type",
+            "connection",
+            "show",
+            uuid,
+        ],
         Duration::from_secs(3),
     ) else {
         return kind;
@@ -538,8 +542,8 @@ pub fn list_vpn_connections() -> Vec<VpnConn> {
         kind = refine_vpn_kind(&f[1], kind);
         // Prefer `--active` membership; DEVICE is a secondary hint when NM still
         // lists an iface on a profile that is mid-transition.
-        let active = active_uuids.contains(&f[1])
-            || (f.len() >= 4 && !f[3].is_empty() && f[3] != "--");
+        let active =
+            active_uuids.contains(&f[1]) || (f.len() >= 4 && !f[3].is_empty() && f[3] != "--");
         let autoconnect = f
             .get(4)
             .map(|s| {
@@ -731,7 +735,13 @@ pub fn vpn_remember_password(target: &str, password: &str) -> Result<(), String>
     }
     // Prefer storing in the connection instead of agent-only.
     let _ = run_capture_both(
-        &["connection", "modify", target, "+vpn.data", "password-flags=0"],
+        &[
+            "connection",
+            "modify",
+            target,
+            "+vpn.data",
+            "password-flags=0",
+        ],
         Duration::from_secs(5),
     );
     Ok(())
@@ -1182,9 +1192,8 @@ pub fn vpn_import_wireguard(path: &str) -> Result<String, String> {
             (src.to_path_buf(), None)
         } else {
             let tmp = std::env::temp_dir().join(format!("{iface}.conf"));
-            std::fs::copy(src, &tmp).map_err(|e| {
-                format!("Could not prepare WireGuard config for import: {e}")
-            })?;
+            std::fs::copy(src, &tmp)
+                .map_err(|e| format!("Could not prepare WireGuard config for import: {e}"))?;
             (tmp.clone(), Some(tmp))
         };
 
@@ -1203,7 +1212,13 @@ pub fn vpn_import_wireguard(path: &str) -> Result<String, String> {
     // differs from the short interface name NM used at import.
     if friendly != imported && friendly != iface {
         let (_o, _e, ok) = run_capture_both(
-            &["connection", "modify", &imported, "connection.id", &friendly],
+            &[
+                "connection",
+                "modify",
+                &imported,
+                "connection.id",
+                &friendly,
+            ],
             Duration::from_secs(8),
         );
         if ok {
@@ -1248,7 +1263,11 @@ fn sanitize_wg_iface_name(stem: &str) -> String {
     if out.is_empty() {
         out = "wg".into();
     }
-    if !out.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+    if !out
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphanumeric())
+    {
         out = format!("wg{out}");
     }
     if out.len() > 15 {
@@ -1342,7 +1361,8 @@ pub fn vpn_create_wireguard(cfg: WireGuardCreate) -> Result<(), String> {
     if !ok {
         let err = if stderr.is_empty() { stdout } else { stderr };
         return Err(if err.trim().is_empty() {
-            "Could not create WireGuard connection (is WireGuard supported by NetworkManager?).".into()
+            "Could not create WireGuard connection (is WireGuard supported by NetworkManager?)."
+                .into()
         } else {
             err
         });
@@ -1387,8 +1407,7 @@ pub fn vpn_create_wireguard(cfg: WireGuardCreate) -> Result<(), String> {
 pub fn vpn_create_openvpn(cfg: OpenVpnCreate) -> Result<(), String> {
     if !openvpn_plugin_present() {
         return Err(
-            "OpenVPN plugin missing. Install with: sudo apt install network-manager-openvpn"
-                .into(),
+            "OpenVPN plugin missing. Install with: sudo apt install network-manager-openvpn".into(),
         );
     }
     let name = cfg.name.trim();
@@ -1404,9 +1423,7 @@ pub fn vpn_create_openvpn(cfg: OpenVpnCreate) -> Result<(), String> {
         return Err("Username is required.".into());
     }
 
-    let mut data = format!(
-        "remote={gateway},username={username},connection-type=password"
-    );
+    let mut data = format!("remote={gateway},username={username},connection-type=password");
     let ca = cfg.ca_path.trim();
     if !ca.is_empty() {
         if !std::path::Path::new(ca).is_file() {
@@ -1453,7 +1470,13 @@ pub fn vpn_create_openvpn(cfg: OpenVpnCreate) -> Result<(), String> {
         }
         if cfg.remember_password {
             let _ = run_capture_both(
-                &["connection", "modify", name, "+vpn.data", "password-flags=0"],
+                &[
+                    "connection",
+                    "modify",
+                    name,
+                    "+vpn.data",
+                    "password-flags=0",
+                ],
                 Duration::from_secs(5),
             );
         }

@@ -757,22 +757,24 @@ fn attach_tooltip(
             let tip = tip.clone();
             let text = text.clone();
             let timer_inner = timer.clone();
-            let id = glib::timeout_add_local_once(std::time::Duration::from_millis(450), move || {
-                *timer_inner.borrow_mut() = None;
-                let (Some(w), Some(ov)) = (widget_weak.upgrade(), overlay_weak.upgrade()) else {
-                    return;
-                };
-                tip.set_label(&text);
-                // Position the tooltip just to the right of the button, vertically
-                // centered, in the overlay's coordinate space.
-                if let Some((x, y)) =
-                    w.translate_coordinates(&ov, w.width() as f64, w.height() as f64 / 2.0)
-                {
-                    tip.set_margin_start((x as i32 + 8).max(0));
-                    tip.set_margin_top((y as i32 - 14).max(0));
-                }
-                tip.set_visible(true);
-            });
+            let id =
+                glib::timeout_add_local_once(std::time::Duration::from_millis(450), move || {
+                    *timer_inner.borrow_mut() = None;
+                    let (Some(w), Some(ov)) = (widget_weak.upgrade(), overlay_weak.upgrade())
+                    else {
+                        return;
+                    };
+                    tip.set_label(&text);
+                    // Position the tooltip just to the right of the button, vertically
+                    // centered, in the overlay's coordinate space.
+                    if let Some((x, y)) =
+                        w.translate_coordinates(&ov, w.width() as f64, w.height() as f64 / 2.0)
+                    {
+                        tip.set_margin_start((x as i32 + 8).max(0));
+                        tip.set_margin_top((y as i32 - 14).max(0));
+                    }
+                    tip.set_visible(true);
+                });
             *timer.borrow_mut() = Some(id);
         });
     }

@@ -44,7 +44,10 @@ impl WorldClocksPage {
         local_card.add_css_class("metis-clock-card-main");
         let local_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
         local_info.set_hexpand(true);
-        let local_name = gtk::Label::builder().label(metis_i18n::tr("Local Time")).halign(gtk::Align::Start).build();
+        let local_name = gtk::Label::builder()
+            .label(metis_i18n::tr("Local Time"))
+            .halign(gtk::Align::Start)
+            .build();
         local_name.add_css_class("metis-clock-card-name");
         let local_offset = gtk::Label::builder()
             .label(&Local::now().format("%A, %B %-d").to_string())

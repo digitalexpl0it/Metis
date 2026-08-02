@@ -201,12 +201,7 @@ mod tests {
             rows: 8,
             tiles: vec![app("app-1"), app("app-2")],
         };
-        auto_tile_apps(
-            &mut layout,
-            None,
-            &["app-1".into(), "app-2".into()],
-        )
-        .expect("auto tile");
+        auto_tile_apps(&mut layout, None, &["app-1".into(), "app-2".into()]).expect("auto tile");
 
         let a = layout.tiles.iter().find(|t| t.id == "app-1").unwrap();
         let b = layout.tiles.iter().find(|t| t.id == "app-2").unwrap();
@@ -252,7 +247,10 @@ mod tests {
         let mut layout: GridLayout = serde_json::from_str(raw).expect("parse desk.json fixture");
         crate::layout_engine::sanitize_layout(&mut layout);
         assert!(
-            !layout.tiles.iter().any(|t| matches!(t.kind, TileKind::Widget { .. })),
+            !layout
+                .tiles
+                .iter()
+                .any(|t| matches!(t.kind, TileKind::Widget { .. })),
             "legacy widget tiles should be stripped"
         );
         auto_tile_apps(&mut layout, None, &["app-8".into()]).expect("auto tile after sanitize");

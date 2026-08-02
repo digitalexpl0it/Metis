@@ -943,7 +943,10 @@ impl MetisState {
         let wl_mode = WlMode::from(drm_mode);
 
         let (make, model) = {
-            let udev = self.udev.as_ref().unwrap();
+            let Some(udev) = self.udev.as_ref() else {
+                tracing::warn!(%name, "connector setup: udev state missing");
+                return;
+            };
             let Some(backend) = udev.backends.get(&node) else {
                 return;
             };
@@ -980,13 +983,21 @@ impl MetisState {
         self.space.map_output(&output, position);
 
         let planes = {
-            let udev = self.udev.as_ref().unwrap();
+            let Some(udev) = self.udev.as_ref() else {
+                tracing::warn!(%name, "connector planes: udev state missing");
+                self.space.unmap_output(&output);
+                return;
+            };
             udev.backends
                 .get(&node)
                 .and_then(|backend| backend.drm_output_manager.device().planes(&crtc).ok())
         };
         let drm_output = {
-            let udev = self.udev.as_mut().unwrap();
+            let Some(udev) = self.udev.as_mut() else {
+                tracing::warn!(%name, "connector DRM init: udev state missing");
+                self.space.unmap_output(&output);
+                return;
+            };
             let UdevState { gpus, backends, .. } = udev;
             let Some(backend) = backends.get_mut(&node) else {
                 self.space.unmap_output(&output);
@@ -1028,23 +1039,32 @@ impl MetisState {
 
         // Per-surface dmabuf feedback (render + scanout tranche) so fullscreen
         // clients can allocate directly-scannable buffers on this display.
-        let dmabuf_feedback = {
-            let udev = self.udev.as_mut().unwrap();
-            let render_node = udev.backends.get(&node).map(|backend| backend.render_node);
-            let render_formats = render_node.and_then(|render_node| {
-                udev.gpus
-                    .as_mut()?
-                    .single_renderer(&render_node)
-                    .ok()
-                    .map(|renderer| renderer.dmabuf_formats())
-            });
-            render_node
-                .zip(render_formats)
-                .and_then(|(render_node, formats)| {
-                    drm_output.with_compositor(|compositor| {
-                        build_surface_dmabuf_feedback(render_node, formats, compositor.surface())
+        let dmabuf_feedback = match self.udev.as_mut() {
+            Some(udev) => {
+                let render_node = udev.backends.get(&node).map(|backend| backend.render_node);
+                let render_formats = render_node.and_then(|render_node| {
+                    udev.gpus
+                        .as_mut()?
+                        .single_renderer(&render_node)
+                        .ok()
+                        .map(|renderer| renderer.dmabuf_formats())
+                });
+                render_node
+                    .zip(render_formats)
+                    .and_then(|(render_node, formats)| {
+                        drm_output.with_compositor(|compositor| {
+                            build_surface_dmabuf_feedback(
+                                render_node,
+                                formats,
+                                compositor.surface(),
+                            )
+                        })
                     })
-                })
+            }
+            None => {
+                tracing::warn!(%name, "dmabuf feedback: udev state missing");
+                None
+            }
         };
 
         output
@@ -1110,12 +1130,13 @@ impl MetisState {
 
         let make = output.physical_properties().make.clone();
         let model = output.physical_properties().model.clone();
-        self.event_bus.emit(&metis_protocol::CompositorEvent::OutputHotplug {
-            connected: true,
-            name: name.clone(),
-            make,
-            model,
-        });
+        self.event_bus
+            .emit(&metis_protocol::CompositorEvent::OutputHotplug {
+                connected: true,
+                name: name.clone(),
+                make,
+                model,
+            });
     }
 
     fn connector_disconnected(&mut self, node: DrmNode, crtc: crtc::Handle) {
@@ -1153,12 +1174,13 @@ impl MetisState {
             self.decorations.invalidate_all();
             self.nudge_clients_after_output_change();
             self.damaged = true;
-            self.event_bus.emit(&metis_protocol::CompositorEvent::OutputHotplug {
-                connected: false,
-                name,
-                make,
-                model,
-            });
+            self.event_bus
+                .emit(&metis_protocol::CompositorEvent::OutputHotplug {
+                    connected: false,
+                    name,
+                    make,
+                    model,
+                });
         }
     }
 
@@ -1906,7 +1928,11 @@ impl MetisState {
         };
         // Blank the panel. Without this the last frame stays lit while the
         // pointer can no longer enter — feels like a "dead but still on" monitor.
-        if let Some(backend) = self.udev.as_ref().and_then(|u| u.backends.get(&device_node)) {
+        if let Some(backend) = self
+            .udev
+            .as_ref()
+            .and_then(|u| u.backends.get(&device_node))
+        {
             let device = backend.drm_output_manager.device();
             set_connector_dpms(device, connector, false, name);
         }
@@ -1938,7 +1964,11 @@ impl MetisState {
             surface.pending = true;
             (output, surface.connector, id.device)
         };
-        if let Some(backend) = self.udev.as_ref().and_then(|u| u.backends.get(&device_node)) {
+        if let Some(backend) = self
+            .udev
+            .as_ref()
+            .and_then(|u| u.backends.get(&device_node))
+        {
             let device = backend.drm_output_manager.device();
             set_connector_dpms(device, connector, true, name);
         }

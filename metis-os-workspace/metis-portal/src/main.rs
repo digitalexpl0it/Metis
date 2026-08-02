@@ -6,18 +6,18 @@ mod compositor_remote_input;
 mod mutter;
 mod pipewire;
 mod power_profile;
+mod screencast;
 mod screensaver;
 mod screenshot;
-mod screencast;
 mod settings;
 
 use std::io::{self, Write};
 use std::sync::Arc;
 
-use futures_util::future::pending;
 use background::MetisBackground;
-use screenshot::MetisScreenshot;
+use futures_util::future::pending;
 use screencast::MetisScreencast;
+use screenshot::MetisScreenshot;
 use settings::MetisSettings;
 
 const DBUS_NAME: &str = "org.freedesktop.impl.portal.desktop.metis";
@@ -92,14 +92,17 @@ async fn run_portal() -> ashpd::Result<()> {
     let pipewire = Arc::new(pipewire::PipeWireHub::start()?);
     let capture = Arc::new(capture::CaptureHub::new(Arc::clone(&pipewire)));
 
-    let connection = zbus::Connection::session().await.map_err(|err| {
-        ashpd::PortalError::Failed(format!("session bus connection: {err}"))
-    })?;
+    let connection = zbus::Connection::session()
+        .await
+        .map_err(|err| ashpd::PortalError::Failed(format!("session bus connection: {err}")))?;
 
     ashpd::backend::Builder::new(DBUS_NAME)?
         .settings(MetisSettings)
         .screenshot(MetisScreenshot::new(Arc::clone(&capture)))
-        .screencast(MetisScreencast::new(Arc::clone(&capture), Arc::clone(&pipewire)))
+        .screencast(MetisScreencast::new(
+            Arc::clone(&capture),
+            Arc::clone(&pipewire),
+        ))
         .background(MetisBackground)
         .build_with_connection(connection.clone())
         .await?;
@@ -108,7 +111,8 @@ async fn run_portal() -> ashpd::Result<()> {
         tracing::warn!(%err, "PowerProfileMonitor portal unavailable");
     }
 
-    if let Err(err) = mutter::serve(&connection, Arc::clone(&pipewire), Arc::clone(&capture)).await {
+    if let Err(err) = mutter::serve(&connection, Arc::clone(&pipewire), Arc::clone(&capture)).await
+    {
         tracing::warn!(
             %err,
             "Mutter RemoteDesktop/ScreenCast shim unavailable — gnome-remote-desktop RDP will not bind"

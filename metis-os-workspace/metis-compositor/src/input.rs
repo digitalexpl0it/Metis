@@ -1,15 +1,15 @@
 use smithay::{
+    backend::input::KeyState,
     backend::input::{
         AbsolutePositionEvent, Axis, ButtonState, Event, InputBackend, InputEvent,
         KeyboardKeyEvent, PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, TouchEvent,
     },
-    backend::input::KeyState,
     input::{
         keyboard::{keysyms, FilterResult},
         pointer::{AxisFrame, ButtonEvent, MotionEvent, RelativeMotionEvent},
         touch::{DownEvent, MotionEvent as TouchMotionEventWl, UpEvent},
     },
-    utils::{Logical, Point, SERIAL_COUNTER, Serial},
+    utils::{Logical, Point, Serial, SERIAL_COUNTER},
     wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint},
 };
 
@@ -35,10 +35,7 @@ fn vt_from_keysym(sym: u32) -> Option<i32> {
 fn is_super_keysym(sym: u32) -> bool {
     matches!(
         sym,
-        keysyms::KEY_Super_L
-            | keysyms::KEY_Super_R
-            | keysyms::KEY_Meta_L
-            | keysyms::KEY_Meta_R
+        keysyms::KEY_Super_L | keysyms::KEY_Super_R | keysyms::KEY_Meta_L | keysyms::KEY_Meta_R
     )
 }
 
@@ -109,10 +106,8 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
 
     match action {
         KeybindAction::Screenshot => {
-            let _ = metis_protocol::write_runtime_command(&screenshot_runtime_cmd(
-                state,
-                "screenshot",
-            ));
+            let _ =
+                metis_protocol::write_runtime_command(&screenshot_runtime_cmd(state, "screenshot"));
             true
         }
         KeybindAction::ScreenshotFull => {
@@ -388,7 +383,11 @@ impl MetisState {
                     }
                 }
 
-                self.seat.get_keyboard().unwrap().input::<(), _>(
+                let Some(keyboard) = self.seat.get_keyboard() else {
+                    tracing::warn!("keyboard event: seat has no keyboard");
+                    return;
+                };
+                keyboard.input::<(), _>(
                     self,
                     event.key_code(),
                     key_state,
@@ -523,7 +522,9 @@ impl MetisState {
                                     .raw_latin_sym_or_raw_current_sym()
                                     .map(u32::from)
                                     .unwrap_or(sym);
-                                if let Some(vt) = vt_from_keysym(sym).or_else(|| vt_from_keysym(vt_sym)) {
+                                if let Some(vt) =
+                                    vt_from_keysym(sym).or_else(|| vt_from_keysym(vt_sym))
+                                {
                                     state.drm_change_vt(vt);
                                     return FilterResult::Intercept(());
                                 }
@@ -581,10 +582,8 @@ impl MetisState {
                                 && !state.session_is_locked()
                             {
                                 if let Some(id) = state.focused_window_id() {
-                                    let app_id = state
-                                        .windows
-                                        .get(id)
-                                        .and_then(|r| r.app_id.clone());
+                                    let app_id =
+                                        state.windows.get(id).and_then(|r| r.app_id.clone());
                                     if app_id.as_deref().is_some_and(|a| {
                                         a.starts_with("steam_app_") || a.contains(".exe")
                                     }) {
@@ -602,7 +601,10 @@ impl MetisState {
                 );
             }
             InputEvent::PointerMotion { event, .. } => {
-                let pointer = self.seat.get_pointer().unwrap();
+                let Some(pointer) = self.seat.get_pointer() else {
+                    tracing::warn!("pointer motion: seat has no pointer");
+                    return;
+                };
                 let current = pointer.current_location();
                 // Surface under the *current* position drives constraint checks:
                 // when the pointer is locked it never moves, so the target can't
@@ -668,8 +670,7 @@ impl MetisState {
                 if pointer_confined {
                     if let Some((surface, surface_loc)) = under.as_ref() {
                         let new_under = self.pointer_target_at(location);
-                        let same_surface =
-                            new_under.as_ref().map(|(s, _)| s) == Some(surface);
+                        let same_surface = new_under.as_ref().map(|(s, _)| s) == Some(surface);
                         let in_region = confine_region.as_ref().is_none_or(|region| {
                             region.contains((location - *surface_loc).to_i32_round())
                         });
@@ -711,12 +712,7 @@ impl MetisState {
                 // Never re-arm a lock the client deactivated for a pause menu —
                 // see `maybe_arm_pointer_constraint`.
                 if let Some((surface, surface_loc)) = new_under {
-                    self.maybe_arm_pointer_constraint(
-                        &surface,
-                        &pointer,
-                        location,
-                        surface_loc,
-                    );
+                    self.maybe_arm_pointer_constraint(&surface, &pointer, location, surface_loc);
                 }
             }
             InputEvent::PointerMotionAbsolute { event, .. } => {
@@ -726,7 +722,10 @@ impl MetisState {
                 // into the primary output's (now smaller) rect.
                 let bounds = self.desktop_bounds();
                 let pos = event.position_transformed(bounds.size) + bounds.loc.to_f64();
-                let pointer = self.seat.get_pointer().unwrap();
+                let Some(pointer) = self.seat.get_pointer() else {
+                    tracing::warn!("pointer absolute motion: seat has no pointer");
+                    return;
+                };
                 pointer.set_location(pos);
                 // Redraw so a client-drawn cursor follows the pointer.
                 self.schedule_redraw();
@@ -752,7 +751,10 @@ impl MetisState {
             }
             InputEvent::PointerButton { event, .. } => {
                 needs_redraw = true;
-                let pointer = self.seat.get_pointer().unwrap();
+                let Some(pointer) = self.seat.get_pointer() else {
+                    tracing::warn!("pointer button: seat has no pointer");
+                    return;
+                };
                 let serial = SERIAL_COUNTER.next_serial();
                 let button = event.button_code();
                 let button_state = event.state();
@@ -761,12 +763,7 @@ impl MetisState {
                 // Mutter/KWin: activate a pending lock before click delivery so a
                 // brief unlock cannot inject absolute desktop motion on fire.
                 if let Some((surface, surface_loc)) = under.as_ref() {
-                    self.maybe_arm_pointer_constraint(
-                        surface,
-                        &pointer,
-                        raw_loc,
-                        *surface_loc,
-                    );
+                    self.maybe_arm_pointer_constraint(surface, &pointer, raw_loc, *surface_loc);
                 }
                 let loc = raw_loc;
                 let pointer_locked = under
@@ -886,14 +883,12 @@ impl MetisState {
                 needs_redraw = true;
                 let source = event.source();
                 let mult = self.input_runtime.scroll_multiplier();
-                let horizontal_amount = event
-                    .amount(Axis::Horizontal)
-                    .unwrap_or_else(|| event.amount_v120(Axis::Horizontal).unwrap_or(0.0) * 15.0 / 120.)
-                    * mult;
-                let vertical_amount = event
-                    .amount(Axis::Vertical)
-                    .unwrap_or_else(|| event.amount_v120(Axis::Vertical).unwrap_or(0.0) * 15.0 / 120.)
-                    * mult;
+                let horizontal_amount = event.amount(Axis::Horizontal).unwrap_or_else(|| {
+                    event.amount_v120(Axis::Horizontal).unwrap_or(0.0) * 15.0 / 120.
+                }) * mult;
+                let vertical_amount = event.amount(Axis::Vertical).unwrap_or_else(|| {
+                    event.amount_v120(Axis::Vertical).unwrap_or(0.0) * 15.0 / 120.
+                }) * mult;
 
                 let mut frame = AxisFrame::new(event.time_msec()).source(source);
                 if horizontal_amount != 0.0 {
@@ -903,7 +898,10 @@ impl MetisState {
                     frame = frame.value(Axis::Vertical, vertical_amount);
                 }
 
-                let pointer = self.seat.get_pointer().unwrap();
+                let Some(pointer) = self.seat.get_pointer() else {
+                    tracing::warn!("pointer axis: seat has no pointer");
+                    return;
+                };
                 pointer.axis(self, frame);
                 pointer.frame(self);
             }
@@ -1021,8 +1019,14 @@ impl MetisState {
     }
 
     fn update_keyboard_focus(&mut self, location: Point<f64, Logical>, serial: Serial) {
-        let keyboard = self.seat.get_keyboard().unwrap();
-        let pointer = self.seat.get_pointer().unwrap();
+        let Some(keyboard) = self.seat.get_keyboard() else {
+            tracing::warn!("update_keyboard_focus: seat has no keyboard");
+            return;
+        };
+        let Some(pointer) = self.seat.get_pointer() else {
+            tracing::warn!("update_keyboard_focus: seat has no pointer");
+            return;
+        };
 
         if pointer.is_grabbed() || keyboard.is_grabbed() {
             return;

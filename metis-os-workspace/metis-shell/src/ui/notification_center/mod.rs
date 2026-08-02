@@ -555,7 +555,11 @@ fn build_center() -> Rc<Center> {
     let rail = build_tool_rail(
         &stack,
         &[
-            ("calendar", &metis_i18n::tr("Calendar"), "x-office-calendar-symbolic"),
+            (
+                "calendar",
+                &metis_i18n::tr("Calendar"),
+                "x-office-calendar-symbolic",
+            ),
             (
                 "clocks",
                 &metis_i18n::tr("World clocks"),
@@ -567,7 +571,11 @@ fn build_center() -> Rc<Center> {
                 "media-playback-start-symbolic",
             ),
             ("timer", &metis_i18n::tr("Timer"), "alarm-symbolic"),
-            ("alarms", &metis_i18n::tr("Alarms"), "appointment-soon-symbolic"),
+            (
+                "alarms",
+                &metis_i18n::tr("Alarms"),
+                "appointment-soon-symbolic",
+            ),
         ],
     );
     tools_header.append(&rail);

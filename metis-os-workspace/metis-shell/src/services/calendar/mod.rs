@@ -66,12 +66,14 @@ pub fn spawn_calendar_service() -> (Sender<CalCommand>, Receiver<Vec<Event>>) {
     let _ = CAL_CMD_TX.set(cmd_tx.clone());
     let _ = thread::Builder::new()
         .name("metis-calendar".into())
-        .spawn(move || match tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-        {
-            Ok(rt) => service_loop(&rt, cmd_rx, upd_tx),
-            Err(e) => tracing::error!(error = %e, "calendar runtime failed to start"),
+        .spawn(move || {
+            match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => service_loop(&rt, cmd_rx, upd_tx),
+                Err(e) => tracing::error!(error = %e, "calendar runtime failed to start"),
+            }
         });
     (cmd_tx, upd_rx)
 }

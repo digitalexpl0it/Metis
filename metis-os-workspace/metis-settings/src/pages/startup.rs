@@ -20,7 +20,7 @@ pub fn build() -> gtk::Widget {
 
     let hint = gtk::Label::new(Some(&tr(
         "Applications listed here launch once after you sign in. Nothing starts \
-         until you add apps. Custom command lines are not supported."
+         until you add apps. Custom command lines are not supported.",
     )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
@@ -28,8 +28,7 @@ pub fn build() -> gtk::Widget {
     content.append(&hint);
 
     // ---- Master switch ----------------------------------------------------
-    let (master_card, master_body) =
-        ui::section_with_icon(&tr("Startup"), "system-run-symbolic");
+    let (master_card, master_body) = ui::section_with_icon(&tr("Startup"), "system-run-symbolic");
     let master = gtk::Switch::new();
     master.set_active(cfg.borrow().enabled);
     master.set_halign(gtk::Align::End);
@@ -116,8 +115,7 @@ fn rebuild_list(list: &gtk::ListBox, cfg: &Rc<RefCell<StartupConfig>>) {
         let labels = gtk::Box::new(gtk::Orientation::Vertical, 2);
         labels.set_hexpand(true);
         let name = gtk::Label::new(Some(
-            meta.map(|a| a.name.as_str())
-                .unwrap_or(entry.id.as_str()),
+            meta.map(|a| a.name.as_str()).unwrap_or(entry.id.as_str()),
         ));
         name.set_xalign(0.0);
         name.add_css_class("heading");
@@ -240,12 +238,8 @@ fn refill_picker(
     }
 
     let q = query.trim().to_ascii_lowercase();
-    let already: std::collections::HashSet<String> = cfg
-        .borrow()
-        .entries
-        .iter()
-        .map(|e| e.id.clone())
-        .collect();
+    let already: std::collections::HashSet<String> =
+        cfg.borrow().entries.iter().map(|e| e.id.clone()).collect();
 
     let mut apps: Vec<AppEntry> = apps::list_apps()
         .into_iter()

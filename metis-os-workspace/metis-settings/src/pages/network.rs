@@ -118,8 +118,8 @@ pub fn build(initial_tab: Option<&str>) -> gtk::Widget {
     if !net::openvpn_plugin_present() {
         let plugin_hint = gtk::Label::new(Some(&tr(
             "OpenVPN import needs the NetworkManager plugin. Install with:\n\
-             sudo apt install network-manager-openvpn"
-            )));
+             sudo apt install network-manager-openvpn",
+        )));
         plugin_hint.set_xalign(0.0);
         plugin_hint.set_wrap(true);
         plugin_hint.set_wrap_mode(gtk::pango::WrapMode::WordChar);
@@ -411,7 +411,9 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
     let saved_list = gtk::Box::new(gtk::Orientation::Vertical, 4);
     saved_list.add_css_class("metis-settings-list");
     if snap.saved.is_empty() {
-        sections.saved.append(&hint(&tr("No saved Wi-Fi networks.")));
+        sections
+            .saved
+            .append(&hint(&tr("No saved Wi-Fi networks.")));
     } else {
         for c in &snap.saved {
             let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
@@ -448,9 +450,9 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
                 Some(conn) => sections
                     .wifi_dns
                     .append(&dns_override_editor(&conn.name, &conn.ipv4, refresh)),
-                None => sections
-                    .wifi_dns
-                    .append(&hint(&tr("Connect to a Wi-Fi network to override its DNS."))),
+                None => sections.wifi_dns.append(&hint(&tr(
+                    "Connect to a Wi-Fi network to override its DNS.",
+                ))),
             }
             *sections.last_active_wifi.borrow_mut() = Some(snap.active_wifi.clone());
         }
@@ -515,11 +517,7 @@ fn render<F: Fn() + 'static>(sections: &Rc<Sections>, snap: &NetSnapshot, refres
     }
 }
 
-fn vpn_row<F: Fn() + 'static>(
-    vpn: &VpnConn,
-    refresh: &Rc<F>,
-    status: &gtk::Label,
-) -> gtk::Widget {
+fn vpn_row<F: Fn() + 'static>(vpn: &VpnConn, refresh: &Rc<F>, status: &gtk::Label) -> gtk::Widget {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     row.set_valign(gtk::Align::Center);
     if vpn.active {
@@ -654,12 +652,7 @@ fn vpn_row<F: Fn() + 'static>(
             let uuid = vpn.uuid.clone();
             edit.connect_clicked(move |btn| {
                 let parent = btn.root().and_downcast::<gtk::Window>();
-                show_wireguard_edit_dialog(
-                    parent.as_ref(),
-                    &uuid,
-                    status.clone(),
-                    refresh.clone(),
-                );
+                show_wireguard_edit_dialog(parent.as_ref(), &uuid, status.clone(), refresh.clone());
             });
         }
         actions.append(&edit);
@@ -744,46 +737,44 @@ fn run_vpn_toggle<F: Fn() + 'static>(
     let btn = btn.clone();
     let status = status.clone();
     let refresh = refresh.clone();
-    glib::timeout_add_local(Duration::from_millis(50), move || {
-        match rx.try_recv() {
-            Ok(Ok(())) => {
-                let msg = if connect {
-                    tr("Connected.")
-                } else {
-                    tr("Disconnected.")
-                };
-                set_vpn_status(&status, &msg, false);
-                refresh();
-                glib::ControlFlow::Break
+    glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+        Ok(Ok(())) => {
+            let msg = if connect {
+                tr("Connected.")
+            } else {
+                tr("Disconnected.")
+            };
+            set_vpn_status(&status, &msg, false);
+            refresh();
+            glib::ControlFlow::Break
+        }
+        Ok(Err(e)) => {
+            btn.set_sensitive(true);
+            btn.set_label(&done_label);
+            if connect && net::vpn_secret_required(&e) {
+                set_vpn_status(
+                    &status,
+                    &tr("Password required — enter your VPN password."),
+                    false,
+                );
+                let parent = btn.root().and_downcast::<gtk::Window>();
+                show_vpn_password_dialog(
+                    parent.as_ref(),
+                    &uuid_for_prompt,
+                    status.clone(),
+                    refresh.clone(),
+                    btn.clone(),
+                );
+            } else {
+                set_vpn_status(&status, &e, true);
             }
-            Ok(Err(e)) => {
-                btn.set_sensitive(true);
-                btn.set_label(&done_label);
-                if connect && net::vpn_secret_required(&e) {
-                    set_vpn_status(
-                        &status,
-                        &tr("Password required — enter your VPN password."),
-                        false,
-                    );
-                    let parent = btn.root().and_downcast::<gtk::Window>();
-                    show_vpn_password_dialog(
-                        parent.as_ref(),
-                        &uuid_for_prompt,
-                        status.clone(),
-                        refresh.clone(),
-                        btn.clone(),
-                    );
-                } else {
-                    set_vpn_status(&status, &e, true);
-                }
-                glib::ControlFlow::Break
-            }
-            Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-            Err(mpsc::TryRecvError::Disconnected) => {
-                btn.set_sensitive(true);
-                btn.set_label(&done_label);
-                glib::ControlFlow::Break
-            }
+            glib::ControlFlow::Break
+        }
+        Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+        Err(mpsc::TryRecvError::Disconnected) => {
+            btn.set_sensitive(true);
+            btn.set_label(&done_label);
+            glib::ControlFlow::Break
         }
     });
 }
@@ -828,8 +819,8 @@ fn show_vpn_password_dialog<F: Fn() + 'static>(
 
     let hint = gtk::Label::new(Some(&tr(
         "This profile needs a password that NetworkManager does not have yet \
-         (common after moving from another desktop). Enter it to connect."
-        )));
+         (common after moving from another desktop). Enter it to connect.",
+    )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -907,32 +898,30 @@ fn show_vpn_password_dialog<F: Fn() + 'static>(
             let err = err.clone();
             let connect = connect.clone();
             let connect_btn = connect_btn.clone();
-            glib::timeout_add_local(Duration::from_millis(50), move || {
-                match rx.try_recv() {
-                    Ok(Ok(())) => {
-                        set_vpn_status(&status, &tr("Connected."), false);
-                        refresh();
-                        dialog.close();
-                        glib::ControlFlow::Break
-                    }
-                    Ok(Err(e)) => {
-                        err.set_text(&e);
-                        err.set_visible(true);
-                        connect.set_sensitive(true);
-                        connect.set_label(&tr("Connect"));
-                        connect_btn.set_sensitive(true);
-                        connect_btn.set_label(&tr("Connect"));
-                        set_vpn_status(&status, &e, true);
-                        glib::ControlFlow::Break
-                    }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        connect.set_sensitive(true);
-                        connect.set_label(&tr("Connect"));
-                        connect_btn.set_sensitive(true);
-                        connect_btn.set_label(&tr("Connect"));
-                        glib::ControlFlow::Break
-                    }
+            glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+                Ok(Ok(())) => {
+                    set_vpn_status(&status, &tr("Connected."), false);
+                    refresh();
+                    dialog.close();
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(e)) => {
+                    err.set_text(&e);
+                    err.set_visible(true);
+                    connect.set_sensitive(true);
+                    connect.set_label(&tr("Connect"));
+                    connect_btn.set_sensitive(true);
+                    connect_btn.set_label(&tr("Connect"));
+                    set_vpn_status(&status, &e, true);
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    connect.set_sensitive(true);
+                    connect.set_label(&tr("Connect"));
+                    connect_btn.set_sensitive(true);
+                    connect_btn.set_label(&tr("Connect"));
+                    glib::ControlFlow::Break
                 }
             });
         })
@@ -966,7 +955,11 @@ fn set_vpn_status(label: &gtk::Label, msg: &str, error: bool) {
     }
 }
 
-fn pick_vpn_import(parent: Option<&gtk::Window>, status: gtk::Label, refresh: Rc<impl Fn() + 'static>) {
+fn pick_vpn_import(
+    parent: Option<&gtk::Window>,
+    status: gtk::Label,
+    refresh: Rc<impl Fn() + 'static>,
+) {
     let dialog = gtk::FileDialog::new();
     dialog.set_title(&tr("Import VPN profile"));
     let filter = gtk::FileFilter::new();
@@ -1017,7 +1010,11 @@ fn show_openvpn_dialog(
     refresh: Rc<impl Fn() + 'static>,
 ) {
     let Some(parent) = parent else {
-        set_vpn_status(&status, &tr("Could not open OpenVPN dialog (no parent window)."), true);
+        set_vpn_status(
+            &status,
+            &tr("Could not open OpenVPN dialog (no parent window)."),
+            true,
+        );
         return;
     };
     if !net::openvpn_plugin_present() {
@@ -1180,27 +1177,25 @@ fn show_openvpn_dialog(
             let refresh = refresh.clone();
             let err = err.clone();
             let create_btn = create_btn.clone();
-            glib::timeout_add_local(Duration::from_millis(50), move || {
-                match rx.try_recv() {
-                    Ok(Ok(())) => {
-                        set_vpn_status(&status, &tr("OpenVPN profile created."), false);
-                        refresh();
-                        dialog.close();
-                        glib::ControlFlow::Break
-                    }
-                    Ok(Err(e)) => {
-                        err.set_text(&e);
-                        err.set_visible(true);
-                        create_btn.set_sensitive(true);
-                        create_btn.set_label(&tr("Create"));
-                        glib::ControlFlow::Break
-                    }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        create_btn.set_sensitive(true);
-                        create_btn.set_label(&tr("Create"));
-                        glib::ControlFlow::Break
-                    }
+            glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+                Ok(Ok(())) => {
+                    set_vpn_status(&status, &tr("OpenVPN profile created."), false);
+                    refresh();
+                    dialog.close();
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(e)) => {
+                    err.set_text(&e);
+                    err.set_visible(true);
+                    create_btn.set_sensitive(true);
+                    create_btn.set_label(&tr("Create"));
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    create_btn.set_sensitive(true);
+                    create_btn.set_label(&tr("Create"));
+                    glib::ControlFlow::Break
                 }
             });
         });
@@ -1219,7 +1214,11 @@ fn show_wireguard_dialog(
     refresh: Rc<impl Fn() + 'static>,
 ) {
     let Some(parent) = parent else {
-        set_vpn_status(&status, &tr("Could not open WireGuard dialog (no parent window)."), true);
+        set_vpn_status(
+            &status,
+            &tr("Could not open WireGuard dialog (no parent window)."),
+            true,
+        );
         return;
     };
 
@@ -1333,27 +1332,25 @@ fn show_wireguard_dialog(
             let refresh = refresh.clone();
             let err = err.clone();
             let create_btn = create_btn.clone();
-            glib::timeout_add_local(Duration::from_millis(50), move || {
-                match rx.try_recv() {
-                    Ok(Ok(())) => {
-                        set_vpn_status(&status, &tr("WireGuard connection created."), false);
-                        refresh();
-                        dialog.close();
-                        glib::ControlFlow::Break
-                    }
-                    Ok(Err(e)) => {
-                        err.set_text(&e);
-                        err.set_visible(true);
-                        create_btn.set_sensitive(true);
-                        create_btn.set_label(&tr("Create"));
-                        glib::ControlFlow::Break
-                    }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        create_btn.set_sensitive(true);
-                        create_btn.set_label(&tr("Create"));
-                        glib::ControlFlow::Break
-                    }
+            glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+                Ok(Ok(())) => {
+                    set_vpn_status(&status, &tr("WireGuard connection created."), false);
+                    refresh();
+                    dialog.close();
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(e)) => {
+                    err.set_text(&e);
+                    err.set_visible(true);
+                    create_btn.set_sensitive(true);
+                    create_btn.set_label(&tr("Create"));
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    create_btn.set_sensitive(true);
+                    create_btn.set_label(&tr("Create"));
+                    glib::ControlFlow::Break
                 }
             });
         });
@@ -1375,7 +1372,11 @@ fn show_wireguard_edit_dialog(
     refresh: Rc<impl Fn() + 'static>,
 ) {
     let Some(parent) = parent else {
-        set_vpn_status(&status, &tr("Could not open edit dialog (no parent window)."), true);
+        set_vpn_status(
+            &status,
+            &tr("Could not open edit dialog (no parent window)."),
+            true,
+        );
         return;
     };
     let Some(profile) = net::vpn_get_wireguard(uuid) else {
@@ -1431,8 +1432,8 @@ fn show_wireguard_edit_dialog(
     outer.append(&wg_field(&tr("DNS (optional)"), &dns));
 
     let hint = gtk::Label::new(Some(&tr(
-        "Private key is unchanged. Disconnect and reconnect for peer/address edits to take effect."
-        )));
+        "Private key is unchanged. Disconnect and reconnect for peer/address edits to take effect.",
+    )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -1498,27 +1499,25 @@ fn show_wireguard_edit_dialog(
             let refresh = refresh.clone();
             let err = err.clone();
             let save_btn = save_btn.clone();
-            glib::timeout_add_local(Duration::from_millis(50), move || {
-                match rx.try_recv() {
-                    Ok(Ok(())) => {
-                        set_vpn_status(&status, &tr("WireGuard profile updated."), false);
-                        refresh();
-                        dialog.close();
-                        glib::ControlFlow::Break
-                    }
-                    Ok(Err(e)) => {
-                        err.set_text(&e);
-                        err.set_visible(true);
-                        save_btn.set_sensitive(true);
-                        save_btn.set_label(&tr("Save"));
-                        glib::ControlFlow::Break
-                    }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        save_btn.set_sensitive(true);
-                        save_btn.set_label(&tr("Save"));
-                        glib::ControlFlow::Break
-                    }
+            glib::timeout_add_local(Duration::from_millis(50), move || match rx.try_recv() {
+                Ok(Ok(())) => {
+                    set_vpn_status(&status, &tr("WireGuard profile updated."), false);
+                    refresh();
+                    dialog.close();
+                    glib::ControlFlow::Break
+                }
+                Ok(Err(e)) => {
+                    err.set_text(&e);
+                    err.set_visible(true);
+                    save_btn.set_sensitive(true);
+                    save_btn.set_label(&tr("Save"));
+                    glib::ControlFlow::Break
+                }
+                Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    save_btn.set_sensitive(true);
+                    save_btn.set_label(&tr("Save"));
+                    glib::ControlFlow::Break
                 }
             });
         });
@@ -1568,8 +1567,8 @@ fn dns_override_editor<F: Fn() + 'static>(
     let dns = entry("1.1.1.1, 8.8.8.8", &ipv4.dns);
     card.append(&ui::row(&tr("DNS servers"), &dns));
     card.append(&hint(&tr(
-        "Comma-separated. Leave empty to use the DHCP-provided DNS."
-        )));
+        "Comma-separated. Leave empty to use the DHCP-provided DNS.",
+    )));
 
     let apply = gtk::Button::with_label(&tr("Apply DNS"));
     apply.add_css_class("suggested-action");
@@ -1671,8 +1670,8 @@ fn proxy_editor<F: Fn() + 'static>(cfg: &net::ProxyConfig, refresh: &Rc<F>) -> g
 
     if !cfg.available {
         card.append(&hint(&tr(
-            "System proxy settings are unavailable (the GNOME proxy schema isn't installed)."
-            )));
+            "System proxy settings are unavailable (the GNOME proxy schema isn't installed).",
+        )));
         return card.upcast();
     }
 
@@ -1691,8 +1690,7 @@ fn proxy_editor<F: Fn() + 'static>(cfg: &net::ProxyConfig, refresh: &Rc<F>) -> g
 
     // Manual: per-protocol host:port + ignore list.
     let manual_box = gtk::Box::new(gtk::Orientation::Vertical, 6);
-    let (http_row, http_host, http_port) =
-        host_port_row("HTTP", &cfg.http_host, cfg.http_port);
+    let (http_row, http_host, http_port) = host_port_row("HTTP", &cfg.http_host, cfg.http_port);
     let (https_row, https_host, https_port) =
         host_port_row("HTTPS", &cfg.https_host, cfg.https_port);
     let (socks_row, socks_host, socks_port) =
@@ -1722,8 +1720,8 @@ fn proxy_editor<F: Fn() + 'static>(cfg: &net::ProxyConfig, refresh: &Rc<F>) -> g
     }
 
     card.append(&hint(&tr(
-        "Applies to GLib/GTK apps via the system proxy resolver."
-        )));
+        "Applies to GLib/GTK apps via the system proxy resolver.",
+    )));
 
     let apply = gtk::Button::with_label(&tr("Apply"));
     apply.add_css_class("suggested-action");

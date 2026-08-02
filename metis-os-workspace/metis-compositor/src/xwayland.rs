@@ -15,10 +15,9 @@ use smithay::{
     desktop::Window,
     input::pointer::{Focus, GrabStartData as PointerGrabStartData},
     reexports::calloop::LoopHandle,
-    utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size},
+    utils::{Logical, Point, Rectangle, Size, SERIAL_COUNTER},
     wayland::{
         selection::{
-            SelectionTarget,
             data_device::{
                 clear_data_device_selection, current_data_device_selection_userdata,
                 request_data_device_client_selection, set_data_device_selection,
@@ -27,12 +26,13 @@ use smithay::{
                 clear_primary_selection, current_primary_selection_userdata,
                 request_primary_client_selection, set_primary_selection,
             },
+            SelectionTarget,
         },
         xwayland_shell::{XWaylandShellHandler, XWaylandShellState},
     },
     xwayland::{
-        X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler,
         xwm::{Reorder, ResizeEdge as X11ResizeEdge, XwmId},
+        X11Surface, X11Wm, XWayland, XWaylandEvent, XwmHandler,
     },
 };
 
@@ -48,7 +48,6 @@ impl MetisState {
     /// With `config.json` `"xwayland_mode": "isolated"`, also starts a second
     /// gaming bucket so Steam/Proton can use a separate `DISPLAY` (Phase 15 §E).
     pub fn start_xwayland(&mut self, loop_handle: LoopHandle<'static, MetisState>) {
-        
         use metis_config::XwaylandMode;
 
         let cfg = metis_config::load_app_config();
@@ -252,13 +251,10 @@ impl MetisState {
         if let Err(err) = window.set_fullscreen(false) {
             tracing::warn!(%err, "X11 unset fullscreen failed");
         }
-        let restore = self
-            .x11_fullscreen_restore
-            .remove(&wid)
-            .unwrap_or_else(|| {
-                let size = window.geometry().size;
-                Rectangle::new(self.centered_loc(size), size)
-            });
+        let restore = self.x11_fullscreen_restore.remove(&wid).unwrap_or_else(|| {
+            let size = window.geometry().size;
+            Rectangle::new(self.centered_loc(size), size)
+        });
         if let Err(err) = window.configure(restore) {
             tracing::warn!(%err, "X11 unfullscreen configure failed");
             return;
@@ -633,7 +629,10 @@ impl XwmHandler for MetisState {
                     }
                 }
                 if let Err(err) = request_primary_client_selection(&self.seat, mime_type, fd) {
-                    tracing::warn!(?err, "failed to read Wayland primary selection for XWayland");
+                    tracing::warn!(
+                        ?err,
+                        "failed to read Wayland primary selection for XWayland"
+                    );
                 }
             }
         }

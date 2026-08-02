@@ -3,8 +3,9 @@
 mod battery_dim;
 mod blur;
 mod capture_overlay;
-mod screenshot_overlay;
 mod clipboard;
+mod color_lut;
+mod color_management;
 mod cross_gpu;
 mod cursor;
 mod decoration;
@@ -18,20 +19,17 @@ mod grabs;
 mod handlers;
 mod hdr_encode;
 mod hdr_surface;
-mod output_colour;
-mod color_lut;
 mod idle;
 mod image_capture;
 mod input;
 mod ipc;
+mod ipc_dispatch;
 mod keybinds;
 mod lock;
 mod lock_auth_cues;
-mod session_lock;
-mod color_management;
 mod mirror;
 mod night_light;
-mod text_layout;
+mod output_colour;
 mod output_gamma;
 mod output_hdr;
 mod output_modes;
@@ -39,13 +37,16 @@ mod output_prefs;
 mod output_vrr;
 mod remote_input;
 mod render;
+mod screenshot_overlay;
+mod session_lock;
 mod state;
+mod text_layout;
 mod udev;
-mod winit;
 mod wallpaper;
 mod window_fx;
 mod window_state;
 mod windows;
+mod winit;
 mod xwayland;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};
@@ -133,8 +134,8 @@ fn select_backend() -> Backend {
         }
         _ => {}
     }
-    let nested = std::env::var_os("WAYLAND_DISPLAY").is_some()
-        || std::env::var_os("DISPLAY").is_some();
+    let nested =
+        std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var_os("DISPLAY").is_some();
     if nested {
         Backend::Winit
     } else {
@@ -225,17 +226,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shell = if std::env::var("METIS_NO_SHELL").is_ok() {
         None
     } else {
-        Some(
-            std::env::var("METIS_SHELL_BIN").unwrap_or_else(|_| {
-                std::env::current_exe()
-                    .ok()
-                    .and_then(|p| {
-                        p.parent()
-                            .map(|d| d.join("metis-shell").display().to_string())
-                    })
-                    .unwrap_or_else(|| "metis-shell".into())
-            }),
-        )
+        Some(std::env::var("METIS_SHELL_BIN").unwrap_or_else(|_| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| {
+                    p.parent()
+                        .map(|d| d.join("metis-shell").display().to_string())
+                })
+                .unwrap_or_else(|| "metis-shell".into())
+        }))
     };
 
     let client = parse_client_command();
@@ -388,8 +387,7 @@ fn start_portal_watchdog(wayland_display: String) {
             if std::env::var_os("METIS_NO_PORTAL").is_some() {
                 continue;
             }
-            let portal_ok =
-                session_bus_name_active("org.freedesktop.impl.portal.desktop.metis");
+            let portal_ok = session_bus_name_active("org.freedesktop.impl.portal.desktop.metis");
             let screencast_ok = session_bus_name_active("org.gnome.Mutter.ScreenCast");
             if portal_ok && screencast_ok {
                 continue;
@@ -457,11 +455,9 @@ fn spawn_metis_portal(wayland_display: &str) {
             );
             std::thread::Builder::new()
                 .name("metis-portal-reaper".into())
-                .spawn(move || {
-                    match child.wait() {
-                        Ok(status) => tracing::warn!(?status, "metis-portal exited"),
-                        Err(err) => tracing::warn!(%err, "metis-portal wait failed"),
-                    }
+                .spawn(move || match child.wait() {
+                    Ok(status) => tracing::warn!(?status, "metis-portal exited"),
+                    Err(err) => tracing::warn!(%err, "metis-portal wait failed"),
                 })
                 .ok();
         }
@@ -537,8 +533,7 @@ fn spawn_portal_daemon(name: &str) -> bool {
     }) {
         return true;
     }
-    let theme_mode =
-        metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
+    let theme_mode = metis_config::load_theme_preference().unwrap_or(metis_config::ThemeMode::Dark);
     let mut cmd = std::process::Command::new(&bin);
     cmd.env("XDG_CURRENT_DESKTOP", portal_current_desktop())
         .stdin(std::process::Stdio::null())

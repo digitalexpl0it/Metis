@@ -1,8 +1,8 @@
+mod clipboard;
 pub mod clock;
 mod launcher;
 mod menu;
 mod notifications;
-mod clipboard;
 pub mod sys;
 mod tasks;
 mod tray;
@@ -18,15 +18,15 @@ use std::rc::Rc;
 use gtk::prelude::*;
 
 use crate::config::{BarConfig, BarWidgetId};
-use crate::ui::bar::BarShell;
 use crate::services::BarSnapshot;
+use crate::ui::bar::BarShell;
 
+pub use crate::services::do_not_disturb;
+use clipboard::ClipboardWidget;
 use clock::ClockWidget;
 use launcher::LauncherWidget;
-use notifications::NotificationsWidget;
-use clipboard::ClipboardWidget;
-pub use crate::services::do_not_disturb;
 pub(crate) use notifications::build_action_row;
+use notifications::NotificationsWidget;
 use sys::{BatteryWidget, BluetoothWidget, NetworkWidget, VolumeWidget, VpnWidget};
 use tasks::TasksWidget;
 use tray::TrayWidget;

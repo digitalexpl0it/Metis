@@ -122,7 +122,8 @@ fn watch_appearance() {
     }
 
     let themes = gio::File::for_path(metis_config::config_dir().join("themes"));
-    if let Ok(mon) = themes.monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    if let Ok(mon) =
+        themes.monitor_directory(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
     {
         mon.connect_changed(move |_, _, _, _| {
             glib::timeout_add_local_once(Duration::from_millis(120), reapply);

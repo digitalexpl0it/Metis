@@ -95,7 +95,11 @@ fn default_rules() -> Vec<WindowRule> {
         float_only("Minecraft", &["minecraft", "lwjgl"], &["minecraft"]),
         // The Hytale *launcher* (and any other Hytale/Hypixel surface) stays a
         // normal floating window.
-        float_only("Hytale (launcher & surfaces)", &["hytale", "hypixel"], &["hytale"]),
+        float_only(
+            "Hytale (launcher & surfaces)",
+            &["hytale", "hypixel"],
+            &["hytale"],
+        ),
         // The Hytale *game client* reports `HytaleClient` and is configured for
         // fullscreen in-game; force true-fullscreen once it maps so it covers the
         // output on the first frame instead of coming up as a large float that the

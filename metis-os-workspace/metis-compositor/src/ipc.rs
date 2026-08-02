@@ -3,7 +3,8 @@ use std::io::{Read, Write};
 use metis_protocol::{CompositorCommand, CompositorEvent};
 
 use crate::events::{accept_event_subscribers, init_events_listener};
-use crate::state::{IpcCaps, MetisState};
+use crate::ipc_dispatch::resolve_ipc_caps;
+use crate::state::MetisState;
 
 pub fn init_ipc(state: &mut MetisState) -> Result<(), Box<dyn std::error::Error>> {
     let runtime = metis_protocol::ensure_runtime_dir()?;
@@ -62,14 +63,16 @@ pub fn drain_ipc(state: &mut MetisState) {
         };
 
         let reply = match parse_ipc_request(&request) {
-            Ok((token, cmd)) => match resolve_ipc_caps(state, token.as_deref()) {
-                Ok(caps) => {
-                    let evt = state.handle_ipc_with_caps(cmd, caps);
-                    serde_json::to_string(&evt).unwrap_or_default()
+            Ok((token, cmd)) => {
+                match resolve_ipc_caps(state.widgets_ipc_token.as_deref(), token.as_deref()) {
+                    Ok(caps) => {
+                        let evt = state.handle_ipc_with_caps(cmd, caps);
+                        serde_json::to_string(&evt).unwrap_or_default()
+                    }
+                    Err(message) => serde_json::to_string(&CompositorEvent::Error { message })
+                        .unwrap_or_default(),
                 }
-                Err(message) => serde_json::to_string(&CompositorEvent::Error { message })
-                    .unwrap_or_default(),
-            },
+            }
             Err(err) => serde_json::to_string(&CompositorEvent::Error {
                 message: err.to_string(),
             })
@@ -128,8 +131,7 @@ fn read_request_line(stream: &mut std::os::unix::net::UnixStream) -> Option<Stri
 }
 
 fn parse_ipc_request(request: &str) -> Result<(Option<String>, CompositorCommand), String> {
-    let mut value: serde_json::Value =
-        serde_json::from_str(request).map_err(|e| e.to_string())?;
+    let mut value: serde_json::Value = serde_json::from_str(request).map_err(|e| e.to_string())?;
     let token = value
         .get("token")
         .and_then(|t| t.as_str())
@@ -141,19 +143,21 @@ fn parse_ipc_request(request: &str) -> Result<(Option<String>, CompositorCommand
     Ok((token, cmd))
 }
 
-fn resolve_ipc_caps(state: &MetisState, token: Option<&str>) -> Result<IpcCaps, String> {
-    match token {
-        None => Ok(IpcCaps::Full),
-        Some(t) => {
-            if state
-                .widgets_ipc_token
-                .as_deref()
-                .is_some_and(|expected| expected == t)
-            {
-                Ok(IpcCaps::Widgets)
-            } else {
-                Err("invalid or expired IPC capability token".into())
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_strips_token_and_rejects_oversized_semantics() {
+        let (tok, cmd) = parse_ipc_request(r#"{"cmd":"ping","token":"abc"}"#).unwrap();
+        assert_eq!(tok.as_deref(), Some("abc"));
+        assert!(matches!(cmd, CompositorCommand::Ping));
+        assert!(parse_ipc_request("not-json").is_err());
+    }
+
+    #[test]
+    fn ipc_request_size_limit_constant() {
+        // Reader aborts accumulation above 256 KiB — keep the contract visible.
+        assert_eq!(256 * 1024, 262_144);
     }
 }

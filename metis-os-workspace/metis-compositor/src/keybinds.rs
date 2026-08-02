@@ -4,11 +4,9 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
-use metis_config::{
-    load_keybinds_config, Chord, KeybindAction, KeybindsConfig, ModKey,
-};
-use smithay::input::keyboard::ModifiersState;
+use metis_config::{load_keybinds_config, Chord, KeybindAction, KeybindsConfig, ModKey};
 use smithay::input::keyboard::keysyms;
+use smithay::input::keyboard::ModifiersState;
 
 static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -82,11 +80,7 @@ impl KeybindRuntime {
         self.config.mod_key
     }
 
-    pub fn lookup(
-        &self,
-        modifiers: &ModifiersState,
-        key_token: &str,
-    ) -> Option<KeybindAction> {
+    pub fn lookup(&self, modifiers: &ModifiersState, key_token: &str) -> Option<KeybindAction> {
         let key = ChordKey {
             ctrl: modifiers.ctrl,
             alt: modifiers.alt,

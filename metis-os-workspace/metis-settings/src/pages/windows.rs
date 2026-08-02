@@ -31,8 +31,8 @@ pub fn build() -> gtk::Widget {
     let anim_hint = gtk::Label::new(Some(&tr(
         "Minimize genie, maximize wobble, and titlebar slide effects. \
          Turn off for instant window transitions. The Compatibility graphics \
-         profile on Display also disables animations in VMs."
-        )));
+         profile on Display also disables animations in VMs.",
+    )));
     anim_hint.set_xalign(0.0);
     anim_hint.set_wrap(true);
     anim_hint.add_css_class("metis-settings-hint");
@@ -52,8 +52,8 @@ pub fn build() -> gtk::Widget {
 
     let gap_hint = gtk::Label::new(Some(&tr(
         "Space around maximized and edge-snapped windows. 0 is flush to the \
-         screen and bar edges; 10 is the maximum inset. Applies within ~1s."
-        )));
+         screen and bar edges; 10 is the maximum inset. Applies within ~1s.",
+    )));
     gap_hint.set_xalign(0.0);
     gap_hint.set_wrap(true);
     gap_hint.add_css_class("metis-settings-hint");
@@ -72,8 +72,8 @@ pub fn build() -> gtk::Widget {
 
     let win_hint = gtk::Label::new(Some(&tr(
         "Dims only the window titlebar background so the wallpaper shows through; \
-         the title text and window buttons stay solid. Changes apply within ~1s."
-        )));
+         the title text and window buttons stay solid. Changes apply within ~1s.",
+    )));
     win_hint.set_xalign(0.0);
     win_hint.set_wrap(true);
     win_hint.add_css_class("metis-settings-hint");
@@ -135,9 +135,21 @@ pub fn build() -> gtk::Widget {
     let pill_g1 = pill_stop(0, "#00F2FE");
     let pill_g2 = pill_stop(1, "#4FACFE");
     let pill_g3 = pill_stop(2, "#A24BFF");
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient start"), &pill_g1));
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient middle"), &pill_g2));
-    pill_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient end"), &pill_g3));
+    pill_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient start"),
+        &pill_g1,
+    ));
+    pill_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient middle"),
+        &pill_g2,
+    ));
+    pill_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient end"),
+        &pill_g3,
+    ));
     win_body.append(&pill_grad_box);
 
     let pill_hint = gtk::Label::new(Some(
@@ -200,16 +212,28 @@ pub fn build() -> gtk::Widget {
     let wb_g1 = wb_stop(0, "#00F2FE");
     let wb_g2 = wb_stop(1, "#4FACFE");
     let wb_g3 = wb_stop(2, "#A24BFF");
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient top"), &wb_g1));
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient middle"), &wb_g2));
-    wb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient bottom"), &wb_g3));
+    wb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient top"),
+        &wb_g1,
+    ));
+    wb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient middle"),
+        &wb_g2,
+    ));
+    wb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient bottom"),
+        &wb_g3,
+    ));
     win_body.append(&wb_grad_box);
 
     let wb_hint = gtk::Label::new(Some(&tr(
         "The border around the whole window frame, independent of the title pill. The \
          gradient flows top→bottom; thickness also insets the window contents. \
-         Changes apply within ~1s."
-        )));
+         Changes apply within ~1s.",
+    )));
     wb_hint.set_xalign(0.0);
     wb_hint.set_wrap(true);
     wb_hint.add_css_class("metis-settings-hint");

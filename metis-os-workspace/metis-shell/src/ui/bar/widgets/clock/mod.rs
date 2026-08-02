@@ -226,10 +226,7 @@ fn check_alarms(store: &Store) {
         .filter(|a| a.days.is_empty() || a.days.contains(&weekday))
         .map(|a| {
             let label = if a.label.is_empty() {
-                metis_i18n::tr("Alarm %1").replace(
-                    "%1",
-                    &format!("{:02}:{:02}", a.hour, a.minute),
-                )
+                metis_i18n::tr("Alarm %1").replace("%1", &format!("{:02}:{:02}", a.hour, a.minute))
             } else {
                 a.label.clone()
             };

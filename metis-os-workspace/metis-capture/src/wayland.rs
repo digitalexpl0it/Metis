@@ -19,8 +19,8 @@ use wayland_protocols::ext::{
     },
 };
 
-use crate::shm::{BufferFormat, ShmBuffer};
 use crate::dmabuf::DmabufPlanes;
+use crate::shm::{BufferFormat, ShmBuffer};
 
 #[derive(Debug)]
 pub struct Frame {
@@ -233,8 +233,8 @@ impl AppState {
 }
 
 pub fn capture_output_frame(options: CaptureOptions) -> Result<Frame, String> {
-    let conn = Connection::connect_to_env()
-        .map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
+    let conn =
+        Connection::connect_to_env().map_err(|err| format!("connect to WAYLAND_DISPLAY: {err}"))?;
     let (globals, mut event_queue) =
         registry_queue_init::<AppState>(&conn).map_err(|err| format!("registry init: {err}"))?;
     let qh = event_queue.handle();
@@ -291,7 +291,10 @@ fn bind_all_outputs(
     let registry = globals.registry();
     let globals_list = globals.contents().clone_list();
     let mut outputs = Vec::new();
-    for g in globals_list.into_iter().filter(|g| g.interface == "wl_output") {
+    for g in globals_list
+        .into_iter()
+        .filter(|g| g.interface == "wl_output")
+    {
         let version = g.version.min(4);
         let idx = outputs.len();
         let output: WlOutput = registry.bind(g.name, version, qh, idx);
@@ -305,7 +308,12 @@ fn bind_all_outputs(
 }
 
 fn resolve_output(outputs: &[OutputInfo], options: &CaptureOptions) -> Option<WlOutput> {
-    if let Some(want) = options.connector.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(want) = options
+        .connector
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         let want_l = want.to_ascii_lowercase();
         if let Some(info) = outputs.iter().find(|o| {
             o.name.eq_ignore_ascii_case(want)
@@ -396,8 +404,7 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
             }
             ext_image_copy_capture_session_v1::Event::ShmFormat { format, .. } => {
                 if let WEnum::Value(fmt) = format {
-                    session.constraints.format =
-                        prefer_shm_format(session.constraints.format, fmt);
+                    session.constraints.format = prefer_shm_format(session.constraints.format, fmt);
                 }
             }
             ext_image_copy_capture_session_v1::Event::Done { .. } => {
@@ -409,7 +416,10 @@ impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for AppState {
             _ => {}
         }
         if state.result.is_none()
-            && state.session.as_ref().is_some_and(|session| session.needs_allocate)
+            && state
+                .session
+                .as_ref()
+                .is_some_and(|session| session.needs_allocate)
         {
             if let Some(session) = state.session.as_mut() {
                 session.needs_allocate = false;
@@ -441,7 +451,10 @@ impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for AppState {
             _ => {}
         }
         if state.result.is_none()
-            && state.session.as_ref().is_some_and(|session| session.frame_ready)
+            && state
+                .session
+                .as_ref()
+                .is_some_and(|session| session.frame_ready)
         {
             if let Some(session) = state.session.as_mut() {
                 session.frame_ready = false;

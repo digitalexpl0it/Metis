@@ -50,8 +50,8 @@ pub fn build() -> gtk::Widget {
 
     body.append(&input_common::hint(&tr(
         "Applies to mice and other non-touchpad pointers in the Metis session (wheel, \
-         including lists in the Metis menu). Changes apply immediately."
-        )));
+         including lists in the Metis menu). Changes apply immediately.",
+    )));
     content.append(&card);
 
     speed.connect_value_changed({

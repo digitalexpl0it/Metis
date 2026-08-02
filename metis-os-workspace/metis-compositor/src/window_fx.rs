@@ -38,16 +38,8 @@ impl MinimizeGenieFx {
         let squeeze = t * t;
         let w = lerp_i32(self.anchor.width.max(1), 6, squeeze).max(1);
         let h = lerp_i32(self.anchor.height.max(1), 4, t).max(1);
-        let cx = lerp_i32(
-            self.anchor.x + self.anchor.width / 2,
-            self.target.x,
-            t,
-        );
-        let cy = lerp_i32(
-            self.anchor.y + self.anchor.height / 2,
-            self.target.y,
-            t,
-        );
+        let cx = lerp_i32(self.anchor.x + self.anchor.width / 2, self.target.x, t);
+        let cy = lerp_i32(self.anchor.y + self.anchor.height / 2, self.target.y, t);
         (
             PixelRect {
                 x: cx - w / 2,

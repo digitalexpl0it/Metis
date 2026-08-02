@@ -51,16 +51,8 @@ impl MetisState {
             .filter(|o| self.is_output_enabled(&o.name()))
             .collect();
         outputs.sort_by(|a, b| {
-            let ax = self
-                .space
-                .output_geometry(a)
-                .map(|g| g.loc.x)
-                .unwrap_or(0);
-            let bx = self
-                .space
-                .output_geometry(b)
-                .map(|g| g.loc.x)
-                .unwrap_or(0);
+            let ax = self.space.output_geometry(a).map(|g| g.loc.x).unwrap_or(0);
+            let bx = self.space.output_geometry(b).map(|g| g.loc.x).unwrap_or(0);
             ax.cmp(&bx).then_with(|| a.name().cmp(&b.name()))
         });
         outputs
@@ -217,23 +209,16 @@ fn ensure_mirror_batch_cache(
         };
         let mut damage_tracker =
             OutputDamageTracker::new(src_size, output_scale, Transform::Normal);
-        if let Err(err) = damage_tracker.render_output(
-            renderer,
-            &mut framebuffer,
-            0,
-            &elements,
-            CLEAR_COLOR,
-        ) {
+        if let Err(err) =
+            damage_tracker.render_output(renderer, &mut framebuffer, 0, &elements, CLEAR_COLOR)
+        {
             tracing::warn!(?err, "mirror source render failed");
             return false;
         }
     }
 
     let buffer = TextureBuffer::from_texture(renderer, offscreen, 1, Transform::Normal, None);
-    let cache = MirrorBatchCache {
-        buffer,
-        src_size,
-    };
+    let cache = MirrorBatchCache { buffer, src_size };
     if let Some(udev) = state.udev.as_mut() {
         udev.mirror_batch = Some(cache);
     }

@@ -7,7 +7,9 @@ use gtk::gdk;
 use gtk::prelude::*;
 
 use crate::config::TrayIconMode;
-use crate::services::{self, send_command, TrayCommand, TrayItem, TrayMenu, TrayMenuItem, MenuType, TraySnapshot};
+use crate::services::{
+    self, send_command, MenuType, TrayCommand, TrayItem, TrayMenu, TrayMenuItem, TraySnapshot,
+};
 
 const TRAY_ICON_SIZE: i32 = 18;
 /// Overlay grid: grow with icon count up to this many columns × rows, then scroll.
@@ -198,11 +200,7 @@ fn rebuild_tray(
         if mode == TrayIconMode::Pinned {
             pinned_row.append(&build_tray_button(item, TRAY_ICON_SIZE, None));
         }
-        panel_flow.append(&build_tray_button(
-            item,
-            TRAY_ICON_SIZE,
-            panel_tooltip,
-        ));
+        panel_flow.append(&build_tray_button(item, TRAY_ICON_SIZE, panel_tooltip));
     }
 
     size_tray_panel_scroll(panel_scroll, panel_flow, snap.items.len());
@@ -409,8 +407,7 @@ fn tray_activate_suppressed() -> bool {
 fn suppress_tray_activate_briefly() {
     SUPPRESS_TRAY_ACTIVATE_UNTIL.with(|cell| {
         *cell.borrow_mut() = Some(
-            std::time::Instant::now()
-                + std::time::Duration::from_millis(TRAY_ACTIVATE_SUPPRESS_MS),
+            std::time::Instant::now() + std::time::Duration::from_millis(TRAY_ACTIVATE_SUPPRESS_MS),
         );
     });
 }
@@ -533,22 +530,24 @@ fn attach_tray_tooltip(
             let tip = tip.clone();
             let text = text.clone();
             let timer_inner = timer.clone();
-            let id = glib::timeout_add_local_once(std::time::Duration::from_millis(450), move || {
-                *timer_inner.borrow_mut() = None;
-                let (Some(w), Some(ov)) = (widget_weak.upgrade(), overlay_weak.upgrade()) else {
-                    return;
-                };
-                tip.set_label(&text);
-                if let Some((x, y)) =
-                    w.translate_coordinates(&ov, w.width() as f64 / 2.0, 0.0)
-                {
-                    tip.set_margin_start((x as i32 - 28).max(0));
-                    tip.set_margin_top((y as i32 - 30).max(0));
-                }
-                tip.set_visible(true);
-                tip.parent().and_then(|p| p.downcast::<gtk::Overlay>().ok())
-                    .map(|overlay| overlay.set_clip_overlay(&tip, false));
-            });
+            let id =
+                glib::timeout_add_local_once(std::time::Duration::from_millis(450), move || {
+                    *timer_inner.borrow_mut() = None;
+                    let (Some(w), Some(ov)) = (widget_weak.upgrade(), overlay_weak.upgrade())
+                    else {
+                        return;
+                    };
+                    tip.set_label(&text);
+                    if let Some((x, y)) = w.translate_coordinates(&ov, w.width() as f64 / 2.0, 0.0)
+                    {
+                        tip.set_margin_start((x as i32 - 28).max(0));
+                        tip.set_margin_top((y as i32 - 30).max(0));
+                    }
+                    tip.set_visible(true);
+                    tip.parent()
+                        .and_then(|p| p.downcast::<gtk::Overlay>().ok())
+                        .map(|overlay| overlay.set_clip_overlay(&tip, false));
+                });
             *timer.borrow_mut() = Some(id);
         });
     }
@@ -676,7 +675,9 @@ fn theme_path_texture(item: &TrayItem) -> Option<gdk::Texture> {
 }
 
 fn pixmap_texture(item: &TrayItem) -> Option<gdk::Texture> {
-    item.icon_pixmap.as_ref().map(|pixmap| pixmap_to_texture(pixmap))
+    item.icon_pixmap
+        .as_ref()
+        .map(|pixmap| pixmap_to_texture(pixmap))
 }
 
 /// Decode SNI IconPixmap bytes (BGRA / little-endian ARGB32) to a GTK texture.

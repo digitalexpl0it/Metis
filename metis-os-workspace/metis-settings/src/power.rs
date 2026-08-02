@@ -148,8 +148,8 @@ fn read_battery() -> BatteryInfo {
         .unwrap_or_default()
         .trim()
         .to_string();
-    let charging = status.eq_ignore_ascii_case("charging")
-        || status.eq_ignore_ascii_case("fully charged");
+    let charging =
+        status.eq_ignore_ascii_case("charging") || status.eq_ignore_ascii_case("fully charged");
     BatteryInfo {
         present: true,
         percent,

@@ -2,7 +2,9 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
-use metis_protocol::{CompositorCommand, CompositorEvent, GridLayout, GridMetrics, MonitorRect, TileMode, WindowInfo};
+use metis_protocol::{
+    CompositorCommand, CompositorEvent, GridLayout, GridMetrics, MonitorRect, TileMode, WindowInfo,
+};
 
 #[allow(dead_code)] // compositor IPC helper
 pub fn primary_monitor_rect() -> MonitorRect {
@@ -26,7 +28,9 @@ pub fn get_layout() -> std::io::Result<(GridLayout, u32, GridMetrics)> {
             metrics,
         } => Ok((layout, gutter_px, metrics)),
         CompositorEvent::Error { message } => Err(std::io::Error::other(message)),
-        _ => Err(std::io::Error::other("unexpected compositor response for GetLayout")),
+        _ => Err(std::io::Error::other(
+            "unexpected compositor response for GetLayout",
+        )),
     }
 }
 

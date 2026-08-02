@@ -66,8 +66,8 @@ pub fn build() -> gtk::Widget {
     auto_body.append(&ui::row(&tr("Use IP geolocation (more precise)"), &ip_sw));
 
     let auto_hint = gtk::Label::new(Some(&tr(
-        "Auto-detect is used only when no locations are pinned below."
-        )));
+        "Auto-detect is used only when no locations are pinned below.",
+    )));
     auto_hint.set_xalign(0.0);
     auto_hint.add_css_class("metis-settings-hint");
     auto_body.append(&auto_hint);

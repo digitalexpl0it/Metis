@@ -87,10 +87,7 @@ impl InputRuntime {
     /// Returns the loaded config so the caller can refresh the seat keyboard.
     pub fn reload_from_disk(&mut self) -> InputConfig {
         let cfg = metis_config::load_input_config();
-        tracing::info!(
-            devices = self.devices.len(),
-            "reloading input.json"
-        );
+        tracing::info!(devices = self.devices.len(), "reloading input.json");
         self.cached = cfg.clone();
         for device in &mut self.devices {
             apply_to_device(&cfg, device);
@@ -219,11 +216,7 @@ fn apply_to_device(cfg: &InputConfig, device: &mut Device) {
             "accel profile",
             device.config_accel_set_profile(li_profile),
         );
-        log_cfg(
-            &name,
-            "pointer speed",
-            device.config_accel_set_speed(speed),
-        );
+        log_cfg(&name, "pointer speed", device.config_accel_set_speed(speed));
     }
 
     if device.config_left_handed_is_available() {
@@ -243,11 +236,7 @@ fn apply_to_device(cfg: &InputConfig, device: &mut Device) {
     }
 
     if touchpad {
-        log_cfg(
-            &name,
-            "tap-to-click",
-            device.config_tap_set_enabled(tap),
-        );
+        log_cfg(&name, "tap-to-click", device.config_tap_set_enabled(tap));
         if device.config_tap_finger_count() > 0 {
             log_cfg(
                 &name,

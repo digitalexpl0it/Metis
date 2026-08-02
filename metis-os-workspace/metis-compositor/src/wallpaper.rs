@@ -11,8 +11,8 @@ use smithay::backend::{
     allocator::Fourcc,
     renderer::{
         element::{
-            Kind,
             texture::{TextureBuffer, TextureRenderElement},
+            Kind,
         },
         gles::{GlesRenderer, GlesTexture},
         ImportMem, Texture,
@@ -255,7 +255,12 @@ impl Wallpaper {
         let slot = Arc::clone(&self.decode_slot);
         let slot_worker = Arc::clone(&slot);
 
-        tracing::debug!(width = full.w, height = full.h, outputs = jobs.len(), "composing wallpaper");
+        tracing::debug!(
+            width = full.w,
+            height = full.h,
+            outputs = jobs.len(),
+            "composing wallpaper"
+        );
         let handle = std::thread::Builder::new()
             .name("metis-wallpaper-decode".into())
             .spawn(move || {
@@ -507,10 +512,7 @@ fn resolve_config() -> (BackgroundMode, PathBuf, HashMap<String, PathBuf>) {
 fn resolve_background() -> (BackgroundMode, PathBuf) {
     let cfg = metis_config::load_wallpaper_config();
     match cfg.kind {
-        BackgroundKind::Image => (
-            BackgroundMode::Image,
-            resolve_path().unwrap_or_default(),
-        ),
+        BackgroundKind::Image => (BackgroundMode::Image, resolve_path().unwrap_or_default()),
         BackgroundKind::Solid => (
             BackgroundMode::Solid(metis_config::parse_hex_rgb(&cfg.color)),
             PathBuf::new(),

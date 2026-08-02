@@ -76,11 +76,9 @@ fn spawn_poll(connection: Connection, power_saver: Arc<AtomicBool>) {
                 continue;
             };
             let inner = iface_ref.get().await;
-            if let Err(err) = PowerProfileIface::power_saver_enabled_changed(
-                &inner,
-                iface_ref.signal_emitter(),
-            )
-            .await
+            if let Err(err) =
+                PowerProfileIface::power_saver_enabled_changed(&inner, iface_ref.signal_emitter())
+                    .await
             {
                 tracing::debug!(%err, "PowerProfileMonitor: property notify failed");
             }

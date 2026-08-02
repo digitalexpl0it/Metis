@@ -3,30 +3,32 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use metis_grid::{cell_to_pixels, app_tile_body_rect, GridLayout, GridMetrics, MonitorRect, PixelRect, TileKind, TileModeState};
+use metis_grid::{
+    app_tile_body_rect, cell_to_pixels, GridLayout, GridMetrics, MonitorRect, PixelRect, TileKind,
+    TileModeState,
+};
 use metis_protocol::CompositorCommand;
 use smithay::{
-    desktop::{PopupManager, Space, Window, layer_map_for_output},
+    desktop::{layer_map_for_output, PopupManager, Space, Window},
     input::{Seat, SeatState},
     reexports::{
-        calloop::{EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction, generic::Generic},
+        calloop::{
+            generic::Generic, EventLoop, Interest, LoopHandle, LoopSignal, Mode, PostAction,
+        },
         wayland_server::{
-            Display, DisplayHandle,
             backend::{ClientData, ClientId, DisconnectReason},
             protocol::wl_surface::WlSurface,
+            Display, DisplayHandle,
         },
     },
     utils::{IsAlive, Logical, Point, Rectangle, Size},
-    xwayland::X11Surface,
     wayland::{
         compositor::{CompositorClientState, CompositorState},
         idle_inhibit::IdleInhibitManagerState,
         idle_notify::IdleNotifierState,
         output::OutputManagerState,
-        selection::{
-            data_device::DataDeviceState,
-            primary_selection::PrimarySelectionState,
-        },
+        selection::{data_device::DataDeviceState, primary_selection::PrimarySelectionState},
+        session_lock::SessionLockManagerState,
         shell::{
             wlr_layer::WlrLayerShellState,
             xdg::{decoration::XdgDecorationState, XdgShellState},
@@ -34,13 +36,13 @@ use smithay::{
         shm::ShmState,
         socket::ListeningSocketSource,
         text_input::TextInputManagerState,
-        session_lock::SessionLockManagerState,
     },
+    xwayland::X11Surface,
 };
 
 use crate::events::accept_event_subscribers;
-use crate::focus::KeyboardFocusTarget;
 use crate::events::EventBus;
+use crate::focus::KeyboardFocusTarget;
 use crate::windows::WindowRegistry;
 
 /// Legacy default for bar-adjacent padding; live maximize/snap gaps come from
@@ -352,7 +354,8 @@ pub struct MetisState {
     /// Client-visible logical outputs in the nested winit session (empty on DRM).
     pub winit_outputs: Vec<smithay::output::Output>,
     /// wl_output globals for winit logical outputs (DRM stores these per-surface).
-    pub output_globals: std::collections::HashMap<String, smithay::reexports::wayland_server::backend::GlobalId>,
+    pub output_globals:
+        std::collections::HashMap<String, smithay::reexports::wayland_server::backend::GlobalId>,
     /// Screen capture protocol state (ext-image-copy-capture).
     pub image_capture: crate::image_capture::ImageCaptureRuntime,
     pub(crate) color_mgmt: crate::color_management::ColorManagementRuntime,
@@ -385,8 +388,10 @@ pub struct MetisState {
     /// clicks while locked (Proton streams hints continuously during mouse-look).
     pub(crate) cursor_position_hint: Option<(WlSurface, Point<f64, Logical>)>,
     /// Per-surface pointer-constraint lifecycle (NeverActivated / Active).
-    pub(crate) pointer_constraint_phases:
-        std::collections::HashMap<smithay::reexports::wayland_server::backend::ObjectId, PointerConstraintPhase>,
+    pub(crate) pointer_constraint_phases: std::collections::HashMap<
+        smithay::reexports::wayland_server::backend::ObjectId,
+        PointerConstraintPhase,
+    >,
     /// Last surface that received pointer motion (for enter detection / tracing).
     pub(crate) last_pointer_motion_surface:
         Option<smithay::reexports::wayland_server::backend::ObjectId>,
@@ -413,7 +418,9 @@ fn resolve_client_cursor_env() -> (String, String) {
         let mut dirs = Vec::new();
         if let Ok(home) = std::env::var("HOME") {
             dirs.push(std::path::PathBuf::from(format!("{home}/.icons")));
-            dirs.push(std::path::PathBuf::from(format!("{home}/.local/share/icons")));
+            dirs.push(std::path::PathBuf::from(format!(
+                "{home}/.local/share/icons"
+            )));
         }
         dirs.push(std::path::PathBuf::from("/usr/share/icons"));
         dirs.push(std::path::PathBuf::from("/usr/local/share/icons"));
@@ -528,7 +535,10 @@ impl ClientGpuHint {
         if dri_prime.is_none() && vk_select.is_none() {
             return None;
         }
-        Some(Self { dri_prime, vk_select })
+        Some(Self {
+            dri_prime,
+            vk_select,
+        })
     }
 
     /// Apply the hint to a spawned command, only for keys the surrounding
@@ -617,9 +627,7 @@ impl DgpuOffload {
                     return Some(DgpuOffload::Nvidia);
                 }
                 Some(_) => {
-                    let dri_prime = pci.map(|p| {
-                        format!("pci-{}", p.replace([':', '.'], "_"))
-                    })?;
+                    let dri_prime = pci.map(|p| format!("pci-{}", p.replace([':', '.'], "_")))?;
                     let vk_select = match (vendor, device) {
                         (Some(v), Some(d)) => Some(format!("{v}:{d}")),
                         _ => None,
@@ -763,7 +771,10 @@ fn apply_spawned_client_env(
         let gdk_debug = std::env::var("GDK_DEBUG").unwrap_or_default();
         if gdk_debug.is_empty() {
             cmd.env("GDK_DEBUG", "no-portals");
-        } else if !gdk_debug.split(',').any(|p| p == "no-portals" || p == "portals") {
+        } else if !gdk_debug
+            .split(',')
+            .any(|p| p == "no-portals" || p == "portals")
+        {
             cmd.env("GDK_DEBUG", format!("{gdk_debug},no-portals"));
         } else {
             cmd.env("GDK_DEBUG", gdk_debug);
@@ -789,31 +800,13 @@ fn apply_spawned_client_env(
     }
 }
 
-/// Privilege scope for a compositor IPC request (Phase 15 §D).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IpcCaps {
-    /// Bar / Settings / full session control plane.
-    Full,
-    /// Desktop-widgets helper: Launch + read-only / light reload only.
-    Widgets,
-}
-
-fn widgets_command_allowed(cmd: &CompositorCommand) -> bool {
-    matches!(
-        cmd,
-        CompositorCommand::Ping
-            | CompositorCommand::GetMonitor
-            | CompositorCommand::ListOutputs
-            | CompositorCommand::ListWindows
-            | CompositorCommand::GetLayout
-            | CompositorCommand::Launch { .. }
-            | CompositorCommand::ApplyBackground
-            | CompositorCommand::ReloadLocale
-    )
-}
+pub use crate::ipc_dispatch::IpcCaps;
 
 impl MetisState {
-    pub fn new(event_loop: &mut EventLoop<'static, MetisState>, display: Display<MetisState>) -> Self {
+    pub fn new(
+        event_loop: &mut EventLoop<'static, MetisState>,
+        display: Display<MetisState>,
+    ) -> Self {
         let start_time = std::time::Instant::now();
         let dh = display.handle();
 
@@ -845,7 +838,7 @@ impl MetisState {
             kb.repeat_delay_ms,
             kb.repeat_rate_hz,
         )
-        .unwrap();
+        .expect("seat keyboard init failed (xkb)");
         seat.add_pointer();
 
         let space = Space::<Window>::default();
@@ -867,8 +860,7 @@ impl MetisState {
         // dispatch glue comes from `delegate_dispatch2!`.
         smithay::wayland::relative_pointer::RelativePointerManagerState::new::<MetisState>(&dh);
         smithay::wayland::pointer_constraints::PointerConstraintsState::new::<MetisState>(&dh);
-        let session_lock_state =
-            SessionLockManagerState::new::<MetisState, _>(&dh, |_| true);
+        let session_lock_state = SessionLockManagerState::new::<MetisState, _>(&dh, |_| true);
         let power_cfg = metis_config::load_power_config();
         let idle = crate::idle::IdleManager::new(power_cfg.blank_after_minutes);
 
@@ -1020,7 +1012,10 @@ impl MetisState {
         }
     }
 
-    pub(crate) fn process_pending_captures(&mut self, renderer: &mut smithay::backend::renderer::gles::GlesRenderer) {
+    pub(crate) fn process_pending_captures(
+        &mut self,
+        renderer: &mut smithay::backend::renderer::gles::GlesRenderer,
+    ) {
         // Never satisfy a screen-capture request while locked — the framebuffer
         // shows the lock UI, but refusing outright avoids leaking even that.
         if self.session_is_locked() {
@@ -1037,11 +1032,7 @@ impl MetisState {
     /// machine, service shell IPC, advance the debounced wallpaper decode, pick
     /// up live blur / decoration config changes, and tick scroll animations.
     pub(crate) fn xcursor_config(&self) -> (&str, u32) {
-        let size = self
-            .client_cursor_size
-            .parse()
-            .unwrap_or(24)
-            .clamp(16, 96);
+        let size = self.client_cursor_size.parse().unwrap_or(24).clamp(16, 96);
         (&self.client_cursor_theme, size)
     }
 
@@ -1340,13 +1331,14 @@ impl MetisState {
     ) -> bool {
         use smithay::wayland::pointer_constraints::{with_pointer_constraint, PointerConstraint};
         with_pointer_constraint(surface, pointer, |constraint| {
-            constraint.is_some_and(|c| {
-                c.is_active() && matches!(&*c, PointerConstraint::Locked(_))
-            })
+            constraint.is_some_and(|c| c.is_active() && matches!(&*c, PointerConstraint::Locked(_)))
         })
     }
 
-    pub fn window_id_for_toplevel(&self, surface: &smithay::wayland::shell::xdg::ToplevelSurface) -> Option<u32> {
+    pub fn window_id_for_toplevel(
+        &self,
+        surface: &smithay::wayland::shell::xdg::ToplevelSurface,
+    ) -> Option<u32> {
         self.windows.id_for_surface(surface.wl_surface())
     }
 
@@ -1376,7 +1368,7 @@ impl MetisState {
     pub(crate) fn window_decoration_mode(
         &self,
         record: &crate::windows::WindowRecord,
-    ) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode> {
+    ) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode>{
         record.wl_toplevel().and_then(read_toplevel_decoration_mode)
     }
 
@@ -1590,10 +1582,7 @@ impl MetisState {
         self.sync_auto_hide_titlebar(id);
         // Push once we can classify the client — including CSD from app_id,
         // negotiation, or an early xdg-decoration bind (GTK/Chromium).
-        let app_id_known = record
-            .app_id
-            .as_ref()
-            .is_some_and(|id| !id.is_empty());
+        let app_id_known = record.app_id.as_ref().is_some_and(|id| !id.is_empty());
         if let Some(toplevel) = record.wl_toplevel() {
             if app_id_known || record.decoration_negotiated || !uses_ssd || record.fullscreen {
                 self.push_preferred_decoration_mode(toplevel, uses_ssd, record.fullscreen);
@@ -1844,16 +1833,11 @@ impl MetisState {
             && self.window_uses_compact_overlay(id)
             && self.floating.contains(&id)
             && !maximized_or_snapped;
-        let snap_auto_hide = ssd
-            && record.snapped
-            && !record.maximized
-            && self.should_auto_hide_titlebar(id);
+        let snap_auto_hide =
+            ssd && record.snapped && !record.maximized && self.should_auto_hide_titlebar(id);
         let maximized_auto_hide =
             ssd && record.maximized && self.maximized_uses_auto_hide_titlebar(id);
-        let should_overlay = grid_tiled
-            || maximized_auto_hide
-            || snap_auto_hide
-            || tabbed_floating;
+        let should_overlay = grid_tiled || maximized_auto_hide || snap_auto_hide || tabbed_floating;
         if should_overlay {
             let was_auto_hide = self.auto_hide_titlebar.contains(&id);
             self.auto_hide_titlebar.insert(id);
@@ -1903,13 +1887,8 @@ impl MetisState {
             return Point::default();
         };
 
-        let current = self
-            .window_body_rect(id)
-            .unwrap_or(record.target_rect);
-        let restore = self
-            .windows
-            .take_restore_rect(id)
-            .unwrap_or(current);
+        let current = self.window_body_rect(id).unwrap_or(record.target_rect);
+        let restore = self.windows.take_restore_rect(id).unwrap_or(current);
 
         self.clear_auto_hide(id);
         self.windows.set_maximized(id, false);
@@ -2264,16 +2243,19 @@ impl MetisState {
         display: Display<MetisState>,
         event_loop: &mut EventLoop<'_, MetisState>,
     ) -> OsString {
-        let listening_socket = ListeningSocketSource::new_auto().unwrap();
+        let listening_socket = ListeningSocketSource::new_auto()
+            .expect("wayland listening socket (WAYLAND_DISPLAY) setup failed");
         let socket_name = listening_socket.socket_name().to_os_string();
         let loop_handle = event_loop.handle();
 
         loop_handle
             .insert_source(listening_socket, move |client_stream, _, state| {
-                state
+                if let Err(err) = state
                     .display_handle
                     .insert_client(client_stream, Arc::new(ClientState::default()))
-                    .unwrap();
+                {
+                    tracing::warn!(?err, "failed to insert wayland client");
+                }
             })
             .expect("Failed to init the wayland event source.");
 
@@ -2294,7 +2276,7 @@ impl MetisState {
                     Ok(PostAction::Continue)
                 },
             )
-            .unwrap();
+            .expect("Failed to init the wayland display event source.");
 
         socket_name
     }
@@ -2389,7 +2371,12 @@ impl MetisState {
         if self.udev.is_some() {
             return false;
         }
-        let Some(output) = self.winit_outputs.iter().find(|o| o.name() == name).cloned() else {
+        let Some(output) = self
+            .winit_outputs
+            .iter()
+            .find(|o| o.name() == name)
+            .cloned()
+        else {
             return false;
         };
         if !self.is_output_enabled(name) {
@@ -2407,7 +2394,12 @@ impl MetisState {
         if self.udev.is_some() {
             return false;
         }
-        let Some(output) = self.winit_outputs.iter().find(|o| o.name() == name).cloned() else {
+        let Some(output) = self
+            .winit_outputs
+            .iter()
+            .find(|o| o.name() == name)
+            .cloned()
+        else {
             return false;
         };
         if self.is_output_enabled(name) {
@@ -2525,10 +2517,7 @@ impl MetisState {
     /// Used for absolute-pointer mapping and cross-output window dragging.
     /// Clamp a pointer position to the union of output geometries so relative
     /// (libinput) motion can never leave the visible desktop.
-    pub fn clamp_to_desktop(
-        &self,
-        p: Point<f64, Logical>,
-    ) -> Point<f64, Logical> {
+    pub fn clamp_to_desktop(&self, p: Point<f64, Logical>) -> Point<f64, Logical> {
         let b = self.desktop_bounds();
         let max_x = (b.loc.x + b.size.w - 1).max(b.loc.x) as f64;
         let max_y = (b.loc.y + b.size.h - 1).max(b.loc.y) as f64;
@@ -2890,9 +2879,7 @@ impl MetisState {
             }
             if let Some(out_geo) = self.space.output_geometry(output) {
                 if out_geo.contains(center) {
-                    return smithay::utils::Scale::from(
-                        output.current_scale().fractional_scale(),
-                    );
+                    return smithay::utils::Scale::from(output.current_scale().fractional_scale());
                 }
             }
         }
@@ -2920,7 +2907,9 @@ impl MetisState {
             let is_primary = self.desks.is_empty();
             let mut layout = self.default_layout.clone();
             if !is_primary {
-                layout.tiles.retain(|t| matches!(t.kind, TileKind::App { .. }));
+                layout
+                    .tiles
+                    .retain(|t| matches!(t.kind, TileKind::App { .. }));
             }
             self.desks.insert(
                 key.to_string(),
@@ -2933,7 +2922,9 @@ impl MetisState {
                 },
             );
         }
-        self.desks.get_mut(key).unwrap()
+        self.desks
+            .get_mut(key)
+            .expect("desk entry exists after insert-or-present check")
     }
 
     /// Ensure a desk exists for `output` (called when an output is mapped).
@@ -3053,10 +3044,7 @@ impl MetisState {
 
     /// Mutable scroll state for an output's workspace, creating it on demand.
     fn scroll_state_mut(&mut self, key: &str, ws: u32) -> &mut metis_grid::ScrollState {
-        self.desk_mut_or_default(key)
-            .scroll
-            .entry(ws)
-            .or_default()
+        self.desk_mut_or_default(key).scroll.entry(ws).or_default()
     }
 
     /// Recompute the scroll offset for an output's active workspace so the focused
@@ -3235,10 +3223,8 @@ impl MetisState {
         {
             return;
         }
-        self.space.relocate_element(
-            &record.window,
-            Point::from((base.x + dx, base.y + dy)),
-        );
+        self.space
+            .relocate_element(&record.window, Point::from((base.x + dx, base.y + dy)));
         self.schedule_redraw();
     }
 
@@ -3348,9 +3334,7 @@ impl MetisState {
             metis_config::BarPosition::Bottom => {
                 Point::from((cx, zone.y + zone.height - margin - half))
             }
-            metis_config::BarPosition::Left => {
-                Point::from((zone.x + margin + half, cy))
-            }
+            metis_config::BarPosition::Left => Point::from((zone.x + margin + half, cy)),
             metis_config::BarPosition::Right => {
                 Point::from((zone.x + zone.width - margin - half, cy))
             }
@@ -3414,7 +3398,10 @@ impl MetisState {
             tiles
                 .iter()
                 .filter_map(|t| match &t.kind {
-                    TileKind::App { window_id: Some(wid), .. } => Some(*wid),
+                    TileKind::App {
+                        window_id: Some(wid),
+                        ..
+                    } => Some(*wid),
                     _ => None,
                 })
                 .collect()
@@ -3487,12 +3474,10 @@ impl MetisState {
                 });
             }
         }
-        self.windows
-            .target_rect(id)
-            .or_else(|| {
-                self.rect_for_window_tile(id)
-                    .map(|full| self.tile_client_rect(id, full))
-            })
+        self.windows.target_rect(id).or_else(|| {
+            self.rect_for_window_tile(id)
+                .map(|full| self.tile_client_rect(id, full))
+        })
     }
 
     /// Drop grid/scroll management for a workspace — windows keep their on-screen
@@ -3509,8 +3494,7 @@ impl MetisState {
         let active = self.active_workspace_for(key);
         let desk = self.desk_mut_or_default(key);
         if ws == active {
-            desk
-                .layout
+            desk.layout
                 .tiles
                 .retain(|t| !matches!(t.kind, TileKind::App { .. }));
         } else {
@@ -4055,7 +4039,11 @@ impl MetisState {
     pub fn find_app_tile(&self, window_id: u32) -> Option<(String, metis_grid::GridTile)> {
         for (key, desk) in &self.desks {
             for tile in &desk.layout.tiles {
-                if let TileKind::App { window_id: Some(wid), .. } = &tile.kind {
+                if let TileKind::App {
+                    window_id: Some(wid),
+                    ..
+                } = &tile.kind
+                {
                     if *wid == window_id {
                         return Some((key.clone(), tile.clone()));
                     }
@@ -4086,8 +4074,13 @@ impl MetisState {
 
         let prune_list = |tiles: &mut Vec<metis_grid::GridTile>| {
             tiles.retain(|t| match &t.kind {
-                TileKind::App { window_id: Some(wid), .. } => live.contains(wid),
-                TileKind::App { window_id: None, .. } => false,
+                TileKind::App {
+                    window_id: Some(wid),
+                    ..
+                } => live.contains(wid),
+                TileKind::App {
+                    window_id: None, ..
+                } => false,
                 _ => true,
             });
             let mut keep: HashMap<u32, String> = HashMap::new();
@@ -4106,7 +4099,10 @@ impl MetisState {
                 }
             }
             tiles.retain(|t| match &t.kind {
-                TileKind::App { window_id: Some(wid), .. } => keep.get(wid) == Some(&t.id),
+                TileKind::App {
+                    window_id: Some(wid),
+                    ..
+                } => keep.get(wid) == Some(&t.id),
                 _ => true,
             });
         };
@@ -4119,9 +4115,7 @@ impl MetisState {
 
     /// Drop a window's app tile from every desk (visible and stashed).
     pub(crate) fn remove_app_tile_everywhere(&mut self, window_id: u32) {
-        let matches_window = |t: &metis_grid::GridTile| {
-            matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == window_id)
-        };
+        let matches_window = |t: &metis_grid::GridTile| matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == window_id);
         for desk in self.desks.values_mut() {
             desk.layout.tiles.retain(|t| !matches_window(t));
             for tiles in desk.stashed_app_tiles.values_mut() {
@@ -4186,10 +4180,7 @@ impl MetisState {
     /// the client's geometry offset (CSD / X11 insets). Used to translate a
     /// locked-pointer cursor hint (surface-local) into global desktop coordinates
     /// when restoring the cursor on unlock.
-    pub(crate) fn surface_space_origin(
-        &self,
-        surface: &WlSurface,
-    ) -> Option<Point<f64, Logical>> {
+    pub(crate) fn surface_space_origin(&self, surface: &WlSurface) -> Option<Point<f64, Logical>> {
         use smithay::wayland::seat::WaylandFocus;
         let window = self
             .windows
@@ -4212,7 +4203,6 @@ impl MetisState {
         &self,
         surface: &WlSurface,
     ) -> (Option<u32>, Option<String>) {
-        
         let id = self.windows.id_for_surface(surface);
         let app_id = id.and_then(|i| self.windows.get(i).and_then(|r| r.app_id.clone()));
         (id, app_id)
@@ -4312,8 +4302,7 @@ impl MetisState {
                 return;
             };
             let is_active = constraint.is_active();
-            let is_locked =
-                is_active && matches!(&*constraint, PointerConstraint::Locked(_));
+            let is_locked = is_active && matches!(&*constraint, PointerConstraint::Locked(_));
             if is_active {
                 let prev = self.pointer_constraint_phases.get(&surface_id).copied();
                 self.pointer_constraint_phases
@@ -4330,10 +4319,8 @@ impl MetisState {
             } else if self.pointer_constraint_phases.get(&surface_id)
                 == Some(&PointerConstraintPhase::Active)
             {
-                self.pointer_constraint_phases.insert(
-                    surface_id.clone(),
-                    PointerConstraintPhase::NeverActivated,
-                );
+                self.pointer_constraint_phases
+                    .insert(surface_id.clone(), PointerConstraintPhase::NeverActivated);
                 trace = Some((
                     "constraint became inactive (eligible to re-arm)",
                     PointerConstraintPhase::NeverActivated,
@@ -4497,7 +4484,13 @@ impl MetisState {
             let Some(output) = output else {
                 return;
             };
-            let geo = self.space.output_geometry(&output).unwrap();
+            let Some(geo) = self.space.output_geometry(&output) else {
+                tracing::warn!(
+                    output = %output.name(),
+                    "fullscreen: output has no geometry"
+                );
+                return;
+            };
             let wl_surface = record.wl_toplevel().map(|t| t.wl_surface().clone());
             let wl_output = wl_surface.as_ref().and_then(|wl_surface| {
                 self.display_handle
@@ -4506,9 +4499,7 @@ impl MetisState {
                     .and_then(|client| output.client_outputs(&client).next())
             });
 
-            let current = self
-                .window_body_rect(id)
-                .unwrap_or(record.target_rect);
+            let current = self.window_body_rect(id).unwrap_or(record.target_rect);
             self.windows
                 .set_pre_fullscreen_maximized(id, record.maximized);
             // Keep the pre-maximize floating geometry when entering fullscreen
@@ -4533,8 +4524,7 @@ impl MetisState {
                         Some(crate::decoration_policy::grant_decoration_mode(true));
                 });
             }
-            self.space
-                .map_element(record.window.clone(), geo.loc, true);
+            self.space.map_element(record.window.clone(), geo.loc, true);
             self.windows.set_fullscreen(id, true);
             self.windows.set_maximized(id, false);
             self.clear_auto_hide(id);
@@ -4547,9 +4537,9 @@ impl MetisState {
                     state.fullscreen_output = None;
                     // Restore the windowed decoration mode negotiated for this
                     // client so a CSD app gets its own frame back on exit.
-                    state.decoration_mode = Some(
-                        crate::decoration_policy::grant_decoration_mode(record.uses_ssd),
-                    );
+                    state.decoration_mode = Some(crate::decoration_policy::grant_decoration_mode(
+                        record.uses_ssd,
+                    ));
                 });
             }
             self.windows.set_fullscreen(id, false);
@@ -4572,11 +4562,12 @@ impl MetisState {
         }
 
         if let Some(output_name) = output_name_for_event {
-            self.event_bus.emit(&metis_protocol::CompositorEvent::WindowFullscreen {
-                id,
-                fullscreen: enabled,
-                output: output_name,
-            });
+            self.event_bus
+                .emit(&metis_protocol::CompositorEvent::WindowFullscreen {
+                    id,
+                    fullscreen: enabled,
+                    output: output_name,
+                });
         }
 
         if let Some(record) = self.windows.get(id) {
@@ -4701,8 +4692,7 @@ impl MetisState {
         if !self.is_drm_backend() {
             return;
         }
-        let mut cfg =
-            metis_config::load_outputs_config_with_fallback(self.output_runtime.cached());
+        let mut cfg = metis_config::load_outputs_config_with_fallback(self.output_runtime.cached());
         let next = match cfg.display_mode {
             metis_config::DisplayLayoutMode::Extend => metis_config::DisplayLayoutMode::Mirror,
             metis_config::DisplayLayoutMode::Mirror => metis_config::DisplayLayoutMode::Extend,
@@ -4728,12 +4718,14 @@ impl MetisState {
     ) -> Option<smithay::output::Output> {
         use smithay::reexports::wayland_server::Resource;
         let client = wl_output.client()?;
-        self.space.outputs().find(|output| {
-            output
-                .client_outputs(&client)
-                .any(|co| co.id() == wl_output.id())
-        })
-        .cloned()
+        self.space
+            .outputs()
+            .find(|output| {
+                output
+                    .client_outputs(&client)
+                    .any(|co| co.id() == wl_output.id())
+            })
+            .cloned()
     }
 
     pub fn set_maximized(&mut self, id: u32, enabled: bool) {
@@ -4757,8 +4749,7 @@ impl MetisState {
                 }
                 if let Some((client, client_size)) = self.maximized_client_geometry(id) {
                     let loc = Point::from((client.x, client.y));
-                    let at_loc =
-                        self.space.element_location(&record.window) == Some(loc);
+                    let at_loc = self.space.element_location(&record.window) == Some(loc);
                     let size_ok = record.window.geometry().size == client_size;
                     let rect_ok = self.windows.target_rect(id) == Some(client);
                     if at_loc && size_ok && rect_ok {
@@ -4776,9 +4767,7 @@ impl MetisState {
             // its grid tile mid-transition.
             self.windows.set_maximized(id, true);
 
-            let current = self
-                .window_body_rect(id)
-                .unwrap_or(record.target_rect);
+            let current = self.window_body_rect(id).unwrap_or(record.target_rect);
             self.windows.set_restore_rect(id, current);
 
             if self.maximized_uses_auto_hide_titlebar(id) {
@@ -4997,15 +4986,17 @@ impl MetisState {
 
         if self.focused_window_id() == Some(id) {
             let serial = smithay::utils::SERIAL_COUNTER.next_serial();
-            self.seat
-                .get_keyboard()
-                .unwrap()
-                .set_focus(self, Option::<KeyboardFocusTarget>::None, serial);
+            if let Some(keyboard) = self.seat.get_keyboard() {
+                keyboard.set_focus(self, Option::<KeyboardFocusTarget>::None, serial);
+            } else {
+                tracing::warn!("minimize_window: seat has no keyboard");
+            }
         }
-        self.event_bus.emit(&metis_protocol::CompositorEvent::WindowMinimized {
-            id,
-            minimized: true,
-        });
+        self.event_bus
+            .emit(&metis_protocol::CompositorEvent::WindowMinimized {
+                id,
+                minimized: true,
+            });
     }
 
     fn unminimize_window(&mut self, id: u32) {
@@ -5014,10 +5005,11 @@ impl MetisState {
         if self.preferred_stacking_window() == Some(id) {
             self.raise_stacking_window(id, true);
         }
-        self.event_bus.emit(&metis_protocol::CompositorEvent::WindowMinimized {
-            id,
-            minimized: false,
-        });
+        self.event_bus
+            .emit(&metis_protocol::CompositorEvent::WindowMinimized {
+                id,
+                minimized: false,
+            });
     }
 
     /// Minimize a window by id, routing grid tiles through `set_tile_mode` (so the
@@ -5063,10 +5055,11 @@ impl MetisState {
         };
         self.raise_stacking_window(id, true);
         let serial = smithay::utils::SERIAL_COUNTER.next_serial();
-        self.seat
-            .get_keyboard()
-            .unwrap()
-            .set_focus(self, Some(record.window.clone().into()), serial);
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+        } else {
+            tracing::warn!("activate_window_by_id: seat has no keyboard");
+        }
         self.event_bus
             .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
         self.restore_focus_stacking();
@@ -5115,10 +5108,7 @@ impl MetisState {
         if !record.fullscreen {
             return;
         }
-        let Some(output) = self
-            .output_for_window(id)
-            .or_else(|| self.primary_output())
-        else {
+        let Some(output) = self.output_for_window(id).or_else(|| self.primary_output()) else {
             return;
         };
         let Some(geo) = self.space.output_geometry(&output) else {
@@ -5332,14 +5322,7 @@ impl MetisState {
             _ => None,
         };
         let new_x = anchor_axis(
-            foot.x,
-            foot.width,
-            zone.x,
-            zone.width,
-            size.w,
-            gaps.left,
-            gaps.right,
-            x_anchor,
+            foot.x, foot.width, zone.x, zone.width, size.w, gaps.left, gaps.right, x_anchor,
         );
         let new_y = anchor_axis(
             foot.y,
@@ -5488,9 +5471,7 @@ impl MetisState {
                     true,
                 )
             } else if draws_ssd {
-                if let Some(frame) =
-                    self.ssd_frame_for_mapped_window(id, &record.window)
-                {
+                if let Some(frame) = self.ssd_frame_for_mapped_window(id, &record.window) {
                     (frame, false)
                 } else {
                     continue;
@@ -5611,10 +5592,7 @@ impl MetisState {
     /// Like [`window_placement_zone`](Self::window_placement_zone) but for a
     /// specific `output`, so snap/maximize/placement target the monitor a window
     /// (or the cursor) is on.
-    pub(crate) fn window_placement_zone_for(
-        &self,
-        output: &smithay::output::Output,
-    ) -> PixelRect {
+    pub(crate) fn window_placement_zone_for(&self, output: &smithay::output::Output) -> PixelRect {
         let mut zone = match self.output_rect(output) {
             Some(m) => PixelRect {
                 x: m.x,
@@ -5749,11 +5727,7 @@ impl MetisState {
 
     /// Keep the bar strip reserved when auto-hide is off. With auto-hide the
     /// reserve is 0 (bar overlays; windows keep `window_gap_px` only).
-    fn enforce_bar_reserve_on_zone(
-        &self,
-        output: &smithay::output::Output,
-        zone: &mut PixelRect,
-    ) {
+    fn enforce_bar_reserve_on_zone(&self, output: &smithay::output::Output, zone: &mut PixelRect) {
         if !self.output_has_bar(output) {
             return;
         }
@@ -5888,7 +5862,8 @@ impl MetisState {
             let bottom = (rect.y + rect.height).min(g.loc.y + g.size.h);
             let overlap_w = (right - left).min(rect.width);
             let overlap_h = (bottom - top).min(rect.height);
-            if overlap_w >= MIN_VISIBLE.min(rect.width) && overlap_h >= MIN_VISIBLE.min(rect.height) {
+            if overlap_w >= MIN_VISIBLE.min(rect.width) && overlap_h >= MIN_VISIBLE.min(rect.height)
+            {
                 return true;
             }
         }
@@ -5954,10 +5929,7 @@ impl MetisState {
         ) {
             return rect;
         }
-        let Some(output) = self
-            .output_for_window(id)
-            .or_else(|| self.primary_output())
-        else {
+        let Some(output) = self.output_for_window(id).or_else(|| self.primary_output()) else {
             return rect;
         };
         if !self.output_has_bar(&output) {
@@ -6093,7 +6065,13 @@ impl MetisState {
         let ws = self.windows.workspace(id).unwrap_or(1);
         let kind = self.layout_kind_for(&key, ws);
 
-        tracing::info!(id, ?app_id, ?title, ?kind, "place_new_window: deciding placement");
+        tracing::info!(
+            id,
+            ?app_id,
+            ?title,
+            ?kind,
+            "place_new_window: deciding placement"
+        );
 
         // Settings and similar always open centered floating regardless of layout.
         let by_app_id = app_id.is_some_and(|a| CENTERED_FLOAT_APP_IDS.contains(&a));
@@ -6130,7 +6108,12 @@ impl MetisState {
             if rule.fullscreen {
                 self.pending_game_fullscreen.insert(id);
             }
-            tracing::info!(id, ?rect, fullscreen = rule.fullscreen, "place_new_window: game rule float");
+            tracing::info!(
+                id,
+                ?rect,
+                fullscreen = rule.fullscreen,
+                "place_new_window: game rule float"
+            );
             return true;
         }
 
@@ -6162,7 +6145,10 @@ impl MetisState {
                 let rect = self.centered_body_for_window(id, DEFAULT_FLOAT_W, DEFAULT_FLOAT_H);
                 self.windows.set_target_rect(id, rect);
                 self.windows.set_placement_chosen(id, true);
-                tracing::info!(id, "place_new_window: free desktop centered on launch output");
+                tracing::info!(
+                    id,
+                    "place_new_window: free desktop centered on launch output"
+                );
                 return true;
             }
             // app_id not set yet (GTK usually assigns it just after the first
@@ -6277,12 +6263,7 @@ impl MetisState {
     }
 
     /// True when a window stacked above `below_id` has client pixels at `(x, y)`.
-    pub(crate) fn higher_window_client_occludes(
-        &self,
-        x: i32,
-        y: i32,
-        below_id: u32,
-    ) -> bool {
+    pub(crate) fn higher_window_client_occludes(&self, x: i32, y: i32, below_id: u32) -> bool {
         use crate::desk_input::point_in_rect;
 
         for window in self.space.elements().rev() {
@@ -6336,11 +6317,7 @@ impl MetisState {
         use crate::desk_input::point_in_rect;
 
         // A live popup/move/resize grab owns the pointer — let it run.
-        if self
-            .seat
-            .get_pointer()
-            .is_some_and(|p| p.is_grabbed())
-        {
+        if self.seat.get_pointer().is_some_and(|p| p.is_grabbed()) {
             return false;
         }
         if self.metis_bar_ui_hit(loc) {
@@ -6362,7 +6339,10 @@ impl MetisState {
         let mut ordered: Vec<&crate::decoration::WindowDeco> = specs.iter().collect();
         ordered.sort_by_key(|s| {
             // overlay first (false < true); then highest stacking index (topmost).
-            (!s.overlay, std::cmp::Reverse(z.get(&s.id).copied().unwrap_or(0)))
+            (
+                !s.overlay,
+                std::cmp::Reverse(z.get(&s.id).copied().unwrap_or(0)),
+            )
         });
         for spec in ordered {
             let frame = spec.frame;
@@ -6544,10 +6524,7 @@ impl MetisState {
 
     /// Mapped window bounds expanded by the resize grab halo — used to block edge
     /// hits on windows below a frontmost window that does not itself expose edges.
-    fn mapped_resize_occlusion_rect(
-        &self,
-        window: &smithay::desktop::Window,
-    ) -> Option<PixelRect> {
+    fn mapped_resize_occlusion_rect(&self, window: &smithay::desktop::Window) -> Option<PixelRect> {
         let geo = self.space.element_geometry(window)?;
         if geo.size.w <= 0 || geo.size.h <= 0 {
             return None;
@@ -6679,8 +6656,7 @@ impl MetisState {
                 continue;
             }
             if let Some(frame) = self.resize_frame_for_mapped_window(id, window) {
-                let edges =
-                    self.resize_edges_for_point(loc, frame, self.window_uses_ssd(id));
+                let edges = self.resize_edges_for_point(loc, frame, self.window_uses_ssd(id));
                 if !edges.is_empty() {
                     return Some((id, edges));
                 }
@@ -7051,11 +7027,7 @@ impl MetisState {
         if let Some((prev_id, prev)) = self.titlebar_last_click {
             if prev_id == id && now.duration_since(prev) <= INTERVAL {
                 self.titlebar_last_click = None;
-                let maxed = self
-                    .windows
-                    .get(id)
-                    .map(|r| r.maximized)
-                    .unwrap_or(false);
+                let maxed = self.windows.get(id).map(|r| r.maximized).unwrap_or(false);
                 self.set_maximized(id, !maxed);
                 return true;
             }
@@ -7097,10 +7069,8 @@ impl MetisState {
         } else {
             let was_maximized = self.windows.get(id).is_some_and(|r| r.maximized);
             if !was_maximized {
-                let mut initial_window_location = self
-                    .space
-                    .element_location(&window)
-                    .unwrap_or_default();
+                let mut initial_window_location =
+                    self.space.element_location(&window).unwrap_or_default();
 
                 // SSD windows reserve a titlebar strip above the body when floating;
                 // tabbed browsers use overlay chrome instead.
@@ -7115,7 +7085,9 @@ impl MetisState {
                         height: window.geometry().size.h,
                     };
                     let clamped = self.clamp_body_below_bar(rect);
-                    if clamped.y != initial_window_location.y || clamped.x != initial_window_location.x {
+                    if clamped.y != initial_window_location.y
+                        || clamped.x != initial_window_location.x
+                    {
                         initial_window_location.x = clamped.x;
                         initial_window_location.y = clamped.y;
                         self.space
@@ -7129,8 +7101,8 @@ impl MetisState {
             }
         };
 
-        let pending_maximized_demote = self.windows.get(id).is_some_and(|r| r.maximized)
-            && !self.windows.is_snapped(id);
+        let pending_maximized_demote =
+            self.windows.get(id).is_some_and(|r| r.maximized) && !self.windows.is_snapped(id);
 
         // Focus the window so keyboard input follows the titlebar grab.
         if let Some(keyboard) = self.seat.get_keyboard() {
@@ -7165,9 +7137,9 @@ impl MetisState {
         }
         let key = self.desk_key_for_window(id);
         let desk = self.desk(&key)?;
-        let tile = desk.layout.tiles.iter().find(|t| {
-            matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == id)
-        })?;
+        let tile = desk.layout.tiles.iter().find(
+            |t| matches!(&t.kind, TileKind::App { window_id: Some(wid), .. } if *wid == id),
+        )?;
         let metrics = match self.output_by_name(&key) {
             Some(o) => self.grid_metrics_for(&o),
             None => self.grid_metrics(),
@@ -7323,14 +7295,8 @@ impl MetisState {
         }
         self.raise_stacking_window(preferred, false);
         if self.focused_window_id() != Some(preferred) {
-            let pointer_ok = self
-                .seat
-                .get_pointer()
-                .is_none_or(|p| !p.is_grabbed());
-            let keyboard_ok = self
-                .seat
-                .get_keyboard()
-                .is_none_or(|k| !k.is_grabbed());
+            let pointer_ok = self.seat.get_pointer().is_none_or(|p| !p.is_grabbed());
+            let keyboard_ok = self.seat.get_keyboard().is_none_or(|k| !k.is_grabbed());
             if pointer_ok && keyboard_ok {
                 if let Some(keyboard) = self.seat.get_keyboard() {
                     let serial = smithay::utils::SERIAL_COUNTER.next_serial();
@@ -7439,14 +7405,10 @@ impl MetisState {
         let desk = self.desk_mut_or_default(output_key);
         metis_grid::sanitize_layout(&mut desk.layout);
         let focus = focus_tile_id.as_deref();
-        if let Err(err) =
-            metis_grid::auto_tile_apps(&mut desk.layout, focus, &include)
-        {
+        if let Err(err) = metis_grid::auto_tile_apps(&mut desk.layout, focus, &include) {
             tracing::warn!(%err, output = output_key, "auto_tile_apps failed after sanitize; retrying");
             metis_grid::sanitize_layout(&mut desk.layout);
-            if let Err(err) =
-                metis_grid::auto_tile_apps(&mut desk.layout, focus, &include)
-            {
+            if let Err(err) = metis_grid::auto_tile_apps(&mut desk.layout, focus, &include) {
                 tracing::warn!(%err, output = output_key, "auto_tile_apps failed after retry");
             }
         }
@@ -7510,9 +7472,8 @@ impl MetisState {
 
     pub fn emit_monitor_changed(&self) {
         use metis_protocol::CompositorEvent;
-        self.event_bus.emit(&CompositorEvent::MonitorChanged {
-            rect: self.monitor,
-        });
+        self.event_bus
+            .emit(&CompositorEvent::MonitorChanged { rect: self.monitor });
     }
 
     pub fn emit_workspace_changed(&self, output_key: &str) {
@@ -7613,7 +7574,11 @@ impl MetisState {
         }
         // Hide the windows that just left the visible workspace.
         for tile in &stashed {
-            if let TileKind::App { window_id: Some(wid), .. } = &tile.kind {
+            if let TileKind::App {
+                window_id: Some(wid),
+                ..
+            } = &tile.kind
+            {
                 if let Some(record) = self.windows.get(*wid).cloned() {
                     self.space.unmap_elem(&record.window);
                 }
@@ -7630,7 +7595,11 @@ impl MetisState {
         }
         self.refresh_scroll_offset(output_key, false);
         if self.layout_kind_for(output_key, target) == metis_grid::LayoutKind::Grid {
-            self.auto_reflow_grid_apps(output_key, self.last_focused_window.or(self.focused_window_id()), false);
+            self.auto_reflow_grid_apps(
+                output_key,
+                self.last_focused_window.or(self.focused_window_id()),
+                false,
+            );
         }
         for id in self.window_ids_on_workspace(output_key, target) {
             self.ensure_app_tile_for_window(id);
@@ -7709,12 +7678,7 @@ impl MetisState {
 
     /// Like [`move_window_to_output`](Self::move_window_to_output) but optionally
     /// skips geometry clamp/reposition (used when a snap immediately follows).
-    fn move_window_to_output_inner(
-        &mut self,
-        window_id: u32,
-        target_key: &str,
-        reposition: bool,
-    ) {
+    fn move_window_to_output_inner(&mut self, window_id: u32, target_key: &str, reposition: bool) {
         if target_key.is_empty() {
             return;
         }
@@ -7741,7 +7705,12 @@ impl MetisState {
             let class = self.windows.get(window_id).and_then(|r| r.app_id.clone());
             tile = Some(metis_grid::GridTile {
                 id: format!("app-{window_id}"),
-                rect: default_app_tile_rect(&self.desk(target_key).map(|d| &d.layout).unwrap_or(&self.default_layout)),
+                rect: default_app_tile_rect(
+                    &self
+                        .desk(target_key)
+                        .map(|d| &d.layout)
+                        .unwrap_or(&self.default_layout),
+                ),
                 kind: TileKind::App {
                     window_id: Some(window_id),
                     class,
@@ -7755,8 +7724,7 @@ impl MetisState {
             });
         }
 
-        self.windows
-            .set_output(window_id, target_key.to_string());
+        self.windows.set_output(window_id, target_key.to_string());
 
         if let Some(tile) = tile {
             let desk = self.desk_mut_or_default(target_key);
@@ -7832,12 +7800,7 @@ impl MetisState {
     /// Move every window on `workspace` from `source_key` to `target_key` (keeping
     /// the same workspace number). Layout mode and scroll state for that workspace
     /// move with the windows. Only valid in independent per-output workspace mode.
-    pub fn move_workspace_to_output(
-        &mut self,
-        source_key: &str,
-        workspace: u32,
-        target_key: &str,
-    ) {
+    pub fn move_workspace_to_output(&mut self, source_key: &str, workspace: u32, target_key: &str) {
         if source_key.is_empty() || target_key.is_empty() || source_key == target_key {
             return;
         }
@@ -7860,8 +7823,7 @@ impl MetisState {
             .ids()
             .into_iter()
             .filter(|&id| {
-                self.desk_key_for_window(id) == source_key
-                    && self.windows.workspace(id) == Some(ws)
+                self.desk_key_for_window(id) == source_key && self.windows.workspace(id) == Some(ws)
             })
             .collect();
 
@@ -7873,7 +7835,11 @@ impl MetisState {
             if was_visible_on_source {
                 let on_ws: std::collections::HashSet<u32> = window_ids.iter().copied().collect();
                 desk.layout.tiles.retain(|t| {
-                    if let TileKind::App { window_id: Some(wid), .. } = &t.kind {
+                    if let TileKind::App {
+                        window_id: Some(wid),
+                        ..
+                    } = &t.kind
+                    {
                         if on_ws.contains(wid) {
                             tiles.push(t.clone());
                             return false;
@@ -8099,56 +8065,17 @@ impl MetisState {
         caps: IpcCaps,
     ) -> metis_protocol::CompositorEvent {
         use metis_protocol::CompositorEvent;
-        if caps == IpcCaps::Widgets {
-            if !widgets_command_allowed(&cmd) {
-                return CompositorEvent::Error {
-                    message: "IPC command not allowed for desktop-widgets capability".into(),
-                };
-            }
-        }
-        // While locked, refuse commands that could focus/reveal a client, launch
-        // programs, touch the clipboard, or elevate a capture — a locked screen
-        // must not be manipulable or screenshot-able from IPC. Read-only queries
-        // and the lock/reload commands themselves still work.
-        if self.session_is_locked() {
-            use metis_protocol::CompositorCommand as C;
-            if matches!(
-                cmd,
-                C::FocusWindow { .. }
-                    | C::ActivateWindow { .. }
-                    | C::SetFullscreen { .. }
-                    | C::SetMinimized { .. }
-                    | C::MoveWindow { .. }
-                    | C::MoveWindowToWorkspace { .. }
-                    | C::MoveWindowToOutput { .. }
-                    | C::MoveWorkspaceToOutput { .. }
-                    | C::SwitchWorkspace { .. }
-                    | C::SetWorkspaceLayout { .. }
-                    | C::SetDefaultLayout { .. }
-                    | C::ApplyLayout { .. }
-                    | C::SetTileMode { .. }
-                    | C::CloseWindow { .. }
-                    | C::Launch { .. }
-                    | C::EndSession
-                    | C::SetClipboard { .. }
-                    | C::BeginCaptureOverlay { .. }
-                    | C::BeginScreenshotOverlay
-                    | C::InjectRemotePointerAbsolute { .. }
-                    | C::InjectRemotePointerRelative { .. }
-                    | C::InjectRemotePointerButton { .. }
-                    | C::InjectRemotePointerScroll { .. }
-                    | C::InjectRemoteKey { .. }
-            ) {
-                return CompositorEvent::Error {
-                    message: "session is locked".into(),
-                };
-            }
+        // Widgets allowlist + lock denylist (pure helpers in ipc_dispatch).
+        if let crate::ipc_dispatch::IpcGate::Reject(message) =
+            crate::ipc_dispatch::gate_ipc_command(&cmd, caps, self.session_is_locked())
+        {
+            return CompositorEvent::Error {
+                message: message.into(),
+            };
         }
         match cmd {
             CompositorCommand::Ping => CompositorEvent::Pong,
-            CompositorCommand::GetMonitor => CompositorEvent::Monitor {
-                rect: self.monitor,
-            },
+            CompositorCommand::GetMonitor => CompositorEvent::Monitor { rect: self.monitor },
             CompositorCommand::ListOutputs => {
                 let cfg = self.output_runtime.cached();
                 let mirror_source = self.resolve_mirror_source_name();
@@ -8180,14 +8107,7 @@ impl MetisState {
                 let primary_ref = primary.as_deref();
                 let outputs = outputs
                     .iter()
-                    .map(|o| {
-                        crate::output_prefs::output_info_for(
-                            self,
-                            o,
-                            primary_ref,
-                            mirror_ref,
-                        )
-                    })
+                    .map(|o| crate::output_prefs::output_info_for(self, o, primary_ref, mirror_ref))
                     .collect();
                 CompositorEvent::OutputList { outputs }
             }
@@ -8241,13 +8161,12 @@ impl MetisState {
                     self.note_window_focus(id);
                     self.space.raise_element(&record.window, true);
                     let serial = smithay::utils::SERIAL_COUNTER.next_serial();
-                    self.seat.get_keyboard().unwrap().set_focus(
-                        self,
-                        Some(record.window.clone().into()),
-                        serial,
-                    );
-                    self.event_bus
-                        .emit(&CompositorEvent::WindowFocused { id });
+                    if let Some(keyboard) = self.seat.get_keyboard() {
+                        keyboard.set_focus(self, Some(record.window.clone().into()), serial);
+                    } else {
+                        tracing::warn!("FocusWindow: seat has no keyboard");
+                    }
+                    self.event_bus.emit(&CompositorEvent::WindowFocused { id });
                     self.schedule_redraw();
                     CompositorEvent::WindowFocused { id }
                 } else {
@@ -8305,7 +8224,10 @@ impl MetisState {
                     count: self.workspace_count(),
                 }
             }
-            CompositorCommand::MoveWindowToWorkspace { window_id, workspace } => {
+            CompositorCommand::MoveWindowToWorkspace {
+                window_id,
+                workspace,
+            } => {
                 if self.windows.get(window_id).is_none() {
                     CompositorEvent::Error {
                         message: format!("window {window_id} not found"),
@@ -8350,13 +8272,16 @@ impl MetisState {
                             .map(|o| o.name())
                             .unwrap_or_else(|| self.primary_key())
                     });
-                    let ws = workspace
-                        .unwrap_or_else(|| self.active_workspace_for(&source));
+                    let ws = workspace.unwrap_or_else(|| self.active_workspace_for(&source));
                     self.move_workspace_to_output(&source, ws, &target_output);
                     CompositorEvent::LayoutApplied
                 }
             }
-            CompositorCommand::SetWorkspaceLayout { output, workspace, kind } => {
+            CompositorCommand::SetWorkspaceLayout {
+                output,
+                workspace,
+                kind,
+            } => {
                 let key = output.filter(|o| !o.is_empty()).unwrap_or_else(|| {
                     self.output_under_pointer()
                         .map(|o| o.name())
@@ -8466,9 +8391,7 @@ impl MetisState {
                 text,
                 image_path,
             } => {
-                if let Err(message) =
-                    self.set_clipboard_from_command(mime, text, image_path)
-                {
+                if let Err(message) = self.set_clipboard_from_command(mime, text, image_path) {
                     CompositorEvent::Error { message }
                 } else {
                     CompositorEvent::Pong
@@ -8567,7 +8490,8 @@ impl MetisState {
             .map(|o| o.name())
             .unwrap_or_else(|| self.primary_key());
         self.windows.set_output(id, key.clone());
-        self.windows.set_workspace(id, self.active_workspace_for(&key));
+        self.windows
+            .set_workspace(id, self.active_workspace_for(&key));
         self.ensure_app_tile_for_window(id);
     }
 
@@ -8677,7 +8601,8 @@ impl MetisState {
             .register_x11(elem, window.clone(), title.clone(), app_id.clone());
         if let Some(surface) = window.wl_surface() {
             use smithay::reexports::wayland_server::Resource;
-            self.windows.index_x11_surface(window.window_id(), surface.id());
+            self.windows
+                .index_x11_surface(window.window_id(), surface.id());
         }
 
         let key = self
@@ -8685,7 +8610,8 @@ impl MetisState {
             .map(|o| o.name())
             .unwrap_or_else(|| self.primary_key());
         self.windows.set_output(id, key.clone());
-        self.windows.set_workspace(id, self.active_workspace_for(&key));
+        self.windows
+            .set_workspace(id, self.active_workspace_for(&key));
         // X11 windows are floating; never reserve a grid tile for them.
         self.floating.insert(id);
         self.refresh_window_decoration_mode(id);
@@ -8801,7 +8727,11 @@ impl MetisState {
         self.x11_pending_withdraw
             .entry(id)
             .or_insert_with(std::time::Instant::now);
-        tracing::info!(id, x11_window = window.window_id(), "x11: unmap (withdraw armed)");
+        tracing::info!(
+            id,
+            x11_window = window.window_id(),
+            "x11: unmap (withdraw armed)"
+        );
         self.schedule_redraw();
     }
 
@@ -8997,8 +8927,7 @@ impl MetisState {
             self.space.raise_element(&record.window, true);
             let serial = smithay::utils::SERIAL_COUNTER.next_serial();
             keyboard.set_focus(self, Some(record.window.clone().into()), serial);
-            self.event_bus
-                .emit(&CompositorEvent::WindowFocused { id });
+            self.event_bus.emit(&CompositorEvent::WindowFocused { id });
         }
 
         // A game rule asked for fullscreen: apply it now that the window is
@@ -9008,7 +8937,12 @@ impl MetisState {
         }
     }
 
-    pub(crate) fn set_app_tile_display_name(&mut self, window_id: u32, title: &str, app_id: Option<&str>) {
+    pub(crate) fn set_app_tile_display_name(
+        &mut self,
+        window_id: u32,
+        title: &str,
+        app_id: Option<&str>,
+    ) {
         let display = app_display_name(app_id, title);
         let tile_id = format!("app-{window_id}");
         let key = self.desk_key_for_window(window_id);
@@ -9079,7 +9013,10 @@ impl MetisState {
         }
     }
 
-    pub fn try_activate_committed_window(&mut self, surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface) {
+    pub fn try_activate_committed_window(
+        &mut self,
+        surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    ) {
         let Some(id) = self.windows.id_for_surface(surface) else {
             return;
         };
@@ -9362,7 +9299,7 @@ pub(crate) fn read_toplevel_metadata(
 
 pub(crate) fn read_toplevel_decoration_mode(
     surface: &smithay::wayland::shell::xdg::ToplevelSurface,
-) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode> {
+) -> Option<smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode>{
     surface.with_committed_state(|state| state.and_then(|s| s.decoration_mode))
 }
 

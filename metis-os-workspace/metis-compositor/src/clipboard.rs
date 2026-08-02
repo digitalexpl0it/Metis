@@ -99,7 +99,8 @@ pub fn selection_mime_satisfies(offer_mime: &str, request_mime: &str) -> bool {
     }
     matches!(
         (offer.as_str(), request.as_str()),
-        ("image/png", "image/x-png") | ("image/x-png", "image/png")
+        ("image/png", "image/x-png")
+            | ("image/x-png", "image/png")
             | ("image/jpeg", "image/jpg")
             | ("image/jpg", "image/jpeg")
     )
@@ -138,10 +139,7 @@ pub fn preferred_clipboard_mime(mimes: &[String]) -> Option<String> {
         }
     }
     if mimes.iter().any(|m| m.starts_with("text/plain")) {
-        return mimes
-            .iter()
-            .find(|m| m.starts_with("text/plain"))
-            .cloned();
+        return mimes.iter().find(|m| m.starts_with("text/plain")).cloned();
     }
     for pref in IMAGE_MIMES {
         if let Some(m) = mimes.iter().find(|m| normalize_mime(m) == *pref) {
@@ -197,11 +195,7 @@ pub fn serve_compositor_selection(
         let path = path.clone();
         std::thread::spawn(move || {
             let data = match std::fs::read(&path) {
-                Ok(data)
-                    if !data.is_empty() && data.len() <= MAX_CLIPBOARD_BYTES =>
-                {
-                    data
-                }
+                Ok(data) if !data.is_empty() && data.len() <= MAX_CLIPBOARD_BYTES => data,
                 Ok(_) => {
                     tracing::debug!(%path, "lazy clipboard file empty or over size cap");
                     return;
@@ -515,7 +509,11 @@ fn history_image_id() -> String {
 fn write_history_image(mime: &str, data: &[u8]) -> Option<String> {
     let dir = clipboard_image_dir();
     std::fs::create_dir_all(&dir).ok()?;
-    let path = dir.join(format!("{}.{}", history_image_id(), image_file_extension(mime)));
+    let path = dir.join(format!(
+        "{}.{}",
+        history_image_id(),
+        image_file_extension(mime)
+    ));
     std::fs::write(&path, data).ok()?;
     Some(path.to_string_lossy().into_owned())
 }

@@ -19,8 +19,8 @@ use metis_config::{load_bar_config, load_dashboard_config, BarPosition, Dashboar
 use metis_i18n::tr;
 
 use crate::services::{
-    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree, short_kernel_version,
-    DashboardSnapshot, GpuTempReading, ProcessClass, ProcessRow,
+    format_bytes, format_rate, format_uptime, kill_process, kill_process_tree,
+    short_kernel_version, DashboardSnapshot, GpuTempReading, ProcessClass, ProcessRow,
 };
 use crate::ui::bar::{ensure_bar_strip_geometry, BarShell};
 
@@ -146,7 +146,10 @@ pub fn wire_bar_pull(pill: &gtk::Box, shell: &BarShell) {
         if !dash.pulling.get() {
             dropdown::request_close_all();
             dash.pulling.set(true);
-            dash.max_extent.set(compute_max_extent(position, dash.shell.window.monitor().as_ref()));
+            dash.max_extent.set(compute_max_extent(
+                position,
+                dash.shell.window.monitor().as_ref(),
+            ));
         }
         let max = dash.max_extent.get().max(1);
         let extent = (delta as i32).clamp(0, max);
@@ -261,9 +264,9 @@ pub fn request_close() {
 /// True while the control center panel is open (or mid-open animation).
 pub fn is_open() -> bool {
     DASHBOARD.with(|d| {
-        d.borrow().as_ref().is_some_and(|dash| {
-            dash.open.get() || dash.window.is_visible()
-        })
+        d.borrow()
+            .as_ref()
+            .is_some_and(|dash| dash.open.get() || dash.window.is_visible())
     })
 }
 
@@ -454,11 +457,7 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
         swap_hist.clone(),
         has_swap.clone(),
     );
-    charts::wire_dual_rate_chart(
-        &overview.net_chart,
-        rx_hist.clone(),
-        tx_hist.clone(),
-    );
+    charts::wire_dual_rate_chart(&overview.net_chart, rx_hist.clone(), tx_hist.clone());
     charts::wire_dual_rate_chart(
         &overview.disk_io_chart,
         disk_read_hist.clone(),
@@ -610,7 +609,9 @@ fn build_dashboard(shell: &BarShell) -> Dashboard {
     });
 
     wire_process_sort(&dash.processes.headers, &dash.processes.list);
-    dash.processes.monitor_btn.connect_clicked(|_| launch_process_monitor());
+    dash.processes
+        .monitor_btn
+        .connect_clicked(|_| launch_process_monitor());
 
     {
         let stack = dash.stack.clone();
@@ -684,8 +685,8 @@ impl Dashboard {
         self.overview
             .net_card
             .set_visible(enabled(DashboardWidgetId::Network));
-        let show_battery = enabled(DashboardWidgetId::Battery)
-            && self.snapshot.borrow().battery_percent.is_some();
+        let show_battery =
+            enabled(DashboardWidgetId::Battery) && self.snapshot.borrow().battery_percent.is_some();
         self.overview.battery_card.set_visible(show_battery);
         self.overview
             .logs_card
@@ -1001,7 +1002,9 @@ impl Dashboard {
             mem_pct
         ));
         self.overview.mem_chart.queue_draw();
-        self.overview.mem_legend.set_visible(snapshot.swap_total_bytes > 0);
+        self.overview
+            .mem_legend
+            .set_visible(snapshot.swap_total_bytes > 0);
 
         match snapshot.battery_percent {
             Some(pct) => {
@@ -1040,7 +1043,9 @@ impl Dashboard {
             "{:.2}  {:.2}  {:.2}",
             snapshot.load_avg[0], snapshot.load_avg[1], snapshot.load_avg[2]
         ));
-        self.overview.uptime_label.set_text(&format_uptime(snapshot.uptime_secs));
+        self.overview
+            .uptime_label
+            .set_text(&format_uptime(snapshot.uptime_secs));
 
         self.overview.eth_down.set_text(&format!(
             "{} {}",
@@ -1099,12 +1104,11 @@ impl Dashboard {
         let kernel_short = short_kernel_version(&hw.kernel);
         self.overview.kernel.set_text(&kernel_short);
         self.overview.kernel.set_tooltip_text(Some(&hw.kernel));
-        self.overview.cpu_model.set_tooltip_text(Some(&hw.cpu_model));
+        self.overview
+            .cpu_model
+            .set_tooltip_text(Some(&hw.cpu_model));
 
-        set_temp_label(
-            &self.overview.cpu_temp.value,
-            snapshot.cpu_temp_celsius,
-        );
+        set_temp_label(&self.overview.cpu_temp.value, snapshot.cpu_temp_celsius);
         *self.overview.cpu_temp.temp.borrow_mut() = snapshot.cpu_temp_celsius;
         self.overview.cpu_temp.gauge.queue_draw();
         self.sync_gpu_gauges(&snapshot.gpu_temps);
@@ -1227,7 +1231,12 @@ impl Dashboard {
         set_sort_label(&h.user, &tr("User"), col == ProcessSortColumn::User, dir);
         set_sort_label(&h.kind, &tr("Type"), col == ProcessSortColumn::Kind, dir);
         set_sort_label(&h.cpu, &tr("CPU"), col == ProcessSortColumn::Cpu, dir);
-        set_sort_label(&h.memory, &tr("Memory"), col == ProcessSortColumn::Memory, dir);
+        set_sort_label(
+            &h.memory,
+            &tr("Memory"),
+            col == ProcessSortColumn::Memory,
+            dir,
+        );
     }
 
     fn rebuild_process_list(&self, list: &gtk::ListBox) {
@@ -1285,9 +1294,7 @@ impl Dashboard {
         let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
         let mut roots: Vec<u32> = Vec::new();
         for proc in all.iter().filter(|p| visible.contains(&p.pid)) {
-            let parent_in_view = proc
-                .parent_pid
-                .is_some_and(|ppid| visible.contains(&ppid));
+            let parent_in_view = proc.parent_pid.is_some_and(|ppid| visible.contains(&ppid));
             if parent_in_view {
                 if let Some(ppid) = proc.parent_pid {
                     children.entry(ppid).or_default().push(proc.pid);
@@ -1492,7 +1499,9 @@ fn wire_sort_btn(btn: &gtk::Button, col: ProcessSortColumn, list: &gtk::ListBox)
 fn matches_class_filter(filter: ProcessClassFilter, class: ProcessClass) -> bool {
     match filter {
         ProcessClassFilter::All => true,
-        ProcessClassFilter::UserApps => matches!(class, ProcessClass::UserApp | ProcessClass::Metis),
+        ProcessClassFilter::UserApps => {
+            matches!(class, ProcessClass::UserApp | ProcessClass::Metis)
+        }
         ProcessClassFilter::System => class == ProcessClass::System,
     }
 }

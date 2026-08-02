@@ -97,7 +97,9 @@ fn layer_accepts_pointer(
     if !surface_has_buffer(layer.wl_surface()) {
         return false;
     }
-    let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+    let Some(layer_loc) = layers.layer_geometry(layer).map(|g| g.loc) else {
+        return false;
+    };
     layer
         .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
         .is_some()
@@ -194,7 +196,9 @@ impl MetisState {
                     }
                     return DeskHit::AppBody { window_id: *wid };
                 }
-                TileKind::App { window_id: None, .. } => {
+                TileKind::App {
+                    window_id: None, ..
+                } => {
                     return DeskHit::AppHeader {
                         tile_id: tile.id.clone(),
                         window_id: 0,
@@ -346,8 +350,7 @@ impl MetisState {
                         }
                     }
                 } else if let Some(frame) = self.ssd_frame_for_mapped_window(id, window) {
-                    if point_in_rect(x, y, frame)
-                        && !point_in_rect(x, y, app_tile_body_rect(frame))
+                    if point_in_rect(x, y, frame) && !point_in_rect(x, y, app_tile_body_rect(frame))
                     {
                         return Some((window.clone(), loc));
                     }
@@ -394,13 +397,11 @@ impl MetisState {
                 return self.window_surface_for(pos, &window);
             }
         }
-        let (window, _location) = self
-            .topmost_window_at_pointer(pos)
-            .or_else(|| {
-                self.space
-                    .element_under(pos)
-                    .map(|(window, location)| (window.clone(), location))
-            })?;
+        let (window, _location) = self.topmost_window_at_pointer(pos).or_else(|| {
+            self.space
+                .element_under(pos)
+                .map(|(window, location)| (window.clone(), location))
+        })?;
         self.window_surface_for(pos, &window)
     }
 
@@ -461,7 +462,7 @@ impl MetisState {
         if layer.namespace().starts_with("metis-bar") {
             return metis_bar_layer_surface_at(layer, layers, rel, output_geo);
         }
-        let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+        let layer_loc = layers.layer_geometry(layer)?.loc;
         layer
             .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
             .map(|(surface, loc)| (surface, (loc + layer_loc + output_geo.loc).to_f64()))
@@ -488,7 +489,9 @@ impl MetisState {
         if !self.output_has_bar(&output) {
             return false;
         }
-        let output_geo = self.space.output_geometry(&output).unwrap();
+        let Some(output_geo) = self.space.output_geometry(&output) else {
+            return false;
+        };
         let (x, y) = (pos.x as i32, pos.y as i32);
         let auto_hidden = self.bar_is_auto_hidden(&output);
 
@@ -503,15 +506,10 @@ impl MetisState {
         let rel = pos - output_geo.loc.to_f64();
         let layers = layer_map_for_output(&output);
 
-        for layer in layers
-            .layers()
-            .filter(|layer| {
-                let ns = layer.namespace();
-                ns.starts_with("metis-bar")
-                    || ns == "metis-dashboard"
-                    || ns == "metis-control-center"
-            })
-        {
+        for layer in layers.layers().filter(|layer| {
+            let ns = layer.namespace();
+            ns.starts_with("metis-bar") || ns == "metis-dashboard" || ns == "metis-control-center"
+        }) {
             if layer.namespace().starts_with("metis-bar") && auto_hidden {
                 // Invisible full-size layer must not steal titlebar clicks —
                 // only real popovers outside the peek strip count.
@@ -605,7 +603,9 @@ impl MetisState {
         }) else {
             return false;
         };
-        let output_geo = self.space.output_geometry(&output).unwrap();
+        let Some(output_geo) = self.space.output_geometry(&output) else {
+            return false;
+        };
         let rel = pos - output_geo.loc.to_f64();
         let layers = layer_map_for_output(&output);
         for layer in layers
@@ -698,7 +698,10 @@ impl MetisState {
     }
 
     /// Route pointer hits: app bodies pass through, then layer-shell UI, then windows.
-    pub fn surface_under(&self, pos: Point<f64, Logical>) -> Option<(WlSurface, Point<f64, Logical>)> {
+    pub fn surface_under(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
         if self.capture_overlay_active() {
             return self.capture_overlay_surface_at(pos);
         }
@@ -714,7 +717,7 @@ impl MetisState {
                 .output_geometry(o)
                 .is_some_and(|geo| geo.contains(pos.to_i32_round()))
         })?;
-        let output_geo = self.space.output_geometry(output).unwrap();
+        let output_geo = self.space.output_geometry(output)?;
         let rel = pos - output_geo.loc.to_f64();
         let (x, y) = (pos.x as i32, pos.y as i32);
 
@@ -887,7 +890,7 @@ impl MetisState {
             })
             .cloned()?;
 
-        let output_geo = self.space.output_geometry(&output).unwrap();
+        let output_geo = self.space.output_geometry(&output)?;
         let rel = location - output_geo.loc.to_f64();
         let (x, y) = (location.x as i32, location.y as i32);
 
@@ -901,7 +904,9 @@ impl MetisState {
         for layer_kind in [WlrLayer::Overlay] {
             if let Some(layer) = layers.layer_under(layer_kind, rel) {
                 if layer.can_receive_keyboard_focus() {
-                    let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+                    let Some(layer_loc) = layers.layer_geometry(layer).map(|g| g.loc) else {
+                        continue;
+                    };
                     if layer
                         .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
                         .is_some()
@@ -933,7 +938,9 @@ impl MetisState {
                     continue;
                 }
                 if layer.can_receive_keyboard_focus() {
-                    let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+                    let Some(layer_loc) = layers.layer_geometry(layer).map(|g| g.loc) else {
+                        continue;
+                    };
                     if layer
                         .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
                         .is_some()
@@ -956,7 +963,10 @@ impl MetisState {
                 for layer_kind in [WlrLayer::Top] {
                     if let Some(layer) = layers.layer_under(layer_kind, rel) {
                         if layer.can_receive_keyboard_focus() {
-                            let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+                            let Some(layer_loc) = layers.layer_geometry(layer).map(|g| g.loc)
+                            else {
+                                continue;
+                            };
                             if layer
                                 .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
                                 .is_some()
@@ -981,7 +991,9 @@ impl MetisState {
         for layer_kind in [WlrLayer::Bottom, WlrLayer::Background] {
             if let Some(layer) = layers.layer_under(layer_kind, rel) {
                 if layer.can_receive_keyboard_focus() {
-                    let layer_loc = layers.layer_geometry(layer).unwrap().loc;
+                    let Some(layer_loc) = layers.layer_geometry(layer).map(|g| g.loc) else {
+                        continue;
+                    };
                     if layer
                         .surface_under(rel - layer_loc.to_f64(), WindowSurfaceType::ALL)
                         .is_some()

@@ -58,14 +58,7 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
         let latest = latest.clone();
         area.set_draw_func(move |_, cr, w, h| {
             let frame = latest.borrow().clone();
-            draw_viz(
-                cr,
-                w as f64,
-                h as f64,
-                &frame.bands,
-                &frame.peaks,
-                &opts,
-            );
+            draw_viz(cr, w as f64, h as f64, &frame.bands, &frame.peaks, &opts);
         });
     }
 
@@ -96,14 +89,7 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
     area.upcast()
 }
 
-fn draw_viz(
-    cr: &Context,
-    w: f64,
-    h: f64,
-    bands: &[f32],
-    peaks: &[f32],
-    opts: &EqDrawOpts,
-) {
+fn draw_viz(cr: &Context, w: f64, h: f64, bands: &[f32], peaks: &[f32], opts: &EqDrawOpts) {
     cr.set_operator(cairo::Operator::Over);
     cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
     cr.paint().ok();
@@ -131,9 +117,7 @@ fn draw_viz(
 fn color_at(t: f64, opts: &EqDrawOpts) -> (f64, f64, f64) {
     let t = t.clamp(0.0, 1.0);
     match opts.color_mode {
-        EqualizerColorMode::Solid => {
-            parse_hex_rgb(&opts.solid).unwrap_or((0.0, 0.9, 1.0))
-        }
+        EqualizerColorMode::Solid => parse_hex_rgb(&opts.solid).unwrap_or((0.0, 0.9, 1.0)),
         EqualizerColorMode::Theme => {
             let tokens = active_tokens();
             let a = parse_hex_rgb(tokens.accent_primary()).unwrap_or((0.0, 0.85, 1.0));
@@ -201,14 +185,7 @@ fn draw_spectrum_lines(cr: &Context, w: f64, h: f64, bands: &[f32], opts: &EqDra
     }
 }
 
-fn draw_bars(
-    cr: &Context,
-    w: f64,
-    h: f64,
-    bands: &[f32],
-    peaks: &[f32],
-    opts: &EqDrawOpts,
-) {
+fn draw_bars(cr: &Context, w: f64, h: f64, bands: &[f32], peaks: &[f32], opts: &EqDrawOpts) {
     let n = bands.len().max(1);
     let gap = 2.0;
     let bar_w = ((w - gap * (n as f64 + 1.0)) / n as f64).max(2.0);
@@ -225,36 +202,28 @@ fn draw_bars(
             EqualizerBarShape::Segmented => {
                 draw_segmented_column(cr, x, base_y, bar_w, amp, rgb, opts.bar_gradient, false);
                 if opts.reflection {
-                    draw_segmented_column(
-                        cr,
-                        x,
-                        base_y + 4.0,
-                        bar_w,
-                        amp * 0.45,
-                        rgb,
-                        false,
-                        true,
-                    );
+                    draw_segmented_column(cr, x, base_y + 4.0, bar_w, amp * 0.45, rgb, false, true);
                 }
             }
             EqualizerBarShape::Solid => {
                 draw_solid_column(cr, x, base_y, bar_w, amp, rgb, opts.bar_gradient, false);
                 if opts.reflection {
-                    draw_solid_column(
-                        cr,
-                        x,
-                        base_y + 4.0,
-                        bar_w,
-                        amp * 0.45,
-                        rgb,
-                        false,
-                        true,
-                    );
+                    draw_solid_column(cr, x, base_y + 4.0, bar_w, amp * 0.45, rgb, false, true);
                 }
             }
             EqualizerBarShape::Dots | EqualizerBarShape::DenseDots => {
                 let dense = opts.bar_shape == EqualizerBarShape::DenseDots;
-                draw_dot_column(cr, x, base_y, bar_w, amp, rgb, opts.bar_gradient, dense, false);
+                draw_dot_column(
+                    cr,
+                    x,
+                    base_y,
+                    bar_w,
+                    amp,
+                    rgb,
+                    opts.bar_gradient,
+                    dense,
+                    false,
+                );
                 if opts.reflection {
                     draw_dot_column(
                         cr,
@@ -333,11 +302,7 @@ fn draw_segmented_column(
         };
         let t = s as f64 / segs.max(1) as f64;
         let (rr, gg, bb) = shade(rgb, t, gradient);
-        let alpha = if downward {
-            0.22 * (1.0 - t)
-        } else {
-            0.95
-        };
+        let alpha = if downward { 0.22 * (1.0 - t) } else { 0.95 };
         rounded_rect(cr, x, y, bar_w, seg_h, 1.2);
         cr.set_source_rgba(rr, gg, bb, alpha);
         let _ = cr.fill();
@@ -410,11 +375,7 @@ fn draw_dot_column(
         };
         let t = s as f64 / dots.max(1) as f64;
         let (rr, gg, bb) = shade(rgb, t, gradient);
-        let alpha = if downward {
-            0.2 * (1.0 - t)
-        } else {
-            0.95
-        };
+        let alpha = if downward { 0.2 * (1.0 - t) } else { 0.95 };
         cr.arc(cx, cy, rad, 0.0, TAU);
         cr.set_source_rgba(rr, gg, bb, alpha);
         let _ = cr.fill();
@@ -426,8 +387,20 @@ fn rounded_rect(cr: &Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
     cr.new_sub_path();
     cr.arc(x + w - r, y + r, r, -std::f64::consts::FRAC_PI_2, 0.0);
     cr.arc(x + w - r, y + h - r, r, 0.0, std::f64::consts::FRAC_PI_2);
-    cr.arc(x + r, y + h - r, r, std::f64::consts::FRAC_PI_2, std::f64::consts::PI);
-    cr.arc(x + r, y + r, r, std::f64::consts::PI, 3.0 * std::f64::consts::FRAC_PI_2);
+    cr.arc(
+        x + r,
+        y + h - r,
+        r,
+        std::f64::consts::FRAC_PI_2,
+        std::f64::consts::PI,
+    );
+    cr.arc(
+        x + r,
+        y + r,
+        r,
+        std::f64::consts::PI,
+        3.0 * std::f64::consts::FRAC_PI_2,
+    );
     cr.close_path();
 }
 

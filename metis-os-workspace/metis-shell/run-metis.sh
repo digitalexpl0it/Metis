@@ -832,8 +832,9 @@ export RUST_LOG="${RUST_LOG:-metis_shell=info,metis_compositor=info,warn}"
 
     if [[ "$SESSION" -eq 1 ]]; then
         # Nested compositor: Cairo renderer avoids blank/hung GTK layer-shell on some drivers.
+        # Opt into GPU GSK with METIS_SHELL_GSK_RENDERER=gl (or GSK_RENDERER=gl) when drivers are stable.
         export GDK_BACKEND="${GDK_BACKEND:-wayland}"
-        export GSK_RENDERER="${GSK_RENDERER:-cairo}"
+        export GSK_RENDERER="${METIS_SHELL_GSK_RENDERER:-${GSK_RENDERER:-cairo}}"
         # Prefer native Wayland for Electron/Chromium apps — their XWayland
         # map/unmap lifecycle is flaky under Metis (Claude Desktop opens then
         # cleanly quits). CLAUDE_USE_WAYLAND flips Claude's launcher off its

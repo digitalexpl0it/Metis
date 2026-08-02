@@ -68,8 +68,8 @@ pub fn build() -> gtk::Widget {
 
     body.append(&input_common::hint(&tr(
         "These options apply when a touchpad is present in the Metis DRM session. Under \
-         the nested dev session they are stored but not applied."
-        )));
+         the nested dev session they are stored but not applied.",
+    )));
     content.append(&card);
 
     speed.connect_value_changed({
@@ -89,7 +89,17 @@ pub fn build() -> gtk::Widget {
         let dwt = dwt.clone();
         let scroll = scroll.clone();
         let profile = profile.clone();
-        move |_, _| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_, _| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
     tap.connect_active_notify({
         let speed = speed.clone();
@@ -99,7 +109,17 @@ pub fn build() -> gtk::Widget {
         let dwt = dwt.clone();
         let scroll = scroll.clone();
         let tap = tap.clone();
-        move |_| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
     drag.connect_active_notify({
         let speed = speed.clone();
@@ -109,7 +129,17 @@ pub fn build() -> gtk::Widget {
         let dwt = dwt.clone();
         let scroll = scroll.clone();
         let drag = drag.clone();
-        move |_| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
     natural.connect_active_notify({
         let speed = speed.clone();
@@ -119,7 +149,17 @@ pub fn build() -> gtk::Widget {
         let dwt = dwt.clone();
         let scroll = scroll.clone();
         let natural = natural.clone();
-        move |_| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
     dwt.connect_active_notify({
         let speed = speed.clone();
@@ -129,7 +169,17 @@ pub fn build() -> gtk::Widget {
         let natural = natural.clone();
         let scroll = scroll.clone();
         let dwt = dwt.clone();
-        move |_| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
     scroll.connect_value_changed({
         let speed = speed.clone();
@@ -139,7 +189,17 @@ pub fn build() -> gtk::Widget {
         let natural = natural.clone();
         let dwt = dwt.clone();
         let scroll = scroll.clone();
-        move |_| save_touchpad(speed.value(), &profile, &tap, &drag, &natural, &dwt, &scroll)
+        move |_| {
+            save_touchpad(
+                speed.value(),
+                &profile,
+                &tap,
+                &drag,
+                &natural,
+                &dwt,
+                &scroll,
+            )
+        }
     });
 
     scroller.upcast()

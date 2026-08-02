@@ -165,9 +165,8 @@ fn run_pulse_session(st: &VizState) -> Result<(), String> {
     use libpulse_binding::stream::Direction;
     use libpulse_simple_binding::Simple;
 
-    let monitor = resolve_monitor_source().ok_or_else(|| {
-        "no default sink monitor (is PipeWire/Pulse running?)".to_string()
-    })?;
+    let monitor = resolve_monitor_source()
+        .ok_or_else(|| "no default sink monitor (is PipeWire/Pulse running?)".to_string())?;
 
     let spec = Spec {
         format: Format::F32le,
@@ -233,8 +232,7 @@ fn run_pulse_session(st: &VizState) -> Result<(), String> {
 
         for i in 0..FFT_SIZE {
             let w = 0.5
-                * (1.0
-                    - (2.0 * std::f32::consts::PI * i as f32 / (FFT_SIZE as f32 - 1.0)).cos());
+                * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (FFT_SIZE as f32 - 1.0)).cos());
             indata[i] = ring[i] * w;
         }
 

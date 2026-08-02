@@ -106,7 +106,10 @@ pub fn run_helper_snapshot(
         .env_clear()
         .env("PATH", "/usr/bin:/bin")
         .env("HOME", std::env::var("HOME").unwrap_or_default())
-        .env("LANG", std::env::var("LANG").unwrap_or_else(|_| "C.UTF-8".into()))
+        .env(
+            "LANG",
+            std::env::var("LANG").unwrap_or_else(|_| "C.UTF-8".into()),
+        )
         .spawn()
         .map_err(|e| format!("spawn helper: {e}"))?;
 
@@ -467,10 +470,7 @@ pub fn is_safe_open_uri(uri: &str) -> bool {
         return false;
     }
     // Authority ends at path / query / fragment.
-    let authority = rest
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     if authority.is_empty() || authority.contains('@') {
         return false;
     }
@@ -540,9 +540,32 @@ pub fn is_safe_launch_exec(exec: &str) -> bool {
 
 /// Basenames rejected for extension `launch.exec` (use a `.desktop` id instead).
 const LAUNCH_EXEC_DENYLIST: &[&str] = &[
-    "sh", "bash", "dash", "zsh", "fish", "csh", "tcsh", "ksh", "busybox", "env", "sudo", "doas",
-    "pkexec", "python", "python2", "python3", "perl", "ruby", "node", "nodejs", "lua", "php",
-    "powershell", "pwsh", "cmd", "cmd.exe",
+    "sh",
+    "bash",
+    "dash",
+    "zsh",
+    "fish",
+    "csh",
+    "tcsh",
+    "ksh",
+    "busybox",
+    "env",
+    "sudo",
+    "doas",
+    "pkexec",
+    "python",
+    "python2",
+    "python3",
+    "perl",
+    "ruby",
+    "node",
+    "nodejs",
+    "lua",
+    "php",
+    "powershell",
+    "pwsh",
+    "cmd",
+    "cmd.exe",
 ];
 
 /// Icon theme names only (no paths).
@@ -559,7 +582,9 @@ pub fn is_safe_icon_name(name: &str) -> bool {
 }
 
 /// Default settings map from schema.
-pub fn default_extension_settings(schema: &[WidgetExtSetting]) -> serde_json::Map<String, serde_json::Value> {
+pub fn default_extension_settings(
+    schema: &[WidgetExtSetting],
+) -> serde_json::Map<String, serde_json::Value> {
     let mut map = serde_json::Map::new();
     for s in schema {
         let val = if s.default.is_null() {
@@ -649,7 +674,10 @@ pub enum WidgetExtAction {
 }
 
 /// Replace `{settings.key}` placeholders using extension settings.
-pub fn interpolate_settings(template: &str, settings: &serde_json::Map<String, serde_json::Value>) -> String {
+pub fn interpolate_settings(
+    template: &str,
+    settings: &serde_json::Map<String, serde_json::Value>,
+) -> String {
     let mut out = template.to_string();
     for (key, val) in settings {
         let needle = format!("{{settings.{key}}}");

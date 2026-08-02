@@ -16,7 +16,8 @@ pub fn build() -> gtk::Widget {
     let (scroller, content) = ui::page_for("edgebar");
 
     let bar = metis_config::load_bar_config();
-    let (bar_card, bar_body) = ui::section_with_icon(&tr("Edge bar"), "preferences-system-symbolic");
+    let (bar_card, bar_body) =
+        ui::section_with_icon(&tr("Edge bar"), "preferences-system-symbolic");
 
     let position_dd = {
         let __dd_labels = [tr("Top"), tr("Bottom"), tr("Left"), tr("Right")];
@@ -42,8 +43,7 @@ pub fn build() -> gtk::Widget {
         &displays_dd,
     ));
 
-    let workspace_mode_dd =
-        {
+    let workspace_mode_dd = {
         let __dd_labels = [tr("Independent per display"), tr("Linked across displays")];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
@@ -51,33 +51,29 @@ pub fn build() -> gtk::Widget {
     workspace_mode_dd.set_selected(workspace_mode_to_index(bar.workspace_mode));
     workspace_mode_dd.set_tooltip_text(Some(&tr(
         "Independent: each monitor keeps its own workspaces.\n\
-         Linked: switching a workspace moves every monitor at once."
-        )));
+         Linked: switching a workspace moves every monitor at once.",
+    )));
     bar_body.append(&ui::row_with_icon(
         "view-grid-symbolic",
         &tr("Workspaces"),
         &workspace_mode_dd,
     ));
 
-    let default_layout_dd =
-        {
+    let default_layout_dd = {
         let __dd_labels = [tr("Free desktop"), tr("Grid tiling"), tr("Scrolling")];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
     };
     default_layout_dd.set_selected(default_layout_to_index(bar.default_layout));
-    default_layout_dd.set_tooltip_text(Some(&tr(
-        "Applies to every workspace right away.\n\
-         Toggle the active workspace with Super + \\ (cycles free → grid → scroll)."
-        )));
+    default_layout_dd.set_tooltip_text(Some(&tr("Applies to every workspace right away.\n\
+         Toggle the active workspace with Super + \\ (cycles free → grid → scroll).")));
     bar_body.append(&ui::row_with_icon(
         "view-dual-symbolic",
         &tr("New workspace layout"),
         &default_layout_dd,
     ));
 
-    let tray_mode_dd =
-        {
+    let tray_mode_dd = {
         let __dd_labels = [tr("Collapsed (popup list)"), tr("Pinned on bar")];
         let __dd_refs: Vec<&str> = __dd_labels.iter().map(|s| s.as_str()).collect();
         gtk::DropDown::from_strings(&__dd_refs)
@@ -85,8 +81,8 @@ pub fn build() -> gtk::Widget {
     tray_mode_dd.set_selected(tray_icon_mode_to_index(bar.tray_icon_mode));
     tray_mode_dd.set_tooltip_text(Some(&tr(
         "Collapsed: one tray button opens a popover with all background app icons.\n\
-         Pinned: tray icons stay visible on the bar, left of the tray button."
-        )));
+         Pinned: tray icons stay visible on the bar, left of the tray button.",
+    )));
     bar_body.append(&ui::row_with_icon(
         "view-more-horizontal-symbolic",
         &tr("System tray icons"),
@@ -115,7 +111,7 @@ pub fn build() -> gtk::Widget {
         &length,
     ));
     let length_hint = gtk::Label::new(Some(&tr(
-        "Percent of the screen edge. The bar stays centered (100% = full edge)."
+        "Percent of the screen edge. The bar stays centered (100% = full edge).",
     )));
     length_hint.set_xalign(0.0);
     length_hint.set_wrap(true);
@@ -127,25 +123,37 @@ pub fn build() -> gtk::Widget {
     opacity.set_size_request(200, -1);
     opacity.set_draw_value(true);
     ui::forward_wheel_to_page_scroller(&opacity);
-    bar_body.append(&ui::row_with_icon("display-brightness-symbolic", &tr("Opacity"), &opacity));
+    bar_body.append(&ui::row_with_icon(
+        "display-brightness-symbolic",
+        &tr("Opacity"),
+        &opacity,
+    ));
 
     let blur = gtk::Switch::new();
     blur.set_active(bar.blur);
     blur.set_halign(gtk::Align::End);
     blur.set_valign(gtk::Align::Center);
-    bar_body.append(&ui::row_with_icon("weather-fog-symbolic", &tr("Backdrop blur"), &blur));
+    bar_body.append(&ui::row_with_icon(
+        "weather-fog-symbolic",
+        &tr("Backdrop blur"),
+        &blur,
+    ));
 
     let blur_radius = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 40.0, 1.0);
     blur_radius.set_value(bar.blur_radius as f64);
     blur_radius.set_size_request(200, -1);
     blur_radius.set_draw_value(true);
     ui::forward_wheel_to_page_scroller(&blur_radius);
-    bar_body.append(&ui::row_with_icon("weather-fog-symbolic", &tr("Blur radius"), &blur_radius));
+    bar_body.append(&ui::row_with_icon(
+        "weather-fog-symbolic",
+        &tr("Blur radius"),
+        &blur_radius,
+    ));
 
     let blur_hint = gtk::Label::new(Some(&tr(
         "Blur frosts the wallpaper behind the bar — it needs a wallpaper set and \
-         the bar opacity below 1.0 to show through. Changes apply within ~1s."
-        )));
+         the bar opacity below 1.0 to show through. Changes apply within ~1s.",
+    )));
     blur_hint.set_xalign(0.0);
     blur_hint.set_wrap(true);
     blur_hint.add_css_class("metis-settings-hint");
@@ -188,8 +196,16 @@ pub fn build() -> gtk::Widget {
     };
     let bf_g1 = bf_stop(0, "#1a1b26");
     let bf_g2 = bf_stop(1, "#2a2b3d");
-    bf_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient start"), &bf_g1));
-    bf_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient end"), &bf_g2));
+    bf_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient start"),
+        &bf_g1,
+    ));
+    bf_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient end"),
+        &bf_g2,
+    ));
     let bf_dir = {
         let __dd_labels = [
             tr("Auto (along bar)"),
@@ -253,7 +269,7 @@ pub fn build() -> gtk::Widget {
     let auto_hint = gtk::Label::new(Some(&tr(
         "Hides as soon as the pointer leaves, sliding to a thin peek. Move back \
          to the edge to slide it open again (same motion as titlebars). Popovers \
-         and Control Center keep the bar visible while open."
+         and Control Center keep the bar visible while open.",
     )));
     auto_hint.set_xalign(0.0);
     auto_hint.set_wrap(true);
@@ -273,7 +289,11 @@ pub fn build() -> gtk::Widget {
         metis_config::BorderMode::Solid => 1,
         metis_config::BorderMode::Gradient => 2,
     });
-    bar_body.append(&ui::row_with_icon("view-paged-symbolic", &tr("Bar border"), &bb_mode));
+    bar_body.append(&ui::row_with_icon(
+        "view-paged-symbolic",
+        &tr("Bar border"),
+        &bb_mode,
+    ));
 
     let bb_width = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 8.0, 1.0);
     bb_width.set_value(bb.width_px as f64);
@@ -306,9 +326,21 @@ pub fn build() -> gtk::Widget {
     let bb_g1 = bb_stop(0, "#00F2FE");
     let bb_g2 = bb_stop(1, "#4FACFE");
     let bb_g3 = bb_stop(2, "#A24BFF");
-    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient start"), &bb_g1));
-    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient middle"), &bb_g2));
-    bb_grad_box.append(&ui::row_with_icon("starred-symbolic", &tr("Gradient end"), &bb_g3));
+    bb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient start"),
+        &bb_g1,
+    ));
+    bb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient middle"),
+        &bb_g2,
+    ));
+    bb_grad_box.append(&ui::row_with_icon(
+        "starred-symbolic",
+        &tr("Gradient end"),
+        &bb_g3,
+    ));
     bar_body.append(&bb_grad_box);
 
     let bb_hint = gtk::Label::new(Some(

@@ -292,6 +292,11 @@ malware still has full DE control by design of the session control plane.
 `XDG_RUNTIME_DIR` must be set; Metis refuses the old world-readable `/tmp/metis`
 fallback.
 
+Command files (`command`, `command-widgets`) are allowlisted by verb (512-byte
+cap) at write and read time — see `metis_protocol::parse_runtime_command`. That
+limits drive-by pokes; it is not a security boundary against same-UID attackers
+(use the socket + `METIS_IPC_TOKEN` widgets channel for capability separation).
+
 ### Release build profiles
 
 Default **`release`** uses thin LTO, single codegen unit, and strips symbols —

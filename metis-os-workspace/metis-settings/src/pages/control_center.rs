@@ -85,7 +85,7 @@ pub fn build() -> gtk::Widget {
     let panel_hint = gtk::Label::new(Some(&tr(
         "Open Control Center from the grid icon beside workspace dots, or pull down \
          on the edge bar. Process monitor Auto-detect prefers btop/htop (in your \
-         terminal) then GUI monitors. Changes apply within about a second."
+         terminal) then GUI monitors. Changes apply within about a second.",
     )));
     panel_hint.set_xalign(0.0);
     panel_hint.set_wrap(true);
@@ -128,7 +128,7 @@ pub fn build() -> gtk::Widget {
     let widgets_hint = gtk::Label::new(Some(&tr(
         "Overview cards can be toggled independently. Battery hides on desktops \
          without a battery. Logs shows a short journalctl tail. Disabling Processes \
-         hides the Processes tab."
+         hides the Processes tab.",
     )));
     widgets_hint.set_xalign(0.0);
     widgets_hint.set_wrap(true);
@@ -202,11 +202,15 @@ pub fn build() -> gtk::Widget {
 }
 
 fn apply_widget_toggles(toggles: &WidgetToggles, enabled: &[DashboardWidgetId]) {
-    toggles.cpu.set_active(enabled.contains(&DashboardWidgetId::Cpu));
+    toggles
+        .cpu
+        .set_active(enabled.contains(&DashboardWidgetId::Cpu));
     toggles
         .memory
         .set_active(enabled.contains(&DashboardWidgetId::Memory));
-    toggles.disk.set_active(enabled.contains(&DashboardWidgetId::Disk));
+    toggles
+        .disk
+        .set_active(enabled.contains(&DashboardWidgetId::Disk));
     toggles
         .network
         .set_active(enabled.contains(&DashboardWidgetId::Network));

@@ -16,8 +16,8 @@ struct Inner {
     list: gtk::Box,
     // Add-form state.
     revealer: gtk::Revealer,
-    hour12: Cell<u32>,  // 1..=12
-    minute: Cell<u32>,  // 0..=59
+    hour12: Cell<u32>, // 1..=12
+    minute: Cell<u32>, // 0..=59
     pm: Cell<bool>,
     hour_lbl: gtk::Label,
     minute_lbl: gtk::Label,
@@ -244,8 +244,8 @@ impl Inner {
     fn save(self: &Rc<Self>) {
         let hour12 = self.hour12.get();
         let hour24 = match (hour12 % 12, self.pm.get()) {
-            (h, false) => h,       // 12 AM -> 0
-            (h, true) => h + 12,   // 12 PM -> 12
+            (h, false) => h,     // 12 AM -> 0
+            (h, true) => h + 12, // 12 PM -> 12
         };
         let days: Vec<u8> = self
             .day_btns
@@ -280,7 +280,11 @@ impl Inner {
     fn bump_hour(&self, up: bool) {
         let v = self.hour12.get();
         let next = if up {
-            if v >= 12 { 1 } else { v + 1 }
+            if v >= 12 {
+                1
+            } else {
+                v + 1
+            }
         } else if v <= 1 {
             12
         } else {
@@ -304,7 +308,13 @@ impl Inner {
     }
 
     fn set_enabled(&self, id: &str, enabled: bool) {
-        if let Some(a) = self.store.borrow_mut().alarms.iter_mut().find(|a| a.id == id) {
+        if let Some(a) = self
+            .store
+            .borrow_mut()
+            .alarms
+            .iter_mut()
+            .find(|a| a.id == id)
+        {
             a.enabled = enabled;
         }
         self.store.save();
@@ -316,7 +326,9 @@ impl Inner {
         }
         let alarms = self.store.borrow().alarms.clone();
         if alarms.is_empty() {
-            let empty = gtk::Label::builder().label(metis_i18n::tr("No alarms")).build();
+            let empty = gtk::Label::builder()
+                .label(metis_i18n::tr("No alarms"))
+                .build();
             empty.add_css_class("metis-cal-empty");
             self.list.append(&empty);
             return;
@@ -343,7 +355,10 @@ impl Inner {
         info.append(&time);
         let sub = subtitle(alarm);
         if !sub.is_empty() {
-            let sub_lbl = gtk::Label::builder().label(&sub).halign(gtk::Align::Start).build();
+            let sub_lbl = gtk::Label::builder()
+                .label(&sub)
+                .halign(gtk::Align::Start)
+                .build();
             sub_lbl.add_css_class("metis-cal-event-sub");
             info.append(&sub_lbl);
         }
@@ -474,7 +489,10 @@ fn colon() -> gtk::Label {
 }
 
 fn caption(text: &str) -> gtk::Label {
-    let l = gtk::Label::builder().label(text).halign(gtk::Align::Start).build();
+    let l = gtk::Label::builder()
+        .label(text)
+        .halign(gtk::Align::Start)
+        .build();
     l.add_css_class("metis-alarm-caption");
     l
 }

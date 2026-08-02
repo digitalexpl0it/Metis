@@ -130,9 +130,10 @@ pub fn on_menu_pins_changed() {
     if !cfg.enabled {
         return;
     }
-    let follows_menu = cfg.instances.iter().any(|i| {
-        i.kind == metis_config::DesktopWidgetKind::Apps && i.pins.is_empty()
-    });
+    let follows_menu = cfg
+        .instances
+        .iter()
+        .any(|i| i.kind == metis_config::DesktopWidgetKind::Apps && i.pins.is_empty());
     if !follows_menu {
         return;
     }
@@ -339,8 +340,7 @@ fn apply_geometry_in_place(cfg: &DesktopWidgetsConfig) {
                 if !instance_belongs(inst, host) {
                     continue;
                 }
-                host.canvas
-                    .move_(&widget, inst.x as f64, inst.y as f64);
+                host.canvas.move_(&widget, inst.x as f64, inst.y as f64);
                 widget.set_size_request(inst.w as i32, inst.h as i32);
             }
         }
@@ -447,8 +447,7 @@ fn populate_host(host: &HostSurface, cfg: &DesktopWidgetsConfig) {
             continue;
         }
         let card = build_card(inst, &cfg.chrome, cfg.edit_mode);
-        host.canvas
-            .put(&card, inst.x as f64, inst.y as f64);
+        host.canvas.put(&card, inst.x as f64, inst.y as f64);
     }
 }
 
@@ -740,17 +739,14 @@ fn schedule_save(cfg: DesktopWidgetsConfig) {
     if let Some(id) = SAVE_PENDING.with(|cell| cell.borrow_mut().take()) {
         id.remove();
     }
-    let id = glib::timeout_add_local(
-        Duration::from_millis(SAVE_DEBOUNCE_MS),
-        move || {
-            SAVE_PENDING.with(|cell| *cell.borrow_mut() = None);
-            suppress_reloads_for(RELOAD_SUPPRESS_AFTER_SAVE);
-            if let Err(err) = save_desktop_widgets_config(&cfg) {
-                tracing::warn!(%err, "failed to persist desktop widget geometry");
-            }
-            glib::ControlFlow::Break
-        },
-    );
+    let id = glib::timeout_add_local(Duration::from_millis(SAVE_DEBOUNCE_MS), move || {
+        SAVE_PENDING.with(|cell| *cell.borrow_mut() = None);
+        suppress_reloads_for(RELOAD_SUPPRESS_AFTER_SAVE);
+        if let Err(err) = save_desktop_widgets_config(&cfg) {
+            tracing::warn!(%err, "failed to persist desktop widget geometry");
+        }
+        glib::ControlFlow::Break
+    });
     SAVE_PENDING.with(|cell| *cell.borrow_mut() = Some(id));
 }
 
@@ -818,7 +814,8 @@ fn watch_theme_and_config() {
 
     let cfg_path = metis_config::app_config_path();
     let cfg_file = gio::File::for_path(&cfg_path);
-    if let Ok(monitor) = cfg_file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
+    if let Ok(monitor) =
+        cfg_file.monitor_file(gio::FileMonitorFlags::NONE, None::<&gio::Cancellable>)
     {
         monitor.connect_changed(move |_, _, _, _| {
             glib::timeout_add_local_once(Duration::from_millis(250), || {
@@ -866,14 +863,20 @@ fn watch_widgets_commands() {
         if let Ok(raw) = std::fs::read_to_string(&path) {
             let cmd = raw.trim();
             if !cmd.is_empty() {
-                match cmd {
-                    "reload-desktop-widgets" => reload(),
-                    "reload-theme" => {
-                        let _ = crate::ui::theme::init_theme();
-                    }
-                    "reload-locale" => apply_locale_reload(),
-                    "reload-weather" => crate::services::weather::weather_refresh(),
-                    other => tracing::debug!(%other, "unknown widgets runtime command"),
+                match metis_protocol::parse_runtime_command(
+                    cmd,
+                    metis_protocol::WIDGETS_RUNTIME_VERBS,
+                ) {
+                    Ok(parsed) => match parsed.verb {
+                        "reload-desktop-widgets" => reload(),
+                        "reload-theme" => {
+                            let _ = crate::ui::theme::init_theme();
+                        }
+                        "reload-locale" => apply_locale_reload(),
+                        "reload-weather" => crate::services::weather::weather_refresh(),
+                        other => tracing::debug!(%other, "unhandled widgets runtime command"),
+                    },
+                    Err(err) => tracing::warn!(%err, "rejected widgets runtime command"),
                 }
                 let _ = std::fs::remove_file(&path);
             }
@@ -1028,4 +1031,3 @@ fn hex_to_rgb_triplet(hex: &str) -> Option<String> {
     let b = u8::from_str_radix(&h[4..6], 16).ok()?;
     Some(format!("{r}, {g}, {b}"))
 }
-

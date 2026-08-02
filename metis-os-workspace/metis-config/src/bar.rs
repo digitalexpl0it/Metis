@@ -640,8 +640,7 @@ pub fn sanitize_bar_config(cfg: &mut BarConfig) {
 fn looks_like_hex_color(s: &str) -> bool {
     let s = s.trim();
     let body = s.strip_prefix('#').unwrap_or(s);
-    matches!(body.len(), 3 | 6 | 8)
-        && body.chars().all(|c| c.is_ascii_hexdigit())
+    matches!(body.len(), 3 | 6 | 8) && body.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Upgrade layouts saved before the eww-style pill redesign.
@@ -702,7 +701,7 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
                         | BarWidgetId::Network
                         | BarWidgetId::Vpn
                         | BarWidgetId::Bluetooth
-                        |                     BarWidgetId::Volume
+                        | BarWidgetId::Volume
                         | BarWidgetId::Clipboard
                         | BarWidgetId::Notifications
                         | BarWidgetId::Clock
@@ -784,8 +783,14 @@ fn migrate_bar_config(cfg: &mut BarConfig) {
         }
     } else {
         // Reposition tray if it was placed elsewhere in an older layout.
-        let weather_pos = cfg.widgets.iter().position(|w| matches!(w, BarWidgetId::Weather));
-        let tray_pos = cfg.widgets.iter().position(|w| matches!(w, BarWidgetId::Tray));
+        let weather_pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Weather));
+        let tray_pos = cfg
+            .widgets
+            .iter()
+            .position(|w| matches!(w, BarWidgetId::Tray));
         if let (Some(wpos), Some(tpos)) = (weather_pos, tray_pos) {
             if tpos != wpos.saturating_sub(1) {
                 cfg.widgets.remove(tpos);
@@ -860,7 +865,8 @@ pub fn save_default_bar_config() -> std::io::Result<()> {
     if path.exists() {
         return Ok(());
     }
-    let json = serde_json::to_string_pretty(&BarConfig::default()).map_err(std::io::Error::other)?;
+    let json =
+        serde_json::to_string_pretty(&BarConfig::default()).map_err(std::io::Error::other)?;
     std::fs::write(path, json)
 }
 

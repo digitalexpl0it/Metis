@@ -235,21 +235,27 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
         let now = Instant::now();
         let net = read_net_breakdown();
         let elapsed = now.duration_since(last_net_at).as_secs_f64().max(0.001);
-        let (network_rx_bps, network_tx_bps, ethernet_rx_bps, ethernet_tx_bps, wifi_rx_bps, wifi_tx_bps) =
-            if let (Some(prev), Some(cur)) = (&last_net, &net) {
-                let total_rx = rate_bytes(cur.total_rx, prev.total_rx, elapsed);
-                let total_tx = rate_bytes(cur.total_tx, prev.total_tx, elapsed);
-                (
-                    total_rx,
-                    total_tx,
-                    rate_bytes(cur.eth_rx, prev.eth_rx, elapsed),
-                    rate_bytes(cur.eth_tx, prev.eth_tx, elapsed),
-                    rate_bytes(cur.wifi_rx, prev.wifi_rx, elapsed),
-                    rate_bytes(cur.wifi_tx, prev.wifi_tx, elapsed),
-                )
-            } else {
-                (0, 0, 0, 0, 0, 0)
-            };
+        let (
+            network_rx_bps,
+            network_tx_bps,
+            ethernet_rx_bps,
+            ethernet_tx_bps,
+            wifi_rx_bps,
+            wifi_tx_bps,
+        ) = if let (Some(prev), Some(cur)) = (&last_net, &net) {
+            let total_rx = rate_bytes(cur.total_rx, prev.total_rx, elapsed);
+            let total_tx = rate_bytes(cur.total_tx, prev.total_tx, elapsed);
+            (
+                total_rx,
+                total_tx,
+                rate_bytes(cur.eth_rx, prev.eth_rx, elapsed),
+                rate_bytes(cur.eth_tx, prev.eth_tx, elapsed),
+                rate_bytes(cur.wifi_rx, prev.wifi_rx, elapsed),
+                rate_bytes(cur.wifi_tx, prev.wifi_tx, elapsed),
+            )
+        } else {
+            (0, 0, 0, 0, 0, 0)
+        };
         last_net = net;
         last_net_at = now;
         push_history_f64(&mut net_rx_history, network_rx_bps as f64, 90);
@@ -261,14 +267,15 @@ fn poll_loop(tx: mpsc::Sender<DashboardSnapshot>) {
 
         let io_elapsed = now.duration_since(last_io_at).as_secs_f64().max(0.001);
         let disk_io = read_disk_io_sectors();
-        let (disk_read_bps, disk_write_bps) = if let (Some(prev), Some(cur)) = (&last_disk_io, &disk_io) {
-            (
-                rate_bytes(cur.0, prev.0, io_elapsed) * 512,
-                rate_bytes(cur.1, prev.1, io_elapsed) * 512,
-            )
-        } else {
-            (0, 0)
-        };
+        let (disk_read_bps, disk_write_bps) =
+            if let (Some(prev), Some(cur)) = (&last_disk_io, &disk_io) {
+                (
+                    rate_bytes(cur.0, prev.0, io_elapsed) * 512,
+                    rate_bytes(cur.1, prev.1, io_elapsed) * 512,
+                )
+            } else {
+                (0, 0)
+            };
         last_disk_io = disk_io;
         last_io_at = now;
         push_history_f64(&mut disk_read_history, disk_read_bps as f64, 90);
@@ -550,10 +557,7 @@ fn read_load_avg() -> [f64; 3] {
 }
 
 fn read_firewall_status() -> FirewallStatus {
-    if let Ok(out) = std::process::Command::new("ufw")
-        .args(["status"])
-        .output()
-    {
+    if let Ok(out) = std::process::Command::new("ufw").args(["status"]).output() {
         if out.status.success() {
             let text = String::from_utf8_lossy(&out.stdout);
             let active = text.contains("Status: active");
@@ -880,7 +884,10 @@ fn collect_nvidia_smi_temps(out: &mut Vec<GpuTempReading>) {
     if !nvidia_discrete_present() {
         return;
     }
-    if out.iter().any(|r| r.label.to_lowercase().contains("nvidia")) {
+    if out
+        .iter()
+        .any(|r| r.label.to_lowercase().contains("nvidia"))
+    {
         return;
     }
 
@@ -1084,10 +1091,7 @@ fn hwmon_under_drm_device(hwmon: &Path) -> bool {
 
 fn hwmon_is_discrete_gpu(name: &str) -> bool {
     let n = name.to_lowercase();
-    n.contains("amdgpu")
-        || n.contains("nvidia")
-        || n.contains("nouveau")
-        || n.contains("radeon")
+    n.contains("amdgpu") || n.contains("nvidia") || n.contains("nouveau") || n.contains("radeon")
 }
 
 fn read_hwmon_temp_matching<F>(pred: F) -> Option<f32>

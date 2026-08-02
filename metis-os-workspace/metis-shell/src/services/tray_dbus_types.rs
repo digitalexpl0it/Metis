@@ -181,7 +181,8 @@ mod tests {
 
     #[test]
     fn friendly_name_from_bus_name() {
-        let title = resolve_tray_display_title("", "chrome_status_icon_1", "", "", "co.anysphere.Cursor");
+        let title =
+            resolve_tray_display_title("", "chrome_status_icon_1", "", "", "co.anysphere.Cursor");
         assert_eq!(title, "Cursor");
     }
 }

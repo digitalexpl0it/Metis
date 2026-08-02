@@ -134,12 +134,7 @@ pub fn format_schedule_minutes(minutes: u32, use_12h: bool) -> String {
             12 => (12, false),
             _ => (h24 - 12, false),
         };
-        format!(
-            "{}:{:02} {}",
-            h12,
-            m,
-            if am { "AM" } else { "PM" }
-        )
+        format!("{}:{:02} {}", h12, m, if am { "AM" } else { "PM" })
     } else {
         minutes_to_hhmm(minutes)
     }

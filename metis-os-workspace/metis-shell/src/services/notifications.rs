@@ -104,7 +104,11 @@ pub fn play_notification_sound(note: &BarNotification) {
         {
             return;
         }
-        if std::process::Command::new("paplay").arg(file).spawn().is_ok() {
+        if std::process::Command::new("paplay")
+            .arg(file)
+            .spawn()
+            .is_ok()
+        {
             return;
         }
     }
@@ -325,7 +329,11 @@ pub struct BarNotification {
 impl BarNotification {
     /// Build an internal (non-D-Bus) notification with default action/sound
     /// fields. Used by timers, alarms, calendar reminders and demo seeds.
-    pub fn internal(kind: NotificationKind, title: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn internal(
+        kind: NotificationKind,
+        title: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         Self {
             id: 0,
             app_name: "Metis".to_string(),
@@ -370,4 +378,3 @@ impl BarNotification {
         }
     }
 }
-

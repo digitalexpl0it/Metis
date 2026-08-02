@@ -12,11 +12,7 @@ const CONFIRM_SECONDS: u32 = 15;
 
 /// Apply the new arrangement, then ask the user to keep or revert it. Reverts
 /// automatically when the countdown reaches zero.
-pub fn show(
-    parent: &gtk::Window,
-    on_keep: Rc<dyn Fn()>,
-    on_revert: Rc<dyn Fn()>,
-) {
+pub fn show(parent: &gtk::Window, on_keep: Rc<dyn Fn()>, on_revert: Rc<dyn Fn()>) {
     // Force the parent to repaint after a modeset/layout apply — GTK can keep a
     // fully transparent buffer while Metis SSD still draws the outer chrome.
     parent.queue_draw();

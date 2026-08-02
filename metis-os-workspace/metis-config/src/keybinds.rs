@@ -460,7 +460,12 @@ pub fn reserved_system_rows() -> Vec<(String, Chord)> {
 /// shell. Shown in Settings for discoverability; the key caps are wired in
 /// firmware/xkb and are not user-rebindable.
 fn hardware_key_rows() -> Vec<(String, Chord)> {
-    let hw = |label: &str, cap: &str| (label.to_string(), Chord::new(false, false, false, false, cap));
+    let hw = |label: &str, cap: &str| {
+        (
+            label.to_string(),
+            Chord::new(false, false, false, false, cap),
+        )
+    };
     vec![
         hw("Volume up", "Vol +"),
         hw("Volume down", "Vol -"),

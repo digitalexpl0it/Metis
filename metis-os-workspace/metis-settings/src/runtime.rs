@@ -9,7 +9,12 @@ use std::time::Duration;
 use metis_protocol::{CompositorCommand, CompositorEvent};
 
 /// Query DRM (or current) video modes for one output.
-pub fn list_output_modes(output: &str) -> (Vec<metis_protocol::OutputModeInfo>, Option<metis_protocol::OutputModeInfo>) {
+pub fn list_output_modes(
+    output: &str,
+) -> (
+    Vec<metis_protocol::OutputModeInfo>,
+    Option<metis_protocol::OutputModeInfo>,
+) {
     match send_command(CompositorCommand::ListOutputModes {
         output: output.to_string(),
     }) {

@@ -56,17 +56,7 @@ pub fn wire_percent_chart(area: &gtk::DrawingArea, history: Rc<RefCell<Vec<f32>>
         let plot = PlotRect::from_size(width, height);
         draw_chart_axes(cr, &plot, &tokens, YAxis::Percent);
         let (accent, accent2) = accent_pair(&tokens);
-        draw_series(
-            cr,
-            &plot,
-            &history,
-            100.0,
-            accent,
-            accent2,
-            fill,
-            2.2,
-            fill,
-        );
+        draw_series(cr, &plot, &history, 100.0, accent, accent2, fill, 2.2, fill);
     });
 }
 
@@ -89,15 +79,7 @@ pub fn wire_multi_core_chart(
 
         let (accent, accent2) = accent_pair(&tokens);
         if !aggregate.is_empty() {
-            draw_series_fill(
-                cr,
-                &plot,
-                &aggregate,
-                100.0,
-                accent,
-                accent2,
-                true,
-            );
+            draw_series_fill(cr, &plot, &aggregate, 100.0, accent, accent2, true);
         }
 
         let n = cores.len().max(1);
@@ -158,11 +140,7 @@ pub fn wire_dual_rate_chart(
             draw_chart_axes(cr, &plot, &tokens, YAxis::Rate(1.0));
             return;
         }
-        let max = rx
-            .iter()
-            .chain(tx.iter())
-            .copied()
-            .fold(1.0_f64, f64::max);
+        let max = rx.iter().chain(tx.iter()).copied().fold(1.0_f64, f64::max);
         draw_chart_axes(cr, &plot, &tokens, YAxis::Rate(max));
         let down = parse_hex(&tokens.semantic.info);
         let down2 = tokens
@@ -304,7 +282,10 @@ fn draw_axis_label(cr: &gtk::cairo::Context, x: f64, y: f64, text: &str, tokens:
     cr.set_source_rgba(r, g, b, 0.88);
     let extents = cr.text_extents(text).ok();
     let ascent = extents.map(|e| e.height()).unwrap_or(9.0);
-    cr.move_to(x - extents.map(|e| e.width()).unwrap_or(0.0), y + ascent * 0.35);
+    cr.move_to(
+        x - extents.map(|e| e.width()).unwrap_or(0.0),
+        y + ascent * 0.35,
+    );
     let _ = cr.show_text(text);
     cr.restore().ok();
 }
@@ -574,14 +555,12 @@ fn draw_arc_band(
     cr.close_path();
 }
 
-fn gauge_scale_label(
-    cr: &gtk::cairo::Context,
-    x: f64,
-    y: f64,
-    text: &str,
-    tokens: &ThemeTokens,
-) {
-    cr.select_font_face("Sans", gtk::cairo::FontSlant::Normal, gtk::cairo::FontWeight::Normal);
+fn gauge_scale_label(cr: &gtk::cairo::Context, x: f64, y: f64, text: &str, tokens: &ThemeTokens) {
+    cr.select_font_face(
+        "Sans",
+        gtk::cairo::FontSlant::Normal,
+        gtk::cairo::FontWeight::Normal,
+    );
     cr.set_font_size(9.0);
     let (mr, mg, mb) = parse_hex(&tokens.text_muted);
     cr.set_source_rgba(mr, mg, mb, 0.85);

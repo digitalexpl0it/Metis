@@ -5,10 +5,7 @@ use metis_protocol::WindowInfo;
 use smithay::reexports::wayland_server::backend::ObjectId;
 use smithay::reexports::wayland_server::Resource;
 use smithay::xwayland::X11Surface;
-use smithay::{
-    desktop::Window,
-    wayland::shell::xdg::ToplevelSurface,
-};
+use smithay::{desktop::Window, wayland::shell::xdg::ToplevelSurface};
 
 /// The shell surface backing a managed window. Native clients drive an
 /// `xdg_toplevel`; XWayland clients drive an `X11Surface`. Both are mapped into

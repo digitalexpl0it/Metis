@@ -61,7 +61,10 @@ impl ClipboardSession {
     }
 
     pub fn enable(&self, options: &HashMap<&str, Value<'_>>) -> Result<(), String> {
-        let mut inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if inner.enabled {
             return Err("Already enabled".into());
         }
@@ -76,7 +79,10 @@ impl ClipboardSession {
     }
 
     pub fn disable(&self) -> Result<(), String> {
-        let mut inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if !inner.enabled {
             return Err("Was not enabled".into());
         }
@@ -89,7 +95,10 @@ impl ClipboardSession {
     }
 
     pub fn set_selection(&self, options: &HashMap<&str, Value<'_>>) -> Result<(), String> {
-        let mut inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if !inner.enabled {
             return Err("Clipboard not enabled".into());
         }
@@ -116,7 +125,10 @@ impl ClipboardSession {
 
     /// GRD writes remote clipboard bytes to the returned fd, then calls SelectionWriteDone.
     pub fn selection_write(&self, serial: u32) -> Result<OwnedFd, String> {
-        let mut inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let mut inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if !inner.enabled {
             return Err("Clipboard not enabled".into());
         }
@@ -140,7 +152,9 @@ impl ClipboardSession {
         drop(inner);
 
         let (read_fd, write_fd) = pipe::pipe().map_err(|err| format!("pipe: {err}"))?;
-        let read_for_thread = read_fd.try_clone().map_err(|err| format!("pipe clone: {err}"))?;
+        let read_for_thread = read_fd
+            .try_clone()
+            .map_err(|err| format!("pipe clone: {err}"))?;
         std::thread::Builder::new()
             .name("metis-rd-clip".into())
             .spawn(move || {
@@ -176,7 +190,10 @@ impl ClipboardSession {
     }
 
     pub fn selection_write_done(&self, _serial: u32, _success: bool) -> Result<(), String> {
-        let inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if !inner.enabled {
             return Err("Clipboard not enabled".into());
         }
@@ -185,7 +202,10 @@ impl ClipboardSession {
 
     /// GRD reads local clipboard bytes from the returned fd.
     pub fn selection_read(&self, mime_type: &str) -> Result<OwnedFd, String> {
-        let inner = self.inner.lock().map_err(|_| "clipboard lock".to_string())?;
+        let inner = self
+            .inner
+            .lock()
+            .map_err(|_| "clipboard lock".to_string())?;
         if !inner.enabled {
             return Err("Clipboard not enabled".into());
         }
@@ -199,7 +219,9 @@ impl ClipboardSession {
 
         let data = local_clip_bytes(&local, mime_type)?;
         let (read_fd, write_fd) = pipe::pipe().map_err(|err| format!("pipe: {err}"))?;
-        let write_for_thread = write_fd.try_clone().map_err(|err| format!("pipe clone: {err}"))?;
+        let write_for_thread = write_fd
+            .try_clone()
+            .map_err(|err| format!("pipe clone: {err}"))?;
         std::thread::spawn(move || {
             let mut file = std::fs::File::from(write_for_thread);
             let _ = file.write_all(&data);
@@ -236,11 +258,7 @@ impl ClipboardSession {
         preview_text: Option<&str>,
         image_path: Option<&str>,
     ) {
-        let enabled = self
-            .inner
-            .lock()
-            .map(|i| i.enabled)
-            .unwrap_or(false);
+        let enabled = self.inner.lock().map(|i| i.enabled).unwrap_or(false);
         if !enabled {
             return;
         }
@@ -256,9 +274,7 @@ impl ClipboardSession {
         let local = LocalClip {
             mime: mime.to_string(),
             text: preview_text.map(str::to_string),
-            image_path: image_path
-                .filter(|p| !p.is_empty())
-                .map(str::to_string),
+            image_path: image_path.filter(|p| !p.is_empty()).map(str::to_string),
         };
         let mimes = local_mimes(&local);
         if mimes.is_empty() {
@@ -275,10 +291,7 @@ impl ClipboardSession {
         let mut options: HashMap<String, Value<'_>> = HashMap::new();
         if !mime_types.is_empty() {
             options.insert("mime-types".into(), Value::from(mime_types.to_vec()));
-            options.insert(
-                "session-is-owner".into(),
-                Value::from(session_is_owner),
-            );
+            options.insert("session-is-owner".into(), Value::from(session_is_owner));
         }
         let _ = self.conn.emit_signal(
             None::<&str>,
@@ -345,12 +358,7 @@ fn preferred_remote_mime(mimes: &[String]) -> Option<String> {
         .iter()
         .find(|m| is_text_mime(m))
         .cloned()
-        .or_else(|| {
-            mimes
-                .iter()
-                .find(|m| is_image_mime(m))
-                .cloned()
-        })
+        .or_else(|| mimes.iter().find(|m| is_image_mime(m)).cloned())
 }
 
 fn local_mimes(local: &LocalClip) -> Vec<String> {
@@ -550,18 +558,35 @@ mod pipe {
             return Err(std::io::Error::last_os_error());
         }
         // SAFETY: pipe2 returned valid fds.
-        unsafe {
-            Ok((
-                OwnedFd::from_raw_fd(fds[0]),
-                OwnedFd::from_raw_fd(fds[1]),
-            ))
-        }
+        unsafe { Ok((OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1]))) }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn temp_xdg_runtime() -> PathBuf {
+        let mut dir = std::env::temp_dir();
+        dir.push(format!(
+            "metis-portal-clip-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp xdg runtime");
+        dir
+    }
 
     #[test]
     fn local_mimes_advertise_image_and_text() {
@@ -578,14 +603,95 @@ mod tests {
     #[test]
     fn preferred_mime_prefers_text_then_image() {
         let mimes = vec!["image/png".into(), "text/plain".into()];
-        assert_eq!(
-            preferred_remote_mime(&mimes).as_deref(),
-            Some("text/plain")
-        );
+        assert_eq!(preferred_remote_mime(&mimes).as_deref(), Some("text/plain"));
         let images = vec!["image/jpeg".into(), "image/png".into()];
         assert_eq!(
             preferred_remote_mime(&images).as_deref(),
             Some("image/jpeg")
         );
+    }
+
+    #[test]
+    fn mime_allowlist_filters_non_text_non_image() {
+        assert!(is_text_mime("text/plain"));
+        assert!(is_text_mime("UTF8_STRING"));
+        assert!(is_image_mime("image/png"));
+        assert!(is_image_mime("image/jpeg"));
+        assert!(!is_text_mime("application/octet-stream"));
+        assert!(!is_image_mime("application/octet-stream"));
+        assert!(!is_image_mime("text/plain"));
+
+        let mut options: HashMap<&str, Value<'_>> = HashMap::new();
+        options.insert(
+            "mime-types",
+            Value::from(vec![
+                "application/octet-stream".to_string(),
+                "text/plain".to_string(),
+                "image/png".to_string(),
+            ]),
+        );
+        let filtered = mime_types_from_options(&options);
+        assert_eq!(
+            filtered,
+            vec!["text/plain".to_string(), "image/png".to_string()]
+        );
+    }
+
+    #[test]
+    fn local_clip_bytes_enforces_text_size_cap() {
+        let oversized = "x".repeat(MAX_CLIPBOARD_BYTES + 1);
+        let local = LocalClip {
+            mime: "text/plain".into(),
+            text: Some(oversized),
+            image_path: None,
+        };
+        let err = local_clip_bytes(&local, "text/plain").unwrap_err();
+        assert!(err.contains("too large"));
+
+        let ok = LocalClip {
+            mime: "text/plain".into(),
+            text: Some("hi".into()),
+            image_path: None,
+        };
+        assert_eq!(local_clip_bytes(&ok, "text/plain").unwrap(), b"hi");
+    }
+
+    #[test]
+    fn clipboard_image_path_allowlist_and_size_cap() {
+        let _guard = env_lock();
+        let xdg = temp_xdg_runtime();
+        std::env::set_var("XDG_RUNTIME_DIR", &xdg);
+
+        let clip_dir = clipboard_image_dir().expect("clipboard dir");
+        std::fs::create_dir_all(&clip_dir).expect("mkdir clipboard");
+        let allowed = clip_dir.join("ok.png");
+        std::fs::write(&allowed, b"png-bytes").expect("write allowed");
+
+        let path = validate_clipboard_image_path(allowed.to_str().unwrap()).expect("allowlisted");
+        assert_eq!(path, allowed.canonicalize().unwrap());
+
+        let outside = xdg.join("escape.png");
+        std::fs::write(&outside, b"nope").expect("write outside");
+        let denied = validate_clipboard_image_path(outside.to_str().unwrap()).unwrap_err();
+        assert!(denied.contains("outside runtime clipboard dir"));
+
+        let huge = clip_dir.join("huge.png");
+        {
+            let f = std::fs::File::create(&huge).expect("create huge");
+            f.set_len((MAX_CLIPBOARD_BYTES as u64) + 1)
+                .expect("set_len");
+        }
+        let local = LocalClip {
+            mime: "image/png".into(),
+            text: None,
+            image_path: Some(huge.to_string_lossy().into_owned()),
+        };
+        let err = local_clip_bytes(&local, "image/png").unwrap_err();
+        assert!(err.contains("too large"));
+
+        assert!(write_remote_image("image/png", &vec![0u8; MAX_CLIPBOARD_BYTES + 1]).is_err());
+
+        std::env::remove_var("XDG_RUNTIME_DIR");
+        let _ = std::fs::remove_dir_all(&xdg);
     }
 }

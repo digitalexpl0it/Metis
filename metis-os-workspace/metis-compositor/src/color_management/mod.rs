@@ -227,7 +227,8 @@ impl ColorManagementRuntime {
     }
 
     pub fn set_surface_description(&mut self, surface_id: &ObjectId, record_id: u64) {
-        self.surface_descriptions.insert(surface_id.clone(), record_id);
+        self.surface_descriptions
+            .insert(surface_id.clone(), record_id);
     }
 
     pub fn clear_surface_description(&mut self, surface_id: &ObjectId) {

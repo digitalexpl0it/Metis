@@ -31,9 +31,7 @@ impl VolumesWidget {
         root.set_valign(gtk::Align::Center);
         root.set_halign(gtk::Align::Center);
 
-        let widget = Rc::new(RefCell::new(VolumesWidgetInner {
-            root: root.clone(),
-        }));
+        let widget = Rc::new(RefCell::new(VolumesWidgetInner { root: root.clone() }));
 
         let refresh = {
             let widget = widget.clone();

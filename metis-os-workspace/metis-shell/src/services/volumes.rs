@@ -175,7 +175,10 @@ fn volume_is_interesting(volume: &gio::Volume) -> bool {
         }
     }
     // Unmounted automountable volumes on removable media (incl. LUKS).
-    volume.should_automount() && volume.drive().is_some_and(|d| d.is_removable() || d.can_eject())
+    volume.should_automount()
+        && volume
+            .drive()
+            .is_some_and(|d| d.is_removable() || d.can_eject())
 }
 
 fn volume_is_network(volume: &gio::Volume) -> bool {
@@ -227,13 +230,8 @@ fn entry_from_volume(volume: &gio::Volume) -> Option<VolumeEntry> {
     let is_encrypted_locked = needs_mount && encrypted;
     let kind = if is_encrypted_locked {
         VolumeKind::Locked
-    } else if volume
-        .drive()
-        .as_ref()
-        .is_some_and(drive_looks_optical)
-        || mount_path
-            .as_ref()
-            .is_some_and(|p| path_looks_optical(p))
+    } else if volume.drive().as_ref().is_some_and(drive_looks_optical)
+        || mount_path.as_ref().is_some_and(|p| path_looks_optical(p))
     {
         VolumeKind::Optical
     } else if volume.drive().is_some_and(|d| d.is_removable()) {
@@ -394,7 +392,9 @@ fn looks_like_serial_or_uuid(name: &str) -> bool {
         && parts[2].len() == 4
         && parts[3].len() == 4
         && parts[4].len() == 12
-        && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+        && parts
+            .iter()
+            .all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
     {
         return true;
     }
@@ -442,9 +442,7 @@ fn mount_is_shadowed(mount: &gio::Mount) -> bool {
 
 fn path_looks_user_media(path: &Path) -> bool {
     let s = path.to_string_lossy();
-    s.starts_with("/media/")
-        || s.starts_with("/run/media/")
-        || s.starts_with("/mnt/")
+    s.starts_with("/media/") || s.starts_with("/run/media/") || s.starts_with("/mnt/")
 }
 
 fn path_looks_optical(path: &Path) -> bool {
@@ -493,7 +491,10 @@ fn find_mount(id: &str) -> Option<gio::Mount> {
     let monitor = gio::VolumeMonitor::get();
     if let Some(path) = id.strip_prefix("mount:") {
         let want = PathBuf::from(path);
-        return monitor.mounts().into_iter().find(|m| mount_path(m).as_ref() == Some(&want));
+        return monitor
+            .mounts()
+            .into_iter()
+            .find(|m| mount_path(m).as_ref() == Some(&want));
     }
     find_volume(id)?.get_mount()
 }

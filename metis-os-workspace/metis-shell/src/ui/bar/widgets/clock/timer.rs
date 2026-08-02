@@ -371,7 +371,13 @@ impl Inner {
     }
 
     fn bump(&self, field: Field, up: bool) {
-        let step = |v: u32, max: u32| if up { (v + 1) % (max + 1) } else { (v + max) % (max + 1) };
+        let step = |v: u32, max: u32| {
+            if up {
+                (v + 1) % (max + 1)
+            } else {
+                (v + max) % (max + 1)
+            }
+        };
         match field {
             Field::Hours => self.hours.set(step(self.hours.get(), 23)),
             Field::Minutes => self.minutes.set(step(self.minutes.get(), 59)),
@@ -467,7 +473,8 @@ impl Inner {
         self.running.set(false);
         self.generation.set(self.generation.get().wrapping_add(1));
         if let Some(end) = self.end.take() {
-            self.remaining.set(end.saturating_duration_since(Instant::now()));
+            self.remaining
+                .set(end.saturating_duration_since(Instant::now()));
         }
         self.primary.set_label(&metis_i18n::tr("Resume"));
         if let Some(o) = self.overlay.borrow().as_ref() {
@@ -533,7 +540,10 @@ fn colon() -> gtk::Label {
 }
 
 fn section_title(text: &str) -> gtk::Label {
-    let l = gtk::Label::builder().label(text).halign(gtk::Align::Center).build();
+    let l = gtk::Label::builder()
+        .label(text)
+        .halign(gtk::Align::Center)
+        .build();
     l.add_css_class("metis-timer-section");
     l
 }

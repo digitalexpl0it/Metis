@@ -62,8 +62,8 @@ pub fn build() -> gtk::Widget {
         "Widgets float over the wallpaper (not classic desktop icons). Off by \
          default. In edit mode, drag the title bar to move and the corner handle \
          to resize. Chrome below is the default look; each widget can override it \
-         from its Configure dialog."
-        )));
+         from its Configure dialog.",
+    )));
     hint.set_xalign(0.0);
     hint.set_wrap(true);
     hint.add_css_class("metis-settings-hint");
@@ -134,8 +134,8 @@ pub fn build() -> gtk::Widget {
 
         let chrome_hint = gtk::Label::new(Some(&tr(
             "Opacity 0 clears the fill; set border width to 0 to hide the edge. \
-             Theme colour follows the active Appearance surface / text tint."
-            )));
+             Theme colour follows the active Appearance surface / text tint.",
+        )));
         chrome_hint.set_xalign(0.0);
         chrome_hint.set_wrap(true);
         chrome_hint.add_css_class("metis-settings-hint");
@@ -247,8 +247,8 @@ pub fn build() -> gtk::Widget {
 
     let empty = gtk::Label::new(Some(&tr(
         "No widgets yet. Pick a type above and click Add widget. JSON extensions \
-         install under ~/.local/share/metis/widgets/."
-        )));
+         install under ~/.local/share/metis/widgets/.",
+    )));
     empty.set_xalign(0.0);
     empty.add_css_class("metis-settings-hint");
     list_body.append(&empty);
@@ -547,13 +547,7 @@ fn open_configure_dialog(
     refresh_list: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
     chrome_debounce: Rc<RefCell<Option<glib::SourceId>>>,
 ) {
-    let Some(inst) = cfg
-        .borrow()
-        .instances
-        .iter()
-        .find(|i| i.id == id)
-        .cloned()
-    else {
+    let Some(inst) = cfg.borrow().instances.iter().find(|i| i.id == id).cloned() else {
         return;
     };
 
@@ -620,13 +614,7 @@ fn open_configure_dialog(
             while let Some(child) = body.first_child() {
                 body.remove(&child);
             }
-            let Some(inst) = cfg
-                .borrow()
-                .instances
-                .iter()
-                .find(|i| i.id == id)
-                .cloned()
-            else {
+            let Some(inst) = cfg.borrow().instances.iter().find(|i| i.id == id).cloned() else {
                 return;
             };
             fill_configure_body(
@@ -1010,12 +998,19 @@ fn equalizer_options(
                 }
             });
         }
-        col.append(&ui::row_with_icon("multimedia-equalizer-symbolic", &tr("Style"), &dd));
+        col.append(&ui::row_with_icon(
+            "multimedia-equalizer-symbolic",
+            &tr("Style"),
+            &dd,
+        ));
     }
 
     // Colour mode — rebuild so solid / gradient pickers show correctly.
     {
-        let labels: Vec<&str> = EqualizerColorMode::all().iter().map(|m| m.label()).collect();
+        let labels: Vec<&str> = EqualizerColorMode::all()
+            .iter()
+            .map(|m| m.label())
+            .collect();
         let dd = gtk::DropDown::from_strings(&labels);
         let selected = EqualizerColorMode::all()
             .iter()
@@ -1113,8 +1108,8 @@ fn equalizer_options(
         }
         EqualizerColorMode::Theme => {
             let hint = gtk::Label::new(Some(&tr(
-                "Uses the active Appearance accent and secondary colours."
-                )));
+                "Uses the active Appearance accent and secondary colours.",
+            )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1232,11 +1227,7 @@ fn equalizer_options(
                         }
                     });
                 }
-                col.append(&ui::row_with_icon(
-                    "go-top-symbolic",
-                    &tr("Peak caps"),
-                    &sw,
-                ));
+                col.append(&ui::row_with_icon("go-top-symbolic", &tr("Peak caps"), &sw));
             }
             if inst.show_peaks {
                 let color = color_dialog_button();
@@ -1284,8 +1275,8 @@ fn equalizer_options(
         }
         EqualizerVizStyle::SpectrumLines => {
             let hint = gtk::Label::new(Some(&tr(
-                "Spectrum lines use the colour mode above across the frequency range."
-                )));
+                "Spectrum lines use the colour mode above across the frequency range.",
+            )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1315,8 +1306,8 @@ fn equalizer_options(
         }
         EqualizerVizStyle::Radial => {
             let hint = gtk::Label::new(Some(&tr(
-                "Rays radiate from the centre. Colour mode tints around the ring."
-                )));
+                "Rays radiate from the centre. Colour mode tints around the ring.",
+            )));
             hint.set_wrap(true);
             hint.set_xalign(0.0);
             hint.add_css_class("metis-settings-hint");
@@ -1326,8 +1317,8 @@ fn equalizer_options(
 
     let hint = gtk::Label::new(Some(&tr(
         "Listens to the default audio output (PipeWire/Pulse monitor). \
-         Play music or a movie — silent sinks show a quiet idle decay."
-        )));
+         Play music or a movie — silent sinks show a quiet idle decay.",
+    )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");
@@ -1464,8 +1455,8 @@ fn text_style_options(
 
     let hint = gtk::Label::new(Some(&tr(
         "Font picks family, weight, and size. Text colour tints labels and icons; \
-         accent colours the System progress fills."
-        )));
+         accent colours the System progress fills.",
+    )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");
@@ -1474,10 +1465,7 @@ fn text_style_options(
     col.upcast()
 }
 
-fn font_row(
-    inst: &DesktopWidgetInstance,
-    cfg: Rc<RefCell<DesktopWidgetsConfig>>,
-) -> gtk::Widget {
+fn font_row(inst: &DesktopWidgetInstance, cfg: Rc<RefCell<DesktopWidgetsConfig>>) -> gtk::Widget {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
 
     let use_theme = gtk::CheckButton::with_label(&tr("Theme font"));
@@ -1597,11 +1585,8 @@ fn instance_chrome_overrides(
                 scale.set_sensitive(on);
                 mutate_from_disk(&cfg, |disk| {
                     if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
-                        inst.chrome.background_opacity = if on {
-                            Some(scale.value() as f32)
-                        } else {
-                            None
-                        };
+                        inst.chrome.background_opacity =
+                            if on { Some(scale.value() as f32) } else { None };
                     }
                 });
             });
@@ -1640,7 +1625,12 @@ fn instance_chrome_overrides(
             .unwrap_or(false);
         enable.set_active(has);
         let color = color_dialog_button();
-        if let Some(hex) = inst.chrome.background_color.as_ref().filter(|c| !c.is_empty()) {
+        if let Some(hex) = inst
+            .chrome
+            .background_color
+            .as_ref()
+            .filter(|c| !c.is_empty())
+        {
             color.set_rgba(&hex_to_rgba(hex));
         }
         color.set_sensitive(has);
@@ -1703,11 +1693,8 @@ fn instance_chrome_overrides(
                 scale.set_sensitive(on);
                 mutate_from_disk(&cfg, |disk| {
                     if let Some(inst) = disk.instances.iter_mut().find(|i| i.id == id) {
-                        inst.chrome.border_width = if on {
-                            Some(scale.value() as f32)
-                        } else {
-                            None
-                        };
+                        inst.chrome.border_width =
+                            if on { Some(scale.value() as f32) } else { None };
                     }
                 });
             });
@@ -1840,28 +1827,29 @@ fn mutate_from_disk_debounced(
     let cfg = Rc::clone(cfg);
     let pending_timer = Rc::clone(pending);
     let pending_slot = Rc::clone(pending);
-    let source = glib::timeout_add_local(Duration::from_millis(CHROME_SAVE_DEBOUNCE_MS), move || {
-        *pending_timer.borrow_mut() = None;
-        let mut disk = load_desktop_widgets_config();
-        disk.chrome = snapshot.chrome.clone();
-        for inst in &mut disk.instances {
-            if let Some(src) = snapshot.instances.iter().find(|i| i.id == inst.id) {
-                let (x, y, w, h, output) =
-                    (inst.x, inst.y, inst.w, inst.h, inst.output.clone());
-                *inst = src.clone();
-                inst.x = x;
-                inst.y = y;
-                inst.w = w;
-                inst.h = h;
-                inst.output = output;
+    let source =
+        glib::timeout_add_local(Duration::from_millis(CHROME_SAVE_DEBOUNCE_MS), move || {
+            *pending_timer.borrow_mut() = None;
+            let mut disk = load_desktop_widgets_config();
+            disk.chrome = snapshot.chrome.clone();
+            for inst in &mut disk.instances {
+                if let Some(src) = snapshot.instances.iter().find(|i| i.id == inst.id) {
+                    let (x, y, w, h, output) =
+                        (inst.x, inst.y, inst.w, inst.h, inst.output.clone());
+                    *inst = src.clone();
+                    inst.x = x;
+                    inst.y = y;
+                    inst.w = w;
+                    inst.h = h;
+                    inst.output = output;
+                }
             }
-        }
-        *cfg.borrow_mut() = disk.clone();
-        if let Err(err) = save_desktop_widgets_config(&disk) {
-            tracing::warn!(%err, "failed to save desktop-widgets.json");
-        }
-        crate::runtime::send_widgets("reload-desktop-widgets");
-        glib::ControlFlow::Break
-    });
+            *cfg.borrow_mut() = disk.clone();
+            if let Err(err) = save_desktop_widgets_config(&disk) {
+                tracing::warn!(%err, "failed to save desktop-widgets.json");
+            }
+            crate::runtime::send_widgets("reload-desktop-widgets");
+            glib::ControlFlow::Break
+        });
     *pending_slot.borrow_mut() = Some(source);
 }

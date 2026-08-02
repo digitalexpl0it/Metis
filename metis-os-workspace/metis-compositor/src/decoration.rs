@@ -649,7 +649,8 @@ impl DecorationRuntime {
             let texture = renderer
                 .import_memory(&pixels, Fourcc::Abgr8888, Size::from((pw, ph)), false)
                 .ok()?;
-            let buffer = TextureBuffer::from_texture(renderer, texture, BTN_SS, Transform::Normal, None);
+            let buffer =
+                TextureBuffer::from_texture(renderer, texture, BTN_SS, Transform::Normal, None);
             self.buttons.insert(
                 (w.id, role),
                 CachedButton {
@@ -728,8 +729,13 @@ impl DecorationRuntime {
             let texture = renderer
                 .import_memory(&pixels, Fourcc::Abgr8888, Size::from((pw, ph)), false)
                 .ok()?;
-            let buffer =
-                TextureBuffer::from_texture(renderer, texture, TITLEBAR_SS, Transform::Normal, None);
+            let buffer = TextureBuffer::from_texture(
+                renderer,
+                texture,
+                TITLEBAR_SS,
+                Transform::Normal,
+                None,
+            );
             self.titlebars.insert(
                 w.id,
                 CachedTitlebar {
@@ -808,7 +814,13 @@ impl DecorationRuntime {
             };
             let bufs = (0..2)
                 .map(|_| {
-                    TextureBuffer::from_texture(renderer, texture.clone(), 1, Transform::Normal, None)
+                    TextureBuffer::from_texture(
+                        renderer,
+                        texture.clone(),
+                        1,
+                        Transform::Normal,
+                        None,
+                    )
                 })
                 .collect::<Vec<_>>();
             self.borders.insert(
@@ -912,15 +924,18 @@ impl DecorationRuntime {
             .unwrap_or(true);
 
         if needs_render {
-            if let Some((pixels, tw, th)) =
-                rasterize(font, &w.title, TITLE_FONT_PX, color, pill, &border, border_px)
-            {
-                if let Ok(texture) = renderer.import_memory(
-                    &pixels,
-                    Fourcc::Abgr8888,
-                    Size::from((tw, th)),
-                    false,
-                ) {
+            if let Some((pixels, tw, th)) = rasterize(
+                font,
+                &w.title,
+                TITLE_FONT_PX,
+                color,
+                pill,
+                &border,
+                border_px,
+            ) {
+                if let Ok(texture) =
+                    renderer.import_memory(&pixels, Fourcc::Abgr8888, Size::from((tw, th)), false)
+                {
                     let buffer =
                         TextureBuffer::from_texture(renderer, texture, 1, Transform::Normal, None);
                     self.titles.insert(

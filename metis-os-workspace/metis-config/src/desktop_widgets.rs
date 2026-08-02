@@ -425,7 +425,10 @@ pub struct DesktopWidgetInstance {
     #[serde(default)]
     pub locked: bool,
     /// Folders widget: directory to list (`~/Desktop` by default).
-    #[serde(default = "default_desktop_path", skip_serializing_if = "is_default_path")]
+    #[serde(
+        default = "default_desktop_path",
+        skip_serializing_if = "is_default_path"
+    )]
     pub path: String,
     /// Apps widget: desktop ids to show (separate from start-menu pins).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -435,7 +438,10 @@ pub struct DesktopWidgetInstance {
     pub view: DesktopWidgetView,
     /// Show the card title bar (kind name). Off = chrome-only body; edit mode
     /// still keeps a thin drag strip so widgets remain movable.
-    #[serde(default = "default_show_title", skip_serializing_if = "is_default_show_title")]
+    #[serde(
+        default = "default_show_title",
+        skip_serializing_if = "is_default_show_title"
+    )]
     pub show_title: bool,
     /// Optional Pango font description for text-heavy widgets
     /// (Clock / Weather / System). Empty → theme default.
@@ -459,7 +465,10 @@ pub struct DesktopWidgetInstance {
     #[serde(default, skip_serializing_if = "is_default_color_mode")]
     pub color_mode: EqualizerColorMode,
     /// Equalizer: solid colour when `color_mode` is Solid.
-    #[serde(default = "default_solid_color", skip_serializing_if = "is_default_solid_color")]
+    #[serde(
+        default = "default_solid_color",
+        skip_serializing_if = "is_default_solid_color"
+    )]
     pub solid_color: String,
     /// Equalizer: gradient start (`#RRGGBB`) when `color_mode` is Gradient.
     #[serde(
@@ -474,16 +483,28 @@ pub struct DesktopWidgetInstance {
     )]
     pub gradient_end: String,
     /// Equalizer: band / bar count (16–96).
-    #[serde(default = "default_bar_count", skip_serializing_if = "is_default_bar_count")]
+    #[serde(
+        default = "default_bar_count",
+        skip_serializing_if = "is_default_bar_count"
+    )]
     pub bar_count: u32,
     /// Equalizer bars: vertical segment tint along each bar. Off = flat fill.
-    #[serde(default = "default_bar_gradient", skip_serializing_if = "is_default_bar_gradient")]
+    #[serde(
+        default = "default_bar_gradient",
+        skip_serializing_if = "is_default_bar_gradient"
+    )]
     pub bar_gradient: bool,
     /// Equalizer bars: draw floating peak-hold caps.
-    #[serde(default = "default_show_peaks", skip_serializing_if = "is_default_show_peaks")]
+    #[serde(
+        default = "default_show_peaks",
+        skip_serializing_if = "is_default_show_peaks"
+    )]
     pub show_peaks: bool,
     /// Equalizer bars: peak-hold cap colour.
-    #[serde(default = "default_peak_color", skip_serializing_if = "is_default_peak_color")]
+    #[serde(
+        default = "default_peak_color",
+        skip_serializing_if = "is_default_peak_color"
+    )]
     pub peak_color: String,
     /// Equalizer bars: mirrored reflection. Neon wave: mirrored lower half.
     #[serde(

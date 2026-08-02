@@ -91,9 +91,19 @@ impl XCursor {
 pub fn resize_cursor_names(edge: crate::grabs::ResizeEdge) -> &'static [&'static str] {
     use crate::grabs::ResizeEdge;
     if edge == ResizeEdge::TOP_LEFT || edge == ResizeEdge::BOTTOM_RIGHT {
-        &["nesw-resize", "size_fdiag", "bd_double_arrow", "top_right_corner"]
+        &[
+            "nesw-resize",
+            "size_fdiag",
+            "bd_double_arrow",
+            "top_right_corner",
+        ]
     } else if edge == ResizeEdge::TOP_RIGHT || edge == ResizeEdge::BOTTOM_LEFT {
-        &["nwse-resize", "size_bdiag", "fd_double_arrow", "top_left_corner"]
+        &[
+            "nwse-resize",
+            "size_bdiag",
+            "fd_double_arrow",
+            "top_left_corner",
+        ]
     } else if edge.intersects(ResizeEdge::LEFT | ResizeEdge::RIGHT) {
         &[
             "ew-resize",
@@ -149,7 +159,10 @@ fn pick_frame(images: &[Image], size: u32, millis: u32) -> Image {
 fn load_named(theme: &CursorTheme, name: &str) -> Option<Vec<Image>> {
     let path = theme.load_icon(name)?;
     let mut data = Vec::new();
-    std::fs::File::open(path).ok()?.read_to_end(&mut data).ok()?;
+    std::fs::File::open(path)
+        .ok()?
+        .read_to_end(&mut data)
+        .ok()?;
     let images = parse_xcursor(&data)?;
     if images.is_empty() {
         None

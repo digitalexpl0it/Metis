@@ -74,10 +74,7 @@ pub async fn complete_device_login(
             .post(token_endpoint(tenant))
             .form(&[
                 ("client_id", client_id),
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:device_code",
-                ),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                 ("device_code", &code.device_code),
             ])
             .send()

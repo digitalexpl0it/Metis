@@ -85,10 +85,7 @@ pub async fn complete_device_login(
             .post(token_endpoint(tenant))
             .form(&[
                 ("client_id", client_id),
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:device_code",
-                ),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                 ("device_code", &code.device_code),
             ])
             .send()
@@ -226,8 +223,14 @@ impl EventProvider for Ms365Provider {
         until: DateTime<Local>,
     ) -> ProviderResult<Vec<Event>> {
         let token = self.access_token().await?;
-        let start = since.with_timezone(&Utc).format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let end = until.with_timezone(&Utc).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let start = since
+            .with_timezone(&Utc)
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
+        let end = until
+            .with_timezone(&Utc)
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
 
         let mut url = format!(
             "{GRAPH}/me/calendarView?startDateTime={start}&endDateTime={end}&$top=100&$select=id,subject,isAllDay,start,end,location"

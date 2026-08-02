@@ -1,12 +1,12 @@
-use smithay::desktop::{LayerSurface, WindowSurfaceType, layer_map_for_output};
+use smithay::desktop::{layer_map_for_output, LayerSurface, WindowSurfaceType};
 use smithay::output::Output;
+use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::wlr_layer::{
     Layer as WlrLayer, LayerSurface as WlrLayerSurface, LayerSurfaceData, WlrLayerShellHandler,
     WlrLayerShellState,
 };
-use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
 use smithay::wayland::shell::xdg::PopupSurface;
 
 use crate::handlers::xdg_shell;

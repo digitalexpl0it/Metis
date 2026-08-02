@@ -5,6 +5,43 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-08-02]
+
+### Added
+
+- **PR CI quality gate** — `.github/workflows/ci.yml` runs `cargo deny`,
+  `fmt --check`, `clippy -D warnings`, and `cargo test --workspace` on every
+  pull request and push to `main`/`master`.
+- **`cargo-deny` policy** — `metis-os-workspace/deny.toml` (advisories, licenses,
+  git source allowlist); wired into CI and all `release-deb` suite jobs.
+- **Trust-boundary unit tests** — `metis-protocol` runtime dir / private file /
+  argv split / peercred / command-file allowlist; compositor `ipc_dispatch`
+  caps matrix; portal clipboard allowlist, screencast refuse-while-locked, and
+  screensaver peer reclaim.
+- **Runtime command allowlist** — validated verbs and max length for
+  `$XDG_RUNTIME_DIR/metis/` command files (same-UID trust model documented in
+  USER_GUIDE / UBUNTU_DEV).
+
+### Changed
+
+- **Compositor IPC dispatch extracted** — `ipc_dispatch.rs` owns capability
+  resolution and widgets/lock gating for testability.
+- **Shell status poll** — NetworkManager D-Bus signals mark network dirty;
+  battery/Bluetooth use slower ticks with adaptive sleep. Opt-in GPU GSK via
+  `METIS_SHELL_GSK_RENDERER=gl` (Cairo remains default).
+- **PERF_AUDIT refreshed** — documents ScreenCast dmabuf, `panic = "abort"`,
+  and current shell/GSK notes (2026-08-02).
+- **Packaging CI** — locale `.mo`/`.ftl` smoke checks on Ubuntu 24.04, 26.04,
+  and Debian 13 release jobs; `cargo deny` replaces `cargo audit` there.
+- **`clippy::unwrap_used` denied** on `metis-protocol` and `metis-config`
+  (non-test builds).
+
+### Fixed
+
+- **Compositor hot-path panics** — event-loop unwraps in xdg shell, desk input,
+  state, input, and udev paths warn and recover instead of aborting the session
+  under `panic = "abort"`. Colour management stays default-off.
+
 ## [2026-07-31]
 
 ### Added
@@ -35,6 +72,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `libdisplay-info3`; the package `Depends` now accepts
   `libdisplay-info3 | libdisplay-info2 | libdisplay-info1` (same OR chain on
   Debian 13). Rebuild/re-download the `…ubuntu26.04.deb` after this change.
+- **Auto-hidden edge bar left a thick strip on screen (Ubuntu 26.04)** — the bar's
+  layer surface is sized from the content's natural size, so a taller GTK/theme
+  minimum grew it past `bar_body_thickness()` while the slide still used the
+  configured thickness, parking the overflow on screen. The slide now uses the
+  measured/allocated extent, and the compositor skips the bar's backdrop blur
+  while the bar is auto-hidden.
+- **Settings sidebar icon badges** — coloured nav/page icon badges are the default
+  (with a gray fallback when no hue is set). Icons are centred with equal CSS
+  padding instead of fixed-size wraps that pinned glyphs to the top-left.
 - **Screenshot editor annotations landed in the wrong place** — `GestureDrag`
   reports offsets from the press point, but the canvas treated them as widget
   coordinates, so arrows, rectangles, and ellipses collapsed toward the top-left

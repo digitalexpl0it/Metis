@@ -144,7 +144,10 @@ pub fn bundled_wallpaper_dirs() -> Vec<PathBuf> {
     };
     // Packaged installs (`.deb` / `--install-session`).
     push(PathBuf::from("/usr/share/metis/wallpapers"), &mut dirs);
-    push(PathBuf::from("/usr/local/share/metis/wallpapers"), &mut dirs);
+    push(
+        PathBuf::from("/usr/local/share/metis/wallpapers"),
+        &mut dirs,
+    );
     if let Ok(exe) = std::env::current_exe() {
         if let Some(parent) = exe.parent() {
             for rel in ["../share/metis/wallpapers", "../../share/metis/wallpapers"] {
@@ -254,10 +257,8 @@ mod tests {
 
     #[test]
     fn collect_skips_same_basename_from_later_dirs() {
-        let root = std::env::temp_dir().join(format!(
-            "metis-wallpaper-dedupe-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("metis-wallpaper-dedupe-{}", std::process::id()));
         let a = root.join("a");
         let b = root.join("b");
         let _ = std::fs::remove_dir_all(&root);

@@ -234,7 +234,10 @@ fn sink_muted(source: bool) -> Option<bool> {
 }
 
 fn pactl_read(args: &[&str]) -> Option<String> {
-    let out = std::process::Command::new("pactl").args(args).output().ok()?;
+    let out = std::process::Command::new("pactl")
+        .args(args)
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -404,12 +407,7 @@ async fn set_brightness(
     set_brightness_cli(subsystem, name, value)
 }
 
-async fn set_brightness_logind(
-    buses: &mut Buses,
-    subsystem: &str,
-    name: &str,
-    value: u32,
-) -> bool {
+async fn set_brightness_logind(buses: &mut Buses, subsystem: &str, name: &str, value: u32) -> bool {
     let Some(conn) = buses.system().await else {
         return false;
     };

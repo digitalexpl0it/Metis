@@ -176,12 +176,7 @@ pub fn tr_ftl_arg(id: &str, name: &str, value: &str) -> String {
     ensure_state();
     let mut args = FluentArgs::new();
     args.set(name, FluentValue::from(value));
-    STATE
-        .get()
-        .unwrap()
-        .read()
-        .fluent
-        .tr_args(id, Some(&args))
+    STATE.get().unwrap().read().fluent.tr_args(id, Some(&args))
 }
 
 fn ensure_state() {
@@ -235,7 +230,9 @@ fn apply_gettext(info: &LocaleInfo) {
                 "setlocale fell back to C; gettext will not honour LANGUAGE — install a UTF-8 locale (e.g. en_US.UTF-8)"
             );
         }
-        Some(loc) => tracing::info!(locale = %loc, language = %language_chain, "gettext locale bound"),
+        Some(loc) => {
+            tracing::info!(locale = %loc, language = %language_chain, "gettext locale bound")
+        }
         None => tracing::warn!(wanted = %info.posix, "setlocale failed for all candidates"),
     }
 

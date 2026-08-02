@@ -3,8 +3,9 @@
 use metis_config::load_gaming_config;
 
 use crate::detect::{
-    detect_steam, flatpak_has_app, gamemode_installed, hybrid_gpu_summary, i386_vulkan_likely_missing,
-    nvidia_driver_loaded, pipewire_or_pulse_available, user_in_input_group, SteamInstall,
+    detect_steam, flatpak_has_app, gamemode_installed, hybrid_gpu_summary,
+    i386_vulkan_likely_missing, nvidia_driver_loaded, pipewire_or_pulse_available,
+    user_in_input_group, SteamInstall,
 };
 use crate::flatpak::{flatpak_steam_needs_optimize, optimize_flatpak_gaming};
 
@@ -64,11 +65,7 @@ pub fn run_health_check() -> HealthCheck {
             auto_fixable: true,
         });
     } else if flatpak_has_app("com.valvesoftware.Steam") {
-        items.push(ok(
-            "flatpak_steam",
-            "Flatpak Steam overrides",
-            "Optimized",
-        ));
+        items.push(ok("flatpak_steam", "Flatpak Steam overrides", "Optimized"));
     }
 
     if i386_vulkan_likely_missing() {
@@ -122,7 +119,11 @@ pub fn run_health_check() -> HealthCheck {
                 auto_fixable: false,
             });
         } else {
-            items.push(ok("hybrid_gpu", "Hybrid GPU", &format!("Discrete: {label}")));
+            items.push(ok(
+                "hybrid_gpu",
+                "Hybrid GPU",
+                &format!("Discrete: {label}"),
+            ));
         }
     } else {
         items.push(ok("hybrid_gpu", "Hybrid GPU", "Single GPU"));
@@ -156,9 +157,7 @@ pub fn auto_fix_item(id: &str) -> Result<String, String> {
         }
         "input_group" => add_user_to_input_group(),
         "gamemode" => pkexec_apt_install(&["gamemode"], "GameMode"),
-        "vulkan_i386" => {
-            pkexec_apt_install(&["mesa-vulkan-drivers:i386"], "32-bit Vulkan drivers")
-        }
+        "vulkan_i386" => pkexec_apt_install(&["mesa-vulkan-drivers:i386"], "32-bit Vulkan drivers"),
         "audio" => pkexec_apt_install(&["pipewire-audio"], "PipeWire audio"),
         "steam" => install_steam(),
         other => Err(format!("no auto-fix for {other}")),
@@ -174,12 +173,7 @@ fn install_steam() -> Result<String, String> {
     }
     if crate::detect::binary_in_path("flatpak") {
         let status = std::process::Command::new("flatpak")
-            .args([
-                "install",
-                "-y",
-                "flathub",
-                "com.valvesoftware.Steam",
-            ])
+            .args(["install", "-y", "flathub", "com.valvesoftware.Steam"])
             .status()
             .map_err(|e| format!("failed to start flatpak: {e}"))?;
         if status.success() {
@@ -243,9 +237,7 @@ fn add_user_to_input_group() -> Result<String, String> {
         return Ok("Already in the input group".into());
     }
     if !crate::detect::binary_in_path("pkexec") {
-        return Err(
-            "pkexec not found — run: sudo usermod -aG input $USER  (then log out)".into(),
-        );
+        return Err("pkexec not found — run: sudo usermod -aG input $USER  (then log out)".into());
     }
     let bin = metis_remote_bin();
     let status = std::process::Command::new("pkexec")

@@ -341,7 +341,10 @@ fn parse_battery_percentage(field: &str) -> Option<u8> {
         }
     }
     let token = field.split_whitespace().next()?;
-    if let Some(hex) = token.strip_prefix("0x").or_else(|| token.strip_prefix("0X")) {
+    if let Some(hex) = token
+        .strip_prefix("0x")
+        .or_else(|| token.strip_prefix("0X"))
+    {
         return u16::from_str_radix(hex, 16).ok().map(|v| v.min(100) as u8);
     }
     token

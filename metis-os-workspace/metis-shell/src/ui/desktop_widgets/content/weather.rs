@@ -84,8 +84,7 @@ pub fn build(inst: &DesktopWidgetInstance) -> gtk::Widget {
                 id.remove();
             }
             PANELS.with(|list| {
-                list.borrow_mut()
-                    .retain(|p| p.temp != panel.temp);
+                list.borrow_mut().retain(|p| p.temp != panel.temp);
             });
         }
     });
@@ -105,25 +104,15 @@ pub fn on_snapshot(snapshot: &WeatherSnapshot) {
 fn paint(panel: &WeatherPanel, snap: Option<&WeatherSnapshot>) {
     match snap {
         Some(snap) if !snap.locations.is_empty() => {
-            apply_snapshot(
-                &panel.icon,
-                &panel.temp,
-                &panel.place,
-                &panel.detail,
-                snap,
-            );
+            apply_snapshot(&panel.icon, &panel.temp, &panel.place, &panel.detail, snap);
         }
         Some(snap) if snap.error.is_some() => {
             panel
                 .icon
                 .set_from_icon_name(Some("weather-overcast-symbolic"));
             panel.temp.set_text("—");
-            panel
-                .place
-                .set_text(&metis_i18n::tr("Weather unavailable"));
-            panel
-                .detail
-                .set_text(snap.error.as_deref().unwrap_or(""));
+            panel.place.set_text(&metis_i18n::tr("Weather unavailable"));
+            panel.detail.set_text(snap.error.as_deref().unwrap_or(""));
         }
         _ => {
             panel

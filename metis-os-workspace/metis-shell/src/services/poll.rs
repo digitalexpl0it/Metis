@@ -19,6 +19,10 @@ enum AudioCommand {
 
 static AUDIO_CMD_TX: OnceLock<Sender<AudioCommand>> = OnceLock::new();
 
+/// Set by the NetworkManager D-Bus watcher so the poll loop refreshes network
+/// state immediately instead of waiting for the next slow tick.
+static NETWORK_DIRTY: AtomicBool = AtomicBool::new(true);
+
 /// Ignore `nmcli radio wifi` writes until this instant. Display modesets / HDMI
 /// hotplug briefly make NetworkManager look flaky; a false "off" sync must not
 /// permanently kill the radio.
@@ -163,11 +167,64 @@ pub fn spawn_bar_pollers() -> Receiver<BarSnapshot> {
     let (network_tx, network_rx) = mpsc::channel();
     let _ = NETWORK_CMD_TX.set(network_tx);
     spawn_vpn_session_autoconnect();
+    spawn_network_dbus_watcher();
     thread::Builder::new()
         .name("metis-bar-poll".into())
         .spawn(move || poll_loop(tx, audio_rx, network_rx))
         .expect("spawn bar poller");
     rx
+}
+
+/// Subscribe to NetworkManager D-Bus signals so Wi-Fi/VPN/Ethernet changes wake
+/// the poll loop. Falls back silently to timed nmcli scans if D-Bus is unavailable.
+fn spawn_network_dbus_watcher() {
+    thread::Builder::new()
+        .name("metis-nm-dbus".into())
+        .spawn(|| {
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(err) => {
+                    tracing::debug!(%err, "nm dbus watcher: no tokio runtime");
+                    return;
+                }
+            };
+            rt.block_on(async {
+                let Ok(conn) = zbus::Connection::system().await else {
+                    tracing::debug!("nm dbus watcher: system bus unavailable");
+                    return;
+                };
+                let proxy = match zbus::Proxy::new(
+                    &conn,
+                    "org.freedesktop.NetworkManager",
+                    "/org/freedesktop/NetworkManager",
+                    "org.freedesktop.NetworkManager",
+                )
+                .await
+                {
+                    Ok(p) => p,
+                    Err(err) => {
+                        tracing::debug!(%err, "nm dbus watcher: proxy failed");
+                        return;
+                    }
+                };
+                // StateChanged is the stable NM signal for connectivity changes.
+                let mut state_changed = match proxy.receive_signal("StateChanged").await {
+                    Ok(s) => s,
+                    Err(err) => {
+                        tracing::debug!(%err, "nm dbus watcher: StateChanged subscribe failed");
+                        return;
+                    }
+                };
+                use futures_util::StreamExt;
+                while state_changed.next().await.is_some() {
+                    NETWORK_DIRTY.store(true, Ordering::Relaxed);
+                }
+            });
+        })
+        .ok();
 }
 
 /// After login, NetworkManager often leaves WireGuard/`autoconnect=yes` idle
@@ -216,7 +273,12 @@ fn network_underlay_ready() -> bool {
         return false;
     };
     let text = String::from_utf8_lossy(&output.stdout);
-    let state = text.lines().next().unwrap_or("").trim().to_ascii_lowercase();
+    let state = text
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
     // "connected" is ideal; "connecting" means underlay is coming up — keep waiting.
     state == "connected"
 }
@@ -242,9 +304,8 @@ fn vpn_autoconnect_target() -> Option<(String, String)> {
         if !is_vpn_connection_type(&f[2]) {
             continue;
         }
-        let auto = f[3].eq_ignore_ascii_case("yes")
-            || f[3].eq_ignore_ascii_case("true")
-            || f[3] == "1";
+        let auto =
+            f[3].eq_ignore_ascii_case("yes") || f[3].eq_ignore_ascii_case("true") || f[3] == "1";
         if !auto {
             continue;
         }
@@ -259,14 +320,7 @@ fn vpn_autoconnect_target() -> Option<(String, String)> {
 
 fn vpn_uuid_active(uuid: &str) -> bool {
     let mut cmd = std::process::Command::new("nmcli");
-    cmd.args([
-        "-t",
-        "-f",
-        "UUID,TYPE",
-        "connection",
-        "show",
-        "--active",
-    ]);
+    cmd.args(["-t", "-f", "UUID,TYPE", "connection", "show", "--active"]);
     let Some(output) = run_command(&mut cmd) else {
         return false;
     };
@@ -295,13 +349,15 @@ fn poll_loop(
         // other than the one whose popup is open lagged by several seconds.
         let audio_changed = drain_audio_commands(&audio_rx);
         drain_network_commands(&network_rx, &mut wifi_scan_grace_until);
+        let network_dirty = NETWORK_DIRTY.swap(false, Ordering::Relaxed);
 
-        if tick % 15 == 0 {
+        // Battery/BT: slow fallback (~12–24 s). Network: D-Bus dirty or timed tick.
+        if tick % 30 == 0 {
             cached.battery_percent = read_battery_percent();
             cached.battery_charging = read_battery_charging();
             cached.bluetooth = read_bluetooth_status();
         }
-        if tick % 3 == 0 {
+        if network_dirty || tick % 5 == 0 {
             cached.wifi_enabled = read_wifi_radio_enabled();
             if let Some(eth) = read_ethernet_status() {
                 cached.ethernet = eth;
@@ -346,14 +402,22 @@ fn poll_loop(
         }
         cached.workspaces = workspaces::workspace_snapshot();
 
-        if cached != last_sent {
+        let changed = cached != last_sent;
+        if changed {
             last_sent = cached.clone();
             if tx.send(cached.clone()).is_err() {
                 break;
             }
         }
         tick = tick.wrapping_add(1);
-        thread::sleep(Duration::from_millis(400));
+        let sleep_ms = if audio_changed || network_dirty {
+            200
+        } else if changed {
+            400
+        } else {
+            800
+        };
+        thread::sleep(Duration::from_millis(sleep_ms));
     }
 }
 
@@ -387,8 +451,7 @@ fn drain_network_commands(
     while let Ok(cmd) = rx.try_recv() {
         match cmd {
             NetworkCommand::Scan => {
-                *wifi_scan_grace_until =
-                    Some(std::time::Instant::now() + Duration::from_secs(4));
+                *wifi_scan_grace_until = Some(std::time::Instant::now() + Duration::from_secs(4));
                 spawn_nmcli(
                     vec!["dev".into(), "wifi".into(), "rescan".into()],
                     Duration::from_secs(10),
@@ -635,11 +698,7 @@ fn begin_vpn_op(target: String, connecting: bool) {
 
 fn finish_vpn_op(target: &str, connecting: bool, error: Option<String>) {
     if let Ok(mut st) = VPN_OP.lock() {
-        if st
-            .pending
-            .as_ref()
-            .is_some_and(|(t, _, _)| t == target)
-        {
+        if st.pending.as_ref().is_some_and(|(t, _, _)| t == target) {
             st.pending = None;
         }
         if let Some(err) = error.clone() {
@@ -846,10 +905,7 @@ fn spawn_nmcli_vpn(
                         if !connecting && vpn_already_inactive(&msg) {
                             finish_vpn_op(&target, connecting, None);
                         } else {
-                            let clean = msg
-                                .trim_start_matches("Error:")
-                                .trim()
-                                .to_string();
+                            let clean = msg.trim_start_matches("Error:").trim().to_string();
                             finish_vpn_op(&target, connecting, Some(clean));
                         }
                     }
@@ -1471,7 +1527,9 @@ fn parse_battery_percentage(field: &str) -> Option<u8> {
         }
     }
     let token = field.split_whitespace().next()?;
-    let hex = token.strip_prefix("0x").or_else(|| token.strip_prefix("0X"))?;
+    let hex = token
+        .strip_prefix("0x")
+        .or_else(|| token.strip_prefix("0X"))?;
     u16::from_str_radix(hex, 16).ok().map(|v| v.min(100) as u8)
 }
 
@@ -1507,11 +1565,9 @@ fn read_hid_battery_for_address(address: &str) -> Option<DeviceBattery> {
 fn bluetooth_adapter_present() -> bool {
     std::fs::read_dir("/sys/class/bluetooth")
         .map(|entries| {
-            entries.filter_map(Result::ok).any(|e| {
-                e.file_name()
-                    .to_string_lossy()
-                    .starts_with("hci")
-            })
+            entries
+                .filter_map(Result::ok)
+                .any(|e| e.file_name().to_string_lossy().starts_with("hci"))
         })
         .unwrap_or(false)
 }

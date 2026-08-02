@@ -35,8 +35,7 @@ impl ScheduleTimePicker {
 
     pub fn refresh(&self) {
         let hhmm = self.hhmm.borrow().clone();
-        let label = format_schedule_hhmm(&hhmm, self.use_12h.get())
-            .unwrap_or_else(|| hhmm.clone());
+        let label = format_schedule_hhmm(&hhmm, self.use_12h.get()).unwrap_or_else(|| hhmm.clone());
         self.button.set_label(&label);
         self.suppress.set(true);
         self.popover_entry.set_text(&label);

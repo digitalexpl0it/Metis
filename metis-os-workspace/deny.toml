@@ -1,0 +1,69 @@
+# cargo-deny — Phase 16 engineering hardening
+# Run from metis-os-workspace/: `cargo deny check`
+#
+# Advisories: fail on vulnerabilities/yanked; unmaintained/unsound for
+# transitive deps match cargo-audit’s warning posture until upgrades land.
+
+[graph]
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+]
+all-features = false
+no-default-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+# Match cargo-audit’s warning-only posture for unmaintained/unsound transitive
+# crates (smithay → paste/cgmath, gtk-rs glib 0.19, fontdue → ttf-parser).
+# Fail only on vulnerabilities and yanked crates until those trees upgrade.
+unmaintained = "none"
+unsound = "none"
+ignore = []
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+    "MPL-2.0",
+    "OpenSSL",
+    "BSL-1.0",
+    "0BSD",
+    "Unlicense",
+    "CDLA-Permissive-2.0",
+]
+
+# ical 0.11 publishes without a license field; upstream is MIT
+# (https://github.com/Peltoche/ical-rs).
+[[licenses.clarify]]
+name = "ical"
+version = "*"
+expression = "MIT"
+license-files = []
+
+[licenses.private]
+ignore = false
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+    "https://github.com/Smithay/smithay",
+]

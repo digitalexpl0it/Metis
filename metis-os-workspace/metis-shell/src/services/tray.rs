@@ -36,7 +36,9 @@ pub struct TrayItem {
 #[derive(Debug, Clone)]
 pub enum TrayEvent {
     Update(TrayItem),
-    Remove { bus_name: String },
+    Remove {
+        bus_name: String,
+    },
     /// Fresh DBusMenu layout fetched on demand (e.g. before opening a context menu).
     ContextMenuReady(TrayItem),
 }
@@ -141,10 +143,7 @@ pub fn spawn_tray_service() -> TrayChannels {
     }
 }
 
-fn run_tray_thread(
-    event_tx: Sender<TrayEvent>,
-    cmd_rx: async_mpsc::Receiver<TrayCommand>,
-) {
+fn run_tray_thread(event_tx: Sender<TrayEvent>, cmd_rx: async_mpsc::Receiver<TrayCommand>) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -188,7 +187,8 @@ fn upsert_item(snap: &mut TraySnapshot, item: TrayItem) {
     } else {
         snap.items.push(item);
     }
-    snap.items.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    snap.items
+        .sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
 }
 
 pub fn apply_event(event: TrayEvent) {

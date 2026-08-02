@@ -21,7 +21,9 @@ use smithay::{
     output::Output,
     reexports::{
         wayland_protocols::ext::session_lock::v1::server::ext_session_lock_v1::ExtSessionLockV1,
-        wayland_server::{protocol::wl_output::WlOutput, protocol::wl_surface::WlSurface, Resource},
+        wayland_server::{
+            protocol::wl_output::WlOutput, protocol::wl_surface::WlSurface, Resource,
+        },
     },
     utils::{Logical, Physical, Point, Rectangle, Scale, Size},
     wayland::session_lock::{
@@ -273,10 +275,7 @@ impl MetisState {
             .map(|s| KeyboardFocusTarget::LockSurface(s.wl_surface().clone()))
     }
 
-    pub(crate) fn protocol_lock_surface_for_output(
-        &self,
-        output: &Output,
-    ) -> Option<&LockSurface> {
+    pub(crate) fn protocol_lock_surface_for_output(&self, output: &Output) -> Option<&LockSurface> {
         self.protocol_lock.surface_for_output(output)
     }
 

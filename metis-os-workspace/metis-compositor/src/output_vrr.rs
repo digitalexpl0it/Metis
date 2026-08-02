@@ -13,31 +13,25 @@ pub fn query_vrr_support(state: &MetisState, name: &str) -> VrrSupport {
     let Some(udev) = state.udev.as_ref() else {
         return VrrSupport::NotSupported;
     };
-    let Some(surface) = udev
-        .surfaces()
-        .find(|s| s.output.name() == name)
-    else {
+    let Some(surface) = udev.surfaces().find(|s| s.output.name() == name) else {
         return VrrSupport::NotSupported;
     };
-    surface
-        .drm_output
-        .with_compositor(|compositor| match compositor.vrr_supported(surface.connector) {
+    surface.drm_output.with_compositor(|compositor| {
+        match compositor.vrr_supported(surface.connector) {
             Ok(s) => s,
             Err(err) => {
                 tracing::debug!(%name, ?err, "VRR support query failed");
                 VrrSupport::NotSupported
             }
-        })
+        }
+    })
 }
 
 pub fn query_vrr_active(state: &MetisState, name: &str) -> bool {
     let Some(udev) = state.udev.as_ref() else {
         return false;
     };
-    let Some(surface) = udev
-        .surfaces()
-        .find(|s| s.output.name() == name)
-    else {
+    let Some(surface) = udev.surfaces().find(|s| s.output.name() == name) else {
         return false;
     };
     surface
@@ -64,8 +58,7 @@ pub fn prepare_vrr_for_render(state: &MetisState, id: crate::udev::UdevOutputId)
     let Some(udev) = state.udev.as_ref() else {
         return;
     };
-    let Some(name) = udev.surface(id).map(|s| s.output.name())
-    else {
+    let Some(name) = udev.surface(id).map(|s| s.output.name()) else {
         return;
     };
     let want = output_prefs(state.output_runtime.cached(), &name).vrr_enabled;
@@ -73,21 +66,14 @@ pub fn prepare_vrr_for_render(state: &MetisState, id: crate::udev::UdevOutputId)
 }
 
 fn sync_vrr_for_output(state: &mut MetisState, name: &str, want: bool) -> bool {
-    let id = state
-        .udev
-        .as_ref()
-        .and_then(|u| u.output_id_by_name(name));
+    let id = state.udev.as_ref().and_then(|u| u.output_id_by_name(name));
     let Some(id) = id else {
         return false;
     };
     sync_vrr_for_crtc(state, id, want)
 }
 
-fn sync_vrr_for_crtc(
-    state: &MetisState,
-    id: crate::udev::UdevOutputId,
-    want: bool,
-) -> bool {
+fn sync_vrr_for_crtc(state: &MetisState, id: crate::udev::UdevOutputId, want: bool) -> bool {
     let Some(udev) = state.udev.as_ref() else {
         return false;
     };

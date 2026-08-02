@@ -9,8 +9,8 @@ use smithay::{
     },
     output::{Mode, Output, PhysicalProperties, Subpixel},
     reexports::calloop::{
-        EventLoop,
         timer::{TimeoutAction, Timer},
+        EventLoop,
     },
     utils::{Logical, Physical, Point, Rectangle, Scale, Size, Transform},
 };
@@ -23,7 +23,9 @@ use crate::state::MetisState;
 /// Map the hovered resize edge to the matching host (winit) cursor shape. This
 /// nested backend always draws the host cursor and ignores client cursor
 /// surfaces, so directional resize feedback has to be applied here.
-fn resize_cursor(edge: Option<crate::grabs::ResizeEdge>) -> smithay::reexports::winit::cursor::Cursor {
+fn resize_cursor(
+    edge: Option<crate::grabs::ResizeEdge>,
+) -> smithay::reexports::winit::cursor::Cursor {
     use crate::grabs::ResizeEdge;
     use smithay::reexports::winit::cursor::CursorIcon;
 
@@ -101,10 +103,11 @@ pub fn init_winit(
             },
         );
         let global = output.create_global::<MetisState>(&state.display_handle);
-        state
-            .output_globals
-            .insert(output.name(), global);
-        let mode = Mode { size: *size, refresh: 60_000 };
+        state.output_globals.insert(output.name(), global);
+        let mode = Mode {
+            size: *size,
+            refresh: 60_000,
+        };
         output.change_current_state(Some(mode), Some(Transform::Flipped180), None, Some(*pos));
         output.set_preferred(mode);
         state.space.map_output(&output, *pos);
@@ -127,7 +130,10 @@ pub fn init_winit(
             serial_number: "render".into(),
         },
     );
-    let render_mode = Mode { size: window_size, refresh: 60_000 };
+    let render_mode = Mode {
+        size: window_size,
+        refresh: 60_000,
+    };
     render_output.change_current_state(
         Some(render_mode),
         Some(Transform::Flipped180),
@@ -158,10 +164,7 @@ pub fn init_winit(
     let mut damage_tracker = OutputDamageTracker::from_output(&render_output);
 
     let backend_winit = backend.clone();
-    backend
-        .borrow()
-        .window()
-        .set_title("Metis");
+    backend.borrow().window().set_title("Metis");
     state.set_redraw_trigger(Rc::new(move || {
         backend_winit.borrow().window().request_redraw();
     }));
@@ -173,9 +176,9 @@ pub fn init_winit(
     // (re-request at end of frame) becomes an unbounded busy loop. Instead we
     // re-arm here only while damage is pending, capping us at ~60fps while
     // staying near-zero CPU when idle.
-    event_loop
-        .handle()
-        .insert_source(Timer::from_duration(Duration::from_millis(16)), move |_, _, state| {
+    event_loop.handle().insert_source(
+        Timer::from_duration(Duration::from_millis(16)),
+        move |_, _, state| {
             // Shared per-tick housekeeping (startup, IPC, wallpaper decode, live
             // blur/decoration config, scroll animation). Kept off the render path
             // so going idle can never starve shell/client spawn.
@@ -189,173 +192,185 @@ pub fn init_winit(
                 state.request_redraw();
             }
             TimeoutAction::ToDuration(Duration::from_millis(16))
-        })?;
+        },
+    )?;
 
     let backend_winit = backend.clone();
-    event_loop.handle().insert_source(winit, move |event, _, state| {
-        match event {
-            WinitEvent::Resized { size, .. } => {
-                state.run_pending_startup();
-                // Re-tile the logical outputs across the new framebuffer size.
-                let layout = output_layout(size, logical_outputs.len().max(1));
-                for (out, (out_size, pos)) in logical_outputs.iter().zip(layout.iter()) {
-                    if !state.output_globals.contains_key(&out.name()) {
-                        continue;
+    event_loop
+        .handle()
+        .insert_source(winit, move |event, _, state| {
+            match event {
+                WinitEvent::Resized { size, .. } => {
+                    state.run_pending_startup();
+                    // Re-tile the logical outputs across the new framebuffer size.
+                    let layout = output_layout(size, logical_outputs.len().max(1));
+                    for (out, (out_size, pos)) in logical_outputs.iter().zip(layout.iter()) {
+                        if !state.output_globals.contains_key(&out.name()) {
+                            continue;
+                        }
+                        out.change_current_state(
+                            Some(Mode {
+                                size: *out_size,
+                                refresh: 60_000,
+                            }),
+                            Some(Transform::Flipped180),
+                            None,
+                            Some(*pos),
+                        );
+                        state.space.map_output(out, *pos);
                     }
-                    out.change_current_state(
-                        Some(Mode { size: *out_size, refresh: 60_000 }),
+                    render_output.change_current_state(
+                        Some(Mode {
+                            size,
+                            refresh: 60_000,
+                        }),
                         Some(Transform::Flipped180),
                         None,
-                        Some(*pos),
+                        None,
                     );
-                    state.space.map_output(out, *pos);
-                }
-                render_output.change_current_state(
-                    Some(Mode { size, refresh: 60_000 }),
-                    Some(Transform::Flipped180),
-                    None,
-                    None,
-                );
-                if let Some(geo) = logical_outputs
-                    .first()
-                    .and_then(|o| state.space.output_geometry(o))
-                {
-                    state.monitor.width = geo.size.w;
-                    state.monitor.height = geo.size.h;
-                }
-                let (wp_full, wp_regions) = state.wallpaper_layout();
-                state.wallpaper.set_layout(wp_full, wp_regions);
-                state.emit_monitor_changed();
-                let ids: Vec<u32> = state.windows.ids();
-                if !ids.is_empty() {
-                    for id in ids {
-                        state.apply_window_rect(id);
+                    if let Some(geo) = logical_outputs
+                        .first()
+                        .and_then(|o| state.space.output_geometry(o))
+                    {
+                        state.monitor.width = geo.size.w;
+                        state.monitor.height = geo.size.h;
                     }
-                    state.sync_all_app_windows();
-                    state.refresh_all_scroll_offsets();
-                }
-                state.arrange_layers();
-            }
-            WinitEvent::Input(event) => {
-                state.run_pending_startup();
-                state.process_input_event(event);
-            }
-            WinitEvent::Redraw => {
-                state.run_pending_startup();
-                ipc::drain_ipc(state);
-
-                // Damage-gated render keeps idle CPU near zero. Input handlers
-                // flag damage on pointer motion/clicks, so cursor and UI feedback
-                // still update during interaction; the heartbeat caps us at 60fps.
-                let render = state.damaged;
-
-                if state.image_capture.has_pending() {
-                    let mut backend = backend_winit.borrow_mut();
-                    match backend.bind() {
-                        Ok((renderer, _framebuffer)) => {
-                            state.process_pending_captures(renderer);
+                    let (wp_full, wp_regions) = state.wallpaper_layout();
+                    state.wallpaper.set_layout(wp_full, wp_regions);
+                    state.emit_monitor_changed();
+                    let ids: Vec<u32> = state.windows.ids();
+                    if !ids.is_empty() {
+                        for id in ids {
+                            state.apply_window_rect(id);
                         }
-                        Err(err) => tracing::warn!(?err, "winit capture bind failed"),
-                    };
+                        state.sync_all_app_windows();
+                        state.refresh_all_scroll_offsets();
+                    }
+                    state.arrange_layers();
                 }
+                WinitEvent::Input(event) => {
+                    state.run_pending_startup();
+                    state.process_input_event(event);
+                }
+                WinitEvent::Redraw => {
+                    state.run_pending_startup();
+                    ipc::drain_ipc(state);
 
-                if render {
-                    let mut backend = backend_winit.borrow_mut();
-                    let size = backend.window_size();
-                    let damage = Rectangle::from_size(size);
+                    // Damage-gated render keeps idle CPU near zero. Input handlers
+                    // flag damage on pointer motion/clicks, so cursor and UI feedback
+                    // still update during interaction; the heartbeat caps us at 60fps.
+                    let render = state.damaged;
 
-                    // Single cursor source: always show the host (winit) cursor and
-                    // never render client cursor surfaces. In this nested compositor,
-                    // rendering the client's own cursor produced a second cursor with a
-                    // mismatched size over GTK surfaces; the host cursor stays uniform.
-                    backend.window().set_cursor_visible(true);
-                    let cursor = if state.metis_bar_ui_hit(
-                        state.seat.get_pointer().map(|p| p.current_location()).unwrap_or_default(),
-                    ) {
-                        resize_cursor(None)
-                    } else {
-                        resize_cursor(state.hover_cursor)
-                    };
-                    backend.window().set_cursor(cursor);
-
-                    let output_scale =
-                        Scale::from(render_output.current_scale().fractional_scale());
-                    match backend.bind() {
-                        Ok((renderer, mut framebuffer)) => {
-                            // The nested backend renders the whole virtual desktop
-                            // into a single framebuffer, so it builds elements in
-                            // global coords (render origin (0, 0)).
-                            let render_elements = state.build_render_elements(
-                                renderer,
-                                Point::<i32, Physical>::from((0, 0)),
-                                output_scale,
-                                RenderTargetInfo {
-                                    size: Size::from((size.w, size.h)),
-                                    output_name: None,
-                                    skip_night_light: false,
-                                },
-                                &[],
-                                true,
-                            );
-
-                            // Winit re-binds the same framebuffer each frame, so it
-                            // can't track buffer age; a fixed age of 0 makes the
-                            // damage tracker treat each frame as a full redraw.
-                            if let Err(err) = damage_tracker.render_output(
-                                renderer,
-                                &mut framebuffer,
-                                0,
-                                &render_elements,
-                                CLEAR_COLOR,
-                            ) {
-                                tracing::warn!(?err, "render_output failed");
+                    if state.image_capture.has_pending() {
+                        let mut backend = backend_winit.borrow_mut();
+                        match backend.bind() {
+                            Ok((renderer, _framebuffer)) => {
+                                state.process_pending_captures(renderer);
                             }
-                            state.process_pending_captures(renderer);
-                        }
-                        Err(err) => {
-                            tracing::warn!(?err, "winit GL bind failed — skipping frame");
-                        }
+                            Err(err) => tracing::warn!(?err, "winit capture bind failed"),
+                        };
                     }
-                    if let Err(err) = backend.submit(Some(&[damage])) {
-                        tracing::warn!(?err, "winit frame submit failed");
-                    }
-                }
 
-                if render {
-                    // Deliver frame callbacks for the frame we just presented so
-                    // clients paint their next frame; then clear damage + flush.
-                    let now = state.start_time.elapsed();
-                    let frame_outputs: Vec<Output> = state.space.outputs().cloned().collect();
-                    if let Some(primary) = frame_outputs.first() {
-                        let primary = primary.clone();
-                        state.space.elements().for_each(|window| {
-                            window.send_frame(&primary, now, Some(Duration::ZERO), |_, _| {
-                                Some(primary.clone())
+                    if render {
+                        let mut backend = backend_winit.borrow_mut();
+                        let size = backend.window_size();
+                        let damage = Rectangle::from_size(size);
+
+                        // Single cursor source: always show the host (winit) cursor and
+                        // never render client cursor surfaces. In this nested compositor,
+                        // rendering the client's own cursor produced a second cursor with a
+                        // mismatched size over GTK surfaces; the host cursor stays uniform.
+                        backend.window().set_cursor_visible(true);
+                        let cursor = if state.metis_bar_ui_hit(
+                            state
+                                .seat
+                                .get_pointer()
+                                .map(|p| p.current_location())
+                                .unwrap_or_default(),
+                        ) {
+                            resize_cursor(None)
+                        } else {
+                            resize_cursor(state.hover_cursor)
+                        };
+                        backend.window().set_cursor(cursor);
+
+                        let output_scale =
+                            Scale::from(render_output.current_scale().fractional_scale());
+                        match backend.bind() {
+                            Ok((renderer, mut framebuffer)) => {
+                                // The nested backend renders the whole virtual desktop
+                                // into a single framebuffer, so it builds elements in
+                                // global coords (render origin (0, 0)).
+                                let render_elements = state.build_render_elements(
+                                    renderer,
+                                    Point::<i32, Physical>::from((0, 0)),
+                                    output_scale,
+                                    RenderTargetInfo {
+                                        size: Size::from((size.w, size.h)),
+                                        output_name: None,
+                                        skip_night_light: false,
+                                    },
+                                    &[],
+                                    true,
+                                );
+
+                                // Winit re-binds the same framebuffer each frame, so it
+                                // can't track buffer age; a fixed age of 0 makes the
+                                // damage tracker treat each frame as a full redraw.
+                                if let Err(err) = damage_tracker.render_output(
+                                    renderer,
+                                    &mut framebuffer,
+                                    0,
+                                    &render_elements,
+                                    CLEAR_COLOR,
+                                ) {
+                                    tracing::warn!(?err, "render_output failed");
+                                }
+                                state.process_pending_captures(renderer);
+                            }
+                            Err(err) => {
+                                tracing::warn!(?err, "winit GL bind failed — skipping frame");
+                            }
+                        }
+                        if let Err(err) = backend.submit(Some(&[damage])) {
+                            tracing::warn!(?err, "winit frame submit failed");
+                        }
+                    }
+
+                    if render {
+                        // Deliver frame callbacks for the frame we just presented so
+                        // clients paint their next frame; then clear damage + flush.
+                        let now = state.start_time.elapsed();
+                        let frame_outputs: Vec<Output> = state.space.outputs().cloned().collect();
+                        if let Some(primary) = frame_outputs.first() {
+                            let primary = primary.clone();
+                            state.space.elements().for_each(|window| {
+                                window.send_frame(&primary, now, Some(Duration::ZERO), |_, _| {
+                                    Some(primary.clone())
+                                });
                             });
-                        });
+                        }
+                        for out in &frame_outputs {
+                            state.send_layer_frames(out, now);
+                        }
+                        state.damaged = false;
+                        state.defer_client_flush = true;
                     }
-                    for out in &frame_outputs {
-                        state.send_layer_frames(out, now);
+
+                    state.space.refresh();
+                    state.cleanup_destroyed_windows();
+                    state.popups.cleanup();
+                    for out in state.space.outputs() {
+                        smithay::desktop::layer_map_for_output(out).cleanup();
                     }
-                    state.damaged = false;
-                    state.defer_client_flush = true;
                 }
-
-                state.space.refresh();
-                state.cleanup_destroyed_windows();
-                state.popups.cleanup();
-                for out in state.space.outputs() {
-                    smithay::desktop::layer_map_for_output(out).cleanup();
+                WinitEvent::CloseRequested => {
+                    tracing::info!("compositor winit window close requested — shutting down");
+                    state.end_compositor_session();
                 }
-
+                _ => (),
             }
-            WinitEvent::CloseRequested => {
-                tracing::info!("compositor winit window close requested — shutting down");
-                state.end_compositor_session();
-            }
-            _ => (),
-        }
-    })?;
+        })?;
 
     Ok(())
 }

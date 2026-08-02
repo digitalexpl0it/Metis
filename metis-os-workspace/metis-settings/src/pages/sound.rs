@@ -42,8 +42,8 @@ pub fn build() -> gtk::Widget {
     content.append(&in_card);
 
     let hint = gtk::Label::new(Some(&tr(
-        "Use the volume icon on the edge bar for quick mute and level control."
-        )));
+        "Use the volume icon on the edge bar for quick mute and level control.",
+    )));
     hint.set_wrap(true);
     hint.set_xalign(0.0);
     hint.add_css_class("metis-settings-hint");
@@ -114,16 +114,8 @@ pub fn build() -> gtk::Widget {
 
 fn render(sections: &Sections, snap: &SoundSnapshot) {
     *sections.syncing.borrow_mut() = true;
-    fill_combo(
-        &sections.output_combo,
-        &snap.sinks,
-        &sections.sink_names,
-    );
-    fill_combo(
-        &sections.input_combo,
-        &snap.sources,
-        &sections.source_names,
-    );
+    fill_combo(&sections.output_combo, &snap.sinks, &sections.sink_names);
+    fill_combo(&sections.input_combo, &snap.sources, &sections.source_names);
     *sections.syncing.borrow_mut() = false;
     sections.output_vol.set_text(&format!(
         "{}{}%",

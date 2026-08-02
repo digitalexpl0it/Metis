@@ -311,9 +311,7 @@ pub fn apply_menu_opacity(opacity: f32) {
     let alpha = opacity.clamp(0.0, 1.0);
     MENU_OPACITY.with(|o| o.set(alpha));
     let raised_rgb = active_tokens().surface_raised_rgb();
-    let css = format!(
-        ".metis-menu-panel {{ background-color: rgba({raised_rgb}, {alpha:.3}); }}"
-    );
+    let css = format!(".metis-menu-panel {{ background-color: rgba({raised_rgb}, {alpha:.3}); }}");
     MENU_BG_PROVIDER.with(|provider| {
         provider.load_from_data(&css);
         if let Some(display) = gtk::gdk::Display::default() {
@@ -333,7 +331,10 @@ pub fn reload_stylesheet() {
 
 pub fn export_embedded_themes_to_config() -> std::io::Result<()> {
     config::ensure_config_dirs()?;
-    write_theme_file(&config::theme_file_path_for_name("dark"), &ThemeTokens::dark_default())?;
+    write_theme_file(
+        &config::theme_file_path_for_name("dark"),
+        &ThemeTokens::dark_default(),
+    )?;
     write_theme_file(
         &config::theme_file_path_for_name("light"),
         &ThemeTokens::light_default(),

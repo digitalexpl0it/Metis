@@ -81,11 +81,7 @@ impl ColorLutRuntime {
                 continue;
             };
             let hash = hash_bytes(icc);
-            if self
-                .entries
-                .get(name)
-                .is_some_and(|e| e.icc_hash == hash)
-            {
+            if self.entries.get(name).is_some_and(|e| e.icc_hash == hash) {
                 self.lut_active.insert(name.clone(), true);
                 continue;
             }
@@ -158,11 +154,7 @@ pub fn bake_lut_atlas(icc: &[u8]) -> Result<Vec<u8>, String> {
                     g: ((gi as f32 / max) * 255.0).round() as u8,
                     b: ((bi as f32 / max) * 255.0).round() as u8,
                 };
-                let mut dst = [Rgb8 {
-                    r: 0,
-                    g: 0,
-                    b: 0,
-                }];
+                let mut dst = [Rgb8 { r: 0, g: 0, b: 0 }];
                 transform.transform_pixels(&[src], &mut dst);
                 let x = ri + gi * n;
                 let y = bi;
@@ -276,7 +268,11 @@ void main() {
     })
 }
 
-unsafe fn link_program(gl: &ffi::Gles2, vs_src: &str, fs_src: &str) -> Result<ffi::types::GLuint, String> {
+unsafe fn link_program(
+    gl: &ffi::Gles2,
+    vs_src: &str,
+    fs_src: &str,
+) -> Result<ffi::types::GLuint, String> {
     let vs = compile_shader(gl, ffi::VERTEX_SHADER, vs_src)?;
     let fs = compile_shader(gl, ffi::FRAGMENT_SHADER, fs_src)?;
     let program = gl.CreateProgram();
@@ -291,7 +287,12 @@ unsafe fn link_program(gl: &ffi::Gles2, vs_src: &str, fs_src: &str) -> Result<ff
         let mut len = 0;
         gl.GetProgramiv(program, ffi::INFO_LOG_LENGTH, &mut len);
         let mut buf = vec![0u8; len.max(1) as usize];
-        gl.GetProgramInfoLog(program, len, std::ptr::null_mut(), buf.as_mut_ptr() as *mut _);
+        gl.GetProgramInfoLog(
+            program,
+            len,
+            std::ptr::null_mut(),
+            buf.as_mut_ptr() as *mut _,
+        );
         gl.DeleteProgram(program);
         return Err(String::from_utf8_lossy(&buf).into_owned());
     }
@@ -314,7 +315,12 @@ unsafe fn compile_shader(
         let mut len = 0;
         gl.GetShaderiv(shader, ffi::INFO_LOG_LENGTH, &mut len);
         let mut buf = vec![0u8; len.max(1) as usize];
-        gl.GetShaderInfoLog(shader, len, std::ptr::null_mut(), buf.as_mut_ptr() as *mut _);
+        gl.GetShaderInfoLog(
+            shader,
+            len,
+            std::ptr::null_mut(),
+            buf.as_mut_ptr() as *mut _,
+        );
         gl.DeleteShader(shader);
         return Err(String::from_utf8_lossy(&buf).into_owned());
     }
@@ -377,8 +383,16 @@ fn blit_with_lut(
             gl.BindTexture(ffi::TEXTURE_2D, atlas_id);
             gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_MIN_FILTER, ffi::LINEAR as i32);
             gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_MAG_FILTER, ffi::LINEAR as i32);
-            gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_WRAP_S, ffi::CLAMP_TO_EDGE as i32);
-            gl.TexParameteri(ffi::TEXTURE_2D, ffi::TEXTURE_WRAP_T, ffi::CLAMP_TO_EDGE as i32);
+            gl.TexParameteri(
+                ffi::TEXTURE_2D,
+                ffi::TEXTURE_WRAP_S,
+                ffi::CLAMP_TO_EDGE as i32,
+            );
+            gl.TexParameteri(
+                ffi::TEXTURE_2D,
+                ffi::TEXTURE_WRAP_T,
+                ffi::CLAMP_TO_EDGE as i32,
+            );
 
             gl.EnableVertexAttribArray(attrib_pos as ffi::types::GLuint);
             gl.VertexAttribPointer(

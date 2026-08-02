@@ -82,12 +82,12 @@ jobs:
           workspaces: metis-os-workspace -> target
           shared-key: ubuntu-24.04
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
 
-      - name: Audit Rust dependencies
+      - name: cargo deny
         working-directory: metis-os-workspace
-        run: cargo audit
+        run: cargo deny check
 
       - name: Build release binaries + package .deb
         working-directory: metis-os-workspace
@@ -160,6 +160,13 @@ jobs:
           workspaces: metis-os-workspace -> target
           shared-key: ubuntu-26.04
 
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: cargo deny
+        working-directory: metis-os-workspace
+        run: cargo deny check
+
       - name: Build release binaries + package .deb
         working-directory: metis-os-workspace
         env:
@@ -171,6 +178,8 @@ jobs:
         run: |
           ./scripts/package-deb.sh
           ls -lh dist/*.deb
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.mo$')" -ge 2
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.ftl$')" -ge 2
 
       - uses: actions/upload-artifact@v4
         with:
@@ -232,6 +241,17 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
+      - name: Install cargo-deny
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install cargo-deny --locked
+
+      - name: cargo deny
+        working-directory: metis-os-workspace
+        run: |
+          . "$HOME/.cargo/env"
+          cargo deny check
+
       - name: Build release binaries + package .deb
         working-directory: metis-os-workspace
         env:
@@ -244,6 +264,8 @@ jobs:
           . "$HOME/.cargo/env"
           ./scripts/package-deb.sh
           ls -lh dist/*.deb
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.mo$')" -ge 2
+          test "$(dpkg-deb -c dist/*.deb | grep -c 'usr/share/metis/locale/.*/metis\.ftl$')" -ge 2
 
       - uses: actions/upload-artifact@v4
         with:

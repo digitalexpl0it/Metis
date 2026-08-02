@@ -4,8 +4,8 @@ use smithay::{
     backend::input::KeyState,
     desktop::{LayerSurface, PopupKind, Window},
     input::{
-        Seat,
         keyboard::{KeyboardTarget, KeysymHandle, ModifiersState},
+        Seat,
     },
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     utils::{IsAlive, Serial},

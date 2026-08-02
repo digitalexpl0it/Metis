@@ -60,7 +60,10 @@ pub fn pick_drm_mode_index(modes: &[DrmMode], prefs: &OutputPrefs) -> usize {
         .unwrap_or(0)
 }
 
-pub fn list_output_modes(state: &MetisState, name: &str) -> (Vec<OutputModeInfo>, Option<OutputModeInfo>) {
+pub fn list_output_modes(
+    state: &MetisState,
+    name: &str,
+) -> (Vec<OutputModeInfo>, Option<OutputModeInfo>) {
     if let Some(udev) = state.udev.as_ref() {
         let Some(surface) = udev.surfaces().find(|s| s.output.name() == name) else {
             return (Vec::new(), None);
@@ -72,12 +75,7 @@ pub fn list_output_modes(state: &MetisState, name: &str) -> (Vec<OutputModeInfo>
         let modes = surface
             .modes
             .iter()
-            .map(|m| {
-                drm_mode_info(
-                    *m,
-                    m.mode_type().contains(ModeTypeFlags::PREFERRED),
-                )
-            })
+            .map(|m| drm_mode_info(*m, m.mode_type().contains(ModeTypeFlags::PREFERRED)))
             .collect();
         return (modes, current);
     }
@@ -89,9 +87,7 @@ pub fn list_output_modes(state: &MetisState, name: &str) -> (Vec<OutputModeInfo>
     else {
         return (Vec::new(), None);
     };
-    let current = output
-        .current_mode()
-        .map(|m| wl_mode_info(m, true));
+    let current = output.current_mode().map(|m| wl_mode_info(m, true));
     let modes = current.clone().into_iter().collect::<Vec<_>>();
     (modes, current)
 }
@@ -163,10 +159,10 @@ impl MetisState {
         let Some(udev) = self.udev.as_mut() else {
             return false;
         };
-        let Some(id) = udev
-            .output_id_by_name(name)
-            .filter(|id| udev.surface(*id).is_some_and(|surface| !surface.user_disabled))
-        else {
+        let Some(id) = udev.output_id_by_name(name).filter(|id| {
+            udev.surface(*id)
+                .is_some_and(|surface| !surface.user_disabled)
+        }) else {
             return false;
         };
         let Some(drm_mode) = udev

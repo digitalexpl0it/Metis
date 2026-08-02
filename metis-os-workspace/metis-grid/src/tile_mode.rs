@@ -29,7 +29,12 @@ impl TileModeState {
         self.snapshots.iter().find(|s| s.tile_id == tile_id)
     }
 
-    pub fn enter(&mut self, layout: &GridLayout, tile_id: &str, mode: TileMode) -> Option<TileRect> {
+    pub fn enter(
+        &mut self,
+        layout: &GridLayout,
+        tile_id: &str,
+        mode: TileMode,
+    ) -> Option<TileRect> {
         let tile = layout.tiles.iter().find(|t| t.id == tile_id)?;
         let saved_rect = tile.rect;
         if !self.snapshots.iter().any(|s| s.tile_id == tile_id) {
