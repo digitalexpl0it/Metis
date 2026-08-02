@@ -1060,6 +1060,8 @@ hand — `bar.json` and `themes/*.json` reload while Metis runs.
 
 ### Session IPC trust model
 
+Short map for auditors: [`SECURITY.md`](../SECURITY.md).
+
 Metis shell ↔ compositor control uses Unix sockets and command files under
 `$XDG_RUNTIME_DIR/metis/` (directory mode `0700`; sockets and command files
 `0600`). The compositor checks `SO_PEERCRED` and rejects connections whose peer

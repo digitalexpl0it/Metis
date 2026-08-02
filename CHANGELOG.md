@@ -38,6 +38,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Workspace clippy clean-up** — idiomatic fixes across config/grid/capture/
   gaming/remote/compositor/portal/settings/shell so PR CI (`-D warnings`) stays
   green (derive `Default`, collapsible match/if, `clamp`/`contains`, etc.).
+- **`SECURITY.md`** — root trust-model map (IPC / XWayland / gaming / colour
+  management / residual targets) with README pointers for auditors.
 
 ### Fixed
 

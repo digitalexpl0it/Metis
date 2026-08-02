@@ -12,6 +12,9 @@
 
 New to Metis? Start with the **[User Guide](docs/USER_GUIDE.md)**.
 
+**Security / trust model** (IPC peer credentials, XWayland isolation, gaming
+hooks, colour-management opt-in): **[SECURITY.md](SECURITY.md)**.
+
 ## Screenshots
 
 **Desktop** — edge bar, workspaces, weather, and server-side window decorations on a
@@ -329,7 +332,8 @@ doc. Live `{host.*}` binds and `ext-session-lock-v1` also shipped 2026-07-27.
 fingerprint/YubiKey) is done (2026-07-26).
 
 See `[metis-os-workspace/TODO.md](metis-os-workspace/TODO.md)` for the detailed
-roadmap, `[CHANGELOG.md](CHANGELOG.md)` for recent changes, and
+roadmap, `[CHANGELOG.md](CHANGELOG.md)` for recent changes,
+`[SECURITY.md](SECURITY.md)` for the session trust model, and
 `[docs/PERF_AUDIT.md](docs/PERF_AUDIT.md)` for performance and binary-size notes.
 
 ## License
