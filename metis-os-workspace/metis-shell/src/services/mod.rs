@@ -4,6 +4,7 @@ pub mod calendar;
 mod clipboard;
 mod dashboard;
 pub mod hardware;
+pub mod launch_pending;
 mod notifications;
 mod notify_dbus;
 mod poll;

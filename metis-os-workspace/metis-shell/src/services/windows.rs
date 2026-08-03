@@ -200,6 +200,19 @@ pub fn apply_event(evt: &CompositorEvent) {
             _ => false,
         }
     });
+    match evt {
+        CompositorEvent::WindowOpened {
+            app_id: Some(app_id),
+            ..
+        }
+        | CompositorEvent::WindowMetadata {
+            app_id: Some(app_id),
+            ..
+        } => {
+            crate::services::launch_pending::clear_for_window(app_id);
+        }
+        _ => {}
+    }
     if changed {
         fire_refresh();
     }

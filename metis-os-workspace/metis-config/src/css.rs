@@ -592,6 +592,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         opacity: 0.55;
     }}
 
+    /* Pulse while a launch is pending (single-flight gate) so users do not
+       double-click slow Electron/Flatpak starts. */
+    @keyframes metis-bar-task-starting-pulse {{
+        0%, 100% {{ opacity: 1.0; }}
+        50% {{ opacity: 0.45; }}
+    }}
+
+    .metis-bar-task.metis-bar-task-starting image {{
+        animation: metis-bar-task-starting-pulse 1.1s ease-in-out infinite;
+    }}
+
+    .metis-bar-task.metis-bar-task-starting .metis-bar-task-dot {{
+        background-color: rgba({accent_rgb}, 0.75);
+        min-width: 8px;
+    }}
+
     /* Window picker + context menu rows inside task popovers. */
     .metis-bar-task-pick,
     .metis-bar-task-menu-item,

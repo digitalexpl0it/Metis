@@ -135,16 +135,27 @@ Click the brand icon (or the launcher widget) to open the launcher panel. It has
 
 Selecting an app launches it and dismisses the panel.
 
+While an app is still starting (slow Electron/Flatpak cold starts), Metis
+**suppresses duplicate launches** of the same desktop id so impatient clicks do
+not open multiple windows. Pinned dock icons pulse while starting; after about a
+second a short “Starting …” toast appears if the window has not mapped yet. Use
+the dock’s **New window** action when you intentionally want another instance.
+
+**Browsers feeling slow on first open after login** is often the portal stack
+warming up (file dialogs / settings), not Wi‑Fi — Metis pre-starts
+`xdg-desktop-portal` in the background; later navigations are unrelated to the
+shell network widget.
+
 ### Taskbar dock
 
 The dock shows apps running on the **current output and workspace**, grouped by
 app identity. A dot marks running apps; the focused app is highlighted; minimized
-apps are dimmed.
+apps are dimmed. A pinned icon pulses while that app’s launch is still pending.
 
 - **Left-click** — focus the window (or minimize it if already focused). If an
   app has several windows, a picker popover appears. Pinned-but-not-running apps
-  launch.
-- **Right-click** — pin/unpin the app, or close its window(s).
+  launch (duplicate clicks ignored until the first window appears).
+- **Right-click** — pin/unpin the app, open **New window**, or close its window(s).
 - The dock scrolls horizontally if it outgrows the bar.
 
 ### Screenshots

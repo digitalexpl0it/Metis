@@ -55,6 +55,8 @@ fn dock_signature(windows: &[WindowInfo], focused: Option<u32>, pinned: &[String
     }
     sig.push('|');
     sig.push_str(&pinned.join(","));
+    sig.push('|');
+    sig.push_str(&crate::services::launch_pending::pending_ids().join(","));
     sig
 }
 
@@ -156,6 +158,7 @@ impl TasksWidget {
         };
 
         windows::register_refresh(refresh.clone());
+        crate::services::launch_pending::register_refresh(refresh.clone());
 
         let app_index_refresh: Rc<dyn Fn()> = {
             let refresh = refresh.clone();
@@ -490,10 +493,17 @@ fn task_button(group: &Group, focused: Option<u32>) -> gtk::Button {
     btn.add_css_class("metis-bar-task");
 
     let running = !group.windows.is_empty();
+    let starting = group
+        .pin_id
+        .as_deref()
+        .is_some_and(crate::services::launch_pending::is_pending);
     let is_focused = focused.is_some_and(|f| group.windows.iter().any(|w| w.id == f));
     let all_minimized = running && group.windows.iter().all(|w| w.minimized);
     if running {
         btn.add_css_class("running");
+    }
+    if starting {
+        btn.add_css_class("metis-bar-task-starting");
     }
     if is_focused {
         btn.add_css_class("focused");
@@ -512,7 +522,7 @@ fn task_button(group: &Group, focused: Option<u32>) -> gtk::Button {
     dot.set_halign(gtk::Align::Center);
     dot.set_valign(gtk::Align::End);
     dot.set_can_target(false);
-    dot.set_visible(running);
+    dot.set_visible(running || starting);
     overlay.add_overlay(&dot);
 
     btn.set_child(Some(&overlay));
@@ -736,7 +746,7 @@ fn attach_context_menu(btn: &gtk::Button, group: &Group) {
             item.connect_clicked(move |_| {
                 popover_c.popdown();
                 if let Some(id) = &pin_id {
-                    applications::launch_id(id);
+                    applications::launch_id_new_window(id);
                 } else if let Some(exec) = &exec {
                     if let Err(err) = crate::compositor::launch_program(exec) {
                         tracing::warn!(%err, "failed to launch new app window");

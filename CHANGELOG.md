@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **App launch single-flight** — launcher and pinned-dock starts suppress
+  duplicate clicks for the same desktop id until a matching window maps (or ~8s
+  timeout). The dock icon pulses while starting; a short “Starting …” toast
+  appears after ~1s if still pending. Taskbar **New window** bypasses the gate.
 - **PR CI quality gate** — `.github/workflows/ci.yml` runs `cargo deny`,
   `fmt --check`, `clippy -D warnings`, and `cargo test --workspace` on every
   pull request and push to `main`/`master`.

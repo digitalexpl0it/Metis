@@ -510,8 +510,30 @@ pub fn launch_id(id: &str) {
     launch(&entry);
 }
 
+/// Force another instance (taskbar "New window") — bypasses the pending gate.
+pub fn launch_id_new_window(id: &str) {
+    let Some(entry) = resolve_entry_for_id(id) else {
+        tracing::warn!(id, "no desktop entry to launch for pin/app id");
+        return;
+    };
+    launch_new_window(&entry);
+}
+
 /// Record a launch (bumping its frequency) and spawn the app via the compositor.
+/// Duplicate clicks while the app is still starting are ignored.
 pub fn launch(entry: &AppEntry) {
+    if !crate::services::launch_pending::try_begin_launch(entry) {
+        return;
+    }
+    spawn_tracked(entry);
+}
+
+/// Spawn without single-flight suppression (explicit "New window").
+pub fn launch_new_window(entry: &AppEntry) {
+    spawn_tracked(entry);
+}
+
+fn spawn_tracked(entry: &AppEntry) {
     let mut cfg = load_menu_config();
     *cfg.launch_counts.entry(entry.id.clone()).or_insert(0) += 1;
     if let Err(err) = save_menu_config(&cfg) {
@@ -519,6 +541,7 @@ pub fn launch(entry: &AppEntry) {
     }
     if let Err(err) = crate::compositor::launch_program(&entry.exec) {
         tracing::warn!(%err, exec = %entry.exec, "failed to launch application");
+        crate::services::launch_pending::clear_id(&entry.id);
     }
 }
 
