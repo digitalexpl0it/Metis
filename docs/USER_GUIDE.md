@@ -569,6 +569,12 @@ dots or the keyboard:
   1..=count). Always uses **Super**+**Alt** — not remapped by `METIS_MOD` (see
   nested sessions below).
 - Click a workspace dot in the bar to switch.
+- `Alt`+`Tab` / `Alt`+`Shift`+`Tab` — cycle recently used windows on the **current
+  output and workspace**. Release Alt to activate the highlighted window; Esc
+  cancels. Remappable in Settings → Keyboard.
+- `Super`+`Tab` — workspace overview for the focused output. Click a workspace
+  (or its number) to switch; click a window card to switch and focus; drag a
+  window card onto another workspace tile to move it.
 
 Keybinds and clicks act on the monitor under the pointer.
 
@@ -677,6 +683,8 @@ and cannot be rebound.
 | `Super`+`/` | Enable grid tiling |
 | `Super`+`\` | Disable tiling (free desktop) |
 | `Print` / `Shift`+`Print` / `Ctrl`+`Print` | Screenshot interactive / full / window |
+| `Alt`+`Tab` / `Alt`+`Shift`+`Tab` | Window switcher next / previous (current output + workspace, MRU order) |
+| `Super`+`Tab` | Toggle workspace overview (drag windows between workspaces) |
 | `Super`+`←` `→` `↑` `↓` | (scrolling) Move focus between/within columns |
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |
@@ -1178,6 +1186,7 @@ changes live.
 | Maximized title controls unusable (top auto-hide bar) | Move the pointer just **below** the thin peek strip to reveal the titlebar; the absolute screen edge opens the edge bar instead |
 | Bar or popovers don't appear | Confirm a Wayland session (`echo $WAYLAND_DISPLAY`) and that `libgtk4-layer-shell` is installed |
 | Electron app (e.g. Claude Desktop) opens then immediately closes | Metis launches Electron/Chromium apps on native Wayland by default (`ELECTRON_OZONE_PLATFORM_HINT=auto`, and `CLAUDE_USE_WAYLAND=1` for Claude), which is stable; their XWayland path can quit on launch. Re-login after `./run-metis.sh --install-session` so the session env applies. To force XWayland for one app, launch it with `ELECTRON_OZONE_PLATFORM_HINT=x11` (or `CLAUDE_USE_WAYLAND=0`) |
+| GitHub Desktop / Electron takes minutes to open (every launch) | Exited app processes were left as zombies under the compositor; Chromium ProcessSingleton then blocks notifying that PID. Fixed by reaping all clients each tick — rebuild/reinstall the compositor session. Until then, log out of Metis (or restart the session) to clear zombies (`ps -ef \| grep defunct`) |
 | GitHub Desktop / Electron logs `Failed to read color-scheme` (`dark_mode_manager_linux.cc`) | Rebuild/restart `metis-portal` (session reinstall). Confirm the portal returns uint32: `busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop org.freedesktop.portal.Settings Read ss org.freedesktop.appearance color-scheme` should print `v v u …` (not `i`). See [`CHANGELOG.md`](../CHANGELOG.md) 2026-07-25 |
 | Apps slow to open / black screen on login | Ensure portal files are installed (`./run-metis.sh --install-session` or rebuild with `--session`); see [`CHANGELOG.md`](../CHANGELOG.md) 2026-06-28 |
 | Screenshot / Flameshot fails | Re-login after `./run-metis.sh --install-session`; run `metis-portal --capture-test /tmp/test.png` to isolate portal vs app issues; grant the first-time portal permission |

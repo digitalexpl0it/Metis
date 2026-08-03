@@ -3462,6 +3462,103 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {text};
     }}
 
+    /* ---- Window switcher (Alt+Tab) ---- */
+    window.metis-window-switcher {{
+        background: transparent;
+    }}
+    .metis-window-switcher-backdrop {{
+        background-color: rgba(0, 0, 0, 0.45);
+    }}
+    .metis-window-switcher-strip {{
+        padding: 16px;
+    }}
+    button.metis-window-switcher-card {{
+        background-color: {overlay_card_bg};
+        border: 2px solid {border};
+        border-radius: {rl}px;
+        padding: 12px 14px;
+        min-width: 140px;
+        min-height: 140px;
+        box-shadow: {dash_shadow};
+    }}
+    button.metis-window-switcher-card:hover {{
+        border-color: rgba({accent_rgb}, 0.55);
+    }}
+    button.metis-window-switcher-card.selected {{
+        border-color: {accent};
+        background-color: rgba({accent_rgb}, 0.12);
+    }}
+    label.metis-window-switcher-badge {{
+        color: {muted};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    label.metis-window-switcher-app {{
+        color: {text};
+        font-weight: 600;
+        font-size: 13px;
+    }}
+    label.metis-window-switcher-title {{
+        color: {muted};
+        font-size: 11px;
+    }}
+    label.metis-window-switcher-hint {{
+        color: {muted};
+        font-size: 12px;
+    }}
+
+    /* ---- Workspace overview (Super+Tab) ---- */
+    window.metis-workspace-overview {{
+        background: transparent;
+    }}
+    .metis-workspace-overview-backdrop {{
+        background-color: rgba(0, 0, 0, 0.5);
+    }}
+    label.metis-workspace-overview-title {{
+        color: {text};
+        font-size: 22px;
+        font-weight: 600;
+    }}
+    .metis-workspace-overview-tile {{
+        background-color: {overlay_card_bg};
+        border: 2px solid {border};
+        border-radius: {rl}px;
+        box-shadow: {dash_shadow};
+        padding: 4px;
+    }}
+    .metis-workspace-overview-tile.active {{
+        border-color: {accent};
+    }}
+    .metis-workspace-overview-tile.drop-hover {{
+        border-color: {accent};
+        background-color: rgba({accent_rgb}, 0.14);
+    }}
+    button.metis-workspace-overview-tile-num-btn {{
+        background: transparent;
+        border: none;
+        color: {muted};
+        font-size: 14px;
+        font-weight: 600;
+        padding: 2px 8px;
+    }}
+    button.metis-workspace-overview-empty-btn {{
+        background: transparent;
+        border: none;
+        color: rgba({text_rgb}, 0.18);
+        font-size: 64px;
+        font-weight: 700;
+    }}
+    .metis-workspace-overview-card {{
+        background-color: {raised};
+        border: 1px solid {border};
+        border-radius: {rs}px;
+        padding: 4px;
+    }}
+    label.metis-workspace-overview-card-title {{
+        color: {text};
+        font-size: 10px;
+    }}
+
     /* ---- Notification Center (Phase 13) ---- */
     window.metis-nc-window {{
         background-color: transparent;

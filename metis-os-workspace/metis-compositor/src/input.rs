@@ -124,6 +124,18 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
             ));
             true
         }
+        KeybindAction::WindowSwitcherNext => {
+            let _ = metis_protocol::write_runtime_command("window-switcher-next");
+            true
+        }
+        KeybindAction::WindowSwitcherPrev => {
+            let _ = metis_protocol::write_runtime_command("window-switcher-prev");
+            true
+        }
+        KeybindAction::WorkspaceOverview => {
+            let _ = metis_protocol::write_runtime_command("workspace-overview");
+            true
+        }
         KeybindAction::CycleWorkspacePrev => {
             let key = state
                 .output_under_pointer()
@@ -559,13 +571,28 @@ impl MetisState {
                                             | KeybindAction::ScreenshotFull
                                             | KeybindAction::ScreenshotWindow
                                     );
-                                    if is_screenshot {
-                                        if dispatch_keybind(state, action) {
-                                            return FilterResult::Intercept(());
-                                        }
-                                    } else if state.exclusive_keyboard_layer().is_none()
-                                        && dispatch_keybind(state, action)
-                                    {
+                                    let is_window_switcher = matches!(
+                                        action,
+                                        KeybindAction::WindowSwitcherNext
+                                            | KeybindAction::WindowSwitcherPrev
+                                    );
+                                    let is_workspace_overview =
+                                        matches!(action, KeybindAction::WorkspaceOverview);
+                                    let allow = if is_screenshot {
+                                        true
+                                    } else if is_window_switcher {
+                                        // Keep cycling once the switcher owns the
+                                        // keyboard; otherwise only fire when no
+                                        // Exclusive shell layer is mapped.
+                                        state.window_switcher_overlay_active()
+                                            || state.exclusive_keyboard_layer().is_none()
+                                    } else if is_workspace_overview {
+                                        state.workspace_overview_overlay_active()
+                                            || state.exclusive_keyboard_layer().is_none()
+                                    } else {
+                                        state.exclusive_keyboard_layer().is_none()
+                                    };
+                                    if allow && dispatch_keybind(state, action) {
                                         return FilterResult::Intercept(());
                                     }
                                 }

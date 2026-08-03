@@ -554,6 +554,8 @@ fn watch_compositor_dismiss() {
                     dropdown::close_all();
                     crate::ui::dashboard::request_close();
                     crate::ui::notification_center::dismiss();
+                    crate::ui::window_switcher::dismiss();
+                    crate::ui::workspace_overview::dismiss();
                     rearm_auto_hide_after_ui_dismiss();
                 }
                 "toggle-menu" => widgets::toggle_menu(),
@@ -575,6 +577,12 @@ fn watch_compositor_dismiss() {
                     }
                 }
                 "dismiss-screenshot" => crate::ui::screenshot::dismiss(),
+                "window-switcher-next" => crate::ui::window_switcher::cycle_next(),
+                "window-switcher-prev" => crate::ui::window_switcher::cycle_prev(),
+                "window-switcher-activate" => crate::ui::window_switcher::activate_selected(),
+                "dismiss-window-switcher" => crate::ui::window_switcher::dismiss(),
+                "workspace-overview" => crate::ui::workspace_overview::toggle(),
+                "dismiss-workspace-overview" => crate::ui::workspace_overview::dismiss(),
                 "reload-bar" => rebuild_from_config(),
                 "reveal-edge-bar" | "bar-edge-hover" => on_bar_edge_hover(),
                 "bar-edge-leave" => on_bar_edge_leave(),

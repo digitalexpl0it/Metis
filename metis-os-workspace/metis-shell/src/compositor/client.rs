@@ -63,6 +63,15 @@ pub fn activate_window(id: u32) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Move a window to another virtual workspace (1-based).
+pub fn move_window_to_workspace(window_id: u32, workspace: u32) -> std::io::Result<()> {
+    let _ = send_command(CompositorCommand::MoveWindowToWorkspace {
+        window_id,
+        workspace,
+    })?;
+    Ok(())
+}
+
 /// Switch the active virtual workspace (1-based) on `output` (output name, or
 /// `None` to target the output under the pointer).
 pub fn switch_workspace(output: Option<String>, id: u32) -> std::io::Result<()> {

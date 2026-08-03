@@ -535,6 +535,12 @@ pub const BAR_RUNTIME_VERBS: &[&str] = &[
     "optimize-gaming",
     "show-onboarding",
     "settings",
+    "window-switcher-next",
+    "window-switcher-prev",
+    "window-switcher-activate",
+    "dismiss-window-switcher",
+    "workspace-overview",
+    "dismiss-workspace-overview",
 ];
 
 /// Verbs accepted on `$XDG_RUNTIME_DIR/metis/command-widgets`.
@@ -805,6 +811,8 @@ mod tests {
     #[test]
     fn runtime_command_allowlist_and_limits() {
         assert!(parse_runtime_command("close-popovers", BAR_RUNTIME_VERBS).is_ok());
+        assert!(parse_runtime_command("window-switcher-next", BAR_RUNTIME_VERBS).is_ok());
+        assert!(parse_runtime_command("workspace-overview", BAR_RUNTIME_VERBS).is_ok());
         assert!(parse_runtime_command("hw volume-up", BAR_RUNTIME_VERBS).is_ok());
         assert!(parse_runtime_command("optimize-gaming yes", BAR_RUNTIME_VERBS).is_ok());
         assert!(parse_runtime_command("rm -rf /", BAR_RUNTIME_VERBS).is_err());

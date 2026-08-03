@@ -27,18 +27,27 @@ impl MetisState {
         self.screenshot_overlay.active
     }
 
-    pub(crate) fn screenshot_overlay_layer(&self) -> Option<LayerSurface> {
+    pub(crate) fn window_switcher_overlay_active(&self) -> bool {
+        self.layer_with_namespace("metis-window-switcher").is_some()
+    }
+
+    pub(crate) fn workspace_overview_overlay_active(&self) -> bool {
+        self.layer_with_namespace("metis-workspace-overview").is_some()
+    }
+
+    pub(crate) fn layer_with_namespace(&self, namespace: &str) -> Option<LayerSurface> {
         for output in self.space.outputs() {
             let map = layer_map_for_output(output);
             let layers: Vec<LayerSurface> = map.layers().cloned().collect();
-            if let Some(layer) = layers
-                .into_iter()
-                .find(|l| l.namespace() == "metis-screenshot")
-            {
+            if let Some(layer) = layers.into_iter().find(|l| l.namespace() == namespace) {
                 return Some(layer);
             }
         }
         None
+    }
+
+    pub(crate) fn screenshot_overlay_layer(&self) -> Option<LayerSurface> {
+        self.layer_with_namespace("metis-screenshot")
     }
 
     /// While the native screenshot UI is up, deliver all pointer hits to that

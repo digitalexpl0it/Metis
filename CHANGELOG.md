@@ -9,10 +9,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Alt+Tab window switcher** — `Alt+Tab` / `Alt+Shift+Tab` open an Exclusive
+  layer-shell overlay of MRU windows on the current output and workspace (icon +
+  title cards). Release Alt to activate; Esc cancels. Remappable in Settings →
+  Keyboard.
+- **Workspace overview** — `Super+Tab` shows a grid of workspaces on the focused
+  output. Click to switch/focus; drag window cards onto tiles to
+  `MoveWindowToWorkspace`. Esc or a second `Super+Tab` dismisses.
 - **App launch single-flight** — launcher and pinned-dock starts suppress
   duplicate clicks for the same desktop id until a matching window maps (or ~8s
   timeout). The dock icon pulses while starting; a short “Starting …” toast
   appears after ~1s if still pending. Taskbar **New window** bypasses the gate.
+
+### Fixed
+
+- **GitHub Desktop / Electron multi-minute relaunch hang** — the compositor kept
+  exited client processes as zombies (`child_processes` was only `try_wait`’d for
+  desktop-widgets). Chromium ProcessSingleton treats a zombie PID as still alive
+  and can block the next launch for minutes notifying that “primary”. Housekeeping
+  now reaps all exited clients every tick.
 - **PR CI quality gate** — `.github/workflows/ci.yml` runs `cargo deny`,
   `fmt --check`, `clippy -D warnings`, and `cargo test --workspace` on every
   pull request and push to `main`/`master`.

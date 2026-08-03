@@ -1044,6 +1044,11 @@ impl MetisState {
         crate::ipc::drain_ipc(self);
         self.tick_portal_elevate();
         self.protocol_lock_reap_dead();
+        // Must run every tick: unreaped clients become zombies. Chromium/Electron
+        // ProcessSingleton treats a zombie PID as still alive (`kill(pid,0)` ok)
+        // and can block the next launch for minutes notifying that primary
+        // (seen with GitHub Desktop under Metis).
+        self.reap_exited_children();
 
         if self.wallpaper.tick_decode() {
             self.damaged = true;
@@ -2091,29 +2096,52 @@ impl MetisState {
         }
     }
 
+    /// Collect exit status for finished children so they leave the process table.
+    fn reap_exited_children(&mut self) {
+        let mut i = 0;
+        while i < self.child_processes.len() {
+            match self.child_processes[i].try_wait() {
+                Ok(None) => i += 1,
+                Ok(Some(status)) => {
+                    // `try_wait` already reaped; drop the handle (clippy wants `.wait()`
+                    // but a second wait after a successful try_wait is redundant).
+                    #[allow(clippy::zombie_processes)]
+                    let child = self.child_processes.remove(i);
+                    let pid = child.id();
+                    if self.widgets_pid == Some(pid) {
+                        self.widgets_pid = None;
+                        self.widgets_ipc_token = None;
+                    }
+                    tracing::debug!(pid, ?status, "reaped exited client process");
+                }
+                Err(err) => {
+                    #[allow(clippy::zombie_processes)]
+                    let child = self.child_processes.remove(i);
+                    let pid = child.id();
+                    if self.widgets_pid == Some(pid) {
+                        self.widgets_pid = None;
+                        self.widgets_ipc_token = None;
+                    }
+                    tracing::debug!(pid, %err, "dropped client process handle");
+                }
+            }
+        }
+    }
+
     /// Rate-limited respawn if the widgets process exits (crash / OOM).
     fn maybe_respawn_widgets(&mut self) {
         let Some(cmd) = self.widgets_cmd.clone() else {
             return;
         };
 
-        if let Some(pid) = self.widgets_pid {
-            let mut dead_idx = None;
-            for (i, child) in self.child_processes.iter_mut().enumerate() {
-                if child.id() != pid {
-                    continue;
-                }
-                match child.try_wait() {
-                    Ok(None) => return, // still running
-                    Ok(Some(_)) | Err(_) => dead_idx = Some(i),
-                }
-                break;
-            }
-            if let Some(i) = dead_idx {
-                let _ = self.child_processes.remove(i).wait();
-            }
-            tracing::warn!(pid, "desktop-widgets process exited — respawning");
-            self.widgets_pid = None;
+        self.reap_exited_children();
+
+        if self.widgets_pid.is_some() {
+            return; // still running
+        }
+
+        if self.widgets_last_spawn.is_some() {
+            tracing::warn!("desktop-widgets process exited — respawning");
         }
 
         let min_gap = Duration::from_secs(3);

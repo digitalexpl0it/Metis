@@ -1516,6 +1516,46 @@ big-bang `state.rs` rewrite; Sober/Flatpak app bugs unrelated to Metis portals.
 
 ---
 
+## Phase 17 — Alt+Tab switcher + workspace overview
+
+GTK layer-shell overlays for classic window switching and a per-output workspace
+overview with drag-and-drop. No per-window thumbnail capture IPC in v1 (icon +
+title cards).
+
+### A. Keybinds & runtime
+
+- [x] **`WindowSwitcherNext` / `Prev` / `WorkspaceOverview`** — defaults
+      `Alt+Tab`, `Alt+Shift+Tab`, `Super+Tab`; Settings → Keyboard labels
+- [x] **Tab key token** in compositor `keysym_to_token`
+- [x] **Runtime verbs** — `window-switcher-next|prev|activate`,
+      `dismiss-window-switcher`, `workspace-overview`, `dismiss-workspace-overview`
+- [x] **Exclusive-layer rules** — cycle while switcher/overview is mapped;
+      otherwise only when no Exclusive shell layer; Super+Tab clears Super-tap menu
+
+### B. Shell MRU + Phase A UI
+
+- [x] **Shell-side focus MRU** from `WindowFocused` (cap 32); filter by output +
+      active workspace
+- [x] **`metis-window-switcher` overlay** — Exclusive keyboard, dim backdrop,
+      icon/title cards, Alt-release activate, Esc cancel; demotes NC/dashboard/menu
+
+### C. Phase B overview + DnD
+
+- [x] **`metis-workspace-overview` overlay** — workspace grid on focused output;
+      click switch / activate; mutual exclusion with switcher
+- [x] **Drag window cards → workspace tiles** via `MoveWindowToWorkspace`
+
+### D. Docs
+
+- [x] USER_GUIDE Alt+Tab / overview; CHANGELOG; this checklist
+
+**Out of scope (v1):** all-monitors unified overview; live video thumbnails;
+overview on vertical bars / tablet gestures.
+
+**Dependencies:** Phase 3 workspaces + window IPC; Phase 12 overlay patterns.
+
+---
+
 ## Config
 
 Config lives under `~/.config/metis/`. Written on first run: `bar.json`,

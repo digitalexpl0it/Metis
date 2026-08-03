@@ -139,6 +139,7 @@ pub fn keysym_to_token(sym: u32, digit_sym: u32) -> Option<String> {
         keysyms::KEY_Escape => "Escape".into(),
         keysyms::KEY_Return | keysyms::KEY_KP_Enter => "Return".into(),
         keysyms::KEY_space => "Space".into(),
+        keysyms::KEY_Tab | keysyms::KEY_ISO_Left_Tab => "Tab".into(),
         keysyms::KEY_Print | keysyms::KEY_Sys_Req => "Print".into(),
         keysyms::KEY_Left => "Left".into(),
         keysyms::KEY_Right => "Right".into(),

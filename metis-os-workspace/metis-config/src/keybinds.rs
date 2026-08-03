@@ -92,6 +92,9 @@ pub enum KeybindAction {
     ScrollCycleWidth,
     MoveWorkspaceOutputLeft,
     MoveWorkspaceOutputRight,
+    WindowSwitcherNext,
+    WindowSwitcherPrev,
+    WorkspaceOverview,
 }
 
 impl KeybindAction {
@@ -146,6 +149,9 @@ impl KeybindAction {
             Self::ScrollCycleWidth => "Scroll: cycle column width",
             Self::MoveWorkspaceOutputLeft => "Move workspace to output left",
             Self::MoveWorkspaceOutputRight => "Move workspace to output right",
+            Self::WindowSwitcherNext => "Window switcher (next)",
+            Self::WindowSwitcherPrev => "Window switcher (previous)",
+            Self::WorkspaceOverview => "Workspace overview",
         }
     }
 
@@ -156,7 +162,9 @@ impl KeybindAction {
             | Self::Maximize
             | Self::Fullscreen
             | Self::Minimize
-            | Self::ExitFullscreenStack => KeybindGroup::Windows,
+            | Self::ExitFullscreenStack
+            | Self::WindowSwitcherNext
+            | Self::WindowSwitcherPrev => KeybindGroup::Windows,
             Self::LayoutGrid | Self::LayoutFree => KeybindGroup::Layout,
             Self::Screenshot | Self::ScreenshotFull | Self::ScreenshotWindow => {
                 KeybindGroup::Screenshots
@@ -180,7 +188,8 @@ impl KeybindAction {
             | Self::MoveToWorkspace6
             | Self::MoveToWorkspace7
             | Self::MoveToWorkspace8
-            | Self::MoveToWorkspace9 => KeybindGroup::Workspaces,
+            | Self::MoveToWorkspace9
+            | Self::WorkspaceOverview => KeybindGroup::Workspaces,
             Self::ScrollFocusLeft
             | Self::ScrollFocusRight
             | Self::ScrollFocusUp
@@ -315,6 +324,9 @@ const ALL_ACTIONS: &[KeybindAction] = &[
     KeybindAction::ScrollCycleWidth,
     KeybindAction::MoveWorkspaceOutputLeft,
     KeybindAction::MoveWorkspaceOutputRight,
+    KeybindAction::WindowSwitcherNext,
+    KeybindAction::WindowSwitcherPrev,
+    KeybindAction::WorkspaceOverview,
 ];
 
 /// A keyboard chord: optional modifiers + one key name.
@@ -422,6 +434,7 @@ fn normalize_key_token(raw: &str) -> String {
         "period" | "." => "period".into(),
         "minus" | "-" => "minus".into(),
         "equal" | "=" | "plus" => "equal".into(),
+        "tab" => "Tab".into(),
         other if other.len() == 1 => other.to_ascii_uppercase(),
         other => {
             // F1..F12 and multi-letter tokens
@@ -606,6 +619,10 @@ pub fn default_chord(action: KeybindAction, mod_key: ModKey) -> Chord {
         KeybindAction::ScrollCycleWidth => m(false, "minus"),
         KeybindAction::MoveWorkspaceOutputLeft => Chord::new(logo, true, alt, true, "Left"),
         KeybindAction::MoveWorkspaceOutputRight => Chord::new(logo, true, alt, true, "Right"),
+        // Alt+Tab is mod_key-independent (classic window switcher).
+        KeybindAction::WindowSwitcherNext => Chord::new(false, false, true, false, "Tab"),
+        KeybindAction::WindowSwitcherPrev => Chord::new(false, false, true, true, "Tab"),
+        KeybindAction::WorkspaceOverview => Chord::new(true, false, false, false, "Tab"),
     }
 }
 
@@ -655,5 +672,25 @@ mod tests {
     fn reserved_ctrl_alt_f2() {
         let c: Chord = "Ctrl+Alt+F2".parse().unwrap();
         assert!(c.is_reserved());
+    }
+
+    #[test]
+    fn parse_alt_tab() {
+        let c: Chord = "Alt+Tab".parse().unwrap();
+        assert!(c.alt && !c.shift && !c.super_key && c.key == "Tab");
+        let prev: Chord = "Alt+Shift+Tab".parse().unwrap();
+        assert!(prev.alt && prev.shift && prev.key == "Tab");
+        let overview: Chord = "Super+Tab".parse().unwrap();
+        assert!(overview.super_key && overview.key == "Tab");
+    }
+
+    #[test]
+    fn default_window_switcher_chords() {
+        let next = default_chord(KeybindAction::WindowSwitcherNext, ModKey::Super);
+        assert_eq!(next.display(), "Alt+Tab");
+        let prev = default_chord(KeybindAction::WindowSwitcherPrev, ModKey::Super);
+        assert_eq!(prev.display(), "Alt+Shift+Tab");
+        let overview = default_chord(KeybindAction::WorkspaceOverview, ModKey::Super);
+        assert_eq!(overview.display(), "Super+Tab");
     }
 }

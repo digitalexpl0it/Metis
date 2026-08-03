@@ -10,3 +10,5 @@ pub mod screenshot;
 pub mod splash;
 pub mod theme;
 pub mod toast;
+pub mod window_switcher;
+pub mod workspace_overview;

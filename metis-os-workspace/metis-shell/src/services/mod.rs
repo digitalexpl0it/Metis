@@ -65,6 +65,6 @@ pub use weather::{
 };
 pub use windows::refresh_taskbars;
 pub use workspaces::{
-    active_workspace_for, dispatch_workspace, set_active_workspace, workspace_snapshot,
-    workspace_snapshot_for, WorkspaceSnapshot,
+    active_workspace_for, dispatch_workspace, set_active_workspace, workspace_count,
+    workspace_snapshot, workspace_snapshot_for, WorkspaceSnapshot,
 };
