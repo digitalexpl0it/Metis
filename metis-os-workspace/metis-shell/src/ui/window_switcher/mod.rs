@@ -10,9 +10,11 @@ use metis_protocol::WindowInfo;
 
 use crate::services::applications;
 use crate::services::windows;
+use crate::ui::window_thumbs::{self, ThumbSet};
 
 thread_local! {
     static OVERLAY: RefCell<Option<Rc<Switcher>>> = const { RefCell::new(None) };
+    static ACTIVATING: Cell<bool> = const { Cell::new(false) };
 }
 
 struct Switcher {
@@ -21,9 +23,8 @@ struct Switcher {
     cards: RefCell<Vec<gtk::Button>>,
     windows: RefCell<Vec<WindowInfo>>,
     selected: Cell<usize>,
-    /// When true, releasing Alt activates the selection (classic Alt+Tab).
-    alt_held_on_open: Cell<bool>,
     output: RefCell<Option<String>>,
+    thumbs: RefCell<Option<ThumbSet>>,
 }
 
 pub fn is_open() -> bool {
@@ -39,6 +40,9 @@ pub fn cycle_prev() {
 }
 
 pub fn activate_selected() {
+    if ACTIVATING.with(|c| c.get()) {
+        return;
+    }
     let id = OVERLAY.with(|o| {
         let borrow = o.borrow();
         let sw = borrow.as_ref()?;
@@ -49,10 +53,18 @@ pub fn activate_selected() {
     let Some(id) = id else {
         return;
     };
+    ACTIVATING.with(|c| c.set(true));
     dismiss();
-    if let Err(err) = crate::compositor::activate_window(id) {
-        tracing::warn!(id, %err, "window switcher activate failed");
-    }
+    // Defer until the Exclusive layer is unmapped so keyboard focus can land
+    // on the client instead of the dying overlay surface.
+    glib::idle_add_local_once(move || {
+        ACTIVATING.with(|c| c.set(false));
+        if let Err(err) = crate::compositor::activate_window(id) {
+            tracing::warn!(id, %err, "window switcher activate failed");
+        } else {
+            tracing::info!(id, "window switcher activated");
+        }
+    });
 }
 
 pub fn dismiss() {
@@ -108,12 +120,18 @@ fn cycle(forward: bool) {
 }
 
 fn open(forward: bool) {
+    // Fresh geometry + output/workspace before filtering / capture.
+    windows::reconcile_now();
+
     let output = windows::focused_output_name();
     let workspace = crate::services::active_workspace_for(output.as_deref());
     let list = windows::windows_for_output_workspace(output.as_deref(), workspace);
     if list.is_empty() {
         return;
     }
+
+    // Capture live crops before the dim overlay maps onto the output.
+    let thumbs = window_thumbs::capture_window_thumbs(output.as_deref(), &list);
 
     demote_sibling_layers();
 
@@ -148,7 +166,7 @@ fn open(forward: bool) {
     center.set_vexpand(true);
     root.append(&center);
 
-    let strip = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    let strip = gtk::Box::new(gtk::Orientation::Horizontal, 16);
     strip.add_css_class("metis-window-switcher-strip");
     strip.set_halign(gtk::Align::Center);
     center.append(&strip);
@@ -167,25 +185,18 @@ fn open(forward: bool) {
         list.len() - 1
     };
 
-    let alt_held = gdk::Display::default()
-        .and_then(|d| d.default_seat())
-        .and_then(|s| s.keyboard())
-        .map(|k| k.modifier_state().contains(gdk::ModifierType::ALT_MASK))
-        .unwrap_or(false);
-
     let sw = Rc::new(Switcher {
         window: window.clone(),
         strip: strip.clone(),
         cards: RefCell::new(Vec::new()),
         windows: RefCell::new(list),
         selected: Cell::new(selected),
-        alt_held_on_open: Cell::new(alt_held),
         output: RefCell::new(output),
+        thumbs: RefCell::new(thumbs),
     });
 
     rebuild_cards(&sw);
     wire_keyboard(&sw);
-    wire_alt_release(&sw);
 
     OVERLAY.with(|o| *o.borrow_mut() = Some(sw.clone()));
     window.present();
@@ -199,12 +210,16 @@ fn rebuild_cards(sw: &Rc<Switcher>) {
     sw.cards.borrow_mut().clear();
 
     let windows = sw.windows.borrow().clone();
+    let thumbs = sw.thumbs.borrow();
     for (i, w) in windows.iter().enumerate() {
-        let card = build_card(w, i);
-        let sw_click = sw.clone();
+        let card = build_card(w, i, thumbs.as_ref());
         let idx = i;
         card.connect_clicked(move |_| {
-            sw_click.selected.set(idx);
+            OVERLAY.with(|o| {
+                if let Some(sw) = o.borrow().as_ref() {
+                    sw.selected.set(idx);
+                }
+            });
             activate_selected();
         });
         sw.strip.append(&card);
@@ -213,7 +228,7 @@ fn rebuild_cards(sw: &Rc<Switcher>) {
     refresh_selection(sw);
 }
 
-fn build_card(w: &WindowInfo, index: usize) -> gtk::Button {
+fn build_card(w: &WindowInfo, index: usize, thumbs: Option<&ThumbSet>) -> gtk::Button {
     let card = gtk::Button::new();
     card.add_css_class("metis-window-switcher-card");
     card.set_focus_on_click(false);
@@ -222,15 +237,29 @@ fn build_card(w: &WindowInfo, index: usize) -> gtk::Button {
     col.set_halign(gtk::Align::Center);
     col.set_valign(gtk::Align::Center);
 
+    let badge_row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    badge_row.set_halign(gtk::Align::Fill);
     let badge = gtk::Label::new(Some(&(index + 1).to_string()));
     badge.add_css_class("metis-window-switcher-badge");
     badge.set_halign(gtk::Align::End);
-    col.append(&badge);
+    badge.set_hexpand(true);
+    badge_row.append(&badge);
+    col.append(&badge_row);
 
-    let icon = gtk::Image::from_gicon(&applications::resolve_icon_for_app_id(w.app_id.as_deref()));
-    icon.set_pixel_size(48);
-    icon.add_css_class("metis-window-switcher-icon");
-    col.append(&icon);
+    let preview = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    preview.add_css_class("metis-window-switcher-preview");
+    preview.set_size_request(160, 96);
+    preview.set_halign(gtk::Align::Center);
+    preview.set_overflow(gtk::Overflow::Hidden);
+
+    let thumb = window_thumbs::thumb_or_icon_widget(thumbs, w, 48);
+    thumb.set_halign(gtk::Align::Center);
+    thumb.set_valign(gtk::Align::Center);
+    thumb.set_hexpand(true);
+    thumb.set_vexpand(true);
+    thumb.set_size_request(160, 96);
+    preview.append(&thumb);
+    col.append(&preview);
 
     let app_label = w
         .app_id
@@ -245,13 +274,13 @@ fn build_card(w: &WindowInfo, index: usize) -> gtk::Button {
     let name = gtk::Label::new(Some(&app_label));
     name.add_css_class("metis-window-switcher-app");
     name.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    name.set_max_width_chars(18);
+    name.set_max_width_chars(16);
     col.append(&name);
 
     let title = gtk::Label::new(Some(w.title.as_str()));
     title.add_css_class("metis-window-switcher-title");
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    title.set_max_width_chars(18);
+    title.set_max_width_chars(16);
     col.append(&title);
 
     card.set_child(Some(&col));
@@ -300,37 +329,6 @@ fn wire_keyboard(sw: &Rc<Switcher>) {
         glib::Propagation::Proceed
     });
     sw.window.add_controller(controller);
-}
-
-fn wire_alt_release(sw: &Rc<Switcher>) {
-    if !sw.alt_held_on_open.get() {
-        return;
-    }
-    let controller = gtk::EventControllerKey::new();
-    controller.connect_key_released(move |_, key, _, _| {
-        use gdk::Key;
-        if matches!(key, Key::Alt_L | Key::Alt_R) {
-            activate_selected();
-        }
-    });
-    sw.window.add_controller(controller);
-
-    let sw_poll = sw.clone();
-    glib::timeout_add_local(std::time::Duration::from_millis(33), move || {
-        if !is_open() || !sw_poll.alt_held_on_open.get() {
-            return glib::ControlFlow::Break;
-        }
-        let alt_down = gdk::Display::default()
-            .and_then(|d| d.default_seat())
-            .and_then(|s| s.keyboard())
-            .map(|k| k.modifier_state().contains(gdk::ModifierType::ALT_MASK))
-            .unwrap_or(false);
-        if !alt_down {
-            activate_selected();
-            return glib::ControlFlow::Break;
-        }
-        glib::ControlFlow::Continue
-    });
 }
 
 fn gdk_monitor_for_output(connector: Option<&str>) -> Option<gdk::Monitor> {

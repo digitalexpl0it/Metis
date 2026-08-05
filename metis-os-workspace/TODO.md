@@ -1,6 +1,8 @@
 # Metis Shell — Edge Bar (v2)
 
-**Current phase:** Phases **1–16** are complete for their shipped product bars.
+**Current phase:** Phases **1–17** are complete for their shipped product bars
+(Phase 17 Alt+Tab / workspace overview shipped with live crops + activate fixes).
+**Phase 18** (security / IPC / isolation polish) is open — see below.
 **Phase 16** (Engineering hardening) closed 2026-08-02 — PR CI quality gate,
 trust-boundary tests, compositor panic triage, portal coverage, `cargo-deny`,
 command-file allowlist, PERF_AUDIT refresh, shell poll D-Bus path, packaging CI
@@ -1549,10 +1551,84 @@ title cards).
 
 - [x] USER_GUIDE Alt+Tab / overview; CHANGELOG; this checklist
 
-**Out of scope (v1):** all-monitors unified overview; live video thumbnails;
-overview on vertical bars / tablet gestures.
+**Out of scope (v1):** all-monitors unified overview; overview on vertical bars /
+tablet gestures. (Live window crops for switcher/overview landed as polish after
+v1 icon cards.)
 
 **Dependencies:** Phase 3 workspaces + window IPC; Phase 12 overlay patterns.
+
+---
+
+## Phase 18 — Security polish, IPC DoS, isolation stretch
+
+Post–Phase 15/16 residual hardening from external review, aligned with
+[`SECURITY.md`](../SECURITY.md) “Residual hardening”. Same-UID trust model stays
+explicit: peercred stops cross-user access; this phase hardens *abuse* and
+config edges inside that model.
+
+**Non-goals:** forking wayland-rs; claiming XSECURITY / true sandboxing we cannot
+enforce; speculative `metis-grid` memoization without a profiled hotspot;
+re-doing ScreenCast dmabuf (already shipped).
+
+### A. Gaming / config path edges (P0)
+
+- [ ] **Canonicalize `extra_steam_paths`** — `std::fs::canonicalize` (or
+      equivalent fail-closed resolve) before any filesystem / env use; reject
+      paths that escape allowed roots
+- [ ] **Sanitize launcher env exports** — validate generated gaming / Flatpak
+      launch environment lines (no path traversal via user-editable profiles)
+- [ ] **Tests** — table-driven reject/accept for malicious relative and
+      symlink-escape paths
+- [ ] **Docs** — SECURITY residual #1 → done; USER_GUIDE / UBUNTU_DEV note
+
+### B. IPC rate limits & token lifecycle (P0)
+
+- [ ] **Sliding-window rate limit** on compositor Unix-socket accept/dispatch
+      (per-connection + optional global). Valid same-UID clients can still spam;
+      bound parser / event-bus work without changing the trust model
+- [ ] **Command-file poke channel** — reuse or mirror the same rate budget so
+      `$XDG_RUNTIME_DIR/metis/command*` cannot be a cheap DoS path
+- [ ] **`METIS_IPC_TOKEN` TTL / idle invalidate** (optional) — widgets tokens are
+      already spawn-scoped; document and, if useful, expire long-lived handles
+- [ ] **Unit tests** — rate-limit helper table tests (no live Wayland loop)
+- [ ] **Docs** — USER_GUIDE IPC trust model + SECURITY
+
+### C. Widget pack schema gate (P1)
+
+- [ ] **JSON Schema (or serde-strict) validation** for community / local widget
+      packs under `~/.local/share/metis/widgets/` (and any declared extension
+      root) at shell / desktop-widgets startup
+- [ ] **Fail closed** — drop invalid packs with a clear log/toast; do not crash
+      the shell
+- [ ] **Ship a schema document** next to Phase 14 widget docs for pack authors
+
+### D. Per-sandbox rootless XWayland (P1 / stretch)
+
+- [ ] Evolve Phase 15 §E two-bucket `xwayland_mode: isolated` toward a
+      **dynamic per-sandbox / per-untrusted-class** rootless XWayland launcher
+      (Flatpak X11, Steam/Proton, etc.)
+- [ ] Launch policy in Settings / `config.json`; document residual X11↔X11 risk
+      inside each bucket
+- [ ] Do **not** claim full isolation until the design is enforceable
+
+### E. Display / upstream (track only)
+
+- [ ] **Default-on `wp_color_management_v1`** — only after upstream wayland-rs
+      **server/sys** ObjectData UAF fix (keep `METIS_COLOR_MGMT=1` opt-in). No
+      local ObjectData lifecycle wrapper in Metis
+- [ ] **GLES `MultiRenderer` / zero-copy compositor path** — Phase 3 stretch for
+      hybrid multi-GPU *compositor* binding (ScreenCast dmabuf already done).
+      Profile before prioritizing
+
+### F. Explicitly deferred / rejected from review
+
+- Local safe-wrapper around wayland-rs ObjectData destruction (prefer upstream)
+- Blind `metis-grid` static layout cache (measure contention first)
+
+**Suggested order:** A → B → C → D; E stays gated on upstream / profiling.
+
+**Dependencies:** Phase 15 IPC / XWayland / gaming; Phase 16 trust-boundary
+tests; Phase 14 widgets process split.
 
 ---
 

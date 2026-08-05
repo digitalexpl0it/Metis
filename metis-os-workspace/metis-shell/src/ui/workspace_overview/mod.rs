@@ -1,15 +1,15 @@
-//! Workspace overview overlay: grid of workspaces with window cards and DnD.
+//! Workspace overview overlay: grid of workspaces with live window cards and DnD.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gtk::gdk;
 use gtk::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
-use metis_protocol::{OutputInfo, PixelRect, WindowInfo};
+use metis_protocol::WindowInfo;
 
-use crate::services::applications;
 use crate::services::windows;
+use crate::ui::window_thumbs::{self, ThumbSet};
 
 thread_local! {
     static OVERLAY: RefCell<Option<Rc<Overview>>> = const { RefCell::new(None) };
@@ -19,7 +19,7 @@ struct Overview {
     window: gtk::Window,
     grid: gtk::Grid,
     output: RefCell<Option<String>>,
-    output_rect: Cell<PixelRect>,
+    thumbs: RefCell<Option<ThumbSet>>,
 }
 
 pub fn is_open() -> bool {
@@ -64,8 +64,10 @@ pub fn show() {
         return;
     }
 
+    windows::reconcile_now();
     let output = windows::focused_output_name();
-    let output_rect = output_geometry(output.as_deref());
+    let snap = windows::snapshot();
+    let thumbs = window_thumbs::capture_window_thumbs(output.as_deref(), &snap.windows);
 
     demote_sibling_layers();
 
@@ -87,7 +89,7 @@ pub fn show() {
         window.set_margin(edge, 0);
     }
 
-    let root = gtk::Box::new(gtk::Orientation::Vertical, 16);
+    let root = gtk::Box::new(gtk::Orientation::Vertical, 10);
     root.add_css_class("metis-workspace-overview-backdrop");
     root.set_halign(gtk::Align::Fill);
     root.set_valign(gtk::Align::Fill);
@@ -96,8 +98,15 @@ pub fn show() {
     let title = gtk::Label::new(Some(&metis_i18n::tr("Workspaces")));
     title.add_css_class("metis-workspace-overview-title");
     title.set_halign(gtk::Align::Center);
-    title.set_margin_top(32);
+    title.set_margin_top(20);
     root.append(&title);
+
+    let hint = gtk::Label::new(Some(&metis_i18n::tr(
+        "Click a window to focus · Drag to another workspace · Esc to close",
+    )));
+    hint.add_css_class("metis-workspace-overview-hint");
+    hint.set_halign(gtk::Align::Center);
+    root.append(&hint);
 
     let grid = gtk::Grid::new();
     grid.add_css_class("metis-workspace-overview-grid");
@@ -105,16 +114,19 @@ pub fn show() {
     grid.set_valign(gtk::Align::Center);
     grid.set_hexpand(true);
     grid.set_vexpand(true);
-    grid.set_row_spacing(16);
-    grid.set_column_spacing(16);
-    grid.set_margin_bottom(32);
+    grid.set_row_homogeneous(true);
+    grid.set_column_homogeneous(true);
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(8);
+    grid.set_margin_bottom(24);
     root.append(&grid);
 
     let ov = Rc::new(Overview {
         window: window.clone(),
         grid: grid.clone(),
         output: RefCell::new(output),
-        output_rect: Cell::new(output_rect),
+        thumbs: RefCell::new(thumbs),
     });
 
     rebuild(&ov);
@@ -144,56 +156,23 @@ fn rebuild(ov: &Rc<Overview>) {
     let output = ov.output.borrow().clone();
     let active = crate::services::active_workspace_for(output.as_deref());
     let snap = windows::snapshot();
-    let out_rect = ov.output_rect.get();
 
     let cols = ((count as f64).sqrt().ceil() as u32).max(1).min(4);
     for ws in 1..=count {
         let idx = ws - 1;
         let col = (idx % cols) as i32;
         let row = (idx / cols) as i32;
-        let tile = build_tile(ov, ws, active, &snap.windows, output.as_deref(), out_rect);
+        let tile = build_tile(ov, ws, active, &snap.windows, output.as_deref());
         ov.grid.attach(&tile, col, row, 1, 1);
     }
 }
 
-fn build_tile(
-    ov: &Rc<Overview>,
-    workspace: u32,
-    active: u32,
+fn windows_on_workspace(
     windows: &[WindowInfo],
     output: Option<&str>,
-    out_rect: PixelRect,
-) -> gtk::Overlay {
-    let frame = gtk::Overlay::new();
-    frame.add_css_class("metis-workspace-overview-tile");
-    if workspace == active {
-        frame.add_css_class("active");
-    }
-    frame.set_size_request(280, 180);
-
-    let body = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    body.set_hexpand(true);
-    body.set_vexpand(true);
-    frame.set_child(Some(&body));
-
-    let header = gtk::Button::new();
-    header.add_css_class("metis-workspace-overview-tile-num-btn");
-    header.set_label(&format!("{}", workspace));
-    header.set_halign(gtk::Align::Start);
-    header.set_margin_start(6);
-    header.set_margin_top(4);
-    let out_hdr = ov.output.borrow().clone();
-    header.connect_clicked(move |_| {
-        if let Some(ref o) = out_hdr {
-            crate::services::dispatch_workspace(Some(o.clone()), workspace);
-        } else {
-            crate::services::dispatch_workspace(None, workspace);
-        }
-        dismiss();
-    });
-    body.append(&header);
-
-    let on_ws: Vec<&WindowInfo> = windows
+    workspace: u32,
+) -> Vec<WindowInfo> {
+    windows
         .iter()
         .filter(|w| {
             let out_ok = match output {
@@ -203,7 +182,50 @@ fn build_tile(
             let ws_ok = w.workspace == 0 || w.workspace == workspace;
             out_ok && ws_ok && !w.minimized
         })
-        .collect();
+        .cloned()
+        .collect()
+}
+
+const TILE_W: i32 = 220;
+const TILE_H: i32 = 140;
+const CARD_W: i32 = 88;
+const CARD_H: i32 = 72;
+
+fn build_tile(
+    ov: &Rc<Overview>,
+    workspace: u32,
+    active: u32,
+    windows: &[WindowInfo],
+    output: Option<&str>,
+) -> gtk::Overlay {
+    let frame = gtk::Overlay::new();
+    frame.add_css_class("metis-workspace-overview-tile");
+    if workspace == active {
+        frame.add_css_class("active");
+    }
+    frame.set_size_request(TILE_W, TILE_H);
+    frame.set_hexpand(false);
+    frame.set_vexpand(false);
+
+    let body = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    body.set_margin_start(6);
+    body.set_margin_end(6);
+    body.set_margin_top(4);
+    body.set_margin_bottom(6);
+    frame.set_child(Some(&body));
+
+    let header = gtk::Button::new();
+    header.add_css_class("metis-workspace-overview-tile-num-btn");
+    header.set_label(&format!("{}", workspace));
+    header.set_halign(gtk::Align::Start);
+    let out_hdr = ov.output.borrow().clone();
+    header.connect_clicked(move |_| {
+        switch_and_dismiss(out_hdr.clone(), workspace);
+    });
+    body.append(&header);
+
+    let on_ws = windows_on_workspace(windows, output, workspace);
+    let thumbs = ov.thumbs.borrow();
 
     if on_ws.is_empty() {
         let empty = gtk::Button::new();
@@ -213,54 +235,38 @@ fn build_tile(
         empty.set_vexpand(true);
         let out_empty = ov.output.borrow().clone();
         empty.connect_clicked(move |_| {
-            if let Some(ref o) = out_empty {
-                crate::services::dispatch_workspace(Some(o.clone()), workspace);
-            } else {
-                crate::services::dispatch_workspace(None, workspace);
-            }
-            dismiss();
+            switch_and_dismiss(out_empty.clone(), workspace);
         });
         body.append(&empty);
     } else {
-        let stage = gtk::Fixed::new();
-        stage.add_css_class("metis-workspace-overview-stage");
-        stage.set_hexpand(true);
-        stage.set_vexpand(true);
-        stage.set_size_request(260, 140);
-        body.append(&stage);
+        let flow = gtk::FlowBox::new();
+        flow.add_css_class("metis-workspace-overview-flow");
+        flow.set_selection_mode(gtk::SelectionMode::None);
+        flow.set_max_children_per_line(3);
+        flow.set_min_children_per_line(1);
+        flow.set_column_spacing(6);
+        flow.set_row_spacing(6);
+        flow.set_homogeneous(true);
+        flow.set_halign(gtk::Align::Center);
+        flow.set_valign(gtk::Align::Center);
+        flow.set_hexpand(true);
+        flow.set_vexpand(true);
+        body.append(&flow);
 
-        let stage_w = 260.0_f64;
-        let stage_h = 140.0_f64;
-        let ox = out_rect.x as f64;
-        let oy = out_rect.y as f64;
-        let ow = (out_rect.width.max(1) as f64).max(1.0);
-        let oh = (out_rect.height.max(1) as f64).max(1.0);
-        let scale = (stage_w / ow).min(stage_h / oh);
-
-        const MAX_CARDS: usize = 12;
+        const MAX_CARDS: usize = 6;
         for w in on_ws.iter().take(MAX_CARDS) {
-            let card = build_window_card(w);
-            let rx = ((w.rect.x as f64 - ox) * scale).clamp(0.0, stage_w - 48.0);
-            let ry = ((w.rect.y as f64 - oy) * scale).clamp(0.0, stage_h - 40.0);
-            let rw = ((w.rect.width as f64) * scale).clamp(48.0, stage_w);
-            let rh = ((w.rect.height as f64) * scale).clamp(40.0, stage_h);
-            card.set_size_request(rw as i32, rh as i32);
-            stage.put(&card, rx, ry);
-
+            let card = build_window_card(w, thumbs.as_ref(), CARD_W, CARD_H);
             let win_id = w.id;
             let out_name = ov.output.borrow().clone();
             let click = gtk::GestureClick::new();
             click.set_button(1);
             click.connect_released(move |_, _, _, _| {
-                if let Some(ref o) = out_name {
-                    crate::services::dispatch_workspace(Some(o.clone()), workspace);
-                } else {
-                    crate::services::dispatch_workspace(None, workspace);
-                }
-                dismiss();
-                if let Err(err) = crate::compositor::activate_window(win_id) {
-                    tracing::warn!(win_id, %err, "overview activate failed");
-                }
+                switch_and_dismiss(out_name.clone(), workspace);
+                glib::idle_add_local_once(move || {
+                    if let Err(err) = crate::compositor::activate_window(win_id) {
+                        tracing::warn!(win_id, %err, "overview activate failed");
+                    }
+                });
             });
             card.add_controller(click);
 
@@ -273,6 +279,7 @@ fn build_tile(
                 )))
             });
             card.add_controller(drag);
+            flow.insert(&card, -1);
         }
     }
 
@@ -306,20 +313,38 @@ fn build_tile(
     frame
 }
 
-fn build_window_card(w: &WindowInfo) -> gtk::Box {
-    let card = gtk::Box::new(gtk::Orientation::Vertical, 4);
+fn switch_and_dismiss(output: Option<String>, workspace: u32) {
+    if let Some(o) = output {
+        crate::services::dispatch_workspace(Some(o), workspace);
+    } else {
+        crate::services::dispatch_workspace(None, workspace);
+    }
+    dismiss();
+}
+
+fn build_window_card(
+    w: &WindowInfo,
+    thumbs: Option<&ThumbSet>,
+    width: i32,
+    height: i32,
+) -> gtk::Box {
+    let card = gtk::Box::new(gtk::Orientation::Vertical, 2);
     card.add_css_class("metis-workspace-overview-card");
     card.set_overflow(gtk::Overflow::Hidden);
+    card.set_size_request(width, height);
+    card.set_halign(gtk::Align::Center);
+    card.set_valign(gtk::Align::Center);
 
-    let icon = gtk::Image::from_gicon(&applications::resolve_icon_for_app_id(w.app_id.as_deref()));
-    icon.set_pixel_size(24);
-    icon.set_halign(gtk::Align::Center);
-    card.append(&icon);
+    let thumb = window_thumbs::thumb_or_icon_widget(thumbs, w, 32);
+    thumb.set_halign(gtk::Align::Center);
+    thumb.set_valign(gtk::Align::Center);
+    thumb.set_size_request(width - 8, height - 22);
+    card.append(&thumb);
 
     let title = gtk::Label::new(Some(w.title.as_str()));
     title.add_css_class("metis-workspace-overview-card-title");
     title.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    title.set_max_width_chars(12);
+    title.set_max_width_chars(10);
     title.set_halign(gtk::Align::Center);
     card.append(&title);
 
@@ -337,41 +362,6 @@ fn wire_keyboard(ov: &Rc<Overview>) {
         glib::Propagation::Proceed
     });
     ov.window.add_controller(controller);
-}
-
-fn output_geometry(name: Option<&str>) -> PixelRect {
-    let outputs = list_outputs_best_effort();
-    let mon = if let Some(n) = name {
-        outputs
-            .iter()
-            .find(|o| o.name.eq_ignore_ascii_case(n))
-            .or_else(|| outputs.iter().find(|o| o.primary))
-            .or_else(|| outputs.first())
-    } else {
-        outputs
-            .iter()
-            .find(|o| o.primary)
-            .or_else(|| outputs.first())
-    };
-    mon.map(|o| PixelRect {
-        x: o.rect.x,
-        y: o.rect.y,
-        width: o.rect.width,
-        height: o.rect.height,
-    })
-    .unwrap_or(PixelRect {
-        x: 0,
-        y: 0,
-        width: 1920,
-        height: 1080,
-    })
-}
-
-fn list_outputs_best_effort() -> Vec<OutputInfo> {
-    match metis_protocol::send_compositor_command(&metis_protocol::CompositorCommand::ListOutputs) {
-        Ok(metis_protocol::CompositorEvent::OutputList { outputs }) => outputs,
-        _ => Vec::new(),
-    }
 }
 
 fn gdk_monitor_for_output(connector: Option<&str>) -> Option<gdk::Monitor> {

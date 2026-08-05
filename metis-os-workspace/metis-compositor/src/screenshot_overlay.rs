@@ -32,7 +32,8 @@ impl MetisState {
     }
 
     pub(crate) fn workspace_overview_overlay_active(&self) -> bool {
-        self.layer_with_namespace("metis-workspace-overview").is_some()
+        self.layer_with_namespace("metis-workspace-overview")
+            .is_some()
     }
 
     pub(crate) fn layer_with_namespace(&self, namespace: &str) -> Option<LayerSurface> {

@@ -507,6 +507,24 @@ impl MetisState {
                             return FilterResult::Intercept(());
                         }
 
+                        // Classic Alt+Tab: when the switcher overlay is up, releasing
+                        // Alt activates the highlighted window. The shell never sees
+                        // Alt (chords were intercepted), so this must live here.
+                        if key_state == KeyState::Released
+                            && state.window_switcher_overlay_active()
+                            && matches!(
+                                sym,
+                                keysyms::KEY_Alt_L
+                                    | keysyms::KEY_Alt_R
+                                    | keysyms::KEY_Meta_L
+                                    | keysyms::KEY_Meta_R
+                            )
+                        {
+                            let _ =
+                                metis_protocol::write_runtime_command("window-switcher-activate");
+                            return FilterResult::Intercept(());
+                        }
+
                         if key_state == KeyState::Pressed {
                             state.super_tap_armed = false;
                             if state.screenshot_overlay_active()

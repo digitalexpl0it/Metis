@@ -256,6 +256,8 @@ pub struct MetisState {
     /// when keyboard focus moves to the edge bar so bulk layout sync does not
     /// re-raise a maximized window over the app the user just picked.
     last_focused_window: Option<u32>,
+    /// Window ids waiting for a GL thumbnail render (`window_thumb`).
+    pending_window_thumbs: std::collections::VecDeque<u32>,
     /// Screenshot / screencast overlay windows elevated above ordinary clients.
     pub(crate) capture_overlay: crate::capture_overlay::CaptureOverlaySession,
     pub(crate) screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession,
@@ -947,6 +949,7 @@ impl MetisState {
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             hover_cursor: None,
             last_focused_window: None,
+            pending_window_thumbs: std::collections::VecDeque::new(),
             capture_overlay: crate::capture_overlay::CaptureOverlaySession::default(),
             screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession::default(),
             snap_preview: None,
@@ -1020,13 +1023,14 @@ impl MetisState {
         // Never satisfy a screen-capture request while locked — the framebuffer
         // shows the lock UI, but refusing outright avoids leaking even that.
         if self.session_is_locked() {
+            self.pending_window_thumbs.clear();
             return;
         }
-        if !self.image_capture.has_pending() {
-            return;
+        if self.image_capture.has_pending() {
+            let start = self.start_time;
+            crate::image_capture::finish_pending_captures(self, renderer, start);
         }
-        let start = self.start_time;
-        crate::image_capture::finish_pending_captures(self, renderer, start);
+        crate::window_thumb::process_pending_window_thumbs(self, renderer);
     }
 
     /// Per-tick housekeeping shared by both backends: drive the startup state
@@ -4169,6 +4173,8 @@ impl MetisState {
             return;
         }
         self.last_focused_window = Some(id);
+        // Keep Alt+Tab thumbnails fresh whenever a window is brought forward.
+        self.queue_window_thumb(id);
     }
 
     /// True for a *running game* — as opposed to a launcher/store (Steam, Lutris,
@@ -5059,7 +5065,12 @@ impl MetisState {
             return;
         }
         if let Some(tile_id) = self.tile_id_for_window(id) {
+            // Grid restore clears minimized inside `set_tile_mode`; still force
+            // unminimize if the tile path left the flag set (e.g. mode already Grid).
             self.set_tile_mode(&tile_id, metis_protocol::TileMode::Grid);
+            if self.windows.is_minimized(id) {
+                self.unminimize_window(id);
+            }
         } else {
             self.unminimize_window(id);
         }
@@ -5070,13 +5081,15 @@ impl MetisState {
         if self.capture_overlay_active() && !self.window_is_capture_overlay(id) {
             return;
         }
-        self.note_window_focus(id);
+        // Ignore Exclusive shell layers (Alt+Tab overlay) so activation is not
+        // treated as a no-op while the switcher still owns the seat briefly.
         let key = self.desk_key_for_window(id);
         let ws = self.windows.workspace(id).unwrap_or(1);
         if ws != self.active_workspace_for(&key) {
             self.switch_workspace(&key, ws);
         }
         self.restore_by_id(id);
+        self.note_window_focus(id);
         self.ensure_app_tile_for_window(id);
         self.remap_window_for_desktop(id);
         let Some(record) = self.windows.get(id).cloned() else {
@@ -5091,7 +5104,9 @@ impl MetisState {
         }
         self.event_bus
             .emit(&metis_protocol::CompositorEvent::WindowFocused { id });
-        self.restore_focus_stacking();
+        // Do not call `restore_focus_stacking` here — it can re-raise a different
+        // preferred window (e.g. after Exclusive layer teardown) and undo the
+        // user's Alt+Tab selection.
         self.schedule_redraw();
     }
 
@@ -8172,6 +8187,14 @@ impl MetisState {
                     )
                 });
                 CompositorEvent::WindowList { windows }
+            }
+            CompositorCommand::CaptureWindowThumbs { ids } => {
+                for id in &ids {
+                    self.queue_window_thumb(*id);
+                }
+                CompositorEvent::WindowThumbs {
+                    thumbs: self.existing_window_thumbs(&ids),
+                }
             }
             CompositorCommand::MoveWindow { id, rect } => {
                 self.windows.set_target_rect(id, rect);

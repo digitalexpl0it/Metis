@@ -9,13 +9,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Phase 18 roadmap** — security polish backlog in `TODO.md` / `SECURITY.md`:
+  gaming path canonicalize, IPC rate limits, widget pack schema gate, per-sandbox
+  XWayland stretch; explicitly defers wayland-rs ObjectData wrappers and unprofiled
+  grid memoization.
 - **Alt+Tab window switcher** — `Alt+Tab` / `Alt+Shift+Tab` open an Exclusive
-  layer-shell overlay of MRU windows on the current output and workspace (icon +
-  title cards). Release Alt to activate; Esc cancels. Remappable in Settings →
-  Keyboard.
+  layer-shell overlay of MRU windows on the current output and workspace with
+  live window crops (falls back to app icons). Release Alt (compositor-handled)
+  or Enter/click to activate; Esc cancels. Remappable in Settings → Keyboard.
 - **Workspace overview** — `Super+Tab` shows a grid of workspaces on the focused
-  output. Click to switch/focus; drag window cards onto tiles to
-  `MoveWindowToWorkspace`. Esc or a second `Super+Tab` dismisses.
+  output with live window previews. Click to switch/focus; drag window cards
+  onto tiles to `MoveWindowToWorkspace`. Esc or a second `Super+Tab` dismisses.
 - **App launch single-flight** — launcher and pinned-dock starts suppress
   duplicate clicks for the same desktop id until a matching window maps (or ~8s
   timeout). The dock icon pulses while starting; a short “Starting …” toast
@@ -23,6 +27,11 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Alt+Tab activate** — releasing Alt now activates via the compositor (the
+  Exclusive overlay never received Alt). Activation restores minimized windows,
+  raises buried ones, and defers focus until the overlay unmaps.
+- **Workspace overview layout** — window cards use scaled geometry with a higher
+  minimum size so tiles no longer collapse into a tiny icon pile.
 - **GitHub Desktop / Electron multi-minute relaunch hang** — the compositor kept
   exited client processes as zombies (`child_processes` was only `try_wait`’d for
   desktop-widgets). Chromium ProcessSingleton treats a zombie PID as still alive

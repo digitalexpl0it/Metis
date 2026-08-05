@@ -19,6 +19,12 @@ pub enum CompositorCommand {
     },
     GetLayout,
     ListWindows,
+    /// Render per-window thumbnails into `$XDG_RUNTIME_DIR/metis/thumbs/{id}.png`
+    /// on the next GL frame (queued). Reply lists paths already on disk; the
+    /// shell may briefly wait for missing files after the redraw.
+    CaptureWindowThumbs {
+        ids: Vec<u32>,
+    },
     MoveWindow {
         id: u32,
         rect: PixelRect,
@@ -243,6 +249,11 @@ pub enum CompositorEvent {
     WindowList {
         windows: Vec<WindowInfo>,
     },
+    /// Reply to `CaptureWindowThumbs`: paths that already exist (may be stale
+    /// until the queued GL capture finishes).
+    WindowThumbs {
+        thumbs: Vec<WindowThumb>,
+    },
     WindowOpened {
         id: u32,
         title: String,
@@ -335,6 +346,13 @@ pub struct WindowInfo {
     /// Virtual workspace the window belongs to (1-based).
     #[serde(default)]
     pub workspace: u32,
+}
+
+/// One cached window thumbnail on disk (PNG).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WindowThumb {
+    pub id: u32,
+    pub path: String,
 }
 
 /// A video mode (resolution + refresh) for one output.

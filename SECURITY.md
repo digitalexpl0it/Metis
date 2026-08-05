@@ -67,14 +67,18 @@ repository when available) for issues that could affect session integrity or
 cross-user isolation. Please include Metis version / commit, distro, and
 whether the session is nested (winit) or DRM.
 
-## Residual hardening (post Phase 16)
+## Residual hardening (Phase 18)
 
 Phase 15 (product security) and Phase 16 (engineering hardening: CI, deny,
 trust-boundary tests, panic triage, command-file allowlist) are shipped — see
 [`TODO.md`](metis-os-workspace/TODO.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
-Still open by design or upstream:
+Tracked as **[Phase 18](metis-os-workspace/TODO.md#phase-18--security-polish-ipc-dos-isolation-stretch)**:
 
 1. Sanitize gaming config path/env edges (`extra_steam_paths`, launcher exports).
-2. True per-app / per-sandbox rootless XWayland (beyond the two-bucket prototype).
-3. Default-on colour management after a wayland-rs **server/sys** fix.
+2. IPC sliding-window rate limits (same-UID spam / DoS); optional token TTL docs.
+3. Widget pack JSON schema validation at startup (fail closed).
+4. True per-app / per-sandbox rootless XWayland (beyond the two-bucket prototype).
+5. Default-on colour management after a wayland-rs **server/sys** fix (no local
+   ObjectData UAF workaround in-tree).
+6. GLES `MultiRenderer` compositor stretch (ScreenCast dmabuf already shipped).

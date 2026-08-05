@@ -3476,9 +3476,9 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background-color: {overlay_card_bg};
         border: 2px solid {border};
         border-radius: {rl}px;
-        padding: 12px 14px;
-        min-width: 140px;
-        min-height: 140px;
+        padding: 8px 10px 10px 10px;
+        min-width: 168px;
+        min-height: 160px;
         box-shadow: {dash_shadow};
     }}
     button.metis-window-switcher-card:hover {{
@@ -3488,6 +3488,16 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         border-color: {accent};
         background-color: rgba({accent_rgb}, 0.12);
     }}
+    .metis-window-switcher-preview {{
+        background-color: rgba(0, 0, 0, 0.35);
+        border-radius: {rs}px;
+        border: 1px solid {border};
+        min-width: 160px;
+        min-height: 96px;
+    }}
+    .metis-window-thumb {{
+        border-radius: {rs}px;
+    }}
     label.metis-window-switcher-badge {{
         color: {muted};
         font-size: 11px;
@@ -3496,7 +3506,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     label.metis-window-switcher-app {{
         color: {text};
         font-weight: 600;
-        font-size: 13px;
+        font-size: 12px;
     }}
     label.metis-window-switcher-title {{
         color: {muted};
@@ -3516,15 +3526,22 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
     }}
     label.metis-workspace-overview-title {{
         color: {text};
-        font-size: 22px;
+        font-size: 18px;
         font-weight: 600;
+    }}
+    label.metis-workspace-overview-hint {{
+        color: {muted};
+        font-size: 12px;
     }}
     .metis-workspace-overview-tile {{
         background-color: {overlay_card_bg};
         border: 2px solid {border};
         border-radius: {rl}px;
         box-shadow: {dash_shadow};
-        padding: 4px;
+        min-width: 220px;
+        min-height: 140px;
+        max-width: 240px;
+        max-height: 160px;
     }}
     .metis-workspace-overview-tile.active {{
         border-color: {accent};
@@ -3537,26 +3554,32 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         background: transparent;
         border: none;
         color: {muted};
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 600;
-        padding: 2px 8px;
+        padding: 0 4px;
     }}
     button.metis-workspace-overview-empty-btn {{
         background: transparent;
         border: none;
         color: rgba({text_rgb}, 0.18);
-        font-size: 64px;
+        font-size: 42px;
         font-weight: 700;
+    }}
+    .metis-workspace-overview-flow {{
+        background: transparent;
+        padding: 2px;
     }}
     .metis-workspace-overview-card {{
         background-color: {raised};
         border: 1px solid {border};
         border-radius: {rs}px;
         padding: 4px;
+        min-width: 88px;
+        min-height: 72px;
     }}
     label.metis-workspace-overview-card-title {{
         color: {text};
-        font-size: 10px;
+        font-size: 9px;
     }}
 
     /* ---- Notification Center (Phase 13) ---- */

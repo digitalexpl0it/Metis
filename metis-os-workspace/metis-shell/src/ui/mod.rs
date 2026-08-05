@@ -11,4 +11,5 @@ pub mod splash;
 pub mod theme;
 pub mod toast;
 pub mod window_switcher;
+pub mod window_thumbs;
 pub mod workspace_overview;
