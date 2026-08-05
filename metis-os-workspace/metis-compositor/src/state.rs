@@ -257,7 +257,7 @@ pub struct MetisState {
     /// re-raise a maximized window over the app the user just picked.
     last_focused_window: Option<u32>,
     /// Window ids waiting for a GL thumbnail render (`window_thumb`).
-    pending_window_thumbs: std::collections::VecDeque<u32>,
+    pub(crate) pending_window_thumbs: std::collections::VecDeque<u32>,
     /// Screenshot / screencast overlay windows elevated above ordinary clients.
     pub(crate) capture_overlay: crate::capture_overlay::CaptureOverlaySession,
     pub(crate) screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession,

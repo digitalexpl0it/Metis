@@ -15,8 +15,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   grid memoization.
 - **Alt+Tab window switcher** — `Alt+Tab` / `Alt+Shift+Tab` open an Exclusive
   layer-shell overlay of MRU windows on the current output and workspace with
-  live window crops (falls back to app icons). Release Alt (compositor-handled)
-  or Enter/click to activate; Esc cancels. Remappable in Settings → Keyboard.
+  per-window compositor thumbnails (falls back to app icons). Release Alt
+  (compositor-handled) or Enter/click to activate; Esc cancels. Remappable in
+  Settings → Keyboard.
 - **Workspace overview** — `Super+Tab` shows a grid of workspaces on the focused
   output with live window previews. Click to switch/focus; drag window cards
   onto tiles to `MoveWindowToWorkspace`. Esc or a second `Super+Tab` dismisses.
@@ -27,6 +28,9 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
+- **Alt+Tab live previews** — each card is a compositor-rendered PNG of that
+  window's own surfaces (`CaptureWindowThumbs`), not a screen crop. Buried or
+  maximized apps no longer share one live frame while others fall back to icons.
 - **Alt+Tab activate** — releasing Alt now activates via the compositor (the
   Exclusive overlay never received Alt). Activation restores minimized windows,
   raises buried ones, and defers focus until the overlay unmaps.

@@ -11,7 +11,7 @@ use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::element::AsRenderElements;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
-use smithay::backend::renderer::{Bind, ExportMem, Offscreen};
+use smithay::backend::renderer::{Bind, ExportMem, Offscreen, Texture};
 use smithay::utils::{Physical, Point, Rectangle, Scale, Size, Transform};
 
 use crate::render::CLEAR_COLOR;
@@ -64,10 +64,7 @@ impl MetisState {
     }
 }
 
-pub(crate) fn process_pending_window_thumbs(
-    state: &mut MetisState,
-    renderer: &mut GlesRenderer,
-) {
+pub(crate) fn process_pending_window_thumbs(state: &mut MetisState, renderer: &mut GlesRenderer) {
     if state.session_is_locked() {
         state.pending_window_thumbs.clear();
         return;
@@ -121,7 +118,8 @@ fn render_window_thumb(
     let size_buf: Size<i32, smithay::utils::Buffer> = Size::from((out_w, out_h));
 
     // Place window geometry origin at (0,0) in the offscreen target.
-    let loc = (-geo.loc).to_physical_precise_round(output_scale);
+    let loc = Point::<i32, smithay::utils::Logical>::from((-geo.loc.x, -geo.loc.y))
+        .to_physical_precise_round(output_scale);
     let elems = AsRenderElements::<GlesRenderer>::render_elements::<
         smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement<GlesRenderer>,
     >(&window, renderer, loc, output_scale, 1.0);
@@ -146,15 +144,32 @@ fn render_window_thumb(
     let mapping = renderer
         .copy_framebuffer(&framebuffer, region, Fourcc::Abgr8888)
         .map_err(|err| format!("copy: {err:?}"))?;
+    let map_size = mapping.size();
     let pixels = renderer
         .map_texture(&mapping)
         .map_err(|err| format!("map: {err:?}"))?;
 
-    let mut rgba = Vec::with_capacity((out_w * out_h * 4) as usize);
-    for px in pixels.chunks_exact(4) {
-        // Fourcc::Abgr8888 memory order on LE: A, B, G, R
-        let (a, b, g, r) = (px[0], px[1], px[2], px[3]);
-        rgba.extend_from_slice(&[r, g, b, a]);
+    // Smithay GLES Abgr8888 readback is R,G,B,A bytes — same as image::RgbaImage.
+    // Mapping width may include stride padding; crop to the requested thumb size.
+    let src_w = map_size.w.max(1) as usize;
+    let src_h = map_size.h.max(1) as usize;
+    let dst_w = out_w as usize;
+    let dst_h = out_h as usize;
+    let mut rgba = Vec::with_capacity(dst_w * dst_h * 4);
+    for y in 0..dst_h.min(src_h) {
+        let row = y * src_w * 4;
+        let end = row + dst_w.min(src_w) * 4;
+        if end > pixels.len() {
+            break;
+        }
+        rgba.extend_from_slice(&pixels[row..end]);
+        // Pad short rows (should not happen for tight packs).
+        while rgba.len() < (y + 1) * dst_w * 4 {
+            rgba.extend_from_slice(&[0, 0, 0, 0]);
+        }
+    }
+    while rgba.len() < dst_w * dst_h * 4 {
+        rgba.push(0);
     }
 
     let path = thumb_path(id);

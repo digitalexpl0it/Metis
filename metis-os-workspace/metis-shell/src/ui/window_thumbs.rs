@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use gtk::gdk;
 use gtk::prelude::*;
-use metis_protocol::{CompositorCommand, WindowInfo};
+use metis_protocol::{CompositorCommand, CompositorEvent, WindowInfo};
 
 #[derive(Clone)]
 pub struct ThumbSet {
@@ -24,24 +24,38 @@ pub fn load_window_thumbs(windows: &[WindowInfo]) -> Option<ThumbSet> {
         return None;
     }
 
+    // Queue a GL capture for every id. Reply lists paths that already exist
+    // (from prior focus); newly queued ones appear after the next compositor frame.
     let _ = metis_protocol::send_compositor_command(&CompositorCommand::CaptureWindowThumbs {
         ids: ids.clone(),
     });
 
-    // Compositor renders on the next GL frame; wait for files (cached thumbs
-    // from prior focus are often already present).
-    let deadline = Instant::now() + Duration::from_millis(280);
+    let deadline = Instant::now() + Duration::from_millis(400);
     while Instant::now() < deadline {
-        let ready = ids
-            .iter()
-            .filter(|id| crate::ui::window_thumbs::thumb_path(**id).is_file())
-            .count();
+        let ready = ids.iter().filter(|id| thumb_path(**id).is_file()).count();
         if ready == ids.len() {
             break;
         }
-        // Yield so the compositor IPC/render tick can run in nested sessions;
-        // on DRM the shell is a separate process so this is just a short wait.
-        std::thread::sleep(Duration::from_millis(16));
+        // Separate compositor process can render while we wait; keep this short
+        // so Alt+Tab still feels snappy when some thumbs are already cached.
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    // One more nudge in case the first frame missed the queue (idle compositor).
+    if ids.iter().any(|id| !thumb_path(*id).is_file()) {
+        if let Ok(CompositorEvent::WindowThumbs { .. }) =
+            metis_protocol::send_compositor_command(&CompositorCommand::CaptureWindowThumbs {
+                ids: ids.clone(),
+            })
+        {
+            let extra = Instant::now() + Duration::from_millis(200);
+            while Instant::now() < extra {
+                if ids.iter().all(|id| thumb_path(*id).is_file()) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
     }
 
     let mut textures = HashMap::new();
@@ -59,7 +73,9 @@ pub fn load_window_thumbs(windows: &[WindowInfo]) -> Option<ThumbSet> {
 }
 
 pub fn thumb_path(id: u32) -> std::path::PathBuf {
-    metis_protocol::runtime_dir().join("thumbs").join(format!("{id}.png"))
+    metis_protocol::runtime_dir()
+        .join("thumbs")
+        .join(format!("{id}.png"))
 }
 
 fn load_png_texture(path: &Path) -> Option<gdk::Texture> {
