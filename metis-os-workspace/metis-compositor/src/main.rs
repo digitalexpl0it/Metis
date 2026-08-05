@@ -38,6 +38,7 @@ mod output_vrr;
 mod remote_input;
 mod render;
 mod screenshot_overlay;
+mod window_thumb;
 mod session_lock;
 mod state;
 mod text_layout;
