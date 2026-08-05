@@ -67,7 +67,7 @@ pub fn show() {
     windows::reconcile_now();
     let output = windows::focused_output_name();
     let snap = windows::snapshot();
-    let thumbs = window_thumbs::capture_window_thumbs(output.as_deref(), &snap.windows);
+    let thumbs = window_thumbs::load_window_thumbs(&snap.windows);
 
     demote_sibling_layers();
 

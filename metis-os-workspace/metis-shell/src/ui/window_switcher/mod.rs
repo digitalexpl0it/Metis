@@ -130,8 +130,8 @@ fn open(forward: bool) {
         return;
     }
 
-    // Capture live crops before the dim overlay maps onto the output.
-    let thumbs = window_thumbs::capture_window_thumbs(output.as_deref(), &list);
+    // Per-window compositor thumbs (not a screen crop — buried apps stay correct).
+    let thumbs = window_thumbs::load_window_thumbs(&list);
 
     demote_sibling_layers();
 
