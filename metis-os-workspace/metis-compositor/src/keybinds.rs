@@ -96,6 +96,9 @@ fn build_index(config: &KeybindsConfig) -> HashMap<ChordKey, KeybindAction> {
     let mut map = HashMap::new();
     for &action in KeybindAction::all() {
         let chord = config.chord_for(action);
+        if chord.key.trim().is_empty() {
+            continue;
+        }
         map.insert(ChordKey::from(&chord), action);
     }
     // Alias: equal key also cycles scroll width (historical Mod+=).

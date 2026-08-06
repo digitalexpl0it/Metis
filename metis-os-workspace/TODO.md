@@ -1,7 +1,7 @@
 # Metis Shell — Edge Bar (v2)
 
 **Current phase:** Phases **1–17** are complete for their shipped product bars
-(Phase 17 Alt+Tab / workspace overview shipped with live crops + activate fixes).
+(Phase 17 Task View / Super+Tab shipped).
 **Phase 18** (security / IPC / isolation polish) is open — see below.
 **Phase 16** (Engineering hardening) closed 2026-08-02 — PR CI quality gate,
 trust-boundary tests, compositor panic triage, portal coverage, `cargo-deny`,
@@ -1518,42 +1518,20 @@ big-bang `state.rs` rewrite; Sober/Flatpak app bugs unrelated to Metis portals.
 
 ---
 
-## Phase 17 — Alt+Tab switcher + workspace overview
+## Phase 17 — Task View (Super+Tab)
 
-GTK layer-shell overlays for classic window switching and a per-output workspace
-overview with drag-and-drop. No per-window thumbnail capture IPC in v1 (icon +
-title cards).
+Unified Task View replaces the separate Alt+Tab strip and workspace grid.
 
-### A. Keybinds & runtime
+### Shipped
 
-- [x] **`WindowSwitcherNext` / `Prev` / `WorkspaceOverview`** — defaults
-      `Alt+Tab`, `Alt+Shift+Tab`, `Super+Tab`; Settings → Keyboard labels
-- [x] **Tab key token** in compositor `keysym_to_token`
-- [x] **Runtime verbs** — `window-switcher-next|prev|activate`,
-      `dismiss-window-switcher`, `workspace-overview`, `dismiss-workspace-overview`
-- [x] **Exclusive-layer rules** — cycle while switcher/overview is mapped;
-      otherwise only when no Exclusive shell layer; Super+Tab clears Super-tap menu
+- [x] **`Super+Tab` Task View** — current-workspace app cards (live thumbs) +
+      bottom shelf of live workspace mini-desktops; Tab/Enter/click; DnD move
+- [x] **`CaptureWindowThumbs` / `CaptureWorkspaceThumbs`** compositor PNG path
+- [x] **Defaults** — only `Super+Tab`; Alt+Tab unbound (remap Task View next/prev)
+- [x] USER_GUIDE / CHANGELOG / this checklist
 
-### B. Shell MRU + Phase A UI
-
-- [x] **Shell-side focus MRU** from `WindowFocused` (cap 32); filter by output +
-      active workspace
-- [x] **`metis-window-switcher` overlay** — Exclusive keyboard, dim backdrop,
-      icon/title cards, Alt-release activate, Esc cancel; demotes NC/dashboard/menu
-
-### C. Phase B overview + DnD
-
-- [x] **`metis-workspace-overview` overlay** — workspace grid on focused output;
-      click switch / activate; mutual exclusion with switcher
-- [x] **Drag window cards → workspace tiles** via `MoveWindowToWorkspace`
-
-### D. Docs
-
-- [x] USER_GUIDE Alt+Tab / overview; CHANGELOG; this checklist
-
-**Out of scope (v1):** all-monitors unified overview; overview on vertical bars /
-tablet gestures. (Live window crops for switcher/overview landed as polish after
-v1 icon cards.)
+**Out of scope:** “New desktop” button; all-monitors unified overview; overview
+on vertical bars / tablet gestures.
 
 **Dependencies:** Phase 3 workspaces + window IPC; Phase 12 overlay patterns.
 

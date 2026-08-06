@@ -3462,124 +3462,153 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         color: {text};
     }}
 
-    /* ---- Window switcher (Alt+Tab) ---- */
-    window.metis-window-switcher {{
+    /* ---- Task View (Super+Tab) ---- */
+    window.metis-task-view {{
         background: transparent;
     }}
-    .metis-window-switcher-backdrop {{
-        background-color: rgba(0, 0, 0, 0.45);
+    .metis-task-view-backdrop {{
+        background-color: rgba(0, 0, 0, 0.48);
     }}
-    .metis-window-switcher-strip {{
-        padding: 16px;
+    .metis-task-view-scroll {{
+        background: transparent;
     }}
-    button.metis-window-switcher-card {{
+    .metis-task-view-scroll > viewport {{
+        background: transparent;
+    }}
+    .metis-task-view-apps {{
+        background: transparent;
+        padding: 8px;
+    }}
+    .metis-task-view-card {{
         background-color: {overlay_card_bg};
-        border: 2px solid {border};
-        border-radius: {rl}px;
-        padding: 8px 10px 10px 10px;
-        min-width: 168px;
-        min-height: 160px;
-        box-shadow: {dash_shadow};
-    }}
-    button.metis-window-switcher-card:hover {{
-        border-color: rgba({accent_rgb}, 0.55);
-    }}
-    button.metis-window-switcher-card.selected {{
-        border-color: {accent};
-        background-color: rgba({accent_rgb}, 0.12);
-    }}
-    .metis-window-switcher-preview {{
-        background-color: rgba(0, 0, 0, 0.35);
-        border-radius: {rs}px;
         border: 1px solid {border};
-        min-width: 160px;
-        min-height: 96px;
+        border-radius: {rl}px;
+        padding: 0;
+        min-width: 200px;
+        min-height: 140px;
+        box-shadow: {dash_shadow};
+        overflow: hidden;
+    }}
+    .metis-task-view-card:hover {{
+        border-color: rgba({accent_rgb}, 0.45);
+    }}
+    .metis-task-view-card.selected {{
+        border: 1px solid {accent};
+        box-shadow: 0 0 0 2px rgba({accent_rgb}, 0.35), {dash_shadow};
+    }}
+    .metis-task-view-card.dragging {{
+        opacity: 0.45;
+    }}
+    .metis-task-view-drag-preview {{
+        background-color: {overlay_card_bg};
+        border: 1px solid {accent};
+        border-radius: {rl}px;
+        overflow: hidden;
+        box-shadow: {dash_shadow};
+        opacity: 0.95;
+    }}
+    .metis-task-view-drag-preview-header {{
+        background-color: {raised};
+        padding: 4px 8px;
+        border-bottom: 1px solid {border};
+    }}
+    label.metis-task-view-drag-preview-title {{
+        color: {text};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    .metis-task-view-drag-preview-body {{
+        background-color: rgba({text_rgb}, 0.06);
+        min-height: 72px;
+    }}
+    .metis-task-view-card-header {{
+        background-color: {raised};
+        padding: 4px 4px 4px 8px;
+        border-bottom: 1px solid {border};
+    }}
+    label.metis-task-view-card-title {{
+        color: {text};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    button.metis-task-view-card-close {{
+        min-width: 22px;
+        min-height: 22px;
+        padding: 0;
+        margin: 0;
+        border: none;
+        border-radius: {rs}px;
+        background: transparent;
+        color: {muted};
+        box-shadow: none;
+    }}
+    button.metis-task-view-card-close:hover {{
+        background-color: rgba({c_error_rgb}, 0.90);
+        color: #ffffff;
+    }}
+    button.metis-task-view-card-close:active {{
+        background-color: {c_error};
+        color: #ffffff;
+    }}
+    .metis-task-view-card-preview {{
+        background-color: rgba({text_rgb}, 0.06);
+        min-height: 100px;
     }}
     .metis-window-thumb {{
-        border-radius: {rs}px;
+        border-radius: 0;
     }}
-    label.metis-window-switcher-badge {{
-        color: {muted};
-        font-size: 11px;
-        font-weight: 600;
-    }}
-    label.metis-window-switcher-app {{
-        color: {text};
-        font-weight: 600;
-        font-size: 12px;
-    }}
-    label.metis-window-switcher-title {{
-        color: {muted};
-        font-size: 11px;
-    }}
-    label.metis-window-switcher-hint {{
-        color: {muted};
-        font-size: 12px;
-    }}
-
-    /* ---- Workspace overview (Super+Tab) ---- */
-    window.metis-workspace-overview {{
+    .metis-task-view-shelf-bar {{
         background: transparent;
+        padding: 0;
     }}
-    .metis-workspace-overview-backdrop {{
-        background-color: rgba(0, 0, 0, 0.5);
-    }}
-    label.metis-workspace-overview-title {{
-        color: {text};
-        font-size: 18px;
-        font-weight: 600;
-    }}
-    label.metis-workspace-overview-hint {{
-        color: {muted};
-        font-size: 12px;
-    }}
-    .metis-workspace-overview-tile {{
+    .metis-task-view-shelf {{
         background-color: {overlay_card_bg};
-        border: 2px solid {border};
+        border: 1px solid {border};
         border-radius: {rl}px;
+        padding: 10px 16px 8px 16px;
         box-shadow: {dash_shadow};
-        min-width: 220px;
-        min-height: 140px;
-        max-width: 240px;
-        max-height: 160px;
     }}
-    .metis-workspace-overview-tile.active {{
+    .metis-task-view-shelf-tile {{
+        background: transparent;
+        border: none;
+        padding: 0;
+        min-height: 0;
+    }}
+    .metis-task-view-shelf-tile.active .metis-task-view-shelf-preview {{
         border-color: {accent};
     }}
-    .metis-workspace-overview-tile.drop-hover {{
+    .metis-task-view-shelf-tile.active label.metis-task-view-shelf-label {{
+        color: {accent};
+        font-weight: 700;
+        border-bottom: 2px solid {accent};
+        padding-bottom: 1px;
+    }}
+    .metis-task-view-shelf-tile.drop-hover .metis-task-view-shelf-preview {{
         border-color: {accent};
         background-color: rgba({accent_rgb}, 0.14);
     }}
-    button.metis-workspace-overview-tile-num-btn {{
-        background: transparent;
-        border: none;
-        color: {muted};
-        font-size: 12px;
-        font-weight: 600;
-        padding: 0 4px;
-    }}
-    button.metis-workspace-overview-empty-btn {{
-        background: transparent;
-        border: none;
-        color: rgba({text_rgb}, 0.18);
-        font-size: 42px;
-        font-weight: 700;
-    }}
-    .metis-workspace-overview-flow {{
-        background: transparent;
-        padding: 2px;
-    }}
-    .metis-workspace-overview-card {{
+    .metis-task-view-shelf-preview {{
         background-color: {raised};
         border: 1px solid {border};
         border-radius: {rs}px;
-        padding: 4px;
-        min-width: 88px;
+        padding: 0;
+        min-width: 140px;
         min-height: 72px;
+        max-height: 72px;
+        overflow: hidden;
     }}
-    label.metis-workspace-overview-card-title {{
-        color: {text};
-        font-size: 9px;
+    .metis-task-view-shelf-thumb {{
+        border-radius: {rs}px;
+    }}
+    label.metis-task-view-shelf-fallback {{
+        color: rgba({text_rgb}, 0.28);
+        font-size: 22px;
+        font-weight: 700;
+    }}
+    label.metis-task-view-shelf-label {{
+        color: {muted};
+        font-size: 11px;
+        margin-top: 2px;
     }}
 
     /* ---- Notification Center (Phase 13) ---- */
@@ -4009,6 +4038,7 @@ pub fn build_stylesheet(theme: &ThemeTokens) -> String {
         c_success = c_success,
         c_warning = c_warning,
         c_error = c_error,
+        c_error_rgb = c_error_rgb,
         screenshot_toolbar_bg = screenshot_toolbar_bg,
         text_on_accent = text_on_accent,
         nc_panel_bg = nc_panel_bg,

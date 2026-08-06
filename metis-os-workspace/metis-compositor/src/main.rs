@@ -48,6 +48,7 @@ mod window_state;
 mod window_thumb;
 mod windows;
 mod winit;
+mod workspace_thumb;
 mod xwayland;
 
 use smithay::reexports::{calloop::EventLoop, wayland_server::Display};

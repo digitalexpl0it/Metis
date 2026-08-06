@@ -258,6 +258,8 @@ pub struct MetisState {
     last_focused_window: Option<u32>,
     /// Window ids waiting for a GL thumbnail render (`window_thumb`).
     pub(crate) pending_window_thumbs: std::collections::VecDeque<u32>,
+    /// `(output, workspace)` pairs waiting for Task View shelf thumbnails.
+    pub(crate) pending_workspace_thumbs: std::collections::VecDeque<(String, u32)>,
     /// Screenshot / screencast overlay windows elevated above ordinary clients.
     pub(crate) capture_overlay: crate::capture_overlay::CaptureOverlaySession,
     pub(crate) screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession,
@@ -950,6 +952,7 @@ impl MetisState {
             hover_cursor: None,
             last_focused_window: None,
             pending_window_thumbs: std::collections::VecDeque::new(),
+            pending_workspace_thumbs: std::collections::VecDeque::new(),
             capture_overlay: crate::capture_overlay::CaptureOverlaySession::default(),
             screenshot_overlay: crate::screenshot_overlay::ScreenshotOverlaySession::default(),
             snap_preview: None,
@@ -1024,6 +1027,7 @@ impl MetisState {
         // shows the lock UI, but refusing outright avoids leaking even that.
         if self.session_is_locked() {
             self.pending_window_thumbs.clear();
+            self.pending_workspace_thumbs.clear();
             return;
         }
         if self.image_capture.has_pending() {
@@ -1031,6 +1035,7 @@ impl MetisState {
             crate::image_capture::finish_pending_captures(self, renderer, start);
         }
         crate::window_thumb::process_pending_window_thumbs(self, renderer);
+        crate::workspace_thumb::process_pending_workspace_thumbs(self, renderer);
     }
 
     /// Per-tick housekeeping shared by both backends: drive the startup state
@@ -3474,7 +3479,7 @@ impl MetisState {
     }
 
     /// Window ids on a specific (output, workspace).
-    fn window_ids_on_workspace(&self, key: &str, ws: u32) -> Vec<u32> {
+    pub(crate) fn window_ids_on_workspace(&self, key: &str, ws: u32) -> Vec<u32> {
         self.windows
             .ids()
             .into_iter()
@@ -3494,7 +3499,7 @@ impl MetisState {
     }
 
     /// Best-effort client body rect for a mapped or placed window.
-    fn current_window_body_rect(&self, id: u32) -> Option<PixelRect> {
+    pub(crate) fn current_window_body_rect(&self, id: u32) -> Option<PixelRect> {
         let record = self.windows.get(id)?;
         if let Some(loc) = self.space.element_location(&record.window) {
             let size = record.window.geometry().size;
@@ -8194,6 +8199,14 @@ impl MetisState {
                 }
                 CompositorEvent::WindowThumbs {
                     thumbs: self.existing_window_thumbs(&ids),
+                }
+            }
+            CompositorCommand::CaptureWorkspaceThumbs { output, workspaces } => {
+                for ws in &workspaces {
+                    self.queue_workspace_thumb(output.clone(), *ws);
+                }
+                CompositorEvent::WorkspaceThumbs {
+                    thumbs: self.existing_workspace_thumbs(&output, &workspaces),
                 }
             }
             CompositorCommand::MoveWindow { id, rect } => {

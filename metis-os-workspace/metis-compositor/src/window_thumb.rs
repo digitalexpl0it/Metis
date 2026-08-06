@@ -1,4 +1,4 @@
-//! Per-window PNG thumbnails for Alt+Tab (compositor-rendered, not screen crops).
+//! Per-window PNG thumbnails for Task View (compositor-rendered, not screen crops).
 //!
 //! A single output screenshot cannot show buried/maximized clients correctly —
 //! every near-fullscreen crop is just whatever is currently on top. Instead we

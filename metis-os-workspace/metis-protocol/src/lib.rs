@@ -25,6 +25,13 @@ pub enum CompositorCommand {
     CaptureWindowThumbs {
         ids: Vec<u32>,
     },
+    /// Render live mini-desktop PNGs for Task View shelf tiles:
+    /// `$XDG_RUNTIME_DIR/metis/thumbs/ws-{output}-{id}.png` (wallpaper +
+    /// non-minimized windows on that workspace). Queued for the next GL frame.
+    CaptureWorkspaceThumbs {
+        output: String,
+        workspaces: Vec<u32>,
+    },
     MoveWindow {
         id: u32,
         rect: PixelRect,
@@ -254,6 +261,11 @@ pub enum CompositorEvent {
     WindowThumbs {
         thumbs: Vec<WindowThumb>,
     },
+    /// Reply to `CaptureWorkspaceThumbs`: paths already on disk (may be stale
+    /// until the queued GL capture finishes).
+    WorkspaceThumbs {
+        thumbs: Vec<WorkspaceThumb>,
+    },
     WindowOpened {
         id: u32,
         title: String,
@@ -352,6 +364,13 @@ pub struct WindowInfo {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WindowThumb {
     pub id: u32,
+    pub path: String,
+}
+
+/// One cached workspace mini-desktop thumbnail on disk (PNG).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WorkspaceThumb {
+    pub workspace: u32,
     pub path: String,
 }
 
@@ -559,6 +578,10 @@ pub const BAR_RUNTIME_VERBS: &[&str] = &[
     "dismiss-window-switcher",
     "workspace-overview",
     "dismiss-workspace-overview",
+    "task-view-next",
+    "task-view-prev",
+    "task-view-activate",
+    "dismiss-task-view",
 ];
 
 /// Verbs accepted on `$XDG_RUNTIME_DIR/metis/command-widgets`.

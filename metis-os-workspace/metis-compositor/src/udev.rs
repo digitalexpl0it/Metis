@@ -1511,7 +1511,10 @@ impl MetisState {
             )
         };
 
-        if self.image_capture.has_pending() || self.has_pending_window_thumbs() {
+        if self.image_capture.has_pending()
+            || self.has_pending_window_thumbs()
+            || self.has_pending_workspace_thumbs()
+        {
             if render_node != primary_gpu {
                 self.wallpaper.invalidate_gpu_cache();
                 self.decorations.invalidate_all();

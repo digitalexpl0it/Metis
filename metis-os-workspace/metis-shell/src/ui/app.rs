@@ -114,8 +114,7 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     if matches!(&evt, metis_protocol::CompositorEvent::WindowOpened { .. }) {
                         crate::services::windows::reconcile_now();
                     }
-                    crate::ui::window_switcher::on_windows_changed();
-                    crate::ui::workspace_overview::on_windows_changed();
+                    crate::ui::task_view::on_windows_changed();
                     if let metis_protocol::CompositorEvent::ClipboardChanged {
                         mime,
                         preview_text,

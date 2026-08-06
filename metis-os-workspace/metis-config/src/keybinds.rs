@@ -149,9 +149,9 @@ impl KeybindAction {
             Self::ScrollCycleWidth => "Scroll: cycle column width",
             Self::MoveWorkspaceOutputLeft => "Move workspace to output left",
             Self::MoveWorkspaceOutputRight => "Move workspace to output right",
-            Self::WindowSwitcherNext => "Window switcher (next)",
-            Self::WindowSwitcherPrev => "Window switcher (previous)",
-            Self::WorkspaceOverview => "Workspace overview",
+            Self::WindowSwitcherNext => "Task View (next)",
+            Self::WindowSwitcherPrev => "Task View (previous)",
+            Self::WorkspaceOverview => "Task View",
         }
     }
 
@@ -162,9 +162,7 @@ impl KeybindAction {
             | Self::Maximize
             | Self::Fullscreen
             | Self::Minimize
-            | Self::ExitFullscreenStack
-            | Self::WindowSwitcherNext
-            | Self::WindowSwitcherPrev => KeybindGroup::Windows,
+            | Self::ExitFullscreenStack => KeybindGroup::Windows,
             Self::LayoutGrid | Self::LayoutFree => KeybindGroup::Layout,
             Self::Screenshot | Self::ScreenshotFull | Self::ScreenshotWindow => {
                 KeybindGroup::Screenshots
@@ -189,6 +187,8 @@ impl KeybindAction {
             | Self::MoveToWorkspace7
             | Self::MoveToWorkspace8
             | Self::MoveToWorkspace9
+            | Self::WindowSwitcherNext
+            | Self::WindowSwitcherPrev
             | Self::WorkspaceOverview => KeybindGroup::Workspaces,
             Self::ScrollFocusLeft
             | Self::ScrollFocusRight
@@ -356,6 +356,9 @@ impl Chord {
     }
 
     pub fn display(&self) -> String {
+        if self.key.trim().is_empty() {
+            return "Unbound".into();
+        }
         let mut parts = Vec::new();
         if self.ctrl {
             parts.push("Ctrl");
@@ -619,9 +622,9 @@ pub fn default_chord(action: KeybindAction, mod_key: ModKey) -> Chord {
         KeybindAction::ScrollCycleWidth => m(false, "minus"),
         KeybindAction::MoveWorkspaceOutputLeft => Chord::new(logo, true, alt, true, "Left"),
         KeybindAction::MoveWorkspaceOutputRight => Chord::new(logo, true, alt, true, "Right"),
-        // Alt+Tab is mod_key-independent (classic window switcher).
-        KeybindAction::WindowSwitcherNext => Chord::new(false, false, true, false, "Tab"),
-        KeybindAction::WindowSwitcherPrev => Chord::new(false, false, true, true, "Tab"),
+        // Super+Shift+Tab cycles Task View backward while Super+Tab goes forward.
+        KeybindAction::WindowSwitcherNext => Chord::new(false, false, false, false, ""),
+        KeybindAction::WindowSwitcherPrev => Chord::new(true, false, false, true, "Tab"),
         KeybindAction::WorkspaceOverview => Chord::new(true, false, false, false, "Tab"),
     }
 }
@@ -685,11 +688,11 @@ mod tests {
     }
 
     #[test]
-    fn default_window_switcher_chords() {
+    fn default_task_view_chords() {
         let next = default_chord(KeybindAction::WindowSwitcherNext, ModKey::Super);
-        assert_eq!(next.display(), "Alt+Tab");
+        assert!(next.key.is_empty(), "Task View next has no default chord");
         let prev = default_chord(KeybindAction::WindowSwitcherPrev, ModKey::Super);
-        assert_eq!(prev.display(), "Alt+Shift+Tab");
+        assert_eq!(prev.display(), "Shift+Super+Tab");
         let overview = default_chord(KeybindAction::WorkspaceOverview, ModKey::Super);
         assert_eq!(overview.display(), "Super+Tab");
     }

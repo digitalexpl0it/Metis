@@ -1,11 +1,7 @@
-//! Per-window thumbnails for Alt+Tab.
-//!
-//! Prefers compositor-rendered PNGs (`CaptureWindowThumbs`) so each card shows
-//! that window's own buffers — not a misleading crop of whatever is on screen.
-//! Falls back to app icons when a thumb file is missing.
+//! Shared live thumbnails for Task View (window cards + workspace shelf).
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use gtk::gdk;
@@ -17,51 +13,42 @@ pub struct ThumbSet {
     pub textures: HashMap<u32, gdk::Texture>,
 }
 
-/// Ask the compositor to refresh thumbs, wait briefly for PNGs, load them.
+#[derive(Clone)]
+pub struct WorkspaceThumbSet {
+    pub textures: HashMap<u32, gdk::Texture>,
+}
+
+/// Ask the compositor to refresh window thumbs, wait briefly for PNGs, load them.
 pub fn load_window_thumbs(windows: &[WindowInfo]) -> Option<ThumbSet> {
     let ids: Vec<u32> = windows.iter().map(|w| w.id).collect();
     if ids.is_empty() {
         return None;
     }
 
-    // Queue a GL capture for every id. Reply lists paths that already exist
-    // (from prior focus); newly queued ones appear after the next compositor frame.
+    let paths: Vec<PathBuf> = ids.iter().map(|id| thumb_path(*id)).collect();
+    for path in &paths {
+        let _ = std::fs::remove_file(path);
+    }
+
     let _ = metis_protocol::send_compositor_command(&CompositorCommand::CaptureWindowThumbs {
         ids: ids.clone(),
     });
 
-    let deadline = Instant::now() + Duration::from_millis(400);
-    while Instant::now() < deadline {
-        let ready = ids.iter().filter(|id| thumb_path(**id).is_file()).count();
-        if ready == ids.len() {
-            break;
-        }
-        // Separate compositor process can render while we wait; keep this short
-        // so Alt+Tab still feels snappy when some thumbs are already cached.
-        std::thread::sleep(Duration::from_millis(20));
-    }
+    wait_for_files(&paths, Duration::from_millis(450));
 
-    // One more nudge in case the first frame missed the queue (idle compositor).
     if ids.iter().any(|id| !thumb_path(*id).is_file()) {
         if let Ok(CompositorEvent::WindowThumbs { .. }) =
             metis_protocol::send_compositor_command(&CompositorCommand::CaptureWindowThumbs {
                 ids: ids.clone(),
             })
         {
-            let extra = Instant::now() + Duration::from_millis(200);
-            while Instant::now() < extra {
-                if ids.iter().all(|id| thumb_path(*id).is_file()) {
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(20));
-            }
+            wait_for_files(&paths, Duration::from_millis(250));
         }
     }
 
     let mut textures = HashMap::new();
     for id in ids {
-        let path = thumb_path(id);
-        if let Some(tex) = load_png_texture(&path) {
+        if let Some(tex) = load_png_texture(&thumb_path(id)) {
             textures.insert(id, tex);
         }
     }
@@ -72,10 +59,83 @@ pub fn load_window_thumbs(windows: &[WindowInfo]) -> Option<ThumbSet> {
     }
 }
 
-pub fn thumb_path(id: u32) -> std::path::PathBuf {
+/// Live mini-desktop PNGs for the Task View shelf.
+pub fn load_workspace_thumbs(output: &str, workspaces: &[u32]) -> Option<WorkspaceThumbSet> {
+    if output.is_empty() || workspaces.is_empty() {
+        return None;
+    }
+
+    let paths: Vec<PathBuf> = workspaces
+        .iter()
+        .map(|ws| workspace_thumb_path(output, *ws))
+        .collect();
+    // Bust stale cache so we wait for the compositor's fresh GL write instead of
+    // returning yesterday's PNGs (which made the shelf need a second Super+Tab).
+    for path in &paths {
+        let _ = std::fs::remove_file(path);
+    }
+
+    let _ = metis_protocol::send_compositor_command(&CompositorCommand::CaptureWorkspaceThumbs {
+        output: output.to_string(),
+        workspaces: workspaces.to_vec(),
+    });
+
+    wait_for_files(&paths, Duration::from_millis(500));
+
+    if paths.iter().any(|p| !p.is_file()) {
+        if let Ok(CompositorEvent::WorkspaceThumbs { .. }) =
+            metis_protocol::send_compositor_command(&CompositorCommand::CaptureWorkspaceThumbs {
+                output: output.to_string(),
+                workspaces: workspaces.to_vec(),
+            })
+        {
+            wait_for_files(&paths, Duration::from_millis(300));
+        }
+    }
+
+    let mut textures = HashMap::new();
+    for &ws in workspaces {
+        if let Some(tex) = load_png_texture(&workspace_thumb_path(output, ws)) {
+            textures.insert(ws, tex);
+        }
+    }
+    if textures.is_empty() {
+        None
+    } else {
+        Some(WorkspaceThumbSet { textures })
+    }
+}
+
+pub fn thumb_path(id: u32) -> PathBuf {
     metis_protocol::runtime_dir()
         .join("thumbs")
         .join(format!("{id}.png"))
+}
+
+pub fn workspace_thumb_path(output: &str, workspace: u32) -> PathBuf {
+    let safe: String = output
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    metis_protocol::runtime_dir()
+        .join("thumbs")
+        .join(format!("ws-{safe}-{workspace}.png"))
+}
+
+fn wait_for_files(paths: &[PathBuf], budget: Duration) {
+    let deadline = Instant::now() + budget;
+    while Instant::now() < deadline {
+        if paths.iter().all(|p| p.is_file()) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 fn load_png_texture(path: &Path) -> Option<gdk::Texture> {

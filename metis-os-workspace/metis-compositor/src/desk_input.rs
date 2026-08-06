@@ -445,6 +445,9 @@ impl MetisState {
         if self.screenshot_overlay_active() {
             return self.screenshot_overlay_surface_at(pos);
         }
+        if self.task_view_overlay_active() {
+            return self.task_view_overlay_surface_at(pos);
+        }
         if self.protocol_lock.is_locked() {
             return self.protocol_lock_surface_at(pos);
         }
@@ -710,6 +713,9 @@ impl MetisState {
         // to windows and compositor resize chrome still fires.
         if self.screenshot_overlay_active() {
             return self.screenshot_overlay_surface_at(pos);
+        }
+        if self.task_view_overlay_active() {
+            return self.task_view_overlay_surface_at(pos);
         }
 
         let output = self.space.outputs().find(|o| {

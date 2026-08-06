@@ -9,18 +9,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Added
 
+- **Task View (Super+Tab)** — unified Exclusive overlay: large live thumbnails
+  of apps on the current workspace (Tab / Shift+Tab cycle, Enter or click to
+  activate) plus a bottom shelf of live workspace mini-desktops (wallpaper +
+  non-minimized windows). Drag an app onto a shelf tile to move it. Esc or a
+  second `Super+Tab` dismisses. `Alt+Tab` is unbound by default (remap
+  Task View next/prev in Settings if desired).
 - **Phase 18 roadmap** — security polish backlog in `TODO.md` / `SECURITY.md`:
   gaming path canonicalize, IPC rate limits, widget pack schema gate, per-sandbox
   XWayland stretch; explicitly defers wayland-rs ObjectData wrappers and unprofiled
   grid memoization.
-- **Alt+Tab window switcher** — `Alt+Tab` / `Alt+Shift+Tab` open an Exclusive
-  layer-shell overlay of MRU windows on the current output and workspace with
-  per-window compositor thumbnails (falls back to app icons). Release Alt
-  (compositor-handled) or Enter/click to activate; Esc cancels. Remappable in
-  Settings → Keyboard.
-- **Workspace overview** — `Super+Tab` shows a grid of workspaces on the focused
-  output with live window previews. Click to switch/focus; drag window cards
-  onto tiles to `MoveWindowToWorkspace`. Esc or a second `Super+Tab` dismisses.
 - **App launch single-flight** — launcher and pinned-dock starts suppress
   duplicate clicks for the same desktop id until a matching window maps (or ~8s
   timeout). The dock icon pulses while starting; a short “Starting …” toast
@@ -28,14 +26,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Fixed
 
-- **Alt+Tab live previews** — each card is a compositor-rendered PNG of that
-  window's own surfaces (`CaptureWindowThumbs`), not a screen crop. Buried or
-  maximized apps no longer share one live frame while others fall back to icons.
-- **Alt+Tab activate** — releasing Alt now activates via the compositor (the
-  Exclusive overlay never received Alt). Activation restores minimized windows,
-  raises buried ones, and defers focus until the overlay unmaps.
-- **Workspace overview layout** — window cards use scaled geometry with a higher
-  minimum size so tiles no longer collapse into a tiny icon pile.
+- **Task View click / drag** — compositor `close-popovers` on every pointer
+  press was tearing down the overlay on button-down (Enter still worked). Task
+  View is excluded from that path, owns full-output pointer hits like the
+  screenshot overlay, and no longer dismisses via `close-popovers`. Click an
+  app to focus; drag to a shelf tile without the overlay closing; empty
+  backdrop click dismisses.
+- **Task View close control** — each app card has a top-right × that closes
+  that window via `CloseWindow`; the overlay stays open and rebuilds.
+- **Task View drag preview + shelf refresh** — dragging an app shows a mini
+  card that follows the cursor; after drop (or close), workspace shelf thumbs
+  are recaptured so mini-desktops update.
+- **Task View live previews** — app cards use per-window compositor PNGs
+  (`CaptureWindowThumbs`); shelf tiles use `CaptureWorkspaceThumbs` (wallpaper +
+  windows, including inactive workspaces).
 - **GitHub Desktop / Electron multi-minute relaunch hang** — the compositor kept
   exited client processes as zombies (`child_processes` was only `try_wait`’d for
   desktop-widgets). Chromium ProcessSingleton treats a zombie PID as still alive

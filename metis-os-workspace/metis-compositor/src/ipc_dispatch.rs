@@ -72,6 +72,7 @@ pub fn command_denied_while_locked(cmd: &CompositorCommand) -> bool {
             | C::BeginCaptureOverlay { .. }
             | C::BeginScreenshotOverlay
             | C::CaptureWindowThumbs { .. }
+            | C::CaptureWorkspaceThumbs { .. }
             | C::InjectRemotePointerAbsolute { .. }
             | C::InjectRemotePointerRelative { .. }
             | C::InjectRemotePointerButton { .. }

@@ -125,15 +125,17 @@ fn dispatch_keybind(state: &mut MetisState, action: KeybindAction) -> bool {
             true
         }
         KeybindAction::WindowSwitcherNext => {
-            let _ = metis_protocol::write_runtime_command("window-switcher-next");
+            let _ = metis_protocol::write_runtime_command("task-view-next");
             true
         }
         KeybindAction::WindowSwitcherPrev => {
-            let _ = metis_protocol::write_runtime_command("window-switcher-prev");
+            let _ = metis_protocol::write_runtime_command("task-view-prev");
             true
         }
         KeybindAction::WorkspaceOverview => {
-            let _ = metis_protocol::write_runtime_command("workspace-overview");
+            // Super+Tab opens Task View, then each further Super+Tab cycles —
+            // same verb as next so the chord never toggles the overlay closed.
+            let _ = metis_protocol::write_runtime_command("task-view-next");
             true
         }
         KeybindAction::CycleWorkspacePrev => {
@@ -472,13 +474,21 @@ impl MetisState {
                         // Reserve a standalone Super tap for the application
                         // menu. Any other pressed key turns it into a normal
                         // shortcut chord instead.
+                        //
+                        // Task View is a *sticky* overlay (Windows Task View):
+                        // releasing Super must neither open the menu nor
+                        // activate/dismiss — the user releases Super to click
+                        // and drag with the mouse.
                         if is_super_keysym(sym) {
                             match key_state {
                                 KeyState::Pressed => {
-                                    state.super_tap_armed = !modifiers.ctrl && !modifiers.alt;
+                                    state.super_tap_armed = !modifiers.ctrl
+                                        && !modifiers.alt
+                                        && !state.task_view_overlay_active();
                                 }
                                 KeyState::Released => {
-                                    let toggle_menu = state.super_tap_armed;
+                                    let toggle_menu =
+                                        state.super_tap_armed && !state.task_view_overlay_active();
                                     state.super_tap_armed = false;
                                     if toggle_menu {
                                         let _ =
@@ -504,24 +514,6 @@ impl MetisState {
                                     let _ = metis_protocol::write_runtime_command(cmd);
                                 }
                             }
-                            return FilterResult::Intercept(());
-                        }
-
-                        // Classic Alt+Tab: when the switcher overlay is up, releasing
-                        // Alt activates the highlighted window. The shell never sees
-                        // Alt (chords were intercepted), so this must live here.
-                        if key_state == KeyState::Released
-                            && state.window_switcher_overlay_active()
-                            && matches!(
-                                sym,
-                                keysyms::KEY_Alt_L
-                                    | keysyms::KEY_Alt_R
-                                    | keysyms::KEY_Meta_L
-                                    | keysyms::KEY_Meta_R
-                            )
-                        {
-                            let _ =
-                                metis_protocol::write_runtime_command("window-switcher-activate");
                             return FilterResult::Intercept(());
                         }
 
@@ -589,23 +581,19 @@ impl MetisState {
                                             | KeybindAction::ScreenshotFull
                                             | KeybindAction::ScreenshotWindow
                                     );
-                                    let is_window_switcher = matches!(
+                                    let is_task_view_cycle = matches!(
                                         action,
                                         KeybindAction::WindowSwitcherNext
                                             | KeybindAction::WindowSwitcherPrev
                                     );
-                                    let is_workspace_overview =
+                                    let is_task_view =
                                         matches!(action, KeybindAction::WorkspaceOverview);
                                     let allow = if is_screenshot {
                                         true
-                                    } else if is_window_switcher {
-                                        // Keep cycling once the switcher owns the
-                                        // keyboard; otherwise only fire when no
-                                        // Exclusive shell layer is mapped.
-                                        state.window_switcher_overlay_active()
-                                            || state.exclusive_keyboard_layer().is_none()
-                                    } else if is_workspace_overview {
-                                        state.workspace_overview_overlay_active()
+                                    } else if is_task_view_cycle || is_task_view {
+                                        // Keep cycling / toggling once Task View owns
+                                        // the keyboard; otherwise only when free.
+                                        state.task_view_overlay_active()
                                             || state.exclusive_keyboard_layer().is_none()
                                     } else {
                                         state.exclusive_keyboard_layer().is_none()
@@ -865,9 +853,13 @@ impl MetisState {
                     // on the NC panel itself must not dismiss. While a capture
                     // picker owns the pointer, no press counts as an outside click:
                     // the shell UI being framed must survive the selection drag.
+                    // Task View is sticky (Win11-style): pointer presses must not
+                    // broadcast close-popovers, or the shell tears the overlay down
+                    // on button-down before click/drag can complete.
                     if !pointer.is_grabbed()
                         && !on_nc
                         && !self.screenshot_overlay_active()
+                        && !self.task_view_overlay_active()
                         && !self.capture_overlay_active()
                         && (!on_bar_ui || self.notification_center_mapped())
                     {
@@ -885,6 +877,7 @@ impl MetisState {
                         && button == BTN_LEFT
                         && !self.capture_overlay_active()
                         && !self.screenshot_overlay_active()
+                        && !self.task_view_overlay_active()
                     {
                         chrome_press = self.handle_resize_press(loc, serial, button)
                             || self.handle_decoration_press(loc, serial, button);
@@ -892,7 +885,7 @@ impl MetisState {
                             self.schedule_redraw();
                         }
                     }
-                    if !chrome_press {
+                    if !chrome_press && !self.task_view_overlay_active() {
                         self.update_keyboard_focus(loc, serial);
                         if !paste_button {
                             self.sync_selection_focus_from_target(&under);

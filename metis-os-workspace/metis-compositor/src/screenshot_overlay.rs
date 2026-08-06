@@ -27,13 +27,38 @@ impl MetisState {
         self.screenshot_overlay.active
     }
 
-    pub(crate) fn window_switcher_overlay_active(&self) -> bool {
-        self.layer_with_namespace("metis-window-switcher").is_some()
+    pub(crate) fn task_view_overlay_active(&self) -> bool {
+        self.layer_with_namespace("metis-task-view").is_some()
     }
 
-    pub(crate) fn workspace_overview_overlay_active(&self) -> bool {
-        self.layer_with_namespace("metis-workspace-overview")
-            .is_some()
+    pub(crate) fn task_view_overlay_layer(&self) -> Option<LayerSurface> {
+        self.layer_with_namespace("metis-task-view")
+    }
+
+    /// While Task View is open, deliver pointer hits to that layer everywhere
+    /// (including transparent backdrop) so clicks/drags are not stolen by apps
+    /// underneath and so `close-popovers` is not triggered via fall-through.
+    pub(crate) fn task_view_overlay_surface_at(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Option<(WlSurface, Point<f64, Logical>)> {
+        let layer = self.task_view_overlay_layer()?;
+        let output = self.space.outputs().find(|o| {
+            self.space
+                .output_geometry(o)
+                .is_some_and(|geo| geo.contains(pos.to_i32_round()))
+        })?;
+        let output_geo = self.space.output_geometry(output)?;
+        let layers = layer_map_for_output(output);
+        let layer_geo = layers.layer_geometry(&layer)?;
+        let rel = pos - output_geo.loc.to_f64();
+        let local = rel - layer_geo.loc.to_f64();
+        if let Some((surface, loc)) =
+            layer.surface_under(local, smithay::desktop::WindowSurfaceType::ALL)
+        {
+            return Some((surface, (loc + layer_geo.loc + output_geo.loc).to_f64()));
+        }
+        Some((layer.wl_surface().clone(), pos))
     }
 
     pub(crate) fn layer_with_namespace(&self, namespace: &str) -> Option<LayerSurface> {

@@ -407,6 +407,11 @@ impl Wallpaper {
         Some((texture.clone(), texture.size()))
     }
 
+    /// Borrow the uploaded wallpaper buffer (Task View workspace thumbs).
+    pub fn buffer_ref(&self) -> Option<&TextureBuffer<GlesTexture>> {
+        self.buffer.as_ref()
+    }
+
     pub fn render_element(&self) -> Option<TextureRenderElement<GlesTexture>> {
         self.render_element_at(Point::from((0.0, 0.0)))
     }

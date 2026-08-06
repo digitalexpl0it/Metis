@@ -261,7 +261,10 @@ pub fn init_winit(
                     // still update during interaction; the heartbeat caps us at 60fps.
                     let render = state.damaged;
 
-                    if state.image_capture.has_pending() || state.has_pending_window_thumbs() {
+                    if state.image_capture.has_pending()
+                        || state.has_pending_window_thumbs()
+                        || state.has_pending_workspace_thumbs()
+                    {
                         let mut backend = backend_winit.borrow_mut();
                         match backend.bind() {
                             Ok((renderer, _framebuffer)) => {
