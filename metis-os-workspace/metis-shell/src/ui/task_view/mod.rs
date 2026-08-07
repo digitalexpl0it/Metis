@@ -21,14 +21,17 @@ use crate::ui::window_thumbs::{self, ThumbSet, WorkspaceThumbSet};
 thread_local! {
     static OVERLAY: RefCell<Option<Rc<TaskView>>> = const { RefCell::new(None) };
     static ACTIVATING: Cell<bool> = const { Cell::new(false) };
-    /// True while an app-card DnD is in progress. Shelf clicks must ignore the
+    /// True while an app-card drag is in progress. Shelf clicks must ignore the
     /// button-release that ends a drop, or they switch workspace and dismiss.
     static APP_DRAG_ACTIVE: Cell<bool> = const { Cell::new(false) };
+    /// Rebuild/thumb refresh requested while a drag was active — flush on end.
+    static REFRESH_PENDING: Cell<bool> = const { Cell::new(false) };
 }
 
 struct TaskView {
     window: gtk::Window,
-    overlay: gtk::Overlay,
+    /// Hit-through layer for the floating drag ghost (Fixed avoids margin reflow).
+    drag_layer: gtk::Fixed,
     apps: gtk::FlowBox,
     shelf: gtk::Box,
     cards: RefCell<Vec<gtk::Widget>>,
@@ -37,8 +40,6 @@ struct TaskView {
     output: RefCell<Option<String>>,
     thumbs: RefCell<Option<ThumbSet>>,
     workspace_thumbs: RefCell<Option<WorkspaceThumbSet>>,
-    /// Floating mini-card that tracks the pointer during DnD (layer-shell
-    /// often hides the native Wayland drag icon).
     drag_ghost: RefCell<Option<gtk::Widget>>,
     pointer: Cell<(f64, f64)>,
 }
@@ -92,6 +93,7 @@ pub fn activate_selected() {
 
 pub fn dismiss() {
     APP_DRAG_ACTIVE.with(|c| c.set(false));
+    REFRESH_PENDING.with(|c| c.set(false));
     OVERLAY.with(|o| {
         if let Some(tv) = o.borrow_mut().take() {
             clear_drag_ghost(&tv);
@@ -103,12 +105,21 @@ pub fn dismiss() {
 }
 
 pub fn on_windows_changed() {
+    if APP_DRAG_ACTIVE.with(|c| c.get()) {
+        // Never rebuild mid-drag — destroying the gesture widget freezes GTK.
+        REFRESH_PENDING.with(|c| c.set(true));
+        return;
+    }
     schedule_refresh_after_change();
 }
 
 /// Immediate card/shelf layout from the current window list, then a deferred
 /// live thumb recapture so workspace mini-desktops update after moves/closes.
 fn schedule_refresh_after_change() {
+    if APP_DRAG_ACTIVE.with(|c| c.get()) {
+        REFRESH_PENDING.with(|c| c.set(true));
+        return;
+    }
     rebuild_after_move();
     OVERLAY.with(|o| {
         let Some(tv) = o.borrow().as_ref().cloned() else {
@@ -116,7 +127,10 @@ fn schedule_refresh_after_change() {
         };
         // Give the compositor a beat to apply MoveWindow / close before GL grab.
         glib::timeout_add_local_once(std::time::Duration::from_millis(140), move || {
-            if !is_open() {
+            if !is_open() || APP_DRAG_ACTIVE.with(|c| c.get()) {
+                if is_open() {
+                    REFRESH_PENDING.with(|c| c.set(true));
+                }
                 return;
             }
             OVERLAY.with(|o| {
@@ -131,6 +145,20 @@ fn schedule_refresh_after_change() {
             });
         });
     });
+}
+
+fn finish_app_drag() {
+    APP_DRAG_ACTIVE.with(|c| c.set(false));
+    OVERLAY.with(|o| {
+        if let Some(tv) = o.borrow().as_ref() {
+            clear_drag_ghost(tv);
+            clear_shelf_drop_hover(tv);
+        }
+    });
+    if REFRESH_PENDING.with(|c| c.replace(false)) {
+        windows::reconcile_now();
+        schedule_refresh_after_change();
+    }
 }
 
 /// Rebuild cards/shelf from the current window snapshot, keeping cached thumbs.
@@ -250,6 +278,14 @@ fn show(forward: bool) {
     root.set_can_target(true);
     overlay.set_child(Some(&root));
 
+    // Hit-through Fixed for the drag ghost — `move_` is cheap vs Overlay margins.
+    let drag_layer = gtk::Fixed::new();
+    drag_layer.add_css_class("metis-task-view-drag-layer");
+    drag_layer.set_hexpand(true);
+    drag_layer.set_vexpand(true);
+    drag_layer.set_can_target(false);
+    overlay.add_overlay(&drag_layer);
+
     // Click empty backdrop (not a card/shelf) to dismiss — Win11 Task View.
     let backdrop_click = gtk::GestureClick::new();
     backdrop_click.set_button(1);
@@ -351,7 +387,7 @@ fn show(forward: bool) {
 
     let tv = Rc::new(TaskView {
         window: window.clone(),
-        overlay: overlay.clone(),
+        drag_layer: drag_layer.clone(),
         apps: apps.clone(),
         shelf: shelf.clone(),
         cards: RefCell::new(Vec::new()),
@@ -364,15 +400,14 @@ fn show(forward: bool) {
         pointer: Cell::new((0.0, 0.0)),
     });
 
+    // Keep a last-known pointer for ghost spawn; live tracking uses GestureDrag
+    // surface coords (motion controllers go quiet once a native DnD starts).
     let motion = gtk::EventControllerMotion::new();
     motion.connect_motion(move |_, x, y| {
         OVERLAY.with(|o| {
-            let borrow = o.borrow();
-            let Some(tv) = borrow.as_ref() else {
-                return;
-            };
-            tv.pointer.set((x, y));
-            position_drag_ghost(tv, x, y);
+            if let Some(tv) = o.borrow().as_ref() {
+                tv.pointer.set((x, y));
+            }
         });
     });
     window.add_controller(motion);
@@ -517,79 +552,118 @@ fn build_app_card(
     preview.append(&thumb);
     card.append(&preview);
 
-    // Suppress activate when this press became a drag (or any app drag is live).
-    let drag_started = Rc::new(Cell::new(false));
+    // Click = activate; press-and-drag past the DnD threshold = move to workspace.
+    // GestureDrag's drag-begin fires on button-down, so we only enter drag mode
+    // once offset exceeds gtk-dnd-drag-threshold.
+    let drag_armed = Rc::new(Cell::new(false));
 
-    let tv_click = tv.clone();
-    let drag_for_click = drag_started.clone();
-    let click = gtk::GestureClick::new();
-    click.set_button(1);
-    click.connect_pressed(move |_, _, _, _| {
-        drag_for_click.set(false);
-        tv_click.selected.set(index);
-        refresh_selection(&tv_click);
-    });
-    let drag_for_release = drag_started.clone();
-    click.connect_released(move |_, n_press, _, _| {
-        if n_press != 1 || drag_for_release.get() || APP_DRAG_ACTIVE.with(|c| c.get()) {
-            return;
+    let gesture = gtk::GestureDrag::new();
+    gesture.set_button(gdk::BUTTON_PRIMARY);
+    gesture.set_propagation_phase(gtk::PropagationPhase::Bubble);
+
+    let tv_begin = tv.clone();
+    let armed_begin = drag_armed.clone();
+    gesture.connect_drag_begin(move |g, _, _| {
+        armed_begin.set(false);
+        tv_begin.selected.set(index);
+        refresh_selection(&tv_begin);
+        if let Some((x, y)) = gesture_surface_pos(g) {
+            tv_begin.pointer.set((x, y));
         }
-        activate_selected();
     });
-    card.add_controller(click);
 
-    let drag = gtk::DragSource::new();
-    drag.set_actions(gdk::DragAction::MOVE | gdk::DragAction::COPY);
-    let id_str = w.id.to_string();
-    drag.connect_prepare(move |_, _, _| {
-        Some(gdk::ContentProvider::for_value(&glib::Value::from(
-            id_str.clone(),
-        )))
-    });
-    let card_drag = card.clone();
-    let drag_begin_flag = drag_started.clone();
     let drag_title = w.title.clone();
     let drag_app_id = w.app_id.clone();
     let drag_thumb = thumbs.and_then(|t| t.textures.get(&w.id)).cloned();
-    let tv_drag = tv.clone();
-    drag.connect_drag_begin(move |source, _| {
-        drag_begin_flag.set(true);
-        APP_DRAG_ACTIVE.with(|c| c.set(true));
-        card_drag.add_css_class("dragging");
-        // Native Wayland drag icons are unreliable on Exclusive layer-shell;
-        // show a mini card inside our overlay that tracks the pointer.
-        show_drag_ghost(
-            &tv_drag,
-            drag_title.as_str(),
-            drag_app_id.as_deref(),
-            drag_thumb.as_ref(),
-        );
-        if let Some(tex) = drag_thumb.as_ref() {
-            let hx = tex.intrinsic_width().max(1) / 2;
-            let hy = tex.intrinsic_height().max(1) / 2;
-            source.set_icon(Some(tex), hx, hy);
+    let window_id = w.id;
+    let tv_update = tv.clone();
+    let card_drag = card.clone();
+    let armed_update = drag_armed.clone();
+    gesture.connect_drag_update(move |g, ox, oy| {
+        if !armed_update.get() {
+            let threshold = drag_threshold_px();
+            if ox.hypot(oy) < threshold {
+                return;
+            }
+            armed_update.set(true);
+            APP_DRAG_ACTIVE.with(|c| c.set(true));
+            card_drag.add_css_class("dragging");
+            g.set_state(gtk::EventSequenceState::Claimed);
+            if let Some((x, y)) = gesture_surface_pos(g) {
+                tv_update.pointer.set((x, y));
+            }
+            show_drag_ghost(
+                &tv_update,
+                drag_title.as_str(),
+                drag_app_id.as_deref(),
+                drag_thumb.as_ref(),
+            );
+        }
+        let Some((x, y)) = gesture_surface_pos(g) else {
+            return;
+        };
+        tv_update.pointer.set((x, y));
+        position_drag_ghost(&tv_update, x, y);
+        update_shelf_drop_hover(&tv_update, x, y);
+    });
+
+    let tv_end = tv.clone();
+    let card_end = card.clone();
+    let armed_end = drag_armed.clone();
+    gesture.connect_drag_end(move |g, _, _| {
+        card_end.remove_css_class("dragging");
+        if armed_end.get() {
+            let drop_ws = gesture_surface_pos(g)
+                .or_else(|| Some(tv_end.pointer.get()))
+                .and_then(|(x, y)| workspace_under_point(&tv_end, x, y));
+            if let Some(workspace) = drop_ws {
+                if let Err(err) = crate::compositor::move_window_to_workspace(window_id, workspace)
+                {
+                    tracing::warn!(window_id, workspace, %err, "task view move failed");
+                } else {
+                    REFRESH_PENDING.with(|c| c.set(true));
+                }
+            }
+            // Idle so a shelf click-released sees APP_DRAG_ACTIVE first.
+            glib::idle_add_local_once(|| {
+                finish_app_drag();
+            });
         } else {
-            let paintable = gtk::WidgetPaintable::new(Some(&card_drag));
-            source.set_icon(Some(&paintable), CARD_W / 2, 24);
+            // Short click: bring the selected app to front.
+            activate_selected();
         }
     });
-    let card_end = card.clone();
-    let tv_end = tv.clone();
-    drag.connect_drag_end(move |_, _, _| {
-        card_end.remove_css_class("dragging");
-        clear_drag_ghost(&tv_end);
-        // Keep APP_DRAG_ACTIVE until after the shelf's click-released runs.
-        glib::idle_add_local_once(|| {
-            APP_DRAG_ACTIVE.with(|c| c.set(false));
-        });
+
+    let tv_cancel = tv.clone();
+    let card_cancel = card.clone();
+    let armed_cancel = drag_armed;
+    gesture.connect_cancel(move |_, _| {
+        card_cancel.remove_css_class("dragging");
+        if armed_cancel.get() {
+            clear_drag_ghost(&tv_cancel);
+            glib::idle_add_local_once(|| {
+                finish_app_drag();
+            });
+        }
     });
-    card.add_controller(drag);
+    card.add_controller(gesture);
 
     card
 }
 
-const DRAG_HOT_X: i32 = 80;
-const DRAG_HOT_Y: i32 = 24;
+fn drag_threshold_px() -> f64 {
+    gtk::Settings::default()
+        .map(|s| f64::from(s.gtk_dnd_drag_threshold().max(1)))
+        .unwrap_or(8.0)
+}
+
+const DRAG_HOT_X: f64 = 80.0;
+const DRAG_HOT_Y: f64 = 24.0;
+
+/// Surface-local pointer for the active gesture (stable while the card moves).
+fn gesture_surface_pos(gesture: &gtk::GestureDrag) -> Option<(f64, f64)> {
+    gesture.current_event()?.position()
+}
 
 fn show_drag_ghost(
     tv: &Rc<TaskView>,
@@ -599,20 +673,16 @@ fn show_drag_ghost(
 ) {
     clear_drag_ghost(tv);
     let ghost = build_drag_preview(title, app_id, thumb);
-    ghost.set_halign(gtk::Align::Start);
-    ghost.set_valign(gtk::Align::Start);
     ghost.set_can_target(false);
     ghost.set_sensitive(false);
     let (x, y) = tv.pointer.get();
-    ghost.set_margin_start((x as i32).saturating_sub(DRAG_HOT_X));
-    ghost.set_margin_top((y as i32).saturating_sub(DRAG_HOT_Y));
-    tv.overlay.add_overlay(&ghost);
+    tv.drag_layer.put(&ghost, x - DRAG_HOT_X, y - DRAG_HOT_Y);
     *tv.drag_ghost.borrow_mut() = Some(ghost.upcast());
 }
 
 fn clear_drag_ghost(tv: &TaskView) {
     if let Some(ghost) = tv.drag_ghost.borrow_mut().take() {
-        tv.overlay.remove_overlay(&ghost);
+        tv.drag_layer.remove(&ghost);
     }
 }
 
@@ -620,8 +690,40 @@ fn position_drag_ghost(tv: &TaskView, x: f64, y: f64) {
     let Some(ghost) = tv.drag_ghost.borrow().clone() else {
         return;
     };
-    ghost.set_margin_start((x as i32).saturating_sub(DRAG_HOT_X));
-    ghost.set_margin_top((y as i32).saturating_sub(DRAG_HOT_Y));
+    tv.drag_layer.move_(&ghost, x - DRAG_HOT_X, y - DRAG_HOT_Y);
+}
+
+fn clear_shelf_drop_hover(tv: &TaskView) {
+    let mut child = tv.shelf.first_child();
+    while let Some(tile) = child {
+        tile.remove_css_class("drop-hover");
+        child = tile.next_sibling();
+    }
+}
+
+fn update_shelf_drop_hover(tv: &TaskView, x: f64, y: f64) {
+    clear_shelf_drop_hover(tv);
+    if let Some(tile) = shelf_tile_under_point(tv, x, y) {
+        tile.add_css_class("drop-hover");
+    }
+}
+
+fn shelf_tile_under_point(tv: &TaskView, x: f64, y: f64) -> Option<gtk::Widget> {
+    let target = tv.window.pick(x, y, gtk::PickFlags::DEFAULT)?;
+    let mut w: Option<gtk::Widget> = Some(target);
+    while let Some(widget) = w {
+        if widget.has_css_class("metis-task-view-shelf-tile") {
+            return Some(widget);
+        }
+        w = widget.parent();
+    }
+    None
+}
+
+fn workspace_under_point(tv: &TaskView, x: f64, y: f64) -> Option<u32> {
+    let tile = shelf_tile_under_point(tv, x, y)?;
+    let name = tile.widget_name();
+    name.strip_prefix("ws-")?.parse().ok()
 }
 
 /// Floating mini-card that tracks the pointer during an app → workspace drag.
@@ -675,6 +777,7 @@ fn build_shelf_tile(
 ) -> gtk::Box {
     let tile = gtk::Box::new(gtk::Orientation::Vertical, 4);
     tile.add_css_class("metis-task-view-shelf-tile");
+    tile.set_widget_name(&format!("ws-{workspace}"));
     if workspace == active {
         tile.add_css_class("active");
     }
@@ -717,8 +820,6 @@ fn build_shelf_tile(
     let out_click = tv.output.borrow().clone();
     let click = gtk::GestureClick::new();
     click.set_button(1);
-    // Bubble (not Capture) so DropTarget can accept the drop first; also skip
-    // when an app drag just ended on this tile.
     click.set_propagation_phase(gtk::PropagationPhase::Bubble);
     click.connect_released(move |_, n_press, _, _| {
         if n_press != 1 || APP_DRAG_ACTIVE.with(|c| c.get()) {
@@ -727,46 +828,6 @@ fn build_shelf_tile(
         switch_and_dismiss(out_click.clone(), workspace);
     });
     tile.add_controller(click);
-
-    let drop = gtk::DropTarget::new(
-        String::static_type(),
-        gdk::DragAction::MOVE | gdk::DragAction::COPY,
-    );
-    let tile_drop = tile.clone();
-    drop.connect_drop(move |_, value, _, _| {
-        let Ok(id_str) = value.get::<String>() else {
-            return false;
-        };
-        let Ok(window_id) = id_str.parse::<u32>() else {
-            return false;
-        };
-        // Hold the drag-active guard across the drop→click-release race.
-        APP_DRAG_ACTIVE.with(|c| c.set(true));
-        if let Err(err) = crate::compositor::move_window_to_workspace(window_id, workspace) {
-            tracing::warn!(window_id, workspace, %err, "task view move failed");
-            glib::idle_add_local_once(|| {
-                APP_DRAG_ACTIVE.with(|c| c.set(false));
-            });
-            return false;
-        }
-        // Rebuild layout immediately, then recapture workspace thumbs so the
-        // shelf reflects the window on its new desktop.
-        glib::idle_add_local_once(|| {
-            windows::reconcile_now();
-            schedule_refresh_after_change();
-            APP_DRAG_ACTIVE.with(|c| c.set(false));
-        });
-        true
-    });
-    drop.connect_enter(move |_, _, _| {
-        tile_drop.add_css_class("drop-hover");
-        gdk::DragAction::MOVE
-    });
-    let tile_leave = tile.clone();
-    drop.connect_leave(move |_| {
-        tile_leave.remove_css_class("drop-hover");
-    });
-    tile.add_controller(drop);
 
     tile
 }

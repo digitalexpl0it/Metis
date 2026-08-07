@@ -41,6 +41,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
   `space` raise order so focusing an already-open app updates which window
   sits on top in the mini-desktop. Drag preview uses an in-overlay ghost
   (native Wayland drag icons are unreliable on Exclusive layer-shell).
+- **Task View drag hang** — native `GtkDragSource`/`set_icon` froze the
+  Exclusive overlay after the ghost appeared. App→workspace moves now use
+  `GestureDrag` + a Fixed-layer ghost; UI rebuilds are deferred until drag ends.
+  Short click activates; press-and-drag past `gtk-dnd-drag-threshold` moves.
+- **Task View docs** — README screenshots restored; USER_GUIDE / README / TODO
+  updated for Super+Tab Task View (Alt+Tab unbound by default).
 - **Task View live previews** — app cards use per-window compositor PNGs
   (`CaptureWindowThumbs`); shelf tiles use `CaptureWorkspaceThumbs` (wallpaper +
   windows, including inactive workspaces).

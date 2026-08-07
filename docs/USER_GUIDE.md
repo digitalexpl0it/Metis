@@ -2,8 +2,8 @@
 
 Welcome to **Metis** — a Wayland desktop environment built on a custom Smithay
 compositor with a GTK4 layer-shell edge bar. This guide covers everyday use:
-launching a session, the edge bar, managing windows, workspaces, the scrolling
-layout, keyboard shortcuts, and the Settings app.
+launching a session, the edge bar, managing windows, workspaces, **Task View**,
+the scrolling layout, keyboard shortcuts, and the Settings app.
 
 For installation and build prerequisites, see [`UBUNTU_DEV.md`](UBUNTU_DEV.md).
 
@@ -11,8 +11,12 @@ For installation and build prerequisites, see [`UBUNTU_DEV.md`](UBUNTU_DEV.md).
 
 ## 1. Launching Metis
 
-Metis currently runs as a **nested session** inside your existing Wayland session
-(via the winit backend) — ideal for development and trying it out.
+You can run Metis as a **nested** session inside your current Wayland desktop
+(via the winit backend — ideal for development), or as a **standalone** DRM
+session from the greeter / a free VT (see also [`UBUNTU_DEV.md`](UBUNTU_DEV.md)
+and `./run-metis.sh --install-session`).
+
+### Nested (dev)
 
 ```bash
 cd metis-os-workspace/metis-shell
@@ -78,6 +82,9 @@ for dev with `METIS_NO_ONBOARDING=1`.
   volume, weather, app launcher). The **clock** opens the right-side **Notification
   Center** (notifications, calendar, world clocks, timer, alarms). Clicking
   elsewhere or pressing **Esc** dismisses it.
+- **Task View** — `Super`+`Tab` opens a sticky overlay of current-workspace apps
+  and desktop thumbnails (see §6). Click to focus, press-and-drag to another
+  desktop, or Esc to dismiss.
 
 ---
 
@@ -569,12 +576,21 @@ dots or the keyboard:
   1..=count). Always uses **Super**+**Alt** — not remapped by `METIS_MOD` (see
   nested sessions below).
 - Click a workspace dot in the bar to switch.
-- `Alt`+`Tab` / `Alt`+`Shift`+`Tab` — cycle recently used windows on the **current
-  output and workspace**. Release Alt to activate the highlighted window; Esc
-  cancels. Remappable in Settings → Keyboard.
-- `Super`+`Tab` — workspace overview for the focused output. Click a workspace
-  (or its number) to switch; click a window card to switch and focus; drag a
-  window card onto another workspace tile to move it.
+- `Super`+`Tab` — **Task View** (Windows-style sticky overlay) for the focused
+  output: live thumbnails of apps on the current workspace, plus a bottom shelf
+  of desktop mini-previews. Click an app card (or press Enter) to focus it and
+  dismiss; press-and-drag a card onto a desktop tile to move it; click × on a
+  card to close that window without leaving Task View; click a desktop tile to
+  switch workspaces; Esc or empty backdrop dismisses. Further `Super`+`Tab`
+  cycles apps; `Super`+`Shift`+`Tab` cycles backward. Releasing Super does **not**
+  close Task View. `Alt`+`Tab` is unbound by default — remap **Task View (next) /
+  (previous)** in Settings → Keyboard if you want Alt+Tab again.
+
+### Task View
+
+Task View replaces the older separate Alt+Tab strip and workspace-overview grid.
+It is sticky (like Windows Task View): open with `Super`+`Tab`, release Super to
+use the mouse, then click or press Enter to activate.
 
 Keybinds and clicks act on the monitor under the pointer.
 
@@ -683,8 +699,8 @@ and cannot be rebound.
 | `Super`+`/` | Enable grid tiling |
 | `Super`+`\` | Disable tiling (free desktop) |
 | `Print` / `Shift`+`Print` / `Ctrl`+`Print` | Screenshot interactive / full / window |
-| `Alt`+`Tab` / `Alt`+`Shift`+`Tab` | Window switcher next / previous (current output + workspace, MRU order) |
-| `Super`+`Tab` | Toggle workspace overview (drag windows between workspaces) |
+| `Super`+`Tab` | Task View — open / cycle next (sticky; Esc or click to dismiss) |
+| `Super`+`Shift`+`Tab` | Task View — cycle previous |
 | `Super`+`←` `→` `↑` `↓` | (scrolling) Move focus between/within columns |
 | `Super`+`,` / `Super`+`.` | (scrolling) Consume into / expel from a column |
 | `Super`+`-` / `Super`+`=` | (scrolling) Snap the focused column to full / half width |

@@ -1528,7 +1528,7 @@ Unified Task View replaces the separate Alt+Tab strip and workspace grid.
       bottom shelf of live workspace mini-desktops; Tab/Enter/click; DnD move
 - [x] **`CaptureWindowThumbs` / `CaptureWorkspaceThumbs`** compositor PNG path
 - [x] **Defaults** — only `Super+Tab`; Alt+Tab unbound (remap Task View next/prev)
-- [x] USER_GUIDE / CHANGELOG / this checklist
+- [x] USER_GUIDE / README / CHANGELOG / this checklist (Task View docs refreshed 2026-08-06)
 
 **Out of scope:** “New desktop” button; all-monitors unified overview; overview
 on vertical bars / tablet gestures.
