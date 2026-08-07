@@ -114,7 +114,20 @@ fn attach_system_events(event_rx: Receiver<SystemEvent>) {
                     if matches!(&evt, metis_protocol::CompositorEvent::WindowOpened { .. }) {
                         crate::services::windows::reconcile_now();
                     }
-                    crate::ui::task_view::on_windows_changed();
+                    // Refresh Task View only on window/layout churn (not clipboard,
+                    // hotplug, etc.) so shelf thumbs track focus/stacking changes.
+                    if matches!(
+                        &evt,
+                        metis_protocol::CompositorEvent::WindowOpened { .. }
+                            | metis_protocol::CompositorEvent::WindowClosed { .. }
+                            | metis_protocol::CompositorEvent::WindowFocused { .. }
+                            | metis_protocol::CompositorEvent::WindowMetadata { .. }
+                            | metis_protocol::CompositorEvent::WindowList { .. }
+                            | metis_protocol::CompositorEvent::LayoutApplied
+                            | metis_protocol::CompositorEvent::WorkspaceChanged { .. }
+                    ) {
+                        crate::ui::task_view::on_windows_changed();
+                    }
                     if let metis_protocol::CompositorEvent::ClipboardChanged {
                         mime,
                         preview_text,

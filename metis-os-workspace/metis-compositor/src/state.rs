@@ -3490,6 +3490,33 @@ impl MetisState {
             .collect()
     }
 
+    /// Bottom-to-top window order for workspace mini-desktop thumbs.
+    ///
+    /// Mapped windows follow `space.elements()` so raising/focusing an already-
+    /// open app updates which window appears on top in the shelf preview.
+    /// Unmapped windows (inactive workspaces) are appended afterward.
+    pub(crate) fn workspace_thumb_stack_order(&self, key: &str, ws: u32) -> Vec<u32> {
+        let mut ordered = Vec::new();
+        for window in self.space.elements() {
+            let Some(id) = self.windows.id_for_window(window) else {
+                continue;
+            };
+            if self.desk_key_for_window(id) != key {
+                continue;
+            }
+            if self.windows.workspace(id).unwrap_or(1) != ws {
+                continue;
+            }
+            ordered.push(id);
+        }
+        for id in self.window_ids_on_workspace(key, ws) {
+            if !ordered.contains(&id) {
+                ordered.push(id);
+            }
+        }
+        ordered
+    }
+
     /// True when a window belongs to the active workspace on its output and may
     /// be mapped (minimized windows are handled separately).
     fn window_visible_on_desktop(&self, id: u32) -> bool {

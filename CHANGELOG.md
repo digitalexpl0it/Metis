@@ -5,7 +5,7 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2026-08-02]
+## [2026-08-06]
 
 ### Added
 
@@ -37,6 +37,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 - **Task View drag preview + shelf refresh** — dragging an app shows a mini
   card that follows the cursor; after drop (or close), workspace shelf thumbs
   are recaptured so mini-desktops update.
+- **Task View shelf stacking** — workspace thumbs render windows in live
+  `space` raise order so focusing an already-open app updates which window
+  sits on top in the mini-desktop. Drag preview uses an in-overlay ghost
+  (native Wayland drag icons are unreliable on Exclusive layer-shell).
 - **Task View live previews** — app cards use per-window compositor PNGs
   (`CaptureWindowThumbs`); shelf tiles use `CaptureWorkspaceThumbs` (wallpaper +
   windows, including inactive workspaces).

@@ -28,6 +28,7 @@ thread_local! {
 
 struct TaskView {
     window: gtk::Window,
+    overlay: gtk::Overlay,
     apps: gtk::FlowBox,
     shelf: gtk::Box,
     cards: RefCell<Vec<gtk::Widget>>,
@@ -36,6 +37,10 @@ struct TaskView {
     output: RefCell<Option<String>>,
     thumbs: RefCell<Option<ThumbSet>>,
     workspace_thumbs: RefCell<Option<WorkspaceThumbSet>>,
+    /// Floating mini-card that tracks the pointer during DnD (layer-shell
+    /// often hides the native Wayland drag icon).
+    drag_ghost: RefCell<Option<gtk::Widget>>,
+    pointer: Cell<(f64, f64)>,
 }
 
 pub fn is_open() -> bool {
@@ -89,6 +94,7 @@ pub fn dismiss() {
     APP_DRAG_ACTIVE.with(|c| c.set(false));
     OVERLAY.with(|o| {
         if let Some(tv) = o.borrow_mut().take() {
+            clear_drag_ghost(&tv);
             tv.window.set_visible(false);
             tv.window.destroy();
         }
@@ -229,13 +235,20 @@ fn show(forward: bool) {
 
     // Vertical layout: scrolling app plane on top, pinned shelf at bottom —
     // shelf never gets pushed off-screen by many app cards.
+    // Overlay host lets a DnD ghost follow the cursor above cards/shelf.
+    let overlay = gtk::Overlay::new();
+    overlay.add_css_class("metis-task-view-overlay");
+    overlay.set_hexpand(true);
+    overlay.set_vexpand(true);
+    window.set_child(Some(&overlay));
+
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.add_css_class("metis-task-view-backdrop");
     root.set_halign(gtk::Align::Fill);
     root.set_valign(gtk::Align::Fill);
     // Full-surface hit target so transparent regions still receive clicks.
     root.set_can_target(true);
-    window.set_child(Some(&root));
+    overlay.set_child(Some(&root));
 
     // Click empty backdrop (not a card/shelf) to dismiss — Win11 Task View.
     let backdrop_click = gtk::GestureClick::new();
@@ -258,6 +271,7 @@ fn show(forward: bool) {
                 || widget.has_css_class("metis-task-view-shelf-tile")
                 || widget.has_css_class("metis-task-view-shelf")
                 || widget.has_css_class("metis-task-view-shelf-bar")
+                || widget.has_css_class("metis-task-view-drag-preview")
             {
                 return;
             }
@@ -337,6 +351,7 @@ fn show(forward: bool) {
 
     let tv = Rc::new(TaskView {
         window: window.clone(),
+        overlay: overlay.clone(),
         apps: apps.clone(),
         shelf: shelf.clone(),
         cards: RefCell::new(Vec::new()),
@@ -345,7 +360,22 @@ fn show(forward: bool) {
         output: RefCell::new(output),
         thumbs: RefCell::new(win_thumbs),
         workspace_thumbs: RefCell::new(ws_thumbs),
+        drag_ghost: RefCell::new(None),
+        pointer: Cell::new((0.0, 0.0)),
     });
+
+    let motion = gtk::EventControllerMotion::new();
+    motion.connect_motion(move |_, x, y| {
+        OVERLAY.with(|o| {
+            let borrow = o.borrow();
+            let Some(tv) = borrow.as_ref() else {
+                return;
+            };
+            tv.pointer.set((x, y));
+            position_drag_ghost(tv, x, y);
+        });
+    });
+    window.add_controller(motion);
 
     rebuild(&tv);
     wire_keyboard(&tv);
@@ -520,25 +550,34 @@ fn build_app_card(
     let drag_begin_flag = drag_started.clone();
     let drag_title = w.title.clone();
     let drag_app_id = w.app_id.clone();
-    let drag_thumb = thumbs
-        .and_then(|t| t.textures.get(&w.id))
-        .cloned();
-    drag.connect_drag_begin(move |_, gdk_drag| {
+    let drag_thumb = thumbs.and_then(|t| t.textures.get(&w.id)).cloned();
+    let tv_drag = tv.clone();
+    drag.connect_drag_begin(move |source, _| {
         drag_begin_flag.set(true);
         APP_DRAG_ACTIVE.with(|c| c.set(true));
         card_drag.add_css_class("dragging");
-        // Cursor follows a mini card (live thumb when available).
-        if let Ok(icon) = gtk::DragIcon::for_drag(gdk_drag).downcast::<gtk::DragIcon>() {
-            icon.set_child(Some(&build_drag_preview(
-                drag_title.as_str(),
-                drag_app_id.as_deref(),
-                drag_thumb.as_ref(),
-            )));
+        // Native Wayland drag icons are unreliable on Exclusive layer-shell;
+        // show a mini card inside our overlay that tracks the pointer.
+        show_drag_ghost(
+            &tv_drag,
+            drag_title.as_str(),
+            drag_app_id.as_deref(),
+            drag_thumb.as_ref(),
+        );
+        if let Some(tex) = drag_thumb.as_ref() {
+            let hx = tex.intrinsic_width().max(1) / 2;
+            let hy = tex.intrinsic_height().max(1) / 2;
+            source.set_icon(Some(tex), hx, hy);
+        } else {
+            let paintable = gtk::WidgetPaintable::new(Some(&card_drag));
+            source.set_icon(Some(&paintable), CARD_W / 2, 24);
         }
     });
     let card_end = card.clone();
+    let tv_end = tv.clone();
     drag.connect_drag_end(move |_, _, _| {
         card_end.remove_css_class("dragging");
+        clear_drag_ghost(&tv_end);
         // Keep APP_DRAG_ACTIVE until after the shelf's click-released runs.
         glib::idle_add_local_once(|| {
             APP_DRAG_ACTIVE.with(|c| c.set(false));
@@ -549,12 +588,44 @@ fn build_app_card(
     card
 }
 
-/// Floating mini-card that tracks the pointer during an app → workspace drag.
-fn build_drag_preview(
+const DRAG_HOT_X: i32 = 80;
+const DRAG_HOT_Y: i32 = 24;
+
+fn show_drag_ghost(
+    tv: &Rc<TaskView>,
     title: &str,
     app_id: Option<&str>,
     thumb: Option<&gdk::Texture>,
-) -> gtk::Box {
+) {
+    clear_drag_ghost(tv);
+    let ghost = build_drag_preview(title, app_id, thumb);
+    ghost.set_halign(gtk::Align::Start);
+    ghost.set_valign(gtk::Align::Start);
+    ghost.set_can_target(false);
+    ghost.set_sensitive(false);
+    let (x, y) = tv.pointer.get();
+    ghost.set_margin_start((x as i32).saturating_sub(DRAG_HOT_X));
+    ghost.set_margin_top((y as i32).saturating_sub(DRAG_HOT_Y));
+    tv.overlay.add_overlay(&ghost);
+    *tv.drag_ghost.borrow_mut() = Some(ghost.upcast());
+}
+
+fn clear_drag_ghost(tv: &TaskView) {
+    if let Some(ghost) = tv.drag_ghost.borrow_mut().take() {
+        tv.overlay.remove_overlay(&ghost);
+    }
+}
+
+fn position_drag_ghost(tv: &TaskView, x: f64, y: f64) {
+    let Some(ghost) = tv.drag_ghost.borrow().clone() else {
+        return;
+    };
+    ghost.set_margin_start((x as i32).saturating_sub(DRAG_HOT_X));
+    ghost.set_margin_top((y as i32).saturating_sub(DRAG_HOT_Y));
+}
+
+/// Floating mini-card that tracks the pointer during an app → workspace drag.
+fn build_drag_preview(title: &str, app_id: Option<&str>, thumb: Option<&gdk::Texture>) -> gtk::Box {
     let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
     root.add_css_class("metis-task-view-drag-preview");
     root.set_size_request(160, 110);

@@ -128,9 +128,12 @@ fn render_workspace_thumb(
     state.wallpaper.poll_decode();
     state.wallpaper.ensure(renderer);
 
-    // Front-to-back: windows first (drawn on top), wallpaper last.
+    // Front-to-back: topmost window first (drawn on top), wallpaper last.
+    // Stack order must match the live desktop (`space.elements`), not the
+    // unordered window-id map — otherwise focusing an already-open app never
+    // changes which window appears on top in the shelf thumb.
     let mut elems: Vec<OutputStack> = Vec::new();
-    let ids = state.window_ids_on_workspace(output_name, workspace);
+    let ids = state.workspace_thumb_stack_order(output_name, workspace);
     for id in ids.into_iter().rev() {
         if state.windows.is_minimized(id) {
             continue;
