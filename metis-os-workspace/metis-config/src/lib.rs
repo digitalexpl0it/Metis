@@ -508,13 +508,14 @@ pub use weather::{
     WeatherLocation,
 };
 pub use widget_ext::{
-    default_extension_settings, discover_widget_extensions, find_widget_extension,
-    interpolate_settings, interpolate_template, is_safe_icon_name, is_safe_launch_exec,
-    is_safe_launch_id, is_safe_open_uri, is_valid_extension_id, load_widget_extension,
-    load_widget_layout, resolve_helper_exec, run_helper_snapshot, template_needs_host,
-    validate_action, validate_widget_layout, widget_ext_search_dirs, DiscoveredWidgetExt,
-    HostBindValues, WidgetExtAction, WidgetExtHelper, WidgetExtLabelStyle, WidgetExtManifest,
-    WidgetExtNode, WidgetExtSetting, WidgetExtSettingType, WIDGET_EXT_API,
-    WIDGET_EXT_HELPER_MAX_STDOUT, WIDGET_EXT_HELPER_TIMEOUT_SECS, WIDGET_EXT_MAX_COPY,
-    WIDGET_EXT_MAX_DEPTH, WIDGET_EXT_MAX_JSON_BYTES, WIDGET_EXT_MAX_NODES, WIDGET_EXT_MAX_STRING,
+    default_extension_settings, discover_widget_extensions, discover_widget_extensions_detailed,
+    find_widget_extension, interpolate_settings, interpolate_template, is_safe_icon_name,
+    is_safe_launch_exec, is_safe_launch_id, is_safe_open_uri, is_valid_extension_id,
+    load_widget_extension, load_widget_layout, resolve_helper_exec, run_helper_snapshot,
+    template_needs_host, validate_action, validate_widget_layout, widget_ext_search_dirs,
+    DiscoveredWidgetExt, HostBindValues, WidgetExtAction, WidgetExtDiscoverResult, WidgetExtHelper,
+    WidgetExtLabelStyle, WidgetExtManifest, WidgetExtNode, WidgetExtSetting, WidgetExtSettingType,
+    WIDGET_EXT_API, WIDGET_EXT_HELPER_MAX_STDOUT, WIDGET_EXT_HELPER_TIMEOUT_SECS,
+    WIDGET_EXT_MAX_COPY, WIDGET_EXT_MAX_DEPTH, WIDGET_EXT_MAX_JSON_BYTES, WIDGET_EXT_MAX_NODES,
+    WIDGET_EXT_MAX_STRING,
 };

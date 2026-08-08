@@ -16,6 +16,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ### Security
 
+- **Phase 18 C — Widget pack schema gate** — discovery rejects unknown JSON
+  fields, invalid `widget.json`, and missing declared helpers; skipped packs
+  warn + toast at widgets startup (host never crashes). Author schema:
+  `docs/WIDGET_PACK_SCHEMA.md`. SECURITY residual #3 done.
 - **Phase 18 B — IPC rate limits** — sliding 1s windows on compositor command
   IPC, event subscribe (max 16 subscribers), and command-file write/dispatch;
   excess socket requests get `Error` / `rate limited`. Widgets `METIS_IPC_TOKEN`

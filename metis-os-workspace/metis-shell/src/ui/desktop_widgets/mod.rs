@@ -66,6 +66,7 @@ pub fn init() {
     if INITED.replace(true) {
         return;
     }
+    scan_widget_packs_at_startup();
     reload_from_disk();
     watch_config_file();
     watch_monitors();
@@ -81,6 +82,30 @@ pub fn init_autonomous() {
     watch_widgets_commands();
     attach_weather();
     crate::services::watch_app_index();
+}
+
+/// Fail-closed pack scan (Phase 18 C): log skips and toast once if any pack dropped.
+fn scan_widget_packs_at_startup() {
+    let result = metis_config::discover_widget_extensions_detailed();
+    if result.skipped.is_empty() {
+        return;
+    }
+    let n = result.skipped.len();
+    tracing::warn!(
+        skipped = n,
+        packs = result.packs.len(),
+        "invalid widget extension packs skipped at startup"
+    );
+    let message = format!(
+        "{} ({n}) — {}",
+        metis_i18n::tr("Skipped invalid widget pack(s)"),
+        metis_i18n::tr("see logs")
+    );
+    crate::ui::toast::show(&crate::services::BarNotification::internal(
+        crate::services::NotificationKind::Information,
+        metis_i18n::tr("Desktop widgets"),
+        message,
+    ));
 }
 
 /// Re-read `desktop-widgets.json` and rebuild host surfaces.

@@ -82,7 +82,7 @@ Tracked as **[Phase 18](metis-os-workspace/TODO.md#phase-18--security-polish-ipc
 
 1. ~~Sanitize gaming config path/env edges (`extra_steam_paths`, launcher exports).~~ **Done** (Phase 18 A).
 2. ~~IPC sliding-window rate limits (same-UID spam / DoS); optional token TTL docs.~~ **Done** (Phase 18 B — spawn-scoped tokens documented; no wall-clock TTL).
-3. Widget pack JSON schema validation at startup (fail closed).
+3. ~~Widget pack JSON schema validation at startup (fail closed).~~ **Done** (Phase 18 C — serde-strict + layout/helper gate; author doc `docs/WIDGET_PACK_SCHEMA.md`).
 4. True per-app / per-sandbox rootless XWayland (beyond the two-bucket prototype).
 5. Default-on colour management after a wayland-rs **server/sys** fix (no local
    ObjectData UAF workaround in-tree).

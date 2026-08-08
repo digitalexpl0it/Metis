@@ -1576,12 +1576,13 @@ re-doing ScreenCast dmabuf (already shipped).
 
 ### C. Widget pack schema gate (P1)
 
-- [ ] **JSON Schema (or serde-strict) validation** for community / local widget
-      packs under `~/.local/share/metis/widgets/` (and any declared extension
-      root) at shell / desktop-widgets startup
-- [ ] **Fail closed** — drop invalid packs with a clear log/toast; do not crash
-      the shell
-- [ ] **Ship a schema document** next to Phase 14 widget docs for pack authors
+- [x] **Serde-strict validation** for community / local widget packs under
+      `~/.local/share/metis/widgets/` (and system share dirs) at discovery /
+      desktop-widgets startup (`deny_unknown_fields` + validated `widget.json`
+      + helper resolve)
+- [x] **Fail closed** — drop invalid packs with warn + startup toast; do not
+      crash the shell
+- [x] **Ship a schema document** — [`docs/WIDGET_PACK_SCHEMA.md`](../docs/WIDGET_PACK_SCHEMA.md)
 
 ### D. Per-sandbox rootless XWayland (P1 / stretch)
 

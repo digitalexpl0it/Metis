@@ -29,6 +29,7 @@ pub const WIDGET_EXT_MAX_STRING: usize = 2048;
 pub const WIDGET_EXT_MAX_COPY: usize = 4096;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WidgetExtManifest {
     pub id: String,
     pub name: String,
@@ -51,6 +52,7 @@ pub struct WidgetExtManifest {
 
 /// Out-of-process helper declared by a widget pack.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WidgetExtHelper {
     /// File name inside the pack directory (no `/`, no `..`).
     pub exec: String,
@@ -210,6 +212,7 @@ pub enum WidgetExtSettingType {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WidgetExtSetting {
     pub key: String,
     #[serde(rename = "type", default)]
@@ -226,6 +229,14 @@ pub struct DiscoveredWidgetExt {
     pub manifest: WidgetExtManifest,
     /// Directory containing manifest.json + widget.json.
     pub root: PathBuf,
+}
+
+/// Result of a fail-closed pack scan (Phase 18 C).
+#[derive(Debug, Clone, Default)]
+pub struct WidgetExtDiscoverResult {
+    pub packs: Vec<DiscoveredWidgetExt>,
+    /// `(pack_dir, reason)` for each directory that failed validation.
+    pub skipped: Vec<(PathBuf, String)>,
 }
 
 /// Validate reverse-DNS-ish extension ids (`com.metis.example.quicklinks`).
@@ -257,7 +268,13 @@ pub fn widget_ext_search_dirs() -> Vec<PathBuf> {
 
 /// Scan search dirs; later duplicates of the same id are ignored (user wins).
 pub fn discover_widget_extensions() -> Vec<DiscoveredWidgetExt> {
-    let mut out = Vec::new();
+    discover_widget_extensions_detailed().packs
+}
+
+/// Like [`discover_widget_extensions`], but also reports skipped invalid packs.
+pub fn discover_widget_extensions_detailed() -> WidgetExtDiscoverResult {
+    let mut packs = Vec::new();
+    let mut skipped = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for dir in widget_ext_search_dirs() {
         let Ok(rd) = std::fs::read_dir(&dir) else {
@@ -271,21 +288,22 @@ pub fn discover_widget_extensions() -> Vec<DiscoveredWidgetExt> {
             match load_widget_extension(&path) {
                 Ok(ext) => {
                     if seen.insert(ext.manifest.id.clone()) {
-                        out.push(ext);
+                        packs.push(ext);
                     }
                 }
                 Err(err) => {
-                    tracing::debug!(
+                    tracing::warn!(
                         path = %path.display(),
                         %err,
                         "skipping invalid widget extension pack"
                     );
+                    skipped.push((path, err));
                 }
             }
         }
     }
-    out.sort_by(|a, b| a.manifest.name.cmp(&b.manifest.name));
-    out
+    packs.sort_by(|a, b| a.manifest.name.cmp(&b.manifest.name));
+    WidgetExtDiscoverResult { packs, skipped }
 }
 
 pub fn load_widget_extension(root: &Path) -> Result<DiscoveredWidgetExt, String> {
@@ -325,6 +343,16 @@ pub fn load_widget_extension(root: &Path) -> Result<DiscoveredWidgetExt, String>
             || setting.key.contains("..")
         {
             return Err(format!("invalid settings key {:?}", setting.key));
+        }
+    }
+    // Fail closed: layout must parse and pass action/size validators at discovery.
+    load_widget_layout(root).map_err(|e| format!("widget.json: {e}"))?;
+    if let Some(helper) = &manifest.helper {
+        if resolve_helper_exec(root, helper).is_none() {
+            return Err(format!(
+                "helper.exec {:?} missing or escapes pack root",
+                helper.exec
+            ));
         }
     }
     Ok(DiscoveredWidgetExt {
@@ -598,7 +626,7 @@ pub fn default_extension_settings(
 
 /// Declarative layout nodes (widget.json).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WidgetExtNode {
     Column {
         #[serde(default)]
@@ -651,7 +679,7 @@ pub enum WidgetExtLabelStyle {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub enum WidgetExtAction {
     OpenUri {
         uri: String,
@@ -870,5 +898,104 @@ mod tests {
             "X Hi Y"
         );
         let _ = std::fs::remove_dir_all(pack.parent().unwrap());
+    }
+
+    #[test]
+    fn rejects_manifest_unknown_fields() {
+        let err = serde_json::from_str::<WidgetExtManifest>(
+            r#"{
+              "id": "com.metis.test.pack",
+              "name": "Test",
+              "api": 1,
+              "evil": true
+            }"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("unknown field") || err.contains("evil"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn rejects_layout_unknown_fields() {
+        let cases = [
+            r#"{"type":"label","text":"x","nope":1}"#,
+            r#"{"type":"button","label":"x","on_click":{"action":"open_uri","uri":"https://a.com","extra":1}}"#,
+            r#"{"type":"weird"}"#,
+        ];
+        for json in cases {
+            assert!(
+                serde_json::from_str::<WidgetExtNode>(json).is_err(),
+                "expected reject for {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_pack_with_bad_or_missing_layout() {
+        let base = std::env::temp_dir().join(format!(
+            "metis-wext-bad-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        let pack = base.join("com.metis.test.bad");
+        std::fs::create_dir_all(&pack).unwrap();
+        let manifest = r#"{
+          "id": "com.metis.test.bad",
+          "name": "Bad",
+          "api": 1
+        }"#;
+        std::fs::write(pack.join("manifest.json"), manifest).unwrap();
+        // Missing widget.json
+        assert!(load_widget_extension(&pack).is_err());
+        // Invalid layout (unsafe URI)
+        std::fs::write(
+            pack.join("widget.json"),
+            r#"{"type":"button","label":"x","on_click":{"action":"open_uri","uri":"file:///etc/passwd"}}"#,
+        )
+        .unwrap();
+        assert!(load_widget_extension(&pack).is_err());
+        // Missing helper binary when declared
+        std::fs::write(
+            pack.join("manifest.json"),
+            r#"{
+              "id": "com.metis.test.bad",
+              "name": "Bad",
+              "api": 1,
+              "helper": { "exec": "missing-helper", "poll_seconds": 5 }
+            }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            pack.join("widget.json"),
+            r#"{"type":"label","text":"ok"}"#,
+        )
+        .unwrap();
+        let err = load_widget_extension(&pack).unwrap_err();
+        assert!(err.contains("helper"), "{err}");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn accepts_example_pack_json() {
+        let quicklinks =
+            include_str!("../../assets/widgets/com.metis.example.quicklinks/manifest.json");
+        let quick_layout =
+            include_str!("../../assets/widgets/com.metis.example.quicklinks/widget.json");
+        let manifest: WidgetExtManifest = serde_json::from_str(quicklinks).expect("ql manifest");
+        assert_eq!(manifest.id, "com.metis.example.quicklinks");
+        let node: WidgetExtNode = serde_json::from_str(quick_layout).expect("ql layout");
+        assert!(validate_widget_layout(&node).is_ok());
+
+        let helper_m =
+            include_str!("../../assets/widgets/com.metis.example.helperstatus/manifest.json");
+        let helper_l =
+            include_str!("../../assets/widgets/com.metis.example.helperstatus/widget.json");
+        let hm: WidgetExtManifest = serde_json::from_str(helper_m).expect("hs manifest");
+        assert!(hm.helper.is_some());
+        let hn: WidgetExtNode = serde_json::from_str(helper_l).expect("hs layout");
+        assert!(validate_widget_layout(&hn).is_ok());
     }
 }

@@ -835,11 +835,14 @@ Launch a specific page with `metis-cmd settings <page>` (e.g. `display`,
   **Extensions (Phase 14 §E).** Install a pack under
   `~/.local/share/metis/widgets/<id>/` (or `/usr/share/metis/widgets/<id>/`) with
   `manifest.json` + `widget.json`. Settings → Desktop widgets lists discovered
-  packs in the Add dropdown. Declarative layout only (labels, icons, buttons,
-  lists); button actions: `open_uri` (**http/https only**), `launch` (desktop
-  id or a single PATH basename — no shell/argv/paths; interpreters denylisted),
-  `copy_text`. Settings placeholders apply to labels/copy text only — **not**
-  to URI/launch targets. Live host tokens in labels: `{host.time}`,
+  packs in the Add dropdown. **Author schema:** [`WIDGET_PACK_SCHEMA.md`](WIDGET_PACK_SCHEMA.md)
+  (API 1). Discovery is fail-closed (Phase 18 C): unknown JSON fields, invalid
+  layouts, or missing declared helpers skip the pack (warn + startup toast) —
+  they never crash the widgets host. Declarative layout only (labels, icons,
+  buttons, lists); button actions: `open_uri` (**http/https only**), `launch`
+  (desktop id or a single PATH basename — no shell/argv/paths; interpreters
+  denylisted), `copy_text`. Settings placeholders apply to labels/copy text only
+  — **not** to URI/launch targets. Live host tokens in labels: `{host.time}`,
   `{host.date}`, `{host.weather.temp}`, `{host.weather.unit}`,
   `{host.weather.summary}`, `{host.sys.cpu}`, `{host.sys.mem}`,
   `{host.sys.disk}` (refreshed by the widgets host; not allowed in action
