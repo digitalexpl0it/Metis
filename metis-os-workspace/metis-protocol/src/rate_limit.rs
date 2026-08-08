@@ -86,22 +86,12 @@ impl SlidingWindow {
 
 fn runtime_write_window() -> &'static Mutex<SlidingWindow> {
     static W: OnceLock<Mutex<SlidingWindow>> = OnceLock::new();
-    W.get_or_init(|| {
-        Mutex::new(SlidingWindow::new(
-            RATE_WINDOW,
-            RUNTIME_CMD_WRITES_PER_SEC,
-        ))
-    })
+    W.get_or_init(|| Mutex::new(SlidingWindow::new(RATE_WINDOW, RUNTIME_CMD_WRITES_PER_SEC)))
 }
 
 fn runtime_write_widgets_window() -> &'static Mutex<SlidingWindow> {
     static W: OnceLock<Mutex<SlidingWindow>> = OnceLock::new();
-    W.get_or_init(|| {
-        Mutex::new(SlidingWindow::new(
-            RATE_WINDOW,
-            RUNTIME_CMD_WRITES_PER_SEC,
-        ))
-    })
+    W.get_or_init(|| Mutex::new(SlidingWindow::new(RATE_WINDOW, RUNTIME_CMD_WRITES_PER_SEC)))
 }
 
 fn runtime_dispatch_window() -> &'static Mutex<SlidingWindow> {
@@ -200,11 +190,7 @@ mod tests {
                 for _ in 1..limit {
                     assert!(w.try_admit(t0));
                 }
-                assert_eq!(
-                    w.try_admit(t0),
-                    second_ok,
-                    "limit={limit} over",
-                );
+                assert_eq!(w.try_admit(t0), second_ok, "limit={limit} over",);
                 assert_eq!(w.len(t0), limit);
             }
         }

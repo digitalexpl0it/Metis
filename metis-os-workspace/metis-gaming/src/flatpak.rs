@@ -42,9 +42,8 @@ pub fn optimize_flatpak_gaming() -> Result<Vec<FlatpakOptimizeResult>, String> {
 
     let cfg = load_gaming_config();
     let gpu_env = if cfg.flatpak_gpu_env {
-        detect_hybrid_gpu(display_gpu_pci().as_deref()).map(|info| {
-            sanitize_offload_env(&offload_env_vars(&info))
-        })
+        detect_hybrid_gpu(display_gpu_pci().as_deref())
+            .map(|info| sanitize_offload_env(&offload_env_vars(&info)))
     } else {
         None
     };

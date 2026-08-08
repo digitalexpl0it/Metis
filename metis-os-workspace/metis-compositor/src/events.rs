@@ -46,10 +46,7 @@ impl EventBus {
     }
 
     pub fn subscriber_count(&self) -> usize {
-        self.subscribers
-            .lock()
-            .map(|s| s.len())
-            .unwrap_or(0)
+        self.subscribers.lock().map(|s| s.len()).unwrap_or(0)
     }
 }
 

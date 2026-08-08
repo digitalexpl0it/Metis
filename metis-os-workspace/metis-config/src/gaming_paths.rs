@@ -89,10 +89,7 @@ pub fn sanitize_offload_env_pair(key: &str, val: &str) -> Option<(String, String
 }
 
 fn is_safe_env_value(val: &str) -> bool {
-    !val.is_empty()
-        && !val.contains('\0')
-        && !val.contains('\n')
-        && !val.contains('\r')
+    !val.is_empty() && !val.contains('\0') && !val.contains('\n') && !val.contains('\r')
 }
 
 /// POSIX single-quoted shell assignment: `export KEY='…'`.

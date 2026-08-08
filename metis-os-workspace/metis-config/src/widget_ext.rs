@@ -935,10 +935,7 @@ mod tests {
 
     #[test]
     fn rejects_pack_with_bad_or_missing_layout() {
-        let base = std::env::temp_dir().join(format!(
-            "metis-wext-bad-{}",
-            std::process::id()
-        ));
+        let base = std::env::temp_dir().join(format!("metis-wext-bad-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let pack = base.join("com.metis.test.bad");
         std::fs::create_dir_all(&pack).unwrap();
@@ -968,11 +965,7 @@ mod tests {
             }"#,
         )
         .unwrap();
-        std::fs::write(
-            pack.join("widget.json"),
-            r#"{"type":"label","text":"ok"}"#,
-        )
-        .unwrap();
+        std::fs::write(pack.join("widget.json"), r#"{"type":"label","text":"ok"}"#).unwrap();
         let err = load_widget_extension(&pack).unwrap_err();
         assert!(err.contains("helper"), "{err}");
         let _ = std::fs::remove_dir_all(&base);

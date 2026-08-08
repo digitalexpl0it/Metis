@@ -1,9 +1,7 @@
 use std::io::{Read, Write};
 use std::time::Instant;
 
-use metis_protocol::{
-    CompositorCommand, CompositorEvent, IPC_MAX_ACCEPTS_PER_DRAIN,
-};
+use metis_protocol::{CompositorCommand, CompositorEvent, IPC_MAX_ACCEPTS_PER_DRAIN};
 
 use crate::events::{accept_event_subscribers, init_events_listener};
 use crate::ipc_dispatch::resolve_ipc_caps;

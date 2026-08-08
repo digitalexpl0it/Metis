@@ -7,7 +7,7 @@ pub use metis_grid::{GridLayout, GridMetrics, LayoutKind, MonitorRect, PixelRect
 pub use rate_limit::{
     try_admit_runtime_command_dispatch, try_admit_runtime_command_widgets_dispatch,
     try_admit_runtime_command_widgets_write, try_admit_runtime_command_write, SlidingWindow,
-    EVENT_SUBSCRIBE_ACCEPTS_PER_SEC, EVENT_SUBSCRIBER_CAP, IPC_MAX_ACCEPTS_PER_DRAIN,
+    EVENT_SUBSCRIBER_CAP, EVENT_SUBSCRIBE_ACCEPTS_PER_SEC, IPC_MAX_ACCEPTS_PER_DRAIN,
     IPC_REQUESTS_PER_SEC, RATE_WINDOW, RUNTIME_CMD_DISPATCH_PER_SEC, RUNTIME_CMD_WRITES_PER_SEC,
 };
 
