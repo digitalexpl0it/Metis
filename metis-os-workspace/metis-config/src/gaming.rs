@@ -46,6 +46,10 @@ pub struct GamingConfig {
     /// Optional per-title Gamescope launch args (Steam app id → flags).
     #[serde(default)]
     pub gamescope_profiles: Vec<GameScopeProfile>,
+    /// Extra host directories granted to Flatpak Steam via `--filesystem`
+    /// (canonical paths under `$HOME`, `/mnt`, `/media`, or `/run/media`).
+    #[serde(default)]
+    pub extra_steam_paths: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -62,6 +66,7 @@ impl Default for GamingConfig {
             flatpak_gpu_env: true,
             steam_prefer_native: true,
             gamescope_profiles: Vec::new(),
+            extra_steam_paths: Vec::new(),
         }
     }
 }
@@ -128,7 +133,26 @@ pub fn save_gaming_flatpak_state(state: &GamingFlatpakState) -> std::io::Result<
 }
 
 fn sanitize(cfg: GamingConfig) -> GamingConfig {
-    cfg
+    let mut out = cfg;
+    let mut paths = Vec::new();
+    for raw in out.extra_steam_paths.drain(..) {
+        match crate::gaming_paths::validate_steam_library_path(&raw) {
+            Some(canon) => {
+                let s = canon.to_string_lossy().into_owned();
+                if !paths.contains(&s) {
+                    paths.push(s);
+                }
+            }
+            None => {
+                tracing::warn!(
+                    path = %raw,
+                    "rejected gaming.json extra_steam_paths entry (fail-closed)"
+                );
+            }
+        }
+    }
+    out.extra_steam_paths = paths;
+    out
 }
 
 /// Whether `program` looks like a game or game launcher (shared with compositor).

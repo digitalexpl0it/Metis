@@ -224,6 +224,10 @@ pub struct MetisState {
     pub ipc_listener: Option<std::os::unix::net::UnixListener>,
     pub events_listener: Option<std::os::unix::net::UnixListener>,
     pub event_bus: EventBus,
+    /// Sliding-window budget for command IPC (Phase 18 B).
+    pub ipc_rate_limit: metis_protocol::SlidingWindow,
+    /// Sliding-window budget for event-socket subscribe accepts.
+    pub event_subscribe_rate_limit: metis_protocol::SlidingWindow,
     /// Skip clipboard history capture while the shell is setting the selection.
     pub clipboard_capture_suppressed: u32,
     /// Mimes from the latest client `SetSelection`, read on the next dispatch tick.
@@ -933,6 +937,8 @@ impl MetisState {
             ipc_listener: None,
             events_listener: None,
             event_bus: EventBus::default(),
+            ipc_rate_limit: metis_protocol::SlidingWindow::ipc_requests(),
+            event_subscribe_rate_limit: metis_protocol::SlidingWindow::event_subscribes(),
             clipboard_capture_suppressed: 0,
             pending_clipboard_mimes: None,
             pending_clipboard_reads: Vec::new(),
@@ -2309,7 +2315,11 @@ impl MetisState {
                     // Configure events are queued during dispatch; clients block until flushed.
                     let _ = state.display_handle.flush_clients();
                     if let Some(ref listener) = state.events_listener {
-                        accept_event_subscribers(listener, &state.event_bus);
+                        accept_event_subscribers(
+                            listener,
+                            &state.event_bus,
+                            &mut state.event_subscribe_rate_limit,
+                        );
                     }
                     Ok(PostAction::Continue)
                 },

@@ -12,6 +12,7 @@ pub mod decorations;
 pub mod desktop_widgets;
 pub mod game_rules;
 pub mod gaming;
+pub mod gaming_paths;
 pub mod gpu_offload;
 pub mod graphics;
 pub mod input;
@@ -437,6 +438,10 @@ pub use gaming::{
     load_gaming_config, load_gaming_flatpak_state, on_battery, prefer_dgpu_for_launch,
     save_default_gaming_config, save_gaming_config, save_gaming_flatpak_state, GameScopeProfile,
     GamingConfig, GamingFlatpakState, GraphicsMode,
+};
+pub use gaming_paths::{
+    flatpak_env_arg, sanitize_offload_env, sanitize_offload_env_pair, shell_export_line,
+    validate_steam_library_path, OFFLOAD_ENV_KEY_ALLOWLIST,
 };
 pub use gpu_offload::{
     detect_hybrid_gpu, display_gpu_pci, offload_env_vars, GpuOffloadKind, HybridGpuInfo,

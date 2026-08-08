@@ -15,8 +15,10 @@ file is the short map for auditors and contributors.
 | Runtime dir | `$XDG_RUNTIME_DIR/metis/` — mode `0700`; fails closed if `XDG_RUNTIME_DIR` is unset (no `/tmp/metis`) |
 | Sockets / command files | Mode `0600` |
 | Accept path | Linux `SO_PEERCRED` — peer UID must match the compositor euid (`metis_protocol::accept_same_euid`) |
-| Widgets process | Short-lived `METIS_IPC_TOKEN` → **widgets** capability only (no EndSession, input inject, capture overlays) |
+| Widgets process | Spawn-scoped `METIS_IPC_TOKEN` → **widgets** capability only (no EndSession, input inject, capture overlays); cleared when the widgets process exits (no wall-clock TTL) |
 | Command files | Verb allowlist + 512-byte cap (`parse_runtime_command`); same-UID poke channel, weaker than socket+token |
+| Rate limits | Sliding 1s windows on command IPC, event subscribe, and command-file write/dispatch (Phase 18 B) — bounds same-UID spam, not a sandbox |
+| Event bus | Cap on long-lived subscribers (16) |
 | Session lock | Rejects focus / launch / clipboard / capture / workspace / session-control and remote-input inject until unlock |
 
 Details: [User Guide — Session IPC trust model](docs/USER_GUIDE.md#session-ipc-trust-model),
@@ -37,9 +39,12 @@ Details: [User Guide — Window management](docs/USER_GUIDE.md#5-window-manageme
 - `metis-gamingd` / Flatpak optimize uses `Command::new("flatpak").args(...)` with a fixed app/flag allowlist — no shell interpolation of untrusted strings.
 - Optimize requires explicit consent (`optimize-gaming yes` / Settings dialog).
 - `gaming-flatpak.json` is a ledger of applied overrides, not a command script source.
-
-Residual polish: stricter validation of user-editable paths such as
-`extra_steam_paths` and generated launcher env lines.
+- **`extra_steam_paths`** (in `gaming.json`) are fail-closed: `~` expands via `$HOME` only,
+  paths are `canonicalize`d, must be directories, and may only resolve under `$HOME`,
+  `/mnt`, `/media`, or `/run/media`. Invalid entries are dropped with a warning.
+- Flatpak `--env` and `launch-steam` exports allowlist GPU offload keys only
+  (`DRI_PRIME`, `__NV_PRIME_RENDER_OFFLOAD`, …); values reject NUL/newlines; shell
+  exports use POSIX single-quoting.
 
 Details: [User Guide — Steam & Proton](docs/USER_GUIDE.md#steam-proton--steamos-class-gaming),
 [Ubuntu/dev — Gaming](docs/UBUNTU_DEV.md#steam--proton-gaming).
@@ -75,8 +80,8 @@ trust-boundary tests, panic triage, command-file allowlist) are shipped — see
 
 Tracked as **[Phase 18](metis-os-workspace/TODO.md#phase-18--security-polish-ipc-dos-isolation-stretch)**:
 
-1. Sanitize gaming config path/env edges (`extra_steam_paths`, launcher exports).
-2. IPC sliding-window rate limits (same-UID spam / DoS); optional token TTL docs.
+1. ~~Sanitize gaming config path/env edges (`extra_steam_paths`, launcher exports).~~ **Done** (Phase 18 A).
+2. ~~IPC sliding-window rate limits (same-UID spam / DoS); optional token TTL docs.~~ **Done** (Phase 18 B — spawn-scoped tokens documented; no wall-clock TTL).
 3. Widget pack JSON schema validation at startup (fail closed).
 4. True per-app / per-sandbox rootless XWayland (beyond the two-bucket prototype).
 5. Default-on colour management after a wayland-rs **server/sys** fix (no local

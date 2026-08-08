@@ -3,6 +3,8 @@
 **Current phase:** Phases **1–17** are complete for their shipped product bars
 (Phase 17 Task View / Super+Tab shipped).
 **Phase 18** (security / IPC / isolation polish) is open — see below.
+**Phase 19** (Gaming Setup UX — guided drivers + first-run polish) is planned
+after Phase 18 A–C priority work.
 **Phase 16** (Engineering hardening) closed 2026-08-02 — PR CI quality gate,
 trust-boundary tests, compositor panic triage, portal coverage, `cargo-deny`,
 command-file allowlist, PERF_AUDIT refresh, shell poll D-Bus path, packaging CI
@@ -1550,26 +1552,27 @@ re-doing ScreenCast dmabuf (already shipped).
 
 ### A. Gaming / config path edges (P0)
 
-- [ ] **Canonicalize `extra_steam_paths`** — `std::fs::canonicalize` (or
+- [x] **Canonicalize `extra_steam_paths`** — `std::fs::canonicalize` (or
       equivalent fail-closed resolve) before any filesystem / env use; reject
-      paths that escape allowed roots
-- [ ] **Sanitize launcher env exports** — validate generated gaming / Flatpak
-      launch environment lines (no path traversal via user-editable profiles)
-- [ ] **Tests** — table-driven reject/accept for malicious relative and
-      symlink-escape paths
-- [ ] **Docs** — SECURITY residual #1 → done; USER_GUIDE / UBUNTU_DEV note
+      paths that escape allowed roots (`$HOME`, `/mnt`, `/media`, `/run/media`)
+- [x] **Sanitize launcher env exports** — validate generated gaming / Flatpak
+      launch environment lines (offload-key allowlist + shell-safe quoting)
+- [x] **Tests** — table-driven reject/accept for malicious relative and
+      symlink-escape paths (`metis-config` `gaming_paths`)
+- [x] **Docs** — SECURITY residual #1 → done; USER_GUIDE note on `extra_steam_paths`
 
 ### B. IPC rate limits & token lifecycle (P0)
 
-- [ ] **Sliding-window rate limit** on compositor Unix-socket accept/dispatch
-      (per-connection + optional global). Valid same-UID clients can still spam;
-      bound parser / event-bus work without changing the trust model
-- [ ] **Command-file poke channel** — reuse or mirror the same rate budget so
-      `$XDG_RUNTIME_DIR/metis/command*` cannot be a cheap DoS path
-- [ ] **`METIS_IPC_TOKEN` TTL / idle invalidate** (optional) — widgets tokens are
-      already spawn-scoped; document and, if useful, expire long-lived handles
-- [ ] **Unit tests** — rate-limit helper table tests (no live Wayland loop)
-- [ ] **Docs** — USER_GUIDE IPC trust model + SECURITY
+- [x] **Sliding-window rate limit** on compositor Unix-socket accept/dispatch
+      (global 1s window + max accepts per drain). Valid same-UID clients can
+      still spam; bound parser / event-bus work without changing the trust model
+- [x] **Command-file poke channel** — mirror budgets on `write_runtime_command*`
+      and shell poller dispatch so `$XDG_RUNTIME_DIR/metis/command*` is not a
+      cheap DoS path
+- [x] **`METIS_IPC_TOKEN` TTL / idle invalidate** (optional) — documented as
+      spawn-scoped only (cleared on widgets exit); no wall-clock TTL
+- [x] **Unit tests** — rate-limit helper table tests (`metis-protocol` `rate_limit`)
+- [x] **Docs** — USER_GUIDE IPC trust model + SECURITY residual #2
 
 ### C. Widget pack schema gate (P1)
 
@@ -1607,6 +1610,67 @@ re-doing ScreenCast dmabuf (already shipped).
 
 **Dependencies:** Phase 15 IPC / XWayland / gaming; Phase 16 trust-boundary
 tests; Phase 14 widgets process split.
+
+---
+
+## Phase 19 — Gaming Setup UX (drivers + first-run polish)
+
+Productize “install Metis → Gaming setup → play” so hybrid / Steam / Proton
+setup feels simpler than Pop!_OS or CachyOS *without* editing Steam’s per-game
+Launch Options for GPU (compositor offload already owns that).
+
+**Goals:** guided, consent-based driver and dependency install; clear health →
+fix; onboarding copy that Metis handles GPU routing; Metis-owned optional
+tweaks (not Steam VDF writes).
+
+**Non-goals:** auto-writing Steam Launch Options / `localconfig.vdf`; silent
+NVIDIA install on first login; shipping a Metis driver PPA or `.run` installers;
+out-kernelling CachyOS.
+
+### A. Guided GPU drivers (P0)
+
+- [ ] **Detect** — NVIDIA (PCI + `/proc/driver/nvidia`), AMD/Intel Mesa, hybrid
+      vs single GPU; surface in Settings → Gaming health + setup wizard
+- [ ] **NVIDIA (opt-in)** — guided `ubuntu-drivers` install via pkexec (recommended
+      package); matching **i386** GL/Vulkan libs for the installed series; hard
+      **reboot required** banner; re-run health after reboot. No blind auto-fix
+      today stays until this ships with explicit consent UI
+- [ ] **AMD / Intel** — ensure `mesa-vulkan-drivers` (+ `:i386`); no separate
+      “proprietary AMD gaming driver” path
+- [ ] **Refuse silent install** — never run driver install from session start;
+      require Settings / wizard confirmation
+- [ ] **Docs** — USER_GUIDE Gaming: what Metis installs vs what Steam/Proton own
+
+### B. Gaming Setup wizard polish (P0)
+
+- [ ] **One-shot flow** — Steam (prefer native) → Vulkan/i386 → controllers /
+      `steam-devices` / input group → GameMode → GPU mode (Auto) → driver step
+      when needed → “you’re ready”
+- [ ] **Health → Fix** — expand one-click fixes for safe packages; driver step
+      uses the guided path from §A
+- [ ] **Copy** — state clearly that Launch Options stay empty for GPU; Metis
+      session offload handles hybrid
+
+### C. Metis-owned optional tweaks (P1)
+
+- [ ] **Wire `gamescope_profiles`** (or equivalent) from `gaming.json` when Metis
+      launches Steam/Big Picture — do not write Steam Properties
+- [ ] **Optional toggles** — suggest MangoHud / Gamescope for Big Picture as
+      Metis settings, applied via env/wrapper when Metis starts the client
+- [ ] **Settings UI** for `extra_steam_paths` (Flatpak only) — path picker using
+      Phase 18 A validation (optional; manual JSON already works)
+
+### D. Explicitly deferred / rejected
+
+- Auto-fill Steam Launch Options text box for `DRI_PRIME` / NVIDIA offload
+- Background proprietary driver install without consent
+- Competing with Cachy on custom kernels / schedulers
+
+**Suggested order:** A → B → C.
+
+**Dependencies:** Phase 15/Gaming Platform health + `metis-gaming` pkexec
+install helpers; Phase 18 A path/env sanitization (done); Ubuntu `ubuntu-drivers`
+/ apt (packaging target).
 
 ---
 

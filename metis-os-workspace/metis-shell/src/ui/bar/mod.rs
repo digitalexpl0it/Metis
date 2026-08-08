@@ -545,6 +545,11 @@ fn watch_compositor_dismiss() {
                     return glib::ControlFlow::Continue;
                 }
             };
+            if !metis_protocol::try_admit_runtime_command_dispatch() {
+                tracing::warn!("bar runtime command dispatch rate limited");
+                let _ = std::fs::remove_file(&path);
+                return glib::ControlFlow::Continue;
+            }
             let verb = parsed.verb;
             let arg = parsed.arg;
             match verb {
@@ -659,7 +664,7 @@ fn watch_compositor_dismiss() {
                         || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some()
                     {
                         std::thread::spawn(|| {
-                            let _ = metis_gaming::optimize_flatpak_gaming(&[]);
+                            let _ = metis_gaming::optimize_flatpak_gaming();
                             let _ = metis_gaming::ensure_steam_launcher();
                         });
                     } else {

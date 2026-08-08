@@ -867,15 +867,23 @@ fn watch_widgets_commands() {
                     cmd,
                     metis_protocol::WIDGETS_RUNTIME_VERBS,
                 ) {
-                    Ok(parsed) => match parsed.verb {
-                        "reload-desktop-widgets" => reload(),
-                        "reload-theme" => {
-                            let _ = crate::ui::theme::init_theme();
+                    Ok(parsed) => {
+                        if !metis_protocol::try_admit_runtime_command_widgets_dispatch() {
+                            tracing::warn!("widgets runtime command dispatch rate limited");
+                        } else {
+                            match parsed.verb {
+                                "reload-desktop-widgets" => reload(),
+                                "reload-theme" => {
+                                    let _ = crate::ui::theme::init_theme();
+                                }
+                                "reload-locale" => apply_locale_reload(),
+                                "reload-weather" => crate::services::weather::weather_refresh(),
+                                other => {
+                                    tracing::debug!(%other, "unhandled widgets runtime command")
+                                }
+                            }
                         }
-                        "reload-locale" => apply_locale_reload(),
-                        "reload-weather" => crate::services::weather::weather_refresh(),
-                        other => tracing::debug!(%other, "unhandled widgets runtime command"),
-                    },
+                    }
                     Err(err) => tracing::warn!(%err, "rejected widgets runtime command"),
                 }
                 let _ = std::fs::remove_file(&path);

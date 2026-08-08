@@ -297,6 +297,10 @@ cap) at write and read time — see `metis_protocol::parse_runtime_command`. Tha
 limits drive-by pokes; it is not a security boundary against same-UID attackers
 (use the socket + `METIS_IPC_TOKEN` widgets channel for capability separation).
 
+Phase 18 B adds sliding-window rate limits on command IPC, event subscribe, and
+command-file write/dispatch (see User Guide — Session IPC trust model). Widgets
+tokens remain spawn-scoped (cleared on widgets exit), not wall-clock TTL.
+
 ### Release build profiles
 
 Default **`release`** uses thin LTO, single codegen unit, and strips symbols —

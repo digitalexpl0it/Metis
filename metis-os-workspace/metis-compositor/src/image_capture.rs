@@ -376,7 +376,9 @@ where
             output_name: Some(output.name().as_str()),
             skip_night_light: true,
         },
-        &["metis-screenshot"],
+        // Omit the screenshot picker and the in-session recording stop bar so
+        // whole-screen captures / recordings do not bake UI chrome into the file.
+        &["metis-screenshot", "metis-screenshot-record"],
         true,
     );
     if draw_cursor {

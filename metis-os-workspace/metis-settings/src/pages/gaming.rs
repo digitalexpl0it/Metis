@@ -416,7 +416,7 @@ fn show_optimize_confirm_dialog(parent: &gtk::Window, on_confirm: impl Fn() + 's
 fn run_optimize_pass() -> String {
     let mut notes = Vec::new();
 
-    match metis_gaming::optimize_flatpak_gaming(&[]) {
+    match metis_gaming::optimize_flatpak_gaming() {
         Ok(results) if results.is_empty() => {
             notes.push("No Flatpak Steam/Lutris/Heroic installs to optimize".into());
         }
@@ -578,7 +578,7 @@ fn show_gaming_setup_dialog(
             let status_tx = status_tx.clone();
             let ui_tx = ui_tx.clone();
             std::thread::spawn(move || {
-                let flatpak = metis_gaming::optimize_flatpak_gaming(&[]);
+                let flatpak = metis_gaming::optimize_flatpak_gaming();
                 let launcher = metis_gaming::ensure_steam_launcher();
                 let _ = metis_config::mark_gaming_setup_complete();
                 metis_gaming::session::request_reload();

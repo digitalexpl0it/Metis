@@ -1,7 +1,15 @@
 //! Shared JSON IPC contracts and runtime helpers between compositor and shell.
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
 
+mod rate_limit;
+
 pub use metis_grid::{GridLayout, GridMetrics, LayoutKind, MonitorRect, PixelRect};
+pub use rate_limit::{
+    try_admit_runtime_command_dispatch, try_admit_runtime_command_widgets_dispatch,
+    try_admit_runtime_command_widgets_write, try_admit_runtime_command_write, SlidingWindow,
+    EVENT_SUBSCRIBE_ACCEPTS_PER_SEC, EVENT_SUBSCRIBER_CAP, IPC_MAX_ACCEPTS_PER_DRAIN,
+    IPC_REQUESTS_PER_SEC, RATE_WINDOW, RUNTIME_CMD_DISPATCH_PER_SEC, RUNTIME_CMD_WRITES_PER_SEC,
+};
 
 /// Commands sent from the Metis shell to the compositor.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -629,6 +637,12 @@ pub fn parse_runtime_command<'a>(
 pub fn write_runtime_command(action: &str) -> std::io::Result<()> {
     parse_runtime_command(action, BAR_RUNTIME_VERBS)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    if !try_admit_runtime_command_write() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "runtime command write rate limited",
+        ));
+    }
     write_private_file(&runtime_command_path(), format!("{action}\n"))
 }
 
@@ -636,6 +650,12 @@ pub fn write_runtime_command(action: &str) -> std::io::Result<()> {
 pub fn write_runtime_command_widgets(action: &str) -> std::io::Result<()> {
     parse_runtime_command(action, WIDGETS_RUNTIME_VERBS)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
+    if !try_admit_runtime_command_widgets_write() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "runtime command-widgets write rate limited",
+        ));
+    }
     write_private_file(&runtime_command_path_widgets(), format!("{action}\n"))
 }
 

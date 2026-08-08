@@ -426,6 +426,12 @@ Flatpak setup in `~/.config/metis/gaming.json` instead of env-var recipes:
 - **Auto GameMode** — registers detected game PIDs with `gamemoded` when installed.
 - **Flatpak GPU env** — applies NVIDIA/Mesa offload vars to Steam, Lutris, and Heroic
   via idempotent `flatpak override` (state in `gaming-flatpak.json`).
+- **Extra Steam library mounts** — optional `extra_steam_paths` in `gaming.json`
+  (string array). Each path must exist as a directory and resolve under `$HOME`,
+  `/mnt`, `/media`, or `/run/media` (`~` expands via `$HOME` only). Invalid
+  entries are dropped on load; survivors are passed to Flatpak Steam as
+  `--filesystem`. No Settings UI yet — edit the JSON by hand, then run
+  **Optimize for gaming** or `metis-cmd optimize-gaming`.
 - **Optimize for gaming** — one-click health check + Flatpak fixes.
 - **First-run wizard** — optional Gaming step in onboarding; re-run from Settings.
 
@@ -1106,17 +1112,26 @@ end session); that is the intended same-session control plane. If
 `XDG_RUNTIME_DIR` is unset, Metis fails closed rather than falling back to
 `/tmp/metis`.
 
-The isolated **desktop-widgets** process is spawned with a short-lived
+The isolated **desktop-widgets** process is spawned with a spawn-scoped
 `METIS_IPC_TOKEN` and may only use a **widgets** capability (Launch, list
 windows/outputs, light reloads) — it cannot EndSession, inject input, or start
-capture overlays. The edge bar and Settings keep the full-privilege channel
-(no token).
+capture overlays. The token is cleared when the widgets process exits or is
+respawned (no wall-clock / idle TTL). The edge bar and Settings keep the
+full-privilege channel (no token).
 
 **Command files** (`command`, `command-widgets`) are a same-UID poke channel
 (weaker than the socket + token path). Writers and readers enforce a strict
 verb allowlist, a 512-byte length cap, and reject unknown verbs. That reduces
 accidental or drive-by shell pokes; it does **not** protect against a malicious
 process already running as your UID (it can still use the full IPC socket).
+
+**Rate limits (Phase 18 B).** Same-UID clients can still connect, but Metis
+bounds spam with sliding one-second windows: compositor command IPC (~120
+requests/s, max 32 accepts per drain tick; excess gets a JSON
+`Error` / `rate limited` reply), event-bus subscribe accepts (cap 16
+subscribers), and command-file writes/dispatches. Direct `printf` to the
+command file (e.g. `metis-cmd.sh`) bypasses the write helper; the shell poller
+still rate-limits dispatch before running expensive verbs.
 
 While the session is locked, IPC also rejects focus/launch/clipboard/capture/
 workspace/session-control and remote-input inject commands. Desktop sharing also
@@ -1161,7 +1176,7 @@ mod preference is set yet. On a real Metis session, the default modifier is Supe
 | `startup.json` | Session startup apps: master enable + desktop ids (empty by default; Settings → Startup) |
 | `remote.json` | Desktop sharing: enabled, backend (`gnome_rdp` default / `rustdesk`), auto-start, LAN-only + firewall state |
 | `dashboard.json` | Control Center: enabled, widgets, height %, refresh, confirm-before-kill, process monitor |
-| `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env |
+| `gaming.json` | Graphics mode, on-battery iGPU preference, auto performance/GameMode, Flatpak GPU env, optional `extra_steam_paths` |
 | `gaming-flatpak.json` | Record of applied Flatpak gaming overrides (managed by `metis-gaming`) |
 | `outputs.json` | Per-output scale, resolution/refresh, arrangement (`layout_x`/`layout_y`), `display_mode` / `mirror_source`, VRR / HDR toggles, night-light prefs |
 

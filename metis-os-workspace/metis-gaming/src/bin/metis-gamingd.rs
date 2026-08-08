@@ -47,7 +47,7 @@ fn check_runtime_command() {
         "reload-gaming" => tracing::info!("gamingd: reload-gaming"),
         "optimize-gaming" => {
             if parsed.arg == "yes" || std::env::var_os("METIS_GAMING_OPTIMIZE_YES").is_some() {
-                match metis_gaming::optimize_flatpak_gaming(&[]) {
+                match metis_gaming::optimize_flatpak_gaming() {
                     Ok(r) => tracing::info!(?r, "gamingd: flatpak optimize done"),
                     Err(err) => tracing::warn!(%err, "gamingd: flatpak optimize failed"),
                 }

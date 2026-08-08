@@ -4,8 +4,9 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use metis_config::{
-    detect_hybrid_gpu, display_gpu_pci, load_gaming_config, load_gaming_flatpak_state,
-    offload_env_vars, save_gaming_flatpak_state, GamingFlatpakState,
+    detect_hybrid_gpu, display_gpu_pci, flatpak_env_arg, load_gaming_config,
+    load_gaming_flatpak_state, offload_env_vars, sanitize_offload_env, save_gaming_flatpak_state,
+    shell_export_line, validate_steam_library_path, GamingFlatpakState,
 };
 
 const GAMING_APPS: &[(&str, &[&str])] = &[
@@ -32,19 +33,34 @@ pub struct FlatpakOptimizeResult {
     pub message: String,
 }
 
-pub fn optimize_flatpak_gaming(
-    extra_steam_paths: &[String],
-) -> Result<Vec<FlatpakOptimizeResult>, String> {
+/// Apply gaming Flatpak overrides using sanitized `gaming.json` `extra_steam_paths`
+/// and allowlisted GPU offload `--env` values.
+pub fn optimize_flatpak_gaming() -> Result<Vec<FlatpakOptimizeResult>, String> {
     if !crate::detect::binary_in_path("flatpak") {
         return Err("flatpak not installed".into());
     }
 
     let cfg = load_gaming_config();
     let gpu_env = if cfg.flatpak_gpu_env {
-        detect_hybrid_gpu(display_gpu_pci().as_deref()).map(|info| offload_env_vars(&info))
+        detect_hybrid_gpu(display_gpu_pci().as_deref()).map(|info| {
+            sanitize_offload_env(&offload_env_vars(&info))
+        })
     } else {
         None
     };
+
+    let mut steam_paths = Vec::new();
+    for raw in &cfg.extra_steam_paths {
+        match validate_steam_library_path(raw) {
+            Some(canon) => steam_paths.push(canon.to_string_lossy().into_owned()),
+            None => {
+                tracing::warn!(
+                    path = %raw,
+                    "skipping invalid extra_steam_paths entry for Flatpak Steam"
+                );
+            }
+        }
+    }
 
     let mut results = Vec::new();
     let mut optimized = Vec::new();
@@ -59,12 +75,16 @@ pub fn optimize_flatpak_gaming(
         }
         if let Some(env) = &gpu_env {
             for (key, val) in env {
-                args.push("--env".into());
-                args.push(format!("{key}={val}"));
+                if let Some(kv) = flatpak_env_arg(key, val) {
+                    args.push("--env".into());
+                    args.push(kv);
+                } else {
+                    tracing::warn!(%key, "skipped unsafe Flatpak --env pair");
+                }
             }
         }
         if *app_id == "com.valvesoftware.Steam" {
-            for path in extra_steam_paths {
+            for path in &steam_paths {
                 args.push("--filesystem".into());
                 args.push(path.clone());
             }
@@ -112,8 +132,12 @@ pub fn ensure_steam_launcher() -> std::io::Result<std::path::PathBuf> {
     let cfg = load_gaming_config();
     if cfg.flatpak_gpu_env {
         if let Some(info) = detect_hybrid_gpu(display_gpu_pci().as_deref()) {
-            for (key, val) in offload_env_vars(&info) {
-                script.push_str(&format!("export {key}={val}\n"));
+            for (key, val) in sanitize_offload_env(&offload_env_vars(&info)) {
+                if let Some(line) = shell_export_line(&key, &val) {
+                    script.push_str(&line);
+                } else {
+                    tracing::warn!(%key, "skipped unsafe launch-steam export");
+                }
             }
         }
     }

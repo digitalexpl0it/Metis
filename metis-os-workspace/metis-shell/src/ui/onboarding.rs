@@ -979,7 +979,7 @@ fn apply_onboarding_gaming_prefs() {
     let _ = metis_config::save_gaming_config(&cfg);
     if GAMING_OPTIMIZE.get() {
         std::thread::spawn(|| {
-            let _ = metis_gaming::optimize_flatpak_gaming(&[]);
+            let _ = metis_gaming::optimize_flatpak_gaming();
             let _ = metis_gaming::ensure_steam_launcher();
         });
     }

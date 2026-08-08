@@ -5,6 +5,35 @@ All notable changes to Metis are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-08-07]
+
+### Added
+
+- **Phase 19 roadmap** — Gaming Setup UX in `TODO.md`: guided NVIDIA
+  (`ubuntu-drivers` + i386) / Mesa Vulkan install with consent + reboot,
+  first-run wizard polish, Metis-owned Gamescope tweaks; explicitly rejects
+  Steam Launch Options autofill and silent driver installs.
+
+### Security
+
+- **Phase 18 B — IPC rate limits** — sliding 1s windows on compositor command
+  IPC, event subscribe (max 16 subscribers), and command-file write/dispatch;
+  excess socket requests get `Error` / `rate limited`. Widgets `METIS_IPC_TOKEN`
+  documented as spawn-scoped (no wall-clock TTL). SECURITY residual #2 done.
+- **Phase 18 A — Gaming path / env sanitization** — `extra_steam_paths` in
+  `gaming.json` are fail-closed (canonicalize; directories only; allowed under
+  `$HOME`, `/mnt`, `/media`, `/run/media`). Flatpak `--env` and `launch-steam`
+  exports allowlist GPU offload keys and reject unsafe values; shell exports are
+  POSIX single-quoted. SECURITY residual #1 marked done.
+
+### Fixed
+
+- **Screen recording stop bar** — compositor capture excludes the
+  `metis-screenshot-record` layer (same as the screenshot picker), so the
+  bottom Stop control no longer appears in whole-screen recordings.
+- **Flatpak Steam library mounts** — `optimize_flatpak_gaming` now reads
+  sanitized `extra_steam_paths` from config instead of an unused empty slice.
+
 ## [2026-08-06]
 
 ### Added

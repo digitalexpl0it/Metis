@@ -1,6 +1,9 @@
 use std::io::{Read, Write};
+use std::time::Instant;
 
-use metis_protocol::{CompositorCommand, CompositorEvent};
+use metis_protocol::{
+    CompositorCommand, CompositorEvent, IPC_MAX_ACCEPTS_PER_DRAIN,
+};
 
 use crate::events::{accept_event_subscribers, init_events_listener};
 use crate::ipc_dispatch::resolve_ipc_caps;
@@ -26,12 +29,16 @@ pub fn init_ipc(state: &mut MetisState) -> Result<(), Box<dyn std::error::Error>
 
 pub fn drain_ipc(state: &mut MetisState) {
     if let Some(ref listener) = state.events_listener {
-        accept_event_subscribers(listener, &state.event_bus);
+        accept_event_subscribers(
+            listener,
+            &state.event_bus,
+            &mut state.event_subscribe_rate_limit,
+        );
     }
 
     let mut pending = Vec::new();
     if let Some(listener) = state.ipc_listener.as_ref() {
-        loop {
+        while pending.len() < IPC_MAX_ACCEPTS_PER_DRAIN {
             match metis_protocol::accept_same_euid(listener) {
                 Ok(metis_protocol::AcceptPeer::Ready(stream)) => pending.push(stream),
                 Ok(metis_protocol::AcceptPeer::Rejected) => {
@@ -46,7 +53,21 @@ pub fn drain_ipc(state: &mut MetisState) {
         }
     }
 
+    let now = Instant::now();
     for mut stream in pending {
+        if !state.ipc_rate_limit.try_admit(now) {
+            tracing::warn!("IPC: rate limited (sliding window)");
+            let reply = serde_json::to_string(&CompositorEvent::Error {
+                message: "rate limited".into(),
+            })
+            .unwrap_or_default();
+            let timeout = std::time::Duration::from_millis(50);
+            let _ = stream.set_write_timeout(Some(timeout));
+            let _ = writeln!(stream, "{reply}");
+            let _ = stream.flush();
+            continue;
+        }
+
         // A freshly-accepted connection may not have its command bytes available
         // in this same drain pass (the client connects, then writes). Reading
         // non-blocking here dropped the connection without a reply whenever we

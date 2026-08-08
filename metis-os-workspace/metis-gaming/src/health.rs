@@ -148,7 +148,7 @@ pub fn run_health_check() -> HealthCheck {
 pub fn auto_fix_item(id: &str) -> Result<String, String> {
     match id {
         "flatpak_steam" => {
-            let results = optimize_flatpak_gaming(&[])?;
+            let results = optimize_flatpak_gaming()?;
             Ok(results
                 .iter()
                 .map(|r| format!("{}: {}", r.app_id, r.message))
@@ -177,7 +177,7 @@ fn install_steam() -> Result<String, String> {
             .status()
             .map_err(|e| format!("failed to start flatpak: {e}"))?;
         if status.success() {
-            let _ = optimize_flatpak_gaming(&[]);
+            let _ = optimize_flatpak_gaming();
             return Ok("Installed Flatpak Steam (overrides applied when needed)".into());
         }
         // Fall through to apt if Flatpak remotes aren't set up.
